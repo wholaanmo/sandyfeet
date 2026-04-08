@@ -325,9 +325,9 @@ export default function DayTourCalendar() {
                           cursorClass = 'cursor-not-allowed';
                           titleText = 'Cannot book for tomorrow (must book at least 1 day in advance)';
                         } else if (isAdminUnavailable) {
-                          bgColor = 'bg-white';
-                          textColor = 'text-textPrimary';
-                          borderClass = 'border border-gray-200';
+                          bgColor = 'bg-orange-100';
+                          textColor = 'text-orange-700';
+                          borderClass = 'border border-orange-200';
                           cursorClass = 'cursor-not-allowed';
                           titleText = 'Date is unavailable (marked by admin)';
                         } else if (isFullyBooked) {
@@ -364,10 +364,6 @@ export default function DayTourCalendar() {
                             <span className={`absolute inset-0 flex items-center justify-center text-sm font-medium ${textColor}`}>
                               {day.getDate()}
                             </span>
-                            {/* Orange dot for admin-unavailable dates */}
-                            {isAdminUnavailable && (
-                              <span className="absolute bottom-1 left-1/2 transform -translate-x-1/2 w-1.5 h-1.5 bg-orange-500 rounded-full"></span>
-                            )}
                             {/* Orange dot for low availability (only when not admin-unavailable) */}
                             {showLowAvailabilityDot && !isAdminUnavailable && (
                               <span className="absolute bottom-1 left-1/2 transform -translate-x-1/2 w-1.5 h-1.5 bg-orange-400 rounded-full"></span>

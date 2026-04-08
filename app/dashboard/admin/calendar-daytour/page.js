@@ -378,9 +378,9 @@ export default function AdminDayTourCalendar() {
                       titleText = 'Past date';
                       break;
                     case 'unavailable':
-                      bgColor = 'bg-white';
-                      textColor = 'text-textPrimary';
-                      borderClass = 'border border-gray-200';
+                      bgColor = 'bg-orange-100';
+                      textColor = 'text-orange-700';
+                      borderClass = 'border border-orange-200';
                       cursorClass = 'cursor-not-allowed';
                       titleText = 'Marked as Unavailable (cannot be modified)';
                       break;
@@ -412,10 +412,6 @@ export default function AdminDayTourCalendar() {
                       <span className={`absolute inset-0 flex items-center justify-center text-sm font-medium ${textColor}`}>
                         {day.getDate()}
                       </span>
-                      {/* Orange dot indicator for unavailable dates */}
-                      {status === 'unavailable' && (
-                        <span className="absolute bottom-1 left-1/2 transform -translate-x-1/2 w-2 h-2 bg-orange-500 rounded-full"></span>
-                      )}
                     </button>
                   );
                 })}

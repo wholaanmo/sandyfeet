@@ -3,7 +3,7 @@
 
 import { useState, useEffect } from 'react';
 import { db } from '@/lib/firebase';
-import { collection, query, where, doc, onSnapshot, addDoc, deleteDoc, updateDoc } from 'firebase/firestore';
+import { collection, query, where, doc, onSnapshot, addDoc, deleteDoc } from 'firebase/firestore';
 import { logAdminAction } from '@/lib/auditLogger';
 import Link from 'next/link';
 
@@ -22,7 +22,8 @@ export default function AdminCalendar() {
   const [unitsBlockInputError, setUnitsBlockInputError] = useState('');
   const [removeConfirm, setRemoveConfirm] = useState(null);
   const [actionLoading, setActionLoading] = useState(false);
-  const [unavailableDates, setUnavailableDates] = useState([]);
+  const [unavailableEntries, setUnavailableEntries] = useState([]);
+  const [totalBlockedUnitsByDate, setTotalBlockedUnitsByDate] = useState({});
 
   // Fetch rooms list (only non-archived)
   useEffect(() => {
@@ -120,6 +121,18 @@ export default function AdminCalendar() {
     return day[0] || 0;
   };
 
+  // Calculate total blocked units per date for display
+  const calculateTotalBlockedUnitsByDate = (entries) => {
+    const totals = {};
+    entries.forEach(entry => {
+      if (!entry.isPartial && entry.unitsBlocked) {
+        const dateKey = entry.date;
+        totals[dateKey] = (totals[dateKey] || 0) + entry.unitsBlocked;
+      }
+    });
+    return totals;
+  };
+
   // Fetch blocked dates (full day blocks)
   useEffect(() => {
     if (!selectedRoomId) return;
@@ -128,7 +141,7 @@ export default function AdminCalendar() {
     const q = query(blockedRef, where('roomId', '==', selectedRoomId));
     const unsubscribe = onSnapshot(q, (snapshot) => {
       const blocks = {};
-      const dates = [];
+      const entries = [];
       snapshot.forEach(docSnap => {
         const data = docSnap.data();
         const dateKey = data.date;
@@ -142,14 +155,18 @@ export default function AdminCalendar() {
             : cap;
         
         if (!blocks[dateKey]) blocks[dateKey] = {};
+        
         if (startHour === 0 && endHour === 24) {
-          blocks[dateKey][0] = docUnits;
-          dates.push({
+          // Aggregate total blocked units for this date
+          const prevTotal = blocks[dateKey][0] || 0;
+          blocks[dateKey][0] = Math.min(cap, prevTotal + docUnits);
+          entries.push({
             id: docSnap.id,
             date: dateKey,
             reason: reasonText,
             unitsBlocked: docUnits,
-            createdAt: data.createdAt
+            createdAt: data.createdAt,
+            createdAtFormatted: data.createdAt ? new Date(data.createdAt).toLocaleString() : new Date().toLocaleString()
           });
         } else {
           for (let hour = startHour; hour < endHour; hour++) {
@@ -164,16 +181,18 @@ export default function AdminCalendar() {
             }
           }
           if (coversFullDay) {
-            blocks[dateKey][0] = docUnits;
-            dates.push({
+            const prevTotal = blocks[dateKey][0] || 0;
+            blocks[dateKey][0] = Math.min(cap, prevTotal + docUnits);
+            entries.push({
               id: docSnap.id,
               date: dateKey,
               reason: reasonText,
               unitsBlocked: docUnits,
-              createdAt: data.createdAt
+              createdAt: data.createdAt,
+              createdAtFormatted: data.createdAt ? new Date(data.createdAt).toLocaleString() : new Date().toLocaleString()
             });
           } else {
-            dates.push({
+            entries.push({
               id: docSnap.id,
               date: dateKey,
               reason: reasonText,
@@ -181,13 +200,21 @@ export default function AdminCalendar() {
               startHour: startHour,
               endHour: endHour,
               isPartial: true,
-              createdAt: data.createdAt
+              createdAt: data.createdAt,
+              createdAtFormatted: data.createdAt ? new Date(data.createdAt).toLocaleString() : new Date().toLocaleString()
             });
           }
         }
       });
       setBlockedSlots(blocks);
-      setUnavailableDates(dates.sort((a, b) => a.date.localeCompare(b.date)));
+      setUnavailableEntries(
+        entries.sort((a, b) => {
+          const byDate = a.date.localeCompare(b.date);
+          if (byDate !== 0) return byDate;
+          return (a.createdAt || '').localeCompare(b.createdAt || '');
+        })
+      );
+      setTotalBlockedUnitsByDate(calculateTotalBlockedUnitsByDate(entries));
     });
     return () => unsubscribe();
   }, [selectedRoomId, totalRoomUnits]);
@@ -203,7 +230,8 @@ export default function AdminCalendar() {
   // Check if date is fully booked by guests (all units booked)
   const isDateFullyBookedByGuests = (date) => {
     if (!date || totalRoomUnits <= 0) return false;
-    for (let hour = 0; hour < 24; hour++) {
+    // Fully booked should be based on check-in window availability (2:00 PM onwards).
+    for (let hour = 14; hour < 24; hour++) {
       const d = new Date(date);
       d.setHours(hour, 0, 0, 0);
       const bookingDateKey = d.toDateString();
@@ -213,20 +241,20 @@ export default function AdminCalendar() {
     return true;
   };
 
-  // Check if date is fully blocked by admin (all units admin-blocked)
+  // Check if date is fully blocked by admin (all units admin-blocked - using aggregated total)
   const isDateFullyBlockedByAdmin = (date) => {
     if (!date || totalRoomUnits <= 0) return false;
     const dateKey = toLocalDateKey(date);
-    const blockedUnits = getAdminBlockedUnitsForDate(dateKey);
-    return blockedUnits >= totalRoomUnits;
+    const totalBlocked = totalBlockedUnitsByDate[dateKey] || 0;
+    return totalBlocked >= totalRoomUnits;
   };
 
   // Check if date is partially blocked (some units admin-blocked)
   const isDatePartiallyBlocked = (date) => {
     if (!date || totalRoomUnits <= 0) return false;
     const dateKey = toLocalDateKey(date);
-    const blockedUnits = getAdminBlockedUnitsForDate(dateKey);
-    return blockedUnits > 0 && blockedUnits < totalRoomUnits;
+    const totalBlocked = totalBlockedUnitsByDate[dateKey] || 0;
+    return totalBlocked > 0 && totalBlocked < totalRoomUnits;
   };
 
   const isDatePast = (date) => {
@@ -238,16 +266,16 @@ export default function AdminCalendar() {
   const getAvailableUnitsForDate = (date) => {
     if (!date || totalRoomUnits <= 0) return 0;
     const dateKey = toLocalDateKey(date);
-    const blockedUnits = getAdminBlockedUnitsForDate(dateKey);
+    const totalBlocked = totalBlockedUnitsByDate[dateKey] || 0;
     let maxBookedCount = 0;
-    for (let hour = 0; hour < 24; hour++) {
+    for (let hour = 14; hour < 24; hour++) {
       const d = new Date(date);
       d.setHours(hour, 0, 0, 0);
       const bookingDateKey = d.toDateString();
       const bookedCount = bookedDates[bookingDateKey]?.times?.[`${hour}:00`] || 0;
       maxBookedCount = Math.max(maxBookedCount, bookedCount);
     }
-    return Math.max(0, totalRoomUnits - maxBookedCount - blockedUnits);
+    return Math.max(0, totalRoomUnits - maxBookedCount - totalBlocked);
   };
 
   const getDaysInMonth = (date) => {
@@ -308,30 +336,18 @@ export default function AdminCalendar() {
     try {
       const dateKey = toLocalDateKey(selectedDate);
       
-      const existingBlock = unavailableDates.find(d => d.date === dateKey && !d.isPartial);
-      if (existingBlock) {
-        const newUnits = Math.min(totalRoomUnits, (existingBlock.unitsBlocked || 0) + nBlock);
-        if (newUnits > totalRoomUnits) {
-          showNotification('Cannot block more than total available units.', 'error');
-          return;
-        }
-        await updateDoc(doc(db, 'unavailableSlots', existingBlock.id), {
-          unitsBlocked: newUnits,
-          reason: reason.trim(),
-          updatedAt: new Date().toISOString()
-        });
-      } else {
-        await addDoc(collection(db, 'unavailableSlots'), {
-          roomId: selectedRoomId,
-          date: dateKey,
-          startHour: 0,
-          endHour: 24,
-          reason: reason.trim(),
-          unitsBlocked: nBlock,
-          createdAt: new Date().toISOString(),
-          updatedAt: new Date().toISOString()
-        });
-      }
+      // Always create a new entry for each blocking action (even if the same date is selected again),
+      // so each action's reason remains visible in the Blocked Dates list.
+      await addDoc(collection(db, 'unavailableSlots'), {
+        roomId: selectedRoomId,
+        date: dateKey,
+        startHour: 0,
+        endHour: 24,
+        reason: reason.trim(),
+        unitsBlocked: nBlock,
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString()
+      });
       
       await logAdminAction({
         action: 'Marked Date Unavailable',
@@ -397,8 +413,8 @@ export default function AdminCalendar() {
 
   const getDateStatus = (date) => {
     if (isDatePast(date)) return 'past';
-    if (isDateFullyBookedByGuests(date)) return 'fullyBooked';
     if (isDateFullyBlockedByAdmin(date)) return 'fullyBlocked';
+    if (isDateFullyBookedByGuests(date)) return 'fullyBooked';
     if (isDatePartiallyBlocked(date)) return 'partiallyBlocked';
     if (selectedDate && selectedDate.toDateString() === date.toDateString()) return 'selected';
     return 'available';
@@ -695,12 +711,12 @@ export default function AdminCalendar() {
             )}
           </div>
 
-          {/* Unavailable Dates Container */}
+          {/* Unavailable Dates Container - Shows each entry with timestamp */}
           <div className="bg-white rounded-2xl shadow-lg border border-ocean-light/10 p-5">
             <h3 className="text-lg font-bold text-textPrimary mb-4 flex items-center gap-2">
               <i className="fas fa-calendar-times text-orange-500"></i> Blocked Dates
             </h3>
-            {unavailableDates.length === 0 ? (
+            {unavailableEntries.length === 0 ? (
               <div className="text-center py-8 text-neutral">
                 <i className="fas fa-check-circle text-3xl mb-2 block text-green-400"></i>
                 <p className="text-sm">No blocked dates</p>
@@ -708,32 +724,47 @@ export default function AdminCalendar() {
               </div>
             ) : (
               <div className="space-y-3 max-h-96 overflow-y-auto">
-                {unavailableDates.map((block) => (
-                  <div key={block.id} className="p-3 bg-orange-50 border border-orange-200 rounded-lg">
-                    <div className="flex justify-between items-start">
-                      <div className="flex-1">
-                        <p className="text-sm font-semibold text-orange-800">
-                          {formatDateDisplay(block.date)}
-                        </p>
-                        <p className="text-xs text-orange-700 mt-0.5">
-                          {block.unitsBlocked >= totalRoomUnits ? 'Fully blocked' : `${block.unitsBlocked} unit(s) blocked`}
-                          {block.unitsBlocked < totalRoomUnits && ` (${totalRoomUnits - block.unitsBlocked} available)`}
-                        </p>
-                        <p className="text-xs text-orange-600 mt-2">
-                          <span className="font-medium">Reason:</span> {block.reason}
-                        </p>
+                {unavailableEntries.map((entry) => {
+                  const dateKey = entry.date;
+                  const totalBlockedForDate = totalBlockedUnitsByDate[dateKey] || 0;
+                  const remainingAvailable = Math.max(0, totalRoomUnits - totalBlockedForDate);
+                  
+                  return (
+                    <div key={entry.id} className="p-3 bg-orange-50 border border-orange-200 rounded-lg">
+                      <div className="flex justify-between items-start">
+                        <div className="flex-1">
+                          <p className="text-sm font-semibold text-orange-800">
+                            {formatDateDisplay(entry.date)}
+                          </p>
+                          <p className="text-xs text-orange-700 mt-0.5">
+                            This entry: {entry.unitsBlocked} unit(s) blocked
+                            {entry.isPartial && <span className="ml-1 text-amber-600">(partial day)</span>}
+                          </p>
+                          <p className="text-xs text-orange-700">
+                            Total blocked: {totalBlockedForDate} of {totalRoomUnits} units
+                            {totalBlockedForDate >= totalRoomUnits 
+                              ? ' (Fully blocked - 0 available)' 
+                              : ` (${remainingAvailable} available)`}
+                          </p>
+                          <p className="text-xs text-orange-600 mt-2">
+                            <span className="font-medium">Reason:</span> {entry.reason}
+                          </p>
+                          <p className="text-xs text-orange-500 mt-1">
+                            <span className="font-medium">Blocked on:</span> {entry.createdAtFormatted}
+                          </p>
+                        </div>
+                        <button
+                          type="button"
+                          onClick={() => setRemoveConfirm(entry)}
+                          disabled={actionLoading}
+                          className="ml-2 px-3 py-1 bg-red-500 hover:bg-red-600 text-white rounded-lg text-xs font-medium transition-all duration-200 disabled:opacity-50 flex items-center gap-1"
+                        >
+                          <i className="fas fa-trash-alt text-xs"></i> Remove
+                        </button>
                       </div>
-                      <button
-                        type="button"
-                        onClick={() => setRemoveConfirm(block)}
-                        disabled={actionLoading}
-                        className="ml-2 px-3 py-1 bg-red-500 hover:bg-red-600 text-white rounded-lg text-xs font-medium transition-all duration-200 disabled:opacity-50 flex items-center gap-1"
-                      >
-                        <i className="fas fa-trash-alt text-xs"></i> Remove
-                      </button>
                     </div>
-                  </div>
-                ))}
+                  );
+                })}
               </div>
             )}
           </div>
@@ -754,8 +785,11 @@ export default function AdminCalendar() {
             <p className="text-sm text-textSecondary mb-1">
               {formatDateDisplay(removeConfirm.date)}
             </p>
+            <p className="text-sm text-textSecondary mb-1">
+              Reason: {removeConfirm.reason}
+            </p>
             <p className="text-sm text-textPrimary mb-6">
-              This will restore availability for this date. This action cannot be undone from the calendar.
+              This will restore availability for this block entry. Other blocks on the same date will remain.
             </p>
             <div className="flex gap-3 justify-end">
               <button

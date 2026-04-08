@@ -23,7 +23,7 @@ export default function AdminReservations() {
   const [moveDateModal, setMoveDateModal] = useState({ show: false, booking: null, sending: false });
   
   // New state for confirmation modals
-  const [confirmModal, setConfirmModal] = useState({ show: false, booking: null, type: '' });
+  const [confirmModal, setConfirmModal] = useState({ show: false, booking: null, type: '', note: '' });
   const [cancelModal, setCancelModal] = useState({ show: false, booking: null, reason: '' });
   
   // New state for refund confirmation modal
@@ -32,8 +32,28 @@ export default function AdminReservations() {
   // New state for move date confirmation modal
   const [moveDateConfirmModal, setMoveDateConfirmModal] = useState({ show: false, booking: null });
   
-  // Track which bookings have had notifications sent
+  // Track which bookings have had notifications sent (persistent - will survive page refresh)
   const [notificationSent, setNotificationSent] = useState({});
+
+  // Load persisted notification sent status from localStorage on mount
+  useEffect(() => {
+    const saved = localStorage.getItem('admin_notification_sent');
+    if (saved) {
+      try {
+        const parsed = JSON.parse(saved);
+        setNotificationSent(parsed);
+      } catch (e) {
+        console.error('Error loading notification sent status:', e);
+      }
+    }
+  }, []);
+
+  // Save notification sent status to localStorage whenever it changes
+  useEffect(() => {
+    if (Object.keys(notificationSent).length > 0) {
+      localStorage.setItem('admin_notification_sent', JSON.stringify(notificationSent));
+    }
+  }, [notificationSent]);
 
   const roomStatuses = ['all', 'pending', 'confirmed', 'check-in', 'check-out', 'completed', 'cancelled', 'cancelled-by-guest'];
   const dayTourStatuses = ['all', 'pending', 'confirmed', 'check-in', 'completed', 'cancelled', 'cancelled-by-guest'];
@@ -437,7 +457,7 @@ const formatDateOnly = (dateString) => {
   
   if (booking.status !== 'pending') {
     showNotification('This reservation is no longer pending.', 'error');
-    setConfirmModal({ show: false, booking: null, type: '' });
+    setConfirmModal({ show: false, booking: null, type: '', note: '' });
     return;
   }
   
@@ -449,9 +469,9 @@ const formatDateOnly = (dateString) => {
       updatedAt: new Date().toISOString()
     });
 
-    // Send confirmation email for day tour
+    // Send confirmation email for day tour with note
     const { sendDayTourConfirmationEmail } = await import('../../../../lib/emailService');
-    const emailResult = await sendDayTourConfirmationEmail(booking);
+    const emailResult = await sendDayTourConfirmationEmail(booking, confirmModal.note);
     if (emailResult.success) {
       console.log('Day tour confirmation email sent successfully');
     } else {
@@ -461,12 +481,12 @@ const formatDateOnly = (dateString) => {
     await logAdminAction({
       action: 'Confirmed Day Tour Reservation',
       module: 'Day Tour Reservations',
-      details: `Confirmed day tour booking ${booking.bookingId} for ${booking.guestInfo?.firstName} ${booking.guestInfo?.lastName}`
+      details: `Confirmed day tour booking ${booking.bookingId} for ${booking.guestInfo?.firstName} ${booking.guestInfo?.lastName}. Note: ${confirmModal.note || 'No note provided'}`
     });
 
     showNotification(`Day tour booking ${booking.bookingId} has been confirmed. A confirmation email has been sent to the guest.`, 'success');
     setShowPaymentModal(false);
-    setConfirmModal({ show: false, booking: null, type: '' });
+    setConfirmModal({ show: false, booking: null, type: '', note: '' });
   } catch (error) {
     console.error('Error confirming day tour reservation:', error);
     showNotification('Failed to confirm reservation.', 'error');
@@ -537,7 +557,7 @@ const handleCancelDayTourReservation = async () => {
     
     if (booking.status !== 'pending') {
       showNotification('This reservation is no longer pending.', 'error');
-      setConfirmModal({ show: false, booking: null, type: '' });
+      setConfirmModal({ show: false, booking: null, type: '', note: '' });
       return;
     }
     
@@ -549,7 +569,7 @@ const handleCancelDayTourReservation = async () => {
         updatedAt: new Date().toISOString()
       });
 
-      const emailResult = await sendConfirmationEmail(booking);
+      const emailResult = await sendConfirmationEmail(booking, confirmModal.note);
       if (emailResult.success) {
         console.log('Confirmation email sent successfully');
       } else {
@@ -559,12 +579,12 @@ const handleCancelDayTourReservation = async () => {
       await logAdminAction({
         action: 'Confirmed Reservation',
         module: 'Reservations',
-        details: `Confirmed booking ${booking.bookingId} for ${booking.guestInfo?.firstName} ${booking.guestInfo?.lastName} - ${booking.roomType}`
+        details: `Confirmed booking ${booking.bookingId} for ${booking.guestInfo?.firstName} ${booking.guestInfo?.lastName} - ${booking.roomType}. Note: ${confirmModal.note || 'No note provided'}`
       });
 
       showNotification(`Booking ${booking.bookingId} has been confirmed. A confirmation email has been sent to the guest.`, 'success');
       setShowPaymentModal(false);
-      setConfirmModal({ show: false, booking: null, type: '' });
+      setConfirmModal({ show: false, booking: null, type: '', note: '' });
     } catch (error) {
       console.error('Error confirming reservation:', error);
       showNotification('Failed to confirm reservation.', 'error');
@@ -1280,7 +1300,7 @@ const handleCancelDayTourReservation = async () => {
                   <button
                     onClick={() => {
                       setShowPaymentModal(false);
-                      setConfirmModal({ show: true, booking: selectedBooking, type: activeTab === 'rooms' ? 'room' : 'daytour' });
+                      setConfirmModal({ show: true, booking: selectedBooking, type: activeTab === 'rooms' ? 'room' : 'daytour', note: '' });
                     }}
                     disabled={actionLoading[selectedBooking.id]}
                     className="px-5 py-2.5 bg-gradient-to-r from-green-500 to-green-600 rounded-xl text-white text-sm font-medium hover:shadow-lg hover:-translate-y-0.5 transition-all duration-300 flex items-center gap-2 disabled:opacity-50"
@@ -1306,10 +1326,10 @@ const handleCancelDayTourReservation = async () => {
         </div>
       )}
 
-      {/* Confirm Reservation Modal */}
+      {/* Confirm Reservation Modal with Note Field */}
       {confirmModal.show && confirmModal.booking && (
         <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-[60] p-4">
-          <div className="bg-white rounded-2xl w-full max-w-sm p-6 shadow-2xl animate-scaleIn">
+          <div className="bg-white rounded-2xl w-full max-w-md p-6 shadow-2xl animate-scaleIn">
             <div className="text-center mb-5">
               <div className="w-14 h-14 mx-auto mb-3 rounded-full bg-green-100 flex items-center justify-center">
                 <i className="fas fa-check-circle text-green-500 text-2xl"></i>
@@ -1326,9 +1346,26 @@ const handleCancelDayTourReservation = async () => {
                 </span>
               </p>
             </div>
+            
+            <div className="mb-5">
+              <label className="block text-sm font-semibold text-textPrimary mb-2">
+                Note (Optional)
+              </label>
+              <textarea
+                value={confirmModal.note}
+                onChange={(e) => setConfirmModal(prev => ({ ...prev, note: e.target.value }))}
+                placeholder="Add a note to include in the confirmation email (e.g., special instructions, welcome message, etc.)"
+                rows="3"
+                className="w-full px-3 py-2 border border-ocean-light/20 rounded-xl text-sm focus:outline-none focus:border-green-300 focus:ring-2 focus:ring-green-200 transition-all duration-300 bg-white resize-none"
+              />
+              <p className="text-xs text-textSecondary mt-1">
+                This note will be included in the confirmation email sent to the guest.
+              </p>
+            </div>
+            
             <div className="flex gap-3 justify-center">
               <button
-                onClick={() => setConfirmModal({ show: false, booking: null, type: '' })}
+                onClick={() => setConfirmModal({ show: false, booking: null, type: '', note: '' })}
                 className="px-5 py-2 border border-ocean-light/20 rounded-xl text-textSecondary text-sm font-medium hover:bg-ocean-ice transition-all duration-300"
               >
                 Cancel
@@ -1440,7 +1477,7 @@ const handleCancelDayTourReservation = async () => {
         </div>
       )}
 
-      {/* Reason Modal */}
+      {/* Reason Modal - Refund Notify and Move Date Notify buttons are now permanently disabled after click */}
       {showReasonModal.show && showReasonModal.booking && (
         <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-[60] p-4">
           <div className="bg-white rounded-2xl w-full max-w-md p-6 shadow-2xl animate-scaleIn">

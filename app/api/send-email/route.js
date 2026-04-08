@@ -1,10 +1,6 @@
 // app/api/send-email/route.js
 import { NextResponse } from 'next/server';
 
-// For production, you'll need to configure a real email service
-// This example uses nodemailer with Gmail (configure with your email)
-// You'll need to install: npm install nodemailer
-
 let nodemailer;
 try {
   nodemailer = require('nodemailer');
