@@ -875,6 +875,7 @@ const handleCancelDayTourReservation = async () => {
                       <th className="px-4 py-3 text-left text-sm font-semibold text-textPrimary">Booking ID</th>
                       <th className="px-4 py-3 text-left text-sm font-semibold text-textPrimary">Guest Name</th>
                       <th className="px-4 py-3 text-left text-sm font-semibold text-textPrimary">Room Type</th>
+                      <th className="px-4 py-3 text-left text-sm font-semibold text-textPrimary">Number of Rooms</th>
                       <th className="px-4 py-3 text-left text-sm font-semibold text-textPrimary">Check-in</th>
                       <th className="px-4 py-3 text-left text-sm font-semibold text-textPrimary">Check-out</th>
                       <th className="px-4 py-3 text-left text-sm font-semibold text-textPrimary">Guests</th>
@@ -889,7 +890,7 @@ const handleCancelDayTourReservation = async () => {
                   <tbody>
                     {filteredBookings.length === 0 ? (
                       <tr>
-                        <td colSpan="12" className="px-4 py-12 text-center text-neutral">
+                        <td colSpan="13" className="px-4 py-12 text-center text-neutral">
                           <i className="fas fa-calendar-alt text-5xl mb-3 opacity-50 block"></i>
                           <p className="text-lg">No reservations found</p>
                           <p className="text-sm">Reservations will appear here once guests book</p>
@@ -909,6 +910,9 @@ const handleCancelDayTourReservation = async () => {
                           </td>
                           <td className="px-4 py-3">
                             <div className="text-sm text-textPrimary">{booking.roomType}</div>
+                          </td>
+                          <td className="px-4 py-3 text-sm text-textSecondary">
+                            {booking.numberOfRooms || 1} room(s)
                           </td>
                           <td className="px-4 py-3 text-sm text-textSecondary">
                             {formatDateTimeFromDate(booking.checkIn)}
@@ -937,7 +941,7 @@ const handleCancelDayTourReservation = async () => {
                           </td>
                           <td className="px-4 py-3">
                             <div className="flex gap-2">
-                              {(booking.paymentProof || booking.status === 'pending') && (
+                              {(booking.paymentProofUrl || booking.status === 'pending') && (
                                 <button
                                   onClick={() => {
                                     setSelectedBooking(booking);
@@ -1061,7 +1065,7 @@ const handleCancelDayTourReservation = async () => {
                           </td>
                           <td className="px-4 py-3">
                             <div className="flex gap-2">
-                              {(tour.paymentProof || tour.status === 'pending') && (
+                              {(tour.paymentProofUrl || tour.status === 'pending') && (
                                 <button
                                   onClick={() => {
                                     setSelectedBooking(tour);
@@ -1138,6 +1142,10 @@ const handleCancelDayTourReservation = async () => {
                       <p className="text-textPrimary font-medium">{selectedBooking.roomType}</p>
                     </div>
                     <div>
+                      <p className="text-xs font-semibold text-neutral uppercase tracking-wide">Number of Rooms</p>
+                      <p className="text-textPrimary font-medium">{selectedBooking.numberOfRooms || 1} room(s)</p>
+                    </div>
+                    <div>
                       <p className="text-xs font-semibold text-neutral uppercase tracking-wide">Check-in Date</p>
                       <p className="text-textPrimary font-medium">
                         {formatDateTimeFromDate(selectedBooking.checkIn)}
@@ -1190,10 +1198,10 @@ const handleCancelDayTourReservation = async () => {
               
               <div>
                 <label className="block text-sm font-semibold text-textPrimary mb-3">Payment Proof Image</label>
-                {selectedBooking.paymentProof ? (
+                {selectedBooking.paymentProofUrl ? (
                   <div className="relative bg-ocean-pale/30 rounded-xl overflow-hidden">
                     <img
-                      src={selectedBooking.paymentProof}
+                      src={selectedBooking.paymentProofUrl}
                       alt="Payment Proof"
                       className="w-full h-auto max-h-[500px] object-contain"
                       onError={(e) => {
@@ -1211,9 +1219,9 @@ const handleCancelDayTourReservation = async () => {
                 )}
               </div>
 
-              <div className="mt-6">
+              <div>
                 <label className="block text-sm font-semibold text-textPrimary mb-3">Valid ID</label>
-                {selectedBooking.validIdImage ? (
+                {selectedBooking.validIdUrl ? (
                   <div className="space-y-2">
                     {selectedBooking.validIdType && (
                       <p className="text-sm text-textSecondary">
@@ -1225,7 +1233,7 @@ const handleCancelDayTourReservation = async () => {
                     )}
                     <div className="relative bg-ocean-pale/30 rounded-xl overflow-hidden">
                       <img
-                        src={selectedBooking.validIdImage}
+                        src={selectedBooking.validIdUrl}
                         alt="Valid ID"
                         className="w-full h-auto max-h-[400px] object-contain bg-white"
                         onError={(e) => {
@@ -1240,6 +1248,21 @@ const handleCancelDayTourReservation = async () => {
                   <div className="p-6 text-center bg-ocean-ice rounded-xl">
                     <i className="fas fa-id-card text-3xl text-neutral mb-2 block"></i>
                     <p className="text-textSecondary">No valid ID uploaded</p>
+                  </div>
+                )}
+              </div>
+
+              {/* Special Request Section - Added at the bottom */}
+              <div>
+                <label className="block text-sm font-semibold text-textPrimary mb-3">Special Request</label>
+                {selectedBooking.specialRequest ? (
+                  <div className="p-4 bg-amber-50 rounded-xl border border-amber-200">
+                    <p className="text-amber-800 whitespace-pre-wrap">{selectedBooking.specialRequest}</p>
+                  </div>
+                ) : (
+                  <div className="p-4 text-center bg-ocean-ice rounded-xl">
+                    <i className="fas fa-comment text-2xl text-neutral mb-2 block"></i>
+                    <p className="text-textSecondary">No special requests from guest</p>
                   </div>
                 )}
               </div>
@@ -1299,7 +1322,7 @@ const handleCancelDayTourReservation = async () => {
                 </span>?<br />
                 <span className="text-xs mt-1 block">
                   Booking ID: {confirmModal.booking.bookingId}
-                  {confirmModal.type === 'room' && <><br />Room: {confirmModal.booking.roomType}</>}
+                  {confirmModal.type === 'room' && <><br />Room: {confirmModal.booking.roomType}<br />Number of Rooms: {confirmModal.booking.numberOfRooms || 1}</>}
                 </span>
               </p>
             </div>

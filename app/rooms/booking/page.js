@@ -7,6 +7,7 @@ import GuestLayout from '@/app/guest/layout';
 import { db } from '@/lib/firebase';
 import { collection, addDoc, serverTimestamp, updateDoc, doc, getDoc, query, where, getDocs, onSnapshot } from 'firebase/firestore';
 import Image from 'next/image';
+import { uploadImage } from '@/lib/cloudinary';
 
 export default function BookingPage() {
   const searchParams = useSearchParams();
@@ -19,6 +20,10 @@ export default function BookingPage() {
   const maxCapacity = maxCapacityParam && !isNaN(parseInt(maxCapacityParam)) ? parseInt(maxCapacityParam) : 0;
   const totalRooms = parseInt(searchParams.get('totalRooms') || '1');
   const checkInDateParam = searchParams.get('checkIn');
+  const checkOutDateParam = searchParams.get('checkOut');
+  const numberOfRoomsParam = searchParams.get('numberOfRooms');
+  const specialRequestParam = searchParams.get('specialRequest');
+  
   const [notifyingResort, setNotifyingResort] = useState(false);
   const [bankRequestSent, setBankRequestSent] = useState(false);
   const [requestedBankInfo, setRequestedBankInfo] = useState(null);
@@ -36,23 +41,31 @@ export default function BookingPage() {
     maxCapacity,
     totalRooms,
     checkIn: checkInDateParam ? new Date(checkInDateParam) : null,
+    checkOut: checkOutDateParam ? new Date(checkOutDateParam) : null,
     nights: 1,
     guests: 1,
-    checkOut: null,
     firstName: '',
     lastName: '',
     email: '',
     phone: '',
-    paymentProof: null,
+    paymentProofUrl: null, // Changed to store URL instead of Base64
     validIdType: '',
-    validIdImage: null,
-    bookingId: null
+    validIdUrl: null, // Changed to store URL instead of Base64
+    bookingId: null,
+    numberOfRooms: numberOfRoomsParam ? parseInt(numberOfRoomsParam) : 1,
+    specialRequest: specialRequestParam ? decodeURIComponent(specialRequestParam) : ''
   });
   const [errors, setErrors] = useState({});
   const [uploading, setUploading] = useState(false);
   const [totalPrice, setTotalPrice] = useState(price);
   const [submitting, setSubmitting] = useState(false);
   const [checkOutTime, setCheckOutTime] = useState('');
+  
+  // Fixed times (check-in: 2:00 PM, check-out: 12:00 PM)
+  const FIXED_CHECK_IN_HOUR = 14;
+  const FIXED_CHECK_OUT_HOUR = 12;
+  const FIXED_CHECK_IN_DISPLAY = '02:00 PM';
+  const FIXED_CHECK_OUT_DISPLAY = '12:00 PM';
   
   // Add availability status state at component level
   const [availabilityStatus, setAvailabilityStatus] = useState({
@@ -73,7 +86,7 @@ export default function BookingPage() {
 
   const [showValidIdModal, setShowValidIdModal] = useState(false);
   const [tempValidIdType, setTempValidIdType] = useState('Passport');
-  const [tempValidIdImage, setTempValidIdImage] = useState(null);
+  const [tempValidIdFile, setTempValidIdFile] = useState(null);
   const [validIdUploading, setValidIdUploading] = useState(false);
 
   const validIdOptions = [
@@ -114,17 +127,28 @@ export default function BookingPage() {
 
   // Calculate down payment (50% of total price)
   useEffect(() => {
-    setDownPaymentAmount(totalPrice * 0.5);
-  }, [totalPrice]);
+    const nights = bookingData.nights;
+    const baseTotal = price * nights;
+    const totalWithRooms = baseTotal * (bookingData.numberOfRooms || 1);
+    setTotalPrice(totalWithRooms);
+    setDownPaymentAmount(totalWithRooms * 0.5);
+  }, [price, bookingData.nights, bookingData.numberOfRooms]);
 
-  // Fetch room details
+  // Fetch room details to get accurate max capacity
   useEffect(() => {
     const fetchRoomDetails = async () => {
       if (roomId) {
         try {
           const roomDoc = await getDoc(doc(db, 'rooms', roomId));
           if (roomDoc.exists()) {
-            setRoomDetails(roomDoc.data());
+            const roomData = roomDoc.data();
+            setRoomDetails(roomData);
+            // Update maxCapacity from database to ensure accuracy
+            const dbMaxCapacity = roomData.capacityMax || maxCapacity;
+            setBookingData(prev => ({ 
+              ...prev, 
+              maxCapacity: dbMaxCapacity 
+            }));
           }
         } catch (error) {
           console.error('Error fetching room details:', error);
@@ -132,7 +156,7 @@ export default function BookingPage() {
       }
     };
     fetchRoomDetails();
-  }, [roomId]);
+  }, [roomId, maxCapacity]);
 
   useEffect(() => {
     const settingsRef = doc(db, 'settings', 'payment');
@@ -247,6 +271,7 @@ export default function BookingPage() {
       const bookingsRef = collection(db, 'bookings');
       const checkInDate = new Date(bookingData.checkIn);
       const checkOutDate = new Date(bookingData.checkOut);
+      const requestedRooms = bookingData.numberOfRooms || 1;
       
       // Get room details
       const roomDoc = await getDoc(doc(db, 'rooms', bookingData.roomId));
@@ -278,15 +303,15 @@ export default function BookingPage() {
         totalBookedCount += booking.numberOfRooms || 1;
       });
       
-      const isAvailable = totalBookedCount < totalRoomsAvailable;
+      const isAvailable = totalBookedCount + requestedRooms <= totalRoomsAvailable;
       const remainingRooms = totalRoomsAvailable - totalBookedCount;
       
       setAvailabilityStatus({
         checking: false,
         isAvailable,
         message: isAvailable 
-          ? `${remainingRooms} room(s) available for these dates`
-          : `Fully booked! Only ${totalRoomsAvailable} room(s) total, all are taken.`
+          ? `${remainingRooms} room(s) available for these dates (you're booking ${requestedRooms})`
+          : `Not enough rooms! Only ${remainingRooms} room(s) available, but you're booking ${requestedRooms}.`
       });
     } catch (error) {
       console.error('Error checking availability:', error);
@@ -303,37 +328,21 @@ export default function BookingPage() {
     if (bookingData.checkIn && bookingData.checkOut && bookingData.roomId) {
       checkAvailability();
     }
-  }, [bookingData.checkIn, bookingData.checkOut, bookingData.nights]);
+  }, [bookingData.checkIn, bookingData.checkOut, bookingData.nights, bookingData.numberOfRooms]);
 
-  // Calculate check-out date & time (2 hours earlier than check-in time)
+  // Calculate check-out date & time (fixed: 12:00 PM next day)
   useEffect(() => {
     if (bookingData.checkIn && bookingData.nights) {
       const checkOutDate = new Date(bookingData.checkIn);
       checkOutDate.setDate(checkOutDate.getDate() + bookingData.nights);
+      // Fixed check-out time: 12:00 PM
+      checkOutDate.setHours(FIXED_CHECK_OUT_HOUR, 0, 0, 0);
       
-      // Check-out time is 2 hours earlier than check-in time
-      const checkInHours = bookingData.checkIn.getHours();
-      const checkInMinutes = bookingData.checkIn.getMinutes();
-      let checkOutHours = checkInHours - 2;
-      let checkOutMinutes = checkInMinutes;
-      
-      // Handle day wrap (if check-in is before 2 AM)
-      if (checkOutHours < 0) {
-        checkOutHours += 24;
-        checkOutDate.setDate(checkOutDate.getDate() - 1);
-      }
-      
-      checkOutDate.setHours(checkOutHours, checkOutMinutes, 0, 0);
-      
-      // Format check-out time for display
-      const hour12 = checkOutHours % 12 || 12;
-      const ampm = checkOutHours < 12 ? 'AM' : 'PM';
-      setCheckOutTime(`${hour12}:${checkOutMinutes.toString().padStart(2, '0')} ${ampm}`);
+      setCheckOutTime(FIXED_CHECK_OUT_DISPLAY);
       
       setBookingData(prev => ({ ...prev, checkOut: checkOutDate }));
-      setTotalPrice(price * bookingData.nights);
     }
-  }, [bookingData.checkIn, bookingData.nights, price]);
+  }, [bookingData.checkIn, bookingData.nights]);
 
   const validatePhone = (phone) => {
     const phoneRegex = /^\d{11}$/;
@@ -346,9 +355,9 @@ export default function BookingPage() {
   };
 
   const validateGuests = () => {
-    // Use maxCapacity for validation (maximum allowed guests)
+    // Use maxCapacity from roomDetails for validation (maximum allowed guests)
     const guestValue = parseInt(bookingData.guests);
-    const currentMaxCapacity = bookingData.maxCapacity;
+    const currentMaxCapacity = roomDetails?.capacityMax || bookingData.maxCapacity;
     
     if (isNaN(guestValue) || guestValue < 1) {
       setErrors(prev => ({ ...prev, guests: 'At least 1 guest is required' }));
@@ -391,7 +400,7 @@ export default function BookingPage() {
     
     if (field === 'guests') {
       const guestValue = parseInt(value);
-      const currentMaxCapacity = bookingData.maxCapacity;
+      const currentMaxCapacity = roomDetails?.capacityMax || bookingData.maxCapacity;
       
       // Validate on change
       if (isNaN(guestValue) || guestValue < 1) {
@@ -436,8 +445,10 @@ export default function BookingPage() {
         checkIn: bookingData.checkIn,
         checkOut: bookingData.checkOut,
         nights: bookingData.nights,
+        numberOfRooms: bookingData.numberOfRooms,
         totalPrice: totalPrice,
         downPayment: downPaymentAmount,
+        specialRequest: bookingData.specialRequest,
         requestedBank: {
           bankName: selectedBankAccount.bankName,
           accountName: selectedBankAccount.accountName,
@@ -497,20 +508,37 @@ export default function BookingPage() {
     }
   };
 
+  // Upload file to Cloudinary and return URL
+  const uploadFileToCloudinary = async (file) => {
+    try {
+      const imageUrl = await uploadImage(file);
+      return imageUrl;
+    } catch (error) {
+      console.error('Error uploading to Cloudinary:', error);
+      throw new Error('Failed to upload image. Please try again.');
+    }
+  };
+
   const handlePaymentProofUpload = async (e) => {
     const file = e.target.files[0];
     if (!file) return;
     
+    // Check file size (limit to 10MB)
+    if (file.size > 10 * 1024 * 1024) {
+      showNotification('File size exceeds 10MB. Please choose a smaller file.', 'error');
+      return;
+    }
+    
     setUploading(true);
     try {
-      const reader = new FileReader();
-      reader.onloadend = () => {
-        setBookingData(prev => ({ ...prev, paymentProof: reader.result }));
-        setUploading(false);
-      };
-      reader.readAsDataURL(file);
+      showNotification('Uploading to server... Please wait.', 'info');
+      const imageUrl = await uploadFileToCloudinary(file);
+      setBookingData(prev => ({ ...prev, paymentProofUrl: imageUrl }));
+      showNotification('Payment proof uploaded successfully!');
     } catch (error) {
       console.error('Error uploading file:', error);
+      showNotification(error.message || 'Failed to upload file. Please try again.', 'error');
+    } finally {
       setUploading(false);
     }
   };
@@ -519,26 +547,32 @@ export default function BookingPage() {
     const file = e.target.files[0];
     if (!file) return;
 
+    // Check file size (limit to 10MB)
+    if (file.size > 10 * 1024 * 1024) {
+      showNotification('File size exceeds 10MB. Please choose a smaller file.', 'error');
+      return;
+    }
+
     setValidIdUploading(true);
     try {
-      const reader = new FileReader();
-      reader.onloadend = () => {
-        setTempValidIdImage(reader.result);
-        setValidIdUploading(false);
-      };
-      reader.readAsDataURL(file);
+      showNotification('Uploading ID to server... Please wait.', 'info');
+      const imageUrl = await uploadFileToCloudinary(file);
+      setTempValidIdFile(imageUrl);
+      showNotification('Valid ID uploaded successfully!');
     } catch (error) {
       console.error('Error uploading valid ID:', error);
+      showNotification(error.message || 'Failed to upload valid ID. Please try again.', 'error');
+    } finally {
       setValidIdUploading(false);
     }
   };
 
   const handleSaveValidId = () => {
-    if (!tempValidIdImage || !tempValidIdType) return;
+    if (!tempValidIdFile || !tempValidIdType) return;
     setBookingData(prev => ({
       ...prev,
       validIdType: tempValidIdType,
-      validIdImage: tempValidIdImage
+      validIdUrl: tempValidIdFile
     }));
     setShowValidIdModal(false);
   };
@@ -550,6 +584,7 @@ export default function BookingPage() {
       const bookingsRef = collection(db, 'bookings');
       const checkInDate = new Date(bookingData.checkIn);
       const checkOutDate = new Date(bookingData.checkOut);
+      const requestedRooms = bookingData.numberOfRooms || 1;
       
       // Get room details to know total rooms
       const roomDoc = await getDoc(doc(db, 'rooms', bookingData.roomId));
@@ -580,9 +615,8 @@ export default function BookingPage() {
       });
       
       // Check if adding this booking would exceed available rooms
-      const requestedRooms = 1;
       if (totalBookedCount + requestedRooms > totalRoomsAvailable) {
-        alert(`Sorry, this room is fully booked for the selected dates. Only ${totalRoomsAvailable} room(s) available.`);
+        alert(`Sorry, only ${totalRoomsAvailable - totalBookedCount} room(s) available for the selected dates, but you're trying to book ${requestedRooms}.`);
         router.push('/rooms');
         return;
       }
@@ -610,13 +644,14 @@ export default function BookingPage() {
         },
         status: 'pending',
         paymentMethod: paymentMethod,
-        paymentProof: bookingData.paymentProof,
+        paymentProofUrl: bookingData.paymentProofUrl, // Store URL instead of Base64
         validIdType: bookingData.validIdType || null,
-        validIdImage: bookingData.validIdImage || null,
+        validIdUrl: bookingData.validIdUrl || null, // Store URL instead of Base64
         createdAt: serverTimestamp(),
         updatedAt: serverTimestamp(),
         type: 'room',
-        numberOfRooms: 1
+        numberOfRooms: bookingData.numberOfRooms,
+        specialRequest: bookingData.specialRequest || null
       };
       
       // Add bank details if provided
@@ -700,8 +735,8 @@ export default function BookingPage() {
     );
   }
 
-  // Get the current max capacity for display (from bookingData state, which may have been updated from DB)
-  const currentMaxCapacity = bookingData.maxCapacity;
+  // Get the current max capacity for display (from roomDetails)
+  const currentMaxCapacity = roomDetails?.capacityMax || bookingData.maxCapacity;
 
   return (
     <GuestLayout>
@@ -739,7 +774,7 @@ export default function BookingPage() {
               {/* Step 1: Dates */}
               {step === 1 && (
                 <div className="bg-white rounded-2xl shadow-lg p-8">
-                  <h2 className="text-2xl font-bold text-textPrimary mb-6">Step 1: Select Dates & Guests</h2>
+                  <h2 className="text-2xl font-bold text-textPrimary mb-6">Step 1: Booking Summary</h2>
                   
                   {availabilityStatus.checking && (
                     <div className="mb-5 p-4 bg-ocean-ice rounded-xl">
@@ -753,7 +788,12 @@ export default function BookingPage() {
                   <div className="space-y-5">
                     <div className="p-5 bg-ocean-ice rounded-xl">
                       <label className="block text-sm font-semibold text-textPrimary mb-2">Check-in Date & Time</label>
-                      <p className="text-lg font-medium text-ocean-mid">{formatDateTime(bookingData.checkIn)}</p>
+                      <p className="text-lg font-medium text-ocean-mid">
+                        {formatDateTime(bookingData.checkIn)} ({FIXED_CHECK_IN_DISPLAY})
+                      </p>
+                      <p className="text-xs text-textSecondary mt-1">
+                        Check-in time is fixed at 2:00 PM
+                      </p>
                     </div>
                     
                     <div>
@@ -788,10 +828,10 @@ export default function BookingPage() {
                       <div className="p-5 bg-ocean-ice rounded-xl">
                         <label className="block text-sm font-semibold text-textPrimary mb-2">Check-out Date & Time</label>
                         <p className="text-lg font-medium text-ocean-mid">
-                          {formatDateOnly(bookingData.checkOut)} at {checkOutTime}
+                          {formatDateOnly(bookingData.checkOut)} at {FIXED_CHECK_OUT_DISPLAY}
                         </p>
                         <p className="text-xs text-textSecondary mt-1">
-                          Check-out time is 2 hours earlier than check-in time
+                          Check-out time is fixed at 12:00 PM (noon)
                         </p>
                       </div>
                     )}
@@ -799,7 +839,7 @@ export default function BookingPage() {
                     <div className="p-5 bg-gradient-to-r from-ocean-ice to-blue-white rounded-xl">
                       <label className="block text-sm font-semibold text-textPrimary mb-2">Total Price</label>
                       <p className="text-3xl font-bold text-ocean-mid">₱{totalPrice.toLocaleString()}</p>
-                      <p className="text-xs text-textSecondary">₱{price.toLocaleString()} x {bookingData.nights} night(s)</p>
+                      <p className="text-xs text-textSecondary">₱{price.toLocaleString()} x {bookingData.nights} night(s) x {bookingData.numberOfRooms} room(s)</p>
                       
                       {/* Down Payment Display */}
                       <div className="mt-3 pt-3 border-t border-ocean-light/20">
@@ -983,25 +1023,24 @@ export default function BookingPage() {
                         </ul>
                       </div>
 
-                                              <div className="bg-gradient-to-br from-white to-ocean-ice/30 rounded-xl border border-ocean-light/30 p-5 shadow-sm">
+                      <div className="bg-gradient-to-br from-white to-ocean-ice/30 rounded-xl border border-ocean-light/30 p-5 shadow-sm">
                         <div className="flex items-center gap-2 mb-3">
                           <i className="fas fa-id-card text-ocean-mid text-lg"></i>
                           <label className="text-sm font-semibold text-textPrimary">Upload Valid ID *</label>
                         </div>
                         <p className="text-xs text-textSecondary mb-3">
-                          Full name on the ID must match the booking details. Image must be clear (front only) with no blur.
+                          Full name on the ID must match the booking details. Image must be clear (front only) with no blur. Max file size: 10MB.
                         </p>
                         <button
                           type="button"
                           onClick={() => {
                             setTempValidIdType(bookingData.validIdType || 'Passport');
-                            setTempValidIdImage(bookingData.validIdImage || null);
                             setShowValidIdModal(true);
                           }}
                           className="inline-flex items-center gap-2 px-5 py-2.5 rounded-lg border border-ocean-light/40 text-sm font-medium text-textPrimary bg-white hover:bg-ocean-ice hover:border-ocean-mid/50 transition-all duration-200 shadow-sm"
                         >
                           <i className="fas fa-cloud-upload-alt text-ocean-mid"></i>
-                          {bookingData.validIdImage ? 'Change Uploaded Valid ID' : 'Choose File'}
+                          {bookingData.validIdUrl ? 'Change Uploaded Valid ID' : 'Choose File'}
                         </button>
                         {bookingData.validIdType && (
                           <p className="mt-3 text-xs text-ocean-mid flex items-center gap-1">
@@ -1009,7 +1048,7 @@ export default function BookingPage() {
                             Selected ID: <span className="font-semibold">{bookingData.validIdType}</span>
                           </p>
                         )}
-                        {bookingData.validIdImage && (
+                        {bookingData.validIdUrl && (
                           <p className="mt-1 text-xs text-green-600 flex items-center gap-1">
                             <i className="fas fa-check-circle"></i>
                             Valid ID uploaded
@@ -1019,6 +1058,7 @@ export default function BookingPage() {
                       
                       <div>
                         <label className="block text-sm font-semibold text-textPrimary mb-2">Upload Proof of Payment (Down Payment) *</label>
+                        <p className="text-xs text-textSecondary mb-2">Max file size: 10MB. Supported formats: PNG, JPG, JPEG.</p>
                         <div className="relative">
                           <input
                             type="file"
@@ -1039,7 +1079,7 @@ export default function BookingPage() {
                             <i className="fas fa-upload"></i>
                             {uploading ? 'Uploading...' : 'Choose File'}
                           </label>
-                          {bookingData.paymentProof && (
+                          {bookingData.paymentProofUrl && (
                             <span className="ml-3 text-sm text-green-600">
                               <i className="fas fa-check-circle mr-1"></i>
                               File uploaded
@@ -1179,25 +1219,24 @@ export default function BookingPage() {
                         </ul>
                       </div>
 
-                                              <div className="bg-gradient-to-br from-white to-ocean-ice/30 rounded-xl border border-ocean-light/30 p-5 shadow-sm">
+                      <div className="bg-gradient-to-br from-white to-ocean-ice/30 rounded-xl border border-ocean-light/30 p-5 shadow-sm">
                         <div className="flex items-center gap-2 mb-3">
                           <i className="fas fa-id-card text-ocean-mid text-lg"></i>
                           <label className="text-sm font-semibold text-textPrimary">Upload Valid ID *</label>
                         </div>
                         <p className="text-xs text-textSecondary mb-3">
-                          Full name on the ID must match the booking details. Image must be clear (front only) with no blur.
+                          Full name on the ID must match the booking details. Image must be clear (front only) with no blur. Max file size: 10MB.
                         </p>
                         <button
                           type="button"
                           onClick={() => {
                             setTempValidIdType(bookingData.validIdType || 'Passport');
-                            setTempValidIdImage(bookingData.validIdImage || null);
                             setShowValidIdModal(true);
                           }}
                           className="inline-flex items-center gap-2 px-5 py-2.5 rounded-lg border border-ocean-light/40 text-sm font-medium text-textPrimary bg-white hover:bg-ocean-ice hover:border-ocean-mid/50 transition-all duration-200 shadow-sm"
                         >
                           <i className="fas fa-cloud-upload-alt text-ocean-mid"></i>
-                          {bookingData.validIdImage ? 'Change Uploaded Valid ID' : 'Choose File'}
+                          {bookingData.validIdUrl ? 'Change Uploaded Valid ID' : 'Choose File'}
                         </button>
                         {bookingData.validIdType && (
                           <p className="mt-3 text-xs text-ocean-mid flex items-center gap-1">
@@ -1205,7 +1244,7 @@ export default function BookingPage() {
                             Selected ID: <span className="font-semibold">{bookingData.validIdType}</span>
                           </p>
                         )}
-                        {bookingData.validIdImage && (
+                        {bookingData.validIdUrl && (
                           <p className="mt-1 text-xs text-green-600 flex items-center gap-1">
                             <i className="fas fa-check-circle"></i>
                             Valid ID uploaded
@@ -1216,6 +1255,7 @@ export default function BookingPage() {
                       {bankDetailsProvided && (
                         <div>
                           <label className="block text-sm font-semibold text-textPrimary mb-2">Upload Proof of Payment (Down Payment) *</label>
+                          <p className="text-xs text-textSecondary mb-2">Max file size: 10MB. Supported formats: PNG, JPG, JPEG.</p>
                           <div className="relative">
                             <input
                               type="file"
@@ -1236,7 +1276,7 @@ export default function BookingPage() {
                               <i className="fas fa-upload"></i>
                               {uploading ? 'Uploading...' : 'Choose File'}
                             </label>
-                            {bookingData.paymentProof && (
+                            {bookingData.paymentProofUrl && (
                               <span className="ml-3 text-sm text-green-600">
                                 <i className="fas fa-check-circle mr-1"></i>
                                 File uploaded
@@ -1259,14 +1299,14 @@ export default function BookingPage() {
                     <button
                       onClick={handleSubmitBooking}
                       disabled={
-                        !bookingData.paymentProof ||
-                        !bookingData.validIdImage ||
+                        !bookingData.paymentProofUrl ||
+                        !bookingData.validIdUrl ||
                         submitting ||
                         (paymentMethod === 'bank_transfer' && !bankDetailsProvided)
                       }
                       className={`flex-1 py-3 rounded-xl font-medium transition-all duration-300 ${
-                        bookingData.paymentProof &&
-                        bookingData.validIdImage &&
+                        bookingData.paymentProofUrl &&
+                        bookingData.validIdUrl &&
                         !submitting &&
                         (paymentMethod !== 'bank_transfer' || bankDetailsProvided)
                           ? 'bg-gradient-to-r from-ocean-mid to-ocean-light text-white hover:shadow-lg'
@@ -1313,7 +1353,7 @@ export default function BookingPage() {
                   <div className="p-4 bg-amber-50 rounded-lg mb-6">
                     <p className="text-sm text-amber-800">
                       <i className="fas fa-info-circle mr-2"></i>
-                      Down payment of <strong>₱{downPaymentAmount.toLocaleString()}</strong> has been confirmed.
+                      Down payment of <strong>₱{downPaymentAmount.toLocaleString()}</strong> has been confirmed for {bookingData.numberOfRooms} room(s).
                       Remaining balance of <strong>₱{(totalPrice - downPaymentAmount).toLocaleString()}</strong> is payable at the resort.
                     </p>
                   </div>
@@ -1366,6 +1406,28 @@ export default function BookingPage() {
                     <span className="text-sm">{getCapacityDisplay()}</span>
                   </div>
                   
+                  {/* Room Quantity Display - Read Only */}
+                  <div className="bg-ocean-ice rounded-lg p-3 mb-4">
+                    <h4 className="text-xs font-semibold text-ocean-mid uppercase tracking-wide mb-2 flex items-center gap-1">
+                      <i className="fas fa-door-open text-ocean-light text-xs"></i>
+                      Booking Summary
+                    </h4>
+                    <div className="space-y-1">
+                      <p className="text-sm">
+                        <span className="text-textSecondary">Number of Rooms:</span>{' '}
+                        <span className="font-semibold text-textPrimary">{bookingData.numberOfRooms} room(s)</span>
+                      </p>
+                      <p className="text-sm">
+                        <span className="text-textSecondary">Price per night:</span>{' '}
+                        <span className="font-semibold text-ocean-mid">₱{price.toLocaleString()}</span>
+                      </p>
+                      <p className="text-sm">
+                        <span className="text-textSecondary">Total per night:</span>{' '}
+                        <span className="font-semibold text-ocean-mid">₱{(price * bookingData.numberOfRooms).toLocaleString()}</span>
+                      </p>
+                    </div>
+                  </div>
+                  
                   {/* Selected Schedule Section */}
                   <div className="bg-ocean-ice rounded-lg p-3 mb-4">
                     <h4 className="text-xs font-semibold text-ocean-mid uppercase tracking-wide mb-2 flex items-center gap-1">
@@ -1379,17 +1441,36 @@ export default function BookingPage() {
                         </p>
                         <p className="text-sm text-ocean-mid font-medium mt-1">
                           <i className="fas fa-clock mr-1"></i>
-                          {formatTimeOnly(bookingData.checkIn)}
+                          Check-in: {FIXED_CHECK_IN_DISPLAY}
                         </p>
                         {bookingData.checkOut && (
                           <p className="text-xs text-textSecondary mt-2">
-                            Check-out: {formatDateOnly(bookingData.checkOut)} at {checkOutTime}
+                            Check-out: {formatDateOnly(bookingData.checkOut)} at {FIXED_CHECK_OUT_DISPLAY}
                           </p>
                         )}
                       </>
                     ) : (
                       <p className="text-base font-semibold text-textPrimary">No date selected</p>
                     )}
+                  </div>
+
+                  {/* Special Request Field - Editable in room card */}
+                  <div className="bg-amber-50 rounded-lg p-3 mb-4 border border-amber-200">
+                    <h4 className="text-xs font-semibold text-amber-700 uppercase tracking-wide mb-2 flex items-center gap-1">
+                      <i className="fas fa-comment text-amber-600 text-xs"></i>
+                      Special Request
+                    </h4>
+                    <textarea
+                      value={bookingData.specialRequest}
+                      onChange={(e) => setBookingData(prev => ({ ...prev, specialRequest: e.target.value }))}
+                      placeholder="e.g., Request early check-in, room preference, special occasion, etc."
+                      rows="3"
+                      className="w-full px-3 py-2 border border-amber-300 rounded-lg text-sm focus:outline-none focus:border-ocean-light resize-none bg-white"
+                    />
+                    <p className="text-xs text-amber-600 mt-1">
+                      <i className="fas fa-clock mr-1"></i>
+                      Note: Check-in time is fixed at 2:00 PM. If you need early check-in, please specify your requested time here.
+                    </p>
                   </div>
 
                   {/* Room Amenities (if available) */}
@@ -1454,6 +1535,7 @@ export default function BookingPage() {
                 <br />- Full name must match booking details
                 <br />- Image must be clear (front only)
                 <br />- No blurred images allowed
+                <br />- Max file size: 10MB
               </p>
 
               <div className="pt-1 border-t border-ocean-light/20">
@@ -1476,16 +1558,16 @@ export default function BookingPage() {
                     }`}
                   >
                     <i className="fas fa-upload"></i>
-                    {validIdUploading ? 'Uploading...' : tempValidIdImage ? 'Change Image' : 'Choose File'}
+                    {validIdUploading ? 'Uploading...' : tempValidIdFile ? 'Change Image' : 'Choose File'}
                   </label>
                 </div>
 
-                {tempValidIdImage && (
+                {tempValidIdFile && (
                   <div className="mt-2">
                     <p className="text-xs font-semibold text-textPrimary mb-1">Preview</p>
                     <div className="border border-ocean-light/30 rounded-lg overflow-hidden bg-ocean-ice">
                       <img
-                        src={tempValidIdImage}
+                        src={tempValidIdFile}
                         alt="Valid ID Preview"
                         className="w-full max-h-64 object-contain bg-white"
                       />
@@ -1506,7 +1588,7 @@ export default function BookingPage() {
               <button
                 type="button"
                 onClick={handleSaveValidId}
-                disabled={!tempValidIdImage || !tempValidIdType || validIdUploading}
+                disabled={!tempValidIdFile || !tempValidIdType || validIdUploading}
                 className="px-4 py-2 bg-gradient-to-r from-ocean-mid to-ocean-light rounded-lg text-sm font-medium text-white hover:shadow-lg transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 Save Valid ID

@@ -26,23 +26,25 @@ export default function RoomCalendar() {
   const [fullyBlockedDates, setFullyBlockedDates] = useState({}); // { dateKey: true }
   const [roomDetails, setRoomDetails] = useState(null);
   const [timeSelectionError, setTimeSelectionError] = useState('');
+  
+  // New state for room quantity and special request
+  const [selectedRoomQuantity, setSelectedRoomQuantity] = useState(1);
+  const [specialRequest, setSpecialRequest] = useState('');
+  const [maxSelectableRooms, setMaxSelectableRooms] = useState(1);
+  const [availabilityError, setAvailabilityError] = useState('');
 
-  const generateTimeSlots = () => {
-    const slots = [];
-    for (let hour = 0; hour < 24; hour++) {
-      const hour12 = hour % 12 || 12;
-      const ampm = hour < 12 ? 'AM' : 'PM';
-      const timeString = `${hour12.toString().padStart(2, '0')}:00 ${ampm}`;
-      slots.push({
-        value: `${hour.toString().padStart(2, '0')}:00`,
-        display: timeString,
-        hour: hour
-      });
-    }
-    return slots;
+  // Fixed times (check-in: 2:00 PM, check-out: 12:00 PM next day)
+  const FIXED_CHECK_IN_HOUR = 14; // 2:00 PM
+  const FIXED_CHECK_OUT_HOUR = 12; // 12:00 PM (noon)
+  const FIXED_CHECK_IN_DISPLAY = '02:00 PM';
+  const FIXED_CHECK_OUT_DISPLAY = '12:00 PM';
+
+  // Only generate the fixed time slot
+  const fixedTimeSlot = {
+    value: `${FIXED_CHECK_IN_HOUR.toString().padStart(2, '0')}:00`,
+    display: FIXED_CHECK_IN_DISPLAY,
+    hour: FIXED_CHECK_IN_HOUR
   };
-
-  const timeSlots = generateTimeSlots();
 
   const totalRoomUnits = (() => {
     const totalRoomsFromUrl =
@@ -196,18 +198,29 @@ export default function RoomCalendar() {
     return () => unsubscribe();
   }, [roomId, totalRoomUnits]);
 
+  // Update max selectable rooms based on selected date and availability
   useEffect(() => {
-    if (!selectedDate || !selectedTime) return;
-    const timeMatch = selectedTime.match(/(\d+):(\d+)\s*(AM|PM)/i);
-    if (!timeMatch) return;
-    let hours = parseInt(timeMatch[1], 10);
-    const period = timeMatch[3].toUpperCase();
-    if (period === 'PM' && hours !== 12) hours += 12;
-    else if (period === 'AM' && hours === 12) hours = 0;
-    if (!canFitRequiredBookingDuration(selectedDate, hours)) {
-      setSelectedTime('');
+    if (!selectedDate) {
+      setMaxSelectableRooms(1);
+      setAvailabilityError('');
+      return;
     }
-  }, [bookedDates, blockedSlots, selectedDate, selectedTime, totalRoomUnits]);
+    
+    // Calculate max rooms available for the fixed check-in time (2:00 PM)
+    const maxAvailable = getMaxAvailableRoomsForDateTime(selectedDate, FIXED_CHECK_IN_HOUR);
+    setMaxSelectableRooms(maxAvailable);
+    
+    if (selectedRoomQuantity > maxAvailable) {
+      setSelectedRoomQuantity(Math.max(1, maxAvailable));
+      if (maxAvailable === 0) {
+        setAvailabilityError(`No rooms available for ${selectedDate.toDateString()} at 2:00 PM check-in.`);
+      } else {
+        setAvailabilityError(`Only ${maxAvailable} room(s) available for this date.`);
+      }
+    } else {
+      setAvailabilityError('');
+    }
+  }, [selectedDate, bookedDates, blockedSlots, totalRoomUnits, selectedRoomQuantity]);
 
   const getDaysInMonth = (date) => {
     const year = date.getFullYear();
@@ -222,25 +235,15 @@ export default function RoomCalendar() {
     return days;
   };
 
+  // Booking duration: from 2:00 PM to 12:00 PM next day = 22 hours
   const BOOKING_DURATION_HOURS = 22;
 
-  const isHourAvailable = (date, hour) => {
+  // Check if a specific number of rooms is available for a given date and start hour
+  const areRoomsAvailableForDateTime = (date, startHour, requiredRooms) => {
     if (!date) return false;
     if (totalRoomUnits <= 0) return false;
-    const dateKey = toLocalDateKey(date);
-    const blockedUnits = blockedSlots[dateKey]?.[hour] ?? 0;
-
-    const d = new Date(date);
-    d.setHours(hour, 0, 0, 0);
-    const bookingDateKey = d.toDateString();
-    const bookedCount = bookedDates[bookingDateKey]?.times?.[`${hour}:00`] || 0;
-
-    return totalRoomUnits - bookedCount - blockedUnits > 0;
-  };
-
-  const canFitRequiredBookingDuration = (date, startHour) => {
-    if (!date) return false;
-    if (totalRoomUnits <= 0) return false;
+    if (requiredRooms > totalRoomUnits) return false;
+    
     for (let offset = 0; offset < BOOKING_DURATION_HOURS; offset++) {
       const d = new Date(date);
       d.setHours(startHour + offset, 0, 0, 0);
@@ -249,16 +252,29 @@ export default function RoomCalendar() {
       const blockedUnits = blockedSlots[dateKey]?.[hour] ?? 0;
       const bookingDateKey = d.toDateString();
       const bookedCount = bookedDates[bookingDateKey]?.times?.[`${hour}:00`] || 0;
-      if (bookedCount + blockedUnits >= totalRoomUnits) return false;
+      if (bookedCount + blockedUnits + requiredRooms > totalRoomUnits) return false;
     }
     return true;
   };
 
-  const hasAnyAvailableHour = (date) => {
-    for (let hour = 0; hour < 24; hour++) {
-      if (isHourAvailable(date, hour)) return true;
+  // Get max number of rooms available for a given date and start hour
+  const getMaxAvailableRoomsForDateTime = (date, startHour) => {
+    if (!date || totalRoomUnits <= 0) return 0;
+    
+    let maxRooms = totalRoomUnits;
+    for (let offset = 0; offset < BOOKING_DURATION_HOURS; offset++) {
+      const d = new Date(date);
+      d.setHours(startHour + offset, 0, 0, 0);
+      const dateKey = toLocalDateKey(d);
+      const hour = d.getHours();
+      const blockedUnits = blockedSlots[dateKey]?.[hour] ?? 0;
+      const bookingDateKey = d.toDateString();
+      const bookedCount = bookedDates[bookingDateKey]?.times?.[`${hour}:00`] || 0;
+      const available = totalRoomUnits - bookedCount - blockedUnits;
+      maxRooms = Math.min(maxRooms, available);
+      if (maxRooms <= 0) return 0;
     }
-    return false;
+    return maxRooms;
   };
 
   const isDateSelectable = (date) => {
@@ -270,12 +286,13 @@ export default function RoomCalendar() {
     minBookableDate.setDate(minBookableDate.getDate() + 2);
     minBookableDate.setHours(0, 0, 0, 0);
     if (date < minBookableDate) return false;
-    return hasAnyAvailableHour(date);
+    // Check if at least 1 room is available for the fixed check-in time (2:00 PM)
+    return getMaxAvailableRoomsForDateTime(date, FIXED_CHECK_IN_HOUR) > 0;
   };
 
   const isDateFullyBooked = (date) => {
     if (!date) return false;
-    return !hasAnyAvailableHour(date);
+    return getMaxAvailableRoomsForDateTime(date, FIXED_CHECK_IN_HOUR) === 0;
   };
 
   const isDatePast = (date) => {
@@ -314,44 +331,50 @@ export default function RoomCalendar() {
   const handleDateSelect = (date) => {
     if (!isDateSelectable(date)) return;
     setSelectedDate(date);
-    setSelectedTime('');
-    setTimeSelectionError('');
-  };
-
-  const handleTimeSelect = (timeSlot) => {
-    if (!selectedDate) return;
-    if (!isHourAvailable(selectedDate, timeSlot.hour)) return;
-    if (!canFitRequiredBookingDuration(selectedDate, timeSlot.hour)) {
+    // Auto-select the fixed check-in time (2:00 PM)
+    if (areRoomsAvailableForDateTime(date, FIXED_CHECK_IN_HOUR, selectedRoomQuantity)) {
+      setSelectedTime(fixedTimeSlot.display);
+      setTimeSelectionError('');
+    } else {
       setSelectedTime('');
       setTimeSelectionError(
-        `The selected time does not meet the required ${BOOKING_DURATION_HOURS}-hour minimum continuous booking duration. Please choose a different check-in time.`
+        `The fixed check-in time (2:00 PM) is not available for ${date.toDateString()} with ${selectedRoomQuantity} room(s). Please try a different date or reduce the number of rooms.`
       );
-      return;
     }
-    setTimeSelectionError('');
-    setSelectedTime(timeSlot.display);
+  };
+
+  const handleRoomQuantityChange = (quantity) => {
+    const newQuantity = Math.min(Math.max(1, quantity), maxSelectableRooms);
+    setSelectedRoomQuantity(newQuantity);
+    
+    // Re-validate the selected date with new quantity
+    if (selectedDate) {
+      if (!areRoomsAvailableForDateTime(selectedDate, FIXED_CHECK_IN_HOUR, newQuantity)) {
+        setAvailabilityError(`Only ${maxSelectableRooms} room(s) available for ${selectedDate.toDateString()}.`);
+        if (selectedTime) {
+          setSelectedTime('');
+        }
+      } else {
+        setAvailabilityError('');
+        // Re-select the fixed time if it's still valid
+        setSelectedTime(fixedTimeSlot.display);
+      }
+    }
   };
 
   const handleProceed = () => {
-    if (selectedDate && selectedTime) {
+    if (selectedDate && selectedTime && selectedRoomQuantity > 0 && maxSelectableRooms >= selectedRoomQuantity) {
       const checkInDateTime = new Date(selectedDate);
-      const timeMatch = selectedTime.match(/(\d+):(\d+)\s*(AM|PM)/i);
-      if (timeMatch) {
-        let hours = parseInt(timeMatch[1]);
-        const minutes = parseInt(timeMatch[2]);
-        const period = timeMatch[3].toUpperCase();
-        if (period === 'PM' && hours !== 12) hours += 12;
-        else if (period === 'AM' && hours === 12) hours = 0;
-        if (!canFitRequiredBookingDuration(selectedDate, hours)) {
-          setSelectedTime('');
-          setTimeSelectionError(
-            `The selected time does not meet the required ${BOOKING_DURATION_HOURS}-hour minimum continuous booking duration. Please choose a different check-in time.`
-          );
-          return;
-        }
-        checkInDateTime.setHours(hours, minutes, 0, 0);
-      }
-      router.push(`/rooms/booking?roomId=${roomId}&roomType=${encodeURIComponent(roomType)}&price=${price}&maxCapacity=${maxCapacity}&totalRooms=${roomDetails?.totalRooms ?? totalRoomUnits}&checkIn=${checkInDateTime.toISOString()}`);
+      checkInDateTime.setHours(FIXED_CHECK_IN_HOUR, 0, 0, 0);
+      
+      // Calculate check-out date (next day at 12:00 PM)
+      const checkOutDateTime = new Date(selectedDate);
+      checkOutDateTime.setDate(checkOutDateTime.getDate() + 1);
+      checkOutDateTime.setHours(FIXED_CHECK_OUT_HOUR, 0, 0, 0);
+      
+      router.push(
+        `/rooms/booking?roomId=${roomId}&roomType=${encodeURIComponent(roomType)}&price=${price}&maxCapacity=${maxCapacity}&totalRooms=${roomDetails?.totalRooms ?? totalRoomUnits}&checkIn=${checkInDateTime.toISOString()}&checkOut=${checkOutDateTime.toISOString()}&numberOfRooms=${selectedRoomQuantity}&specialRequest=${encodeURIComponent(specialRequest)}`
+      );
     }
   };
 
@@ -399,10 +422,10 @@ export default function RoomCalendar() {
         <div className="max-w-7xl w-full mx-auto px-4">
           <div className="flex flex-col lg:flex-row gap-8 items-stretch">
             {/* Left Column - Calendar */}
-            <div className="lg:w-[70%] flex">
+            <div className="lg:w-[60%] flex">
               <div className="bg-white rounded-2xl shadow-lg overflow-hidden w-full flex flex-col">
                 <div className="bg-gradient-to-r from-ocean-mid to-ocean-light px-6 py-4 flex-shrink-0">
-                  <h1 className="text-2xl font-bold text-white">Select Check-in Date & Time</h1>
+                  <h1 className="text-2xl font-bold text-white">Select Check-in Date</h1>
                   <p className="text-white/80 text-sm mt-1">{roomType} - ₱{parseInt(price).toLocaleString()}/night</p>
                 </div>
 
@@ -552,12 +575,12 @@ export default function RoomCalendar() {
               </div>
             </div>
 
-            {/* Right Column - Room Card + Time Slots */}
-            <div className="lg:w-[30%] flex">
+            {/* Right Column - Room Card + Time Slots + Room Quantity - Increased width to 40% */}
+            <div className="lg:w-[40%] flex">
               <div className="w-full flex flex-col gap-6">
                 {/* Room Card */}
                 <div className="bg-white rounded-xl shadow-md border border-ocean-light/20 overflow-hidden flex-shrink-0">
-                  <div className="relative h-48 bg-gradient-to-br from-ocean-pale to-ocean-ice overflow-hidden">
+                  <div className="relative h-56 bg-gradient-to-br from-ocean-pale to-ocean-ice overflow-hidden">
                     {roomDetails?.images && roomDetails.images[0] ? (
                       <Image
                         src={roomDetails.images[0]}
@@ -594,12 +617,13 @@ export default function RoomCalendar() {
                           <p className="text-base font-semibold text-textPrimary">
                             {selectedDate.toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' })}
                           </p>
-                          {selectedTime && (
-                            <p className="text-sm text-ocean-mid font-medium mt-2">
-                              <i className="fas fa-clock mr-2"></i>
-                              {selectedTime}
-                            </p>
-                          )}
+                          <p className="text-sm text-ocean-mid font-medium mt-2">
+                            <i className="fas fa-clock mr-2"></i>
+                            Check-in: {FIXED_CHECK_IN_DISPLAY}
+                          </p>
+                          <p className="text-xs text-textSecondary mt-1">
+                            Check-out: {FIXED_CHECK_OUT_DISPLAY} (next day)
+                          </p>
                         </>
                       ) : (
                         <p className="text-base font-semibold text-textPrimary">No date selected</p>
@@ -607,9 +631,9 @@ export default function RoomCalendar() {
                     </div>
                     <button
                       onClick={handleProceed}
-                      disabled={!selectedDate || !selectedTime}
+                      disabled={!selectedDate || !selectedTime || maxSelectableRooms < selectedRoomQuantity || selectedRoomQuantity < 1}
                       className={`w-full py-3 rounded-lg font-semibold text-base transition-all duration-300 ${
-                        selectedDate && selectedTime
+                        selectedDate && selectedTime && maxSelectableRooms >= selectedRoomQuantity && selectedRoomQuantity >= 1
                           ? 'bg-gradient-to-r from-ocean-mid to-ocean-light text-white hover:shadow-lg hover:-translate-y-0.5'
                           : 'bg-gray-200 text-gray-500 cursor-not-allowed'
                       }`}
@@ -619,13 +643,23 @@ export default function RoomCalendar() {
                   </div>
                 </div>
 
-                {/* Available Check-in Times */}
+                {/* Available Check-in Times - Single time slot only */}
                 {selectedDate ? (
-                  <div className="bg-white rounded-xl shadow-md border border-ocean-light/20 p-5 flex-1">
+                  <div className="bg-white rounded-xl shadow-md border border-ocean-light/20 p-5">
                     <h3 className="text-base font-semibold text-textPrimary mb-4 flex items-center gap-2">
                       <i className="fas fa-clock text-ocean-light"></i>
-                      Available Check-in Times
+                      Check-in Time
                     </h3>
+                    <div className="mb-3 p-3 bg-blue-50 rounded-lg border border-blue-200">
+                      <p className="text-sm text-blue-800">
+                        <i className="fas fa-info-circle mr-2"></i>
+                        <strong>Fixed Check-in Time: 2:00 PM</strong>
+                      </p>
+                      <p className="text-xs text-blue-700 mt-1">
+                        Check-out time is fixed at 12:00 PM (noon) the following day.
+                        You may submit a request for earlier check-in in the Special Request field below.
+                      </p>
+                    </div>
                     {timeSelectionError && (
                       <div className="mb-3 p-3 bg-red-50 border border-red-200 rounded-lg">
                         <p className="text-xs text-red-700">
@@ -634,54 +668,106 @@ export default function RoomCalendar() {
                         </p>
                       </div>
                     )}
-                    <div className="grid grid-cols-2 gap-2 max-h-[400px] overflow-y-auto">
-                      {timeSlots.map((slot) => {
-                        const dateKey = toLocalDateKey(selectedDate);
-                        const blockedUnits = blockedSlots[dateKey]?.[slot.hour] ?? 0;
-                        const d = new Date(selectedDate);
-                        d.setHours(slot.hour, 0, 0, 0);
-                        const bookedCount = bookedDates[d.toDateString()]?.times?.[`${slot.hour}:00`] || 0;
-                        const isAvailable = isHourAvailable(selectedDate, slot.hour);
-                        const fullyBookedByGuests = bookedCount >= totalRoomUnits;
+                    <div className="grid grid-cols-1 gap-2">
+                      {(() => {
+                        const isAvailable = areRoomsAvailableForDateTime(selectedDate, fixedTimeSlot.hour, selectedRoomQuantity);
+                        const isSelectedTime = selectedTime === fixedTimeSlot.display;
+                        
                         return (
-                          <button
-                            type="button"
-                            key={slot.value}
-                            onClick={() => isAvailable && handleTimeSelect(slot)}
-                            disabled={!isAvailable}
-                            className={`py-2.5 px-3 rounded-lg text-sm font-medium transition-all duration-200 ${
-                              selectedTime === slot.display
+                          <div
+                            className={`py-3 px-4 rounded-lg text-center text-sm font-medium transition-all duration-200 ${
+                              isSelectedTime
                                 ? 'bg-ocean-mid text-white shadow-md'
                                 : !isAvailable
                                 ? 'bg-gray-100 text-gray-400 cursor-not-allowed'
-                                : 'bg-ocean-ice border border-ocean-light/20 text-textPrimary hover:bg-ocean-light/20 hover:shadow-sm'
+                                : 'bg-ocean-ice border border-ocean-light/20 text-textPrimary'
                             }`}
                           >
-                            {slot.display}
-                            {!isAvailable && fullyBookedByGuests && blockedUnits === 0 && (
-                              <span className="block text-[10px] text-red-500 mt-0.5">Fully Booked</span>
+                            {fixedTimeSlot.display}
+                            {!isAvailable && (
+                              <span className="block text-[10px] text-red-500 mt-0.5">Not Available</span>
                             )}
-                            {!isAvailable && (blockedUnits > 0 || !fullyBookedByGuests) && (
-                              <span className="block text-[10px] text-orange-600 mt-0.5">Not Available</span>
+                            {isAvailable && isSelectedTime && (
+                              <span className="block text-[10px] text-white/80 mt-0.5">Selected</span>
                             )}
-                          </button>
+                            {isAvailable && !isSelectedTime && (
+                              <span className="block text-[10px] text-green-600 mt-0.5">Available</span>
+                            )}
+                          </div>
                         );
-                      })}
+                      })()}
                     </div>
-                    {!selectedTime && (
-                      <div className="mt-4 p-2 bg-amber-50 rounded-lg text-center">
-                        <p className="text-xs text-amber-600">
-                          <i className="fas fa-info-circle mr-1"></i>
-                          Select a check-in time to continue
-                        </p>
-                      </div>
-                    )}
                   </div>
                 ) : (
                   <div className="bg-white rounded-xl shadow-md border border-ocean-light/20 p-8 text-center flex-1 flex flex-col items-center justify-center">
                     <i className="fas fa-calendar-day text-4xl text-ocean-light/40 mb-3 block"></i>
                     <p className="text-textSecondary text-sm">Select a date first</p>
                     <p className="text-textSecondary text-xs mt-1">to see available check-in times</p>
+                  </div>
+                )}
+
+                {/* Room Quantity Selection Container */}
+                {selectedDate && (
+                  <div className="bg-white rounded-xl shadow-md border border-ocean-light/20 p-5">
+                    <h3 className="text-base font-semibold text-textPrimary mb-4 flex items-center gap-2">
+                      <i className="fas fa-door-open text-ocean-light"></i>
+                      Room Quantity
+                    </h3>
+                    
+                    <div className="mb-4">
+                      <label className="block text-sm font-medium text-textPrimary mb-2">
+                        Number of Rooms to Book
+                      </label>
+                      <div className="flex items-center gap-3">
+                        <button
+                          onClick={() => handleRoomQuantityChange(selectedRoomQuantity - 1)}
+                          disabled={selectedRoomQuantity <= 1}
+                          className="w-10 h-10 rounded-lg border border-ocean-light/20 text-ocean-mid font-bold text-lg hover:bg-ocean-ice disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-200"
+                        >
+                          -
+                        </button>
+                        <span className="text-xl font-bold text-textPrimary min-w-[50px] text-center">
+                          {selectedRoomQuantity}
+                        </span>
+                        <button
+                          onClick={() => handleRoomQuantityChange(selectedRoomQuantity + 1)}
+                          disabled={selectedRoomQuantity >= maxSelectableRooms}
+                          className="w-10 h-10 rounded-lg border border-ocean-light/20 text-ocean-mid font-bold text-lg hover:bg-ocean-ice disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-200"
+                        >
+                          +
+                        </button>
+                      </div>
+                      <div className="mt-2">
+                        <p className="text-xs text-textSecondary">
+                          {maxSelectableRooms > 0 
+                            ? `${maxSelectableRooms} room(s) available for ${selectedDate.toDateString()} at 2:00 PM check-in`
+                            : `No rooms available for this date`}
+                        </p>
+                        {availabilityError && (
+                          <p className="text-xs text-red-600 mt-1">
+                            <i className="fas fa-exclamation-circle mr-1"></i>
+                            {availabilityError}
+                          </p>
+                        )}
+                      </div>
+                    </div>
+
+                    <div>
+                      <label className="block text-sm font-medium text-textPrimary mb-2">
+                        Special Request
+                      </label>
+                      <textarea
+                        value={specialRequest}
+                        onChange={(e) => setSpecialRequest(e.target.value)}
+                        placeholder="e.g., Request early check-in, room preference, special occasion, etc."
+                        rows="3"
+                        className="w-full px-3 py-2 border border-ocean-light/20 rounded-xl text-sm focus:outline-none focus:border-ocean-light resize-none"
+                      />
+                      <p className="text-xs text-textSecondary mt-1">
+                        <i className="fas fa-clock mr-1"></i>
+                        Note: Check-in time is fixed at 2:00 PM. If you need early check-in, please specify your requested time here.
+                      </p>
+                    </div>
                   </div>
                 )}
               </div>
