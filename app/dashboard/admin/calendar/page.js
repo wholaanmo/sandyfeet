@@ -3,7 +3,7 @@
 
 import { useState, useEffect } from 'react';
 import { db } from '@/lib/firebase';
-import { collection, query, where, doc, onSnapshot, addDoc, deleteDoc } from 'firebase/firestore';
+import { collection, query, where, doc, onSnapshot, addDoc, deleteDoc, updateDoc } from 'firebase/firestore';
 import { logAdminAction } from '@/lib/auditLogger';
 import Link from 'next/link';
 
@@ -99,7 +99,6 @@ export default function AdminCalendar() {
     return isNaN(d.getTime()) ? null : d;
   };
 
-  /** Calendar day key in local timezone (avoids UTC off-by-one vs grid dates). */
   const toLocalDateKey = (d) => {
     if (!d) return '';
     const y = d.getFullYear();
@@ -118,7 +117,6 @@ export default function AdminCalendar() {
   const getAdminBlockedUnitsForDate = (dateKey) => {
     const day = blockedSlots[dateKey];
     if (!day) return 0;
-    // For date-only blocking, we store the blocked units at hour 0 as the daily block
     return day[0] || 0;
   };
 
@@ -144,7 +142,6 @@ export default function AdminCalendar() {
             : cap;
         
         if (!blocks[dateKey]) blocks[dateKey] = {};
-        // For full day blocking (startHour=0, endHour=24), store at hour 0
         if (startHour === 0 && endHour === 24) {
           blocks[dateKey][0] = docUnits;
           dates.push({
@@ -155,12 +152,10 @@ export default function AdminCalendar() {
             createdAt: data.createdAt
           });
         } else {
-          // Handle legacy hour-specific blocks (convert to full day if needed)
           for (let hour = startHour; hour < endHour; hour++) {
             const prev = blocks[dateKey][hour] || 0;
             blocks[dateKey][hour] = Math.min(cap, prev + docUnits);
           }
-          // Check if this block covers all hours (full day)
           let coversFullDay = true;
           for (let hour = 0; hour < 24; hour++) {
             if ((blocks[dateKey][hour] || 0) < docUnits) {
@@ -205,18 +200,33 @@ export default function AdminCalendar() {
     });
   }, [totalRoomUnits]);
 
+  // Check if date is fully booked by guests (all units booked)
   const isDateFullyBookedByGuests = (date) => {
     if (!date || totalRoomUnits <= 0) return false;
-    // Check if all rooms are booked for the entire day
     for (let hour = 0; hour < 24; hour++) {
       const d = new Date(date);
       d.setHours(hour, 0, 0, 0);
       const bookingDateKey = d.toDateString();
       const bookedCount = bookedDates[bookingDateKey]?.times?.[`${hour}:00`] || 0;
-      const blockedUnits = getAdminBlockedUnitsForDate(toLocalDateKey(date));
-      if (bookedCount + blockedUnits < totalRoomUnits) return false;
+      if (bookedCount < totalRoomUnits) return false;
     }
     return true;
+  };
+
+  // Check if date is fully blocked by admin (all units admin-blocked)
+  const isDateFullyBlockedByAdmin = (date) => {
+    if (!date || totalRoomUnits <= 0) return false;
+    const dateKey = toLocalDateKey(date);
+    const blockedUnits = getAdminBlockedUnitsForDate(dateKey);
+    return blockedUnits >= totalRoomUnits;
+  };
+
+  // Check if date is partially blocked (some units admin-blocked)
+  const isDatePartiallyBlocked = (date) => {
+    if (!date || totalRoomUnits <= 0) return false;
+    const dateKey = toLocalDateKey(date);
+    const blockedUnits = getAdminBlockedUnitsForDate(dateKey);
+    return blockedUnits > 0 && blockedUnits < totalRoomUnits;
   };
 
   const isDatePast = (date) => {
@@ -229,7 +239,6 @@ export default function AdminCalendar() {
     if (!date || totalRoomUnits <= 0) return 0;
     const dateKey = toLocalDateKey(date);
     const blockedUnits = getAdminBlockedUnitsForDate(dateKey);
-    // Get maximum booked count across all hours (since booking may not cover full day)
     let maxBookedCount = 0;
     for (let hour = 0; hour < 24; hour++) {
       const d = new Date(date);
@@ -239,11 +248,6 @@ export default function AdminCalendar() {
       maxBookedCount = Math.max(maxBookedCount, bookedCount);
     }
     return Math.max(0, totalRoomUnits - maxBookedCount - blockedUnits);
-  };
-
-  const isDateSelectableForBlocking = (date) => {
-    if (isDatePast(date)) return false;
-    return getAvailableUnitsForDate(date) > 0;
   };
 
   const getDaysInMonth = (date) => {
@@ -304,10 +308,8 @@ export default function AdminCalendar() {
     try {
       const dateKey = toLocalDateKey(selectedDate);
       
-      // Check if there's already a block for this date
       const existingBlock = unavailableDates.find(d => d.date === dateKey && !d.isPartial);
       if (existingBlock) {
-        // Update existing block by adding units
         const newUnits = Math.min(totalRoomUnits, (existingBlock.unitsBlocked || 0) + nBlock);
         if (newUnits > totalRoomUnits) {
           showNotification('Cannot block more than total available units.', 'error');
@@ -319,7 +321,6 @@ export default function AdminCalendar() {
           updatedAt: new Date().toISOString()
         });
       } else {
-        // Create new full day block (0-24 hours)
         await addDoc(collection(db, 'unavailableSlots'), {
           roomId: selectedRoomId,
           date: dateKey,
@@ -394,24 +395,10 @@ export default function AdminCalendar() {
     setUnitsToBlock(1);
   };
 
-  const isDateFullyBlocked = (date) => {
-    if (!date || totalRoomUnits <= 0) return false;
-    const dateKey = toLocalDateKey(date);
-    const blockedUnits = getAdminBlockedUnitsForDate(dateKey);
-    return blockedUnits >= totalRoomUnits;
-  };
-
-  const isDatePartiallyBlocked = (date) => {
-    if (!date || totalRoomUnits <= 0) return false;
-    const dateKey = toLocalDateKey(date);
-    const blockedUnits = getAdminBlockedUnitsForDate(dateKey);
-    return blockedUnits > 0 && blockedUnits < totalRoomUnits;
-  };
-
   const getDateStatus = (date) => {
     if (isDatePast(date)) return 'past';
     if (isDateFullyBookedByGuests(date)) return 'fullyBooked';
-    if (isDateFullyBlocked(date)) return 'fullyBlocked';
+    if (isDateFullyBlockedByAdmin(date)) return 'fullyBlocked';
     if (isDatePartiallyBlocked(date)) return 'partiallyBlocked';
     if (selectedDate && selectedDate.toDateString() === date.toDateString()) return 'selected';
     return 'available';
@@ -429,7 +416,6 @@ export default function AdminCalendar() {
 
   return (
     <div className="p-6 bg-gradient-to-br from-ocean-ice to-blue-white min-h-screen">
-      {/* Notification */}
       {notification.show && (
         <div className={`fixed top-20 right-5 z-50 px-5 py-3 rounded-xl shadow-lg flex items-center gap-3 animate-slideInRight ${
           notification.type === 'error' ? 'bg-red-50 border-l-4 border-red-500 text-red-700' : 'bg-green-50 border-l-4 border-green-500 text-green-700'
@@ -439,7 +425,6 @@ export default function AdminCalendar() {
         </div>
       )}
 
-      {/* Header & Room Selector */}
       <div className="mb-6 flex flex-wrap justify-between items-center gap-4">
         <div>
           <h1 className="text-3xl font-bold text-textPrimary font-playfair mb-1">Calendar Management</h1>
@@ -447,7 +432,6 @@ export default function AdminCalendar() {
         </div>
       </div>
 
-      {/* Main two-column layout */}
       <div className="flex flex-col xl:flex-row gap-8">
         {/* Calendar (60%) */}
         <div className="xl:w-[60%]">
@@ -459,7 +443,6 @@ export default function AdminCalendar() {
               </p>
             </div>
             <div className="p-6">
-              {/* Month navigation */}
               <div className="flex justify-between items-center mb-6">
                 <button onClick={goToPreviousMonth} className="px-3 py-1.5 border border-ocean-light/20 rounded-lg hover:bg-ocean-ice text-sm">
                   <i className="fas fa-chevron-left mr-1 text-xs"></i> Prev
@@ -470,14 +453,12 @@ export default function AdminCalendar() {
                 </button>
               </div>
 
-              {/* Weekday headers */}
               <div className="grid grid-cols-7 gap-1.5 mb-2">
                 {['Su', 'Mo', 'Tu', 'We', 'Th', 'Fr', 'Sa'].map(day => (
                   <div key={day} className="text-center font-semibold text-textSecondary text-xs py-1.5">{day}</div>
                 ))}
               </div>
 
-              {/* Days grid */}
               <div className="grid grid-cols-7 gap-1.5">
                 {days.map((day, idx) => {
                   if (!day) return <div key={idx} className="aspect-square"></div>;
@@ -540,7 +521,6 @@ export default function AdminCalendar() {
                 })}
               </div>
 
-              {/* Legend */}
               <div className="mt-6 pt-4 border-t border-ocean-light/10 flex justify-center gap-6 text-xs flex-wrap">
                 <div className="flex items-center gap-1.5"><div className="w-3 h-3 bg-white border border-gray-300 rounded"></div><span>Available</span></div>
                 <div className="flex items-center gap-1.5"><div className="w-3 h-3 bg-red-100 border border-red-200 rounded"></div><span>Fully Booked</span></div>
@@ -581,7 +561,7 @@ export default function AdminCalendar() {
             </div>
           </div>
           
-          {/* Main Management Panel - Date Selection Only */}
+          {/* Main Management Panel */}
           <div className="bg-white rounded-2xl shadow-lg border border-ocean-light/10 p-5">
             <h3 className="text-lg font-bold text-textPrimary mb-4 flex items-center gap-2">
               <i className="fas fa-calendar-times text-ocean-light"></i> Block Date
@@ -760,7 +740,6 @@ export default function AdminCalendar() {
         </div>
       </div>
 
-      {/* Remove Confirmation Modal */}
       {removeConfirm && (
         <div
           className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/50"

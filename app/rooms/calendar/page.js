@@ -22,24 +22,21 @@ export default function RoomCalendar() {
   const [selectedTime, setSelectedTime] = useState('');
   const [loading, setLoading] = useState(true);
   const [bookedDates, setBookedDates] = useState({});
-  const [blockedSlots, setBlockedSlots] = useState({}); // { dateKey: { hour: blockedUnitCount } }
-  const [fullyBlockedDates, setFullyBlockedDates] = useState({}); // { dateKey: true }
+  const [blockedSlots, setBlockedSlots] = useState({});
+  const [fullyBlockedDates, setFullyBlockedDates] = useState({});
   const [roomDetails, setRoomDetails] = useState(null);
   const [timeSelectionError, setTimeSelectionError] = useState('');
   
-  // New state for room quantity and special request
   const [selectedRoomQuantity, setSelectedRoomQuantity] = useState(1);
   const [specialRequest, setSpecialRequest] = useState('');
   const [maxSelectableRooms, setMaxSelectableRooms] = useState(1);
   const [availabilityError, setAvailabilityError] = useState('');
 
-  // Fixed times (check-in: 2:00 PM, check-out: 12:00 PM next day)
-  const FIXED_CHECK_IN_HOUR = 14; // 2:00 PM
-  const FIXED_CHECK_OUT_HOUR = 12; // 12:00 PM (noon)
+  const FIXED_CHECK_IN_HOUR = 14;
+  const FIXED_CHECK_OUT_HOUR = 12;
   const FIXED_CHECK_IN_DISPLAY = '02:00 PM';
   const FIXED_CHECK_OUT_DISPLAY = '12:00 PM';
 
-  // Only generate the fixed time slot
   const fixedTimeSlot = {
     value: `${FIXED_CHECK_IN_HOUR.toString().padStart(2, '0')}:00`,
     display: FIXED_CHECK_IN_DISPLAY,
@@ -75,7 +72,6 @@ export default function RoomCalendar() {
     return Number.isNaN(d.getTime()) ? null : d;
   };
 
-  /** Calendar day key in local timezone (matches admin calendar / Firestore date strings). */
   const toLocalDateKey = (d) => {
     if (!d) return '';
     const y = d.getFullYear();
@@ -149,15 +145,15 @@ export default function RoomCalendar() {
     return () => unsubscribe();
   }, [roomId]);
 
-  // Blocked slots: per-hour total admin-blocked units (partial blocks supported)
+  // Blocked slots: per-hour total admin-blocked units
   useEffect(() => {
     if (!roomId) return;
     const cap = totalRoomUnits;
     const blockedRef = collection(db, 'unavailableSlots');
     const q = query(blockedRef, where('roomId', '==', roomId));
     const unsubscribe = onSnapshot(q, (snapshot) => {
-      const blocks = {}; // { dateKey: { hour: number } }
-      const fullyBlocked = {}; // { dateKey: true } — all hours have blockedUnits >= cap
+      const blocks = {};
+      const fullyBlocked = {};
 
       snapshot.forEach((docSnap) => {
         const data = docSnap.data();
@@ -177,6 +173,7 @@ export default function RoomCalendar() {
         }
       });
 
+      // Determine fully blocked dates (all 24 hours have blockedUnits >= cap)
       if (cap > 0) {
         Object.keys(blocks).forEach((dateKey) => {
           let allHoursBlocked = true;
@@ -206,7 +203,6 @@ export default function RoomCalendar() {
       return;
     }
     
-    // Calculate max rooms available for the fixed check-in time (2:00 PM)
     const maxAvailable = getMaxAvailableRoomsForDateTime(selectedDate, FIXED_CHECK_IN_HOUR);
     setMaxSelectableRooms(maxAvailable);
     
@@ -235,10 +231,8 @@ export default function RoomCalendar() {
     return days;
   };
 
-  // Booking duration: from 2:00 PM to 12:00 PM next day = 22 hours
   const BOOKING_DURATION_HOURS = 22;
 
-  // Check if a specific number of rooms is available for a given date and start hour
   const areRoomsAvailableForDateTime = (date, startHour, requiredRooms) => {
     if (!date) return false;
     if (totalRoomUnits <= 0) return false;
@@ -257,7 +251,6 @@ export default function RoomCalendar() {
     return true;
   };
 
-  // Get max number of rooms available for a given date and start hour
   const getMaxAvailableRoomsForDateTime = (date, startHour) => {
     if (!date || totalRoomUnits <= 0) return 0;
     
@@ -286,13 +279,26 @@ export default function RoomCalendar() {
     minBookableDate.setDate(minBookableDate.getDate() + 2);
     minBookableDate.setHours(0, 0, 0, 0);
     if (date < minBookableDate) return false;
-    // Check if at least 1 room is available for the fixed check-in time (2:00 PM)
     return getMaxAvailableRoomsForDateTime(date, FIXED_CHECK_IN_HOUR) > 0;
   };
 
   const isDateFullyBooked = (date) => {
     if (!date) return false;
-    return getMaxAvailableRoomsForDateTime(date, FIXED_CHECK_IN_HOUR) === 0;
+    // Check if all rooms are booked by guests (not blocked by admin)
+    for (let hour = 0; hour < 24; hour++) {
+      const d = new Date(date);
+      d.setHours(hour, 0, 0, 0);
+      const bookingDateKey = d.toDateString();
+      const bookedCount = bookedDates[bookingDateKey]?.times?.[`${hour}:00`] || 0;
+      if (bookedCount < totalRoomUnits) return false;
+    }
+    return true;
+  };
+
+  const isDateFullyBlockedByAdmin = (date) => {
+    if (!date) return false;
+    const dateKey = toLocalDateKey(date);
+    return fullyBlockedDates[dateKey] === true;
   };
 
   const isDatePast = (date) => {
@@ -310,7 +316,6 @@ export default function RoomCalendar() {
     return date < minBookableDate && date >= today;
   };
 
-  /** Orange-dot: at least one hour on this date has all units marked unavailable by admin (admin block ≥ capacity for that hour). */
   const hasAnyHourFullyAdminUnavailable = (date) => {
     if (!date || totalRoomUnits <= 0) return false;
     const dateKey = toLocalDateKey(date);
@@ -322,16 +327,9 @@ export default function RoomCalendar() {
     return false;
   };
 
-  const isDateFullyBlockedByAdmin = (date) => {
-    if (!date) return false;
-    const dateKey = toLocalDateKey(date);
-    return fullyBlockedDates[dateKey] === true;
-  };
-
   const handleDateSelect = (date) => {
     if (!isDateSelectable(date)) return;
     setSelectedDate(date);
-    // Auto-select the fixed check-in time (2:00 PM)
     if (areRoomsAvailableForDateTime(date, FIXED_CHECK_IN_HOUR, selectedRoomQuantity)) {
       setSelectedTime(fixedTimeSlot.display);
       setTimeSelectionError('');
@@ -347,7 +345,6 @@ export default function RoomCalendar() {
     const newQuantity = Math.min(Math.max(1, quantity), maxSelectableRooms);
     setSelectedRoomQuantity(newQuantity);
     
-    // Re-validate the selected date with new quantity
     if (selectedDate) {
       if (!areRoomsAvailableForDateTime(selectedDate, FIXED_CHECK_IN_HOUR, newQuantity)) {
         setAvailabilityError(`Only ${maxSelectableRooms} room(s) available for ${selectedDate.toDateString()}.`);
@@ -356,7 +353,6 @@ export default function RoomCalendar() {
         }
       } else {
         setAvailabilityError('');
-        // Re-select the fixed time if it's still valid
         setSelectedTime(fixedTimeSlot.display);
       }
     }
@@ -367,7 +363,6 @@ export default function RoomCalendar() {
       const checkInDateTime = new Date(selectedDate);
       checkInDateTime.setHours(FIXED_CHECK_IN_HOUR, 0, 0, 0);
       
-      // Calculate check-out date (next day at 12:00 PM)
       const checkOutDateTime = new Date(selectedDate);
       checkOutDateTime.setDate(checkOutDateTime.getDate() + 1);
       checkOutDateTime.setHours(FIXED_CHECK_OUT_HOUR, 0, 0, 0);
@@ -430,7 +425,6 @@ export default function RoomCalendar() {
                 </div>
 
                 <div className="p-6 flex-1 flex flex-col">
-                  {/* Month Navigation */}
                   <div className="flex justify-between items-center mb-6 flex-shrink-0">
                     <button
                       onClick={goBack}
@@ -460,7 +454,6 @@ export default function RoomCalendar() {
                     </div>
                   </div>
 
-                  {/* Calendar Grid */}
                   <div className="flex-1 flex flex-col">
                     <div className="grid grid-cols-7 gap-1.5 mb-2">
                       {['Su', 'Mo', 'Tu', 'We', 'Th', 'Fr', 'Sa'].map(day => (
@@ -505,18 +498,18 @@ export default function RoomCalendar() {
                           borderClass = 'border border-gray-200';
                           cursorClass = 'cursor-not-allowed';
                           titleText = 'Must book at least 1 day in advance';
-                        } else if (isFullyBooked) {
-                          bgColor = 'bg-red-100';
-                          textColor = 'text-red-600';
-                          borderClass = 'border border-red-200';
-                          cursorClass = 'cursor-not-allowed';
-                          titleText = 'Fully booked';
                         } else if (isFullyBlockedByAdmin) {
                           bgColor = 'bg-orange-100';
                           textColor = 'text-orange-700';
                           borderClass = 'border border-orange-200';
                           cursorClass = 'cursor-not-allowed';
-                          titleText = 'Not Available (all hours blocked by admin)';
+                          titleText = 'Fully Blocked by Admin';
+                        } else if (isFullyBooked) {
+                          bgColor = 'bg-red-100';
+                          textColor = 'text-red-600';
+                          borderClass = 'border border-red-200';
+                          cursorClass = 'cursor-not-allowed';
+                          titleText = 'Fully Booked';
                         } else if (isSelected) {
                           bgColor = 'bg-ocean-mid';
                           textColor = 'text-white';
@@ -548,7 +541,6 @@ export default function RoomCalendar() {
                     </div>
                   </div>
 
-                  {/* Legend */}
                   <div className="mt-6 pt-4 border-t border-ocean-light/10 flex justify-center gap-6 text-xs flex-shrink-0 flex-wrap">
                     <div className="flex items-center gap-1.5">
                       <div className="w-3 h-3 bg-white border border-gray-300 rounded"></div>
@@ -557,6 +549,10 @@ export default function RoomCalendar() {
                     <div className="flex items-center gap-1.5">
                       <div className="w-3 h-3 bg-red-100 border border-red-200 rounded"></div>
                       <span className="text-textSecondary">Fully Booked</span>
+                    </div>
+                    <div className="flex items-center gap-1.5">
+                      <div className="w-3 h-3 bg-orange-100 border border-orange-200 rounded"></div>
+                      <span className="text-textSecondary">Fully Blocked</span>
                     </div>
                     <div className="flex items-center gap-1.5">
                       <div className="w-3 h-3 bg-gray-100 border border-gray-200 rounded"></div>
@@ -575,7 +571,7 @@ export default function RoomCalendar() {
               </div>
             </div>
 
-            {/* Right Column - Room Card + Time Slots + Room Quantity - Increased width to 40% */}
+            {/* Right Column */}
             <div className="lg:w-[40%] flex">
               <div className="w-full flex flex-col gap-6">
                 {/* Room Card */}
@@ -643,7 +639,7 @@ export default function RoomCalendar() {
                   </div>
                 </div>
 
-                {/* Available Check-in Times - Single time slot only */}
+                {/* Available Check-in Times */}
                 {selectedDate ? (
                   <div className="bg-white rounded-xl shadow-md border border-ocean-light/20 p-5">
                     <h3 className="text-base font-semibold text-textPrimary mb-4 flex items-center gap-2">
