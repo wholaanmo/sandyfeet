@@ -85,7 +85,7 @@ function ResetPasswordForm() {
             <i className="fas fa-lock text-ocean-light text-2xl"></i>
           </div>
           <h1 className="text-2xl font-bold text-textPrimary font-playfair">Create New Password</h1>
-          <p className="text-textSecondary text-sm mt-1">Enter your new password below</p>
+          <p className="text-textSecondary text-sm mt-1">Enter your new password</p>
         </div>
         
         {message && (

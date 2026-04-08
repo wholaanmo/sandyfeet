@@ -942,36 +942,6 @@ export default function BookingPage() {
                   {/* GCash Payment Section */}
                   {paymentMethod === 'gcash' && (
                     <div className="space-y-6">
-                      <div>
-                        <label className="block text-sm font-semibold text-textPrimary mb-2">Upload Valid ID *</label>
-                        <p className="text-xs text-textSecondary mb-2">
-                          Full name on the ID must match the booking details. Image must be clear (front only) with no blur.
-                        </p>
-                        <button
-                          type="button"
-                          onClick={() => {
-                            setTempValidIdType(bookingData.validIdType || 'Passport');
-                            setTempValidIdImage(bookingData.validIdImage || null);
-                            setShowValidIdModal(true);
-                          }}
-                          className="inline-flex items-center gap-2 px-4 py-2 rounded-lg border border-ocean-light/40 text-sm font-medium text-textPrimary hover:bg-ocean-ice transition-all duration-200"
-                        >
-                          <i className="fas fa-id-card text-ocean-mid"></i>
-                          {bookingData.validIdImage ? 'Change Uploaded Valid ID' : 'Choose File'}
-                        </button>
-                        {bookingData.validIdType && (
-                          <p className="mt-2 text-xs text-ocean-mid">
-                            Selected ID: <span className="font-semibold">{bookingData.validIdType}</span>
-                          </p>
-                        )}
-                        {bookingData.validIdImage && (
-                          <p className="mt-1 text-xs text-green-600 flex items-center gap-1">
-                            <i className="fas fa-check-circle"></i>
-                            Valid ID uploaded
-                          </p>
-                        )}
-                      </div>
-
                       <div className="p-5 bg-ocean-ice rounded-xl text-center">
                         <h3 className="text-lg font-semibold text-textPrimary mb-3 flex items-center justify-center gap-2">
                           <i className="fab fa-gcash text-ocean-mid"></i>
@@ -1012,6 +982,40 @@ export default function BookingPage() {
                           <li>If you cancel your reservation, the resort will retain <strong>50% of the down payment</strong>.</li>
                         </ul>
                       </div>
+
+                                              <div className="bg-gradient-to-br from-white to-ocean-ice/30 rounded-xl border border-ocean-light/30 p-5 shadow-sm">
+                        <div className="flex items-center gap-2 mb-3">
+                          <i className="fas fa-id-card text-ocean-mid text-lg"></i>
+                          <label className="text-sm font-semibold text-textPrimary">Upload Valid ID *</label>
+                        </div>
+                        <p className="text-xs text-textSecondary mb-3">
+                          Full name on the ID must match the booking details. Image must be clear (front only) with no blur.
+                        </p>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setTempValidIdType(bookingData.validIdType || 'Passport');
+                            setTempValidIdImage(bookingData.validIdImage || null);
+                            setShowValidIdModal(true);
+                          }}
+                          className="inline-flex items-center gap-2 px-5 py-2.5 rounded-lg border border-ocean-light/40 text-sm font-medium text-textPrimary bg-white hover:bg-ocean-ice hover:border-ocean-mid/50 transition-all duration-200 shadow-sm"
+                        >
+                          <i className="fas fa-cloud-upload-alt text-ocean-mid"></i>
+                          {bookingData.validIdImage ? 'Change Uploaded Valid ID' : 'Choose File'}
+                        </button>
+                        {bookingData.validIdType && (
+                          <p className="mt-3 text-xs text-ocean-mid flex items-center gap-1">
+                            <i className="fas fa-check-circle"></i>
+                            Selected ID: <span className="font-semibold">{bookingData.validIdType}</span>
+                          </p>
+                        )}
+                        {bookingData.validIdImage && (
+                          <p className="mt-1 text-xs text-green-600 flex items-center gap-1">
+                            <i className="fas fa-check-circle"></i>
+                            Valid ID uploaded
+                          </p>
+                        )}
+                      </div>
                       
                       <div>
                         <label className="block text-sm font-semibold text-textPrimary mb-2">Upload Proof of Payment (Down Payment) *</label>
@@ -1049,35 +1053,6 @@ export default function BookingPage() {
                   {/* Bank Transfer Section */}
                   {paymentMethod === 'bank_transfer' && (
                     <div className="space-y-6">
-                      <div>
-                        <label className="block text-sm font-semibold text-textPrimary mb-2">Upload Valid ID *</label>
-                        <p className="text-xs text-textSecondary mb-2">
-                          Full name on the ID must match the booking details. Image must be clear (front only) with no blur.
-                        </p>
-                        <button
-                          type="button"
-                          onClick={() => {
-                            setTempValidIdType(bookingData.validIdType || 'Passport');
-                            setTempValidIdImage(bookingData.validIdImage || null);
-                            setShowValidIdModal(true);
-                          }}
-                          className="inline-flex items-center gap-2 px-4 py-2 rounded-lg border border-ocean-light/40 text-sm font-medium text-textPrimary hover:bg-ocean-ice transition-all duration-200"
-                        >
-                          <i className="fas fa-id-card text-ocean-mid"></i>
-                          {bookingData.validIdImage ? 'Change Uploaded Valid ID' : 'Choose File'}
-                        </button>
-                        {bookingData.validIdType && (
-                          <p className="mt-2 text-xs text-ocean-mid">
-                            Selected ID: <span className="font-semibold">{bookingData.validIdType}</span>
-                          </p>
-                        )}
-                        {bookingData.validIdImage && (
-                          <p className="mt-1 text-xs text-green-600 flex items-center gap-1">
-                            <i className="fas fa-check-circle"></i>
-                            Valid ID uploaded
-                          </p>
-                        )}
-                      </div>
                       <div className="p-5 bg-ocean-ice rounded-xl">
                         <h3 className="text-lg font-semibold text-textPrimary mb-3 flex items-center gap-2">
                           <i className="fas fa-university text-ocean-mid"></i>
@@ -1202,6 +1177,40 @@ export default function BookingPage() {
                           <li>The <strong>remaining balance</strong> (₱{(totalPrice - downPaymentAmount).toLocaleString()}) should be paid at the resort upon check-in.</li>
                           <li>If you cancel your reservation, the resort will retain <strong>50% of the down payment</strong>.</li>
                         </ul>
+                      </div>
+
+                                              <div className="bg-gradient-to-br from-white to-ocean-ice/30 rounded-xl border border-ocean-light/30 p-5 shadow-sm">
+                        <div className="flex items-center gap-2 mb-3">
+                          <i className="fas fa-id-card text-ocean-mid text-lg"></i>
+                          <label className="text-sm font-semibold text-textPrimary">Upload Valid ID *</label>
+                        </div>
+                        <p className="text-xs text-textSecondary mb-3">
+                          Full name on the ID must match the booking details. Image must be clear (front only) with no blur.
+                        </p>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setTempValidIdType(bookingData.validIdType || 'Passport');
+                            setTempValidIdImage(bookingData.validIdImage || null);
+                            setShowValidIdModal(true);
+                          }}
+                          className="inline-flex items-center gap-2 px-5 py-2.5 rounded-lg border border-ocean-light/40 text-sm font-medium text-textPrimary bg-white hover:bg-ocean-ice hover:border-ocean-mid/50 transition-all duration-200 shadow-sm"
+                        >
+                          <i className="fas fa-cloud-upload-alt text-ocean-mid"></i>
+                          {bookingData.validIdImage ? 'Change Uploaded Valid ID' : 'Choose File'}
+                        </button>
+                        {bookingData.validIdType && (
+                          <p className="mt-3 text-xs text-ocean-mid flex items-center gap-1">
+                            <i className="fas fa-check-circle"></i>
+                            Selected ID: <span className="font-semibold">{bookingData.validIdType}</span>
+                          </p>
+                        )}
+                        {bookingData.validIdImage && (
+                          <p className="mt-1 text-xs text-green-600 flex items-center gap-1">
+                            <i className="fas fa-check-circle"></i>
+                            Valid ID uploaded
+                          </p>
+                        )}
                       </div>
                       
                       {bankDetailsProvided && (

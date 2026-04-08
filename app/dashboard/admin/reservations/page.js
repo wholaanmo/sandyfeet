@@ -278,7 +278,10 @@ export default function AdminReservations() {
   const handleMoveDateNotify = async (booking) => {
     setMoveDateConfirmModal(prev => ({ ...prev, sending: true }));
     try {
-      const bookingRef = doc(db, 'dayTourBookings', booking.id);
+      const isRoomBooking = booking?.type === 'room';
+      const collectionName = isRoomBooking ? 'bookings' : 'dayTourBookings';
+      const notificationType = isRoomBooking ? 'room' : 'daytour';
+      const bookingRef = doc(db, collectionName, booking.id);
       await updateDoc(bookingRef, {
         moveDateNotificationSent: true,
         moveDateNotificationSentAt: new Date().toISOString(),
@@ -290,15 +293,15 @@ export default function AdminReservations() {
       const response = await fetch('/api/admin/send-move-date-notification', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ bookingId: booking.id, type: 'daytour' })
+        body: JSON.stringify({ bookingId: booking.id, type: notificationType })
       });
       const data = await response.json();
 
       if (response.ok) {
         await logAdminAction({
           action: 'Move Date Notification Sent',
-          module: 'Day Tour Reservations',
-          details: `Sent move date notification for day tour booking ${booking.bookingId} to ${booking.guestInfo?.firstName} ${booking.guestInfo?.lastName} (${booking.guestInfo?.email}).`
+          module: isRoomBooking ? 'Reservations' : 'Day Tour Reservations',
+          details: `Sent move date notification for ${isRoomBooking ? 'room' : 'day tour'} booking ${booking.bookingId} to ${booking.guestInfo?.firstName} ${booking.guestInfo?.lastName} (${booking.guestInfo?.email}).`
         });
         
         showNotification(`Move date notification sent to ${booking.guestInfo?.email}`, 'success');

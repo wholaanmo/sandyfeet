@@ -13,7 +13,17 @@ export async function POST(request) {
     }
 
     // Determine which collection to query based on booking type
-    const collectionName = type === 'daytour' ? 'dayTourBookings' : 'bookings';
+    const normalizedType = String(type || '').toLowerCase();
+    const collectionName =
+      normalizedType === 'daytour'
+        ? 'dayTourBookings'
+        : normalizedType === 'room' || normalizedType === 'rooms'
+          ? 'bookings'
+          : null;
+
+    if (!collectionName) {
+      return NextResponse.json({ error: 'Invalid booking type' }, { status: 400 });
+    }
     
     // Fetch booking data from Firestore
     const bookingRef = doc(db, collectionName, bookingId);

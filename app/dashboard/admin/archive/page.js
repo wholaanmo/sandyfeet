@@ -3,7 +3,7 @@
 
 import { useState, useEffect } from 'react';
 import { db } from '../../../../lib/firebase';
-import { collection, query, orderBy, onSnapshot, where, updateDoc, doc, deleteDoc, getDocs, getDoc } from 'firebase/firestore';
+import { collection, query, orderBy, onSnapshot, where, updateDoc, doc, deleteDoc, getDocs, getDoc, setDoc } from 'firebase/firestore';
 import { logAdminAction } from '../../../../lib/auditLogger';
 import Image from 'next/image';
 import { useRouter } from 'next/navigation';
