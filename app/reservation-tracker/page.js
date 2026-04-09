@@ -20,23 +20,166 @@ export default function ReservationTrackerPage() {
   const [reservationType, setReservationType] = useState(null); // 'room' or 'daytour'
   const [reservationId, setReservationId] = useState(null);
   const [reservationCollection, setReservationCollection] = useState(null);
+  const [isMultiRoomBooking, setIsMultiRoomBooking] = useState(false);
+  const [childBookings, setChildBookings] = useState([]);
   
   // Store the unsubscribe function for real-time listener
   const unsubscribeRef = useRef(null);
+  const childUnsubscribeRefs = useRef([]);
 
   const validateEmail = (email) => {
     const re = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
     return re.test(email);
   };
 
-  // Cleanup previous listener when component unmounts or new search is performed
+  // Cleanup previous listeners when component unmounts or new search is performed
   useEffect(() => {
     return () => {
       if (unsubscribeRef.current) {
         unsubscribeRef.current();
       }
+      childUnsubscribeRefs.current.forEach(unsub => {
+        if (unsub) unsub();
+      });
+      childUnsubscribeRefs.current = [];
     };
   }, []);
+
+  // Function to fetch child bookings for a multi-room parent booking ID
+  const fetchChildBookings = async (parentBookingId) => {
+    try {
+      const bookingsRef = collection(db, 'bookings');
+      const childQuery = query(
+        bookingsRef,
+        where('parentBookingId', '==', parentBookingId),
+        where('isMultiRoomBooking', '==', true)
+      );
+      
+      const childSnapshot = await getDocs(childQuery);
+      const children = [];
+      
+      childSnapshot.forEach((doc) => {
+        children.push({
+          id: doc.id,
+          ...doc.data()
+        });
+      });
+      
+      // Sort by room type for consistent display
+      children.sort((a, b) => (a.roomType || '').localeCompare(b.roomType || ''));
+      
+      // Set up real-time listeners for child bookings
+      childUnsubscribeRefs.current.forEach(unsub => {
+        if (unsub) unsub();
+      });
+      childUnsubscribeRefs.current = [];
+      
+      children.forEach(child => {
+        const childRef = doc(db, 'bookings', child.id);
+        const unsubscribe = onSnapshot(childRef, (docSnapshot) => {
+          if (docSnapshot.exists()) {
+            const updatedData = docSnapshot.data();
+            setChildBookings(prev => prev.map(c => 
+              c.id === child.id ? { ...c, ...updatedData } : c
+            ));
+          }
+        }, (err) => {
+          console.error('Real-time listener error for child booking:', err);
+        });
+        childUnsubscribeRefs.current.push(unsubscribe);
+      });
+      
+      setChildBookings(children);
+      return children;
+    } catch (err) {
+      console.error('Error fetching child bookings:', err);
+      return [];
+    }
+  };
+
+  // Function to check if a booking ID is a multi-room parent
+  const checkForMultiRoomBooking = async (email, bookingId) => {
+    try {
+      // First, check if there's a parent booking record
+      // For multi-room bookings, we store a consolidated record with isMultiRoomGroup flag
+      // But also we can find by checking if there are any child bookings with this parentBookingId
+      
+      const bookingsRef = collection(db, 'bookings');
+      
+      // Query for child bookings with this parentBookingId
+      const childQuery = query(
+        bookingsRef,
+        where('parentBookingId', '==', bookingId),
+        where('isMultiRoomBooking', '==', true)
+      );
+      
+      const childSnapshot = await getDocs(childQuery);
+      
+      if (!childSnapshot.empty) {
+        // This is a multi-room booking - get the first child to extract shared info
+        const firstChild = childSnapshot.docs[0].data();
+        
+        // Get all child bookings data
+        const children = [];
+        let totalPrice = 0;
+        let totalRooms = 0;
+        const roomTypes = {};
+        let totalGuests = 0;
+        
+        childSnapshot.forEach((doc) => {
+          const childData = doc.data();
+          children.push({
+            id: doc.id,
+            ...childData
+          });
+          totalPrice += childData.totalPrice || 0;
+          totalRooms += childData.numberOfRooms || 1;
+          totalGuests += childData.guests || 1;
+          
+          if (!roomTypes[childData.roomType]) {
+            roomTypes[childData.roomType] = {
+              quantity: 1,
+              guestsPerRoom: childData.guests || 1,
+              price: childData.price
+            };
+          } else {
+            roomTypes[childData.roomType].quantity++;
+          }
+        });
+        
+        // Create consolidated multi-room reservation object
+        const multiRoomReservation = {
+          id: bookingId,
+          bookingId: bookingId,
+          guestInfo: firstChild.guestInfo,
+          checkIn: firstChild.checkIn,
+          checkOut: firstChild.checkOut,
+          status: firstChild.status,
+          totalPrice: totalPrice,
+          type: 'room',
+          isMultiRoom: true,
+          totalRooms: totalRooms,
+          totalGuests: totalGuests,
+          roomTypes: roomTypes,
+          roomTypesArray: Object.entries(roomTypes).map(([type, data]) => ({
+            type: type,
+            quantity: data.quantity,
+            guestsPerRoom: data.guestsPerRoom,
+            price: data.price
+          })),
+          createdAt: firstChild.createdAt,
+          children: children
+        };
+        
+        return multiRoomReservation;
+      }
+      
+      return null;
+    } catch (err) {
+      console.error('Error checking for multi-room booking:', err);
+      return null;
+    }
+  };
 
   const handleSearch = async (e) => {
     e.preventDefault();
@@ -55,20 +198,82 @@ export default function ReservationTrackerPage() {
     setError('');
     setReservation(null);
     setReservationType(null);
+    setIsMultiRoomBooking(false);
+    setChildBookings([]);
     
-    // Unsubscribe from any previous listener
+    // Unsubscribe from any previous listeners
     if (unsubscribeRef.current) {
       unsubscribeRef.current();
       unsubscribeRef.current = null;
     }
+    childUnsubscribeRefs.current.forEach(unsub => {
+      if (unsub) unsub();
+    });
+    childUnsubscribeRefs.current = [];
     
     try {
-      // First, try to find in room bookings
+      const bookingId = referenceNumber.trim().toUpperCase();
+      
+      // First, check if this is a multi-room booking
+      const multiRoomReservation = await checkForMultiRoomBooking(email.toLowerCase().trim(), bookingId);
+      
+      if (multiRoomReservation) {
+        // Verify email matches
+        if (multiRoomReservation.guestInfo?.email?.toLowerCase() !== email.toLowerCase().trim()) {
+          setError('No reservation found. Please check your details and try again.');
+          setLoading(false);
+          return;
+        }
+        
+        setReservationType('room');
+        setIsMultiRoomBooking(true);
+        setReservation(multiRoomReservation);
+        
+        // Set up real-time listener for child bookings to update status
+        const updateChildStatuses = () => {
+          if (multiRoomReservation.children && multiRoomReservation.children.length > 0) {
+            const anyChildNotCancelled = multiRoomReservation.children.some(child => 
+              child.status !== 'cancelled' && child.status !== 'cancelled-by-guest'
+            );
+            const allChildrenCancelled = multiRoomReservation.children.every(child => 
+              child.status === 'cancelled' || child.status === 'cancelled-by-guest'
+            );
+            
+            if (allChildrenCancelled && multiRoomReservation.status !== 'cancelled-by-guest') {
+              setReservation(prev => ({ ...prev, status: 'cancelled-by-guest' }));
+            } else if (anyChildNotCancelled && multiRoomReservation.status === 'cancelled-by-guest') {
+              setReservation(prev => ({ ...prev, status: 'pending' }));
+            }
+          }
+        };
+        
+        // Listen for changes on each child
+        multiRoomReservation.children.forEach(child => {
+          const childRef = doc(db, 'bookings', child.id);
+          const unsubscribe = onSnapshot(childRef, (docSnapshot) => {
+            if (docSnapshot.exists()) {
+              const updatedData = docSnapshot.data();
+              setChildBookings(prev => prev.map(c => 
+                c.id === child.id ? { ...c, ...updatedData } : c
+              ));
+              updateChildStatuses();
+            }
+          }, (err) => {
+            console.error('Real-time listener error for child booking:', err);
+          });
+          childUnsubscribeRefs.current.push(unsubscribe);
+        });
+        
+        setLoading(false);
+        return;
+      }
+      
+      // If not multi-room, try regular room bookings
       const bookingsRef = collection(db, 'bookings');
       const roomQuery = query(
         bookingsRef,
         where('guestInfo.email', '==', email.toLowerCase().trim()),
-        where('bookingId', '==', referenceNumber.trim().toUpperCase())
+        where('bookingId', '==', bookingId)
       );
       
       const roomSnapshot = await getDocs(roomQuery);
@@ -80,6 +285,7 @@ export default function ReservationTrackerPage() {
         setReservationType('room');
         setReservationId(bookingDoc.id);
         setReservationCollection('bookings');
+        setIsMultiRoomBooking(false);
         
         setReservation({
           id: bookingDoc.id,
@@ -114,7 +320,7 @@ export default function ReservationTrackerPage() {
       const dayTourQuery = query(
         dayTourBookingsRef,
         where('guestInfo.email', '==', email.toLowerCase().trim()),
-        where('bookingId', '==', referenceNumber.trim().toUpperCase())
+        where('bookingId', '==', bookingId)
       );
       
       const dayTourSnapshot = await getDocs(dayTourQuery);
@@ -165,34 +371,40 @@ export default function ReservationTrackerPage() {
     }
   };
 
-const addCancellationNotification = async (booking, reason) => {
-  try {
-    const cancellationsRef = collection(db, 'guest_cancellations');
-    
-    // Create base notification data
-    const notificationData = {
-      guestName: `${booking.guestInfo?.firstName} ${booking.guestInfo?.lastName}`,
-      bookingId: booking.bookingId,
-      cancelledAt: new Date().toISOString(),
-      cancellationReason: reason,
-      read: false,
-      bookingType: booking.type || 'room'
-    };
-    
-    // Only add roomType for room bookings, add tourDate for day tour bookings
-    if (booking.type === 'daytour') {
-      notificationData.tourDate = booking.selectedDate;
-      notificationData.bookingTypeLabel = 'Day Tour';
-    } else {
-      notificationData.roomType = booking.roomType;
-      notificationData.bookingTypeLabel = 'Room';
+  const addCancellationNotification = async (booking, reason) => {
+    try {
+      const cancellationsRef = collection(db, 'guest_cancellations');
+      
+      // Create base notification data
+      const notificationData = {
+        guestName: `${booking.guestInfo?.firstName} ${booking.guestInfo?.lastName}`,
+        bookingId: booking.bookingId,
+        cancelledAt: new Date().toISOString(),
+        cancellationReason: reason,
+        read: false,
+        bookingType: booking.type || 'room'
+      };
+      
+      // Add multi-room specific data
+      if (booking.isMultiRoom) {
+        notificationData.isMultiRoom = true;
+        notificationData.totalRooms = booking.totalRooms;
+        notificationData.roomTypesDisplay = Object.entries(booking.roomTypes || {})
+          .map(([type, data]) => `${data.quantity} × ${type} (${data.guestsPerRoom} guest${data.guestsPerRoom !== 1 ? 's' : ''})`)
+          .join(', ');
+      } else if (booking.type === 'daytour') {
+        notificationData.tourDate = booking.selectedDate;
+        notificationData.bookingTypeLabel = 'Day Tour';
+      } else {
+        notificationData.roomType = booking.roomType;
+        notificationData.bookingTypeLabel = 'Room';
+      }
+      
+      await addDoc(cancellationsRef, notificationData);
+    } catch (err) {
+      console.error('Error adding cancellation notification:', err);
     }
-    
-    await addDoc(cancellationsRef, notificationData);
-  } catch (err) {
-    console.error('Error adding cancellation notification:', err);
-  }
-};
+  };
 
   const handleCancelReservation = async () => {
     if (!reservation) return;
@@ -202,7 +414,18 @@ const addCancellationNotification = async (booking, reason) => {
       return;
     }
     
-    if (reservation.status !== 'pending' && reservation.status !== 'confirmed') {
+    // Check if multi-room booking can be cancelled
+    if (reservation.isMultiRoom) {
+      const anyActive = reservation.children?.some(child => 
+        child.status !== 'cancelled' && child.status !== 'cancelled-by-guest'
+      );
+      
+      if (!anyActive) {
+        setError('This reservation cannot be cancelled as it is no longer active.');
+        setShowCancelModal(false);
+        return;
+      }
+    } else if (reservation.status !== 'pending' && reservation.status !== 'confirmed') {
       setError('This reservation cannot be cancelled as it is no longer active.');
       setShowCancelModal(false);
       return;
@@ -211,38 +434,89 @@ const addCancellationNotification = async (booking, reason) => {
     setCancelling(true);
     
     try {
-      const collectionName = reservation.type === 'daytour' ? 'dayTourBookings' : 'bookings';
-      const bookingRef = doc(db, collectionName, reservation.id);
-      
-      await updateDoc(bookingRef, {
-        status: 'cancelled-by-guest',
-        cancelledAt: new Date().toISOString(),
-        cancelledBy: 'guest',
-        cancellationReason: cancellationReason,
-        updatedAt: new Date().toISOString()
-      });
-      
-      setReservation({
-        ...reservation,
-        status: 'cancelled-by-guest',
-        cancelledAt: new Date().toISOString(),
-        cancelledBy: 'guest',
-        cancellationReason: cancellationReason
-      });
-      
-      setShowCancelModal(false);
-      setCancellationReason('');
-      
-      // Add notification for admin with reason
-      await addCancellationNotification(reservation, cancellationReason);
-      
-      // Send cancellation email based on reservation type
-      if (reservation.type === 'daytour') {
+      if (reservation.isMultiRoom && reservation.children) {
+        // Cancel all child bookings
+        for (const child of reservation.children) {
+          if (child.status !== 'cancelled' && child.status !== 'cancelled-by-guest') {
+            const bookingRef = doc(db, 'bookings', child.id);
+            await updateDoc(bookingRef, {
+              status: 'cancelled-by-guest',
+              cancelledAt: new Date().toISOString(),
+              cancelledBy: 'guest',
+              cancellationReason: cancellationReason,
+              updatedAt: new Date().toISOString()
+            });
+          }
+        }
+        
+        setReservation({
+          ...reservation,
+          status: 'cancelled-by-guest',
+          cancelledAt: new Date().toISOString(),
+          cancelledBy: 'guest',
+          cancellationReason: cancellationReason
+        });
+        
+        // Add notification for admin
+        await addCancellationNotification(reservation, cancellationReason);
+        
+        // Send cancellation email (using first child for email details)
+        const firstChild = reservation.children[0];
+        await sendCancellationEmail({
+          ...firstChild,
+          totalPrice: reservation.totalPrice,
+          bookingId: reservation.bookingId,
+          isMultiRoomGroup: true,
+          roomTypesDisplay: Object.entries(reservation.roomTypes || {})
+            .map(([type, data]) => `${data.quantity} × ${type} (${data.guestsPerRoom} guest${data.guestsPerRoom !== 1 ? 's' : ''})`)
+            .join(', ')
+        }, cancellationReason, 'guest');
+        
+      } else if (reservation.type === 'daytour') {
+        const bookingRef = doc(db, 'dayTourBookings', reservation.id);
+        await updateDoc(bookingRef, {
+          status: 'cancelled-by-guest',
+          cancelledAt: new Date().toISOString(),
+          cancelledBy: 'guest',
+          cancellationReason: cancellationReason,
+          updatedAt: new Date().toISOString()
+        });
+        
+        setReservation({
+          ...reservation,
+          status: 'cancelled-by-guest',
+          cancelledAt: new Date().toISOString(),
+          cancelledBy: 'guest',
+          cancellationReason: cancellationReason
+        });
+        
+        await addCancellationNotification(reservation, cancellationReason);
         await sendDayTourCancellationEmail(reservation, cancellationReason, 'guest');
+        
       } else {
+        const bookingRef = doc(db, 'bookings', reservation.id);
+        await updateDoc(bookingRef, {
+          status: 'cancelled-by-guest',
+          cancelledAt: new Date().toISOString(),
+          cancelledBy: 'guest',
+          cancellationReason: cancellationReason,
+          updatedAt: new Date().toISOString()
+        });
+        
+        setReservation({
+          ...reservation,
+          status: 'cancelled-by-guest',
+          cancelledAt: new Date().toISOString(),
+          cancelledBy: 'guest',
+          cancellationReason: cancellationReason
+        });
+        
+        await addCancellationNotification(reservation, cancellationReason);
         await sendCancellationEmail(reservation, cancellationReason, 'guest');
       }
       
+      setShowCancelModal(false);
+      setCancellationReason('');
       setShowSuccessModal(true);
       
     } catch (err) {
@@ -372,23 +646,37 @@ const addCancellationNotification = async (booking, reason) => {
   };
 
   const calculateBalance = (totalPrice, status) => {
-    if (status !== 'confirmed' && status !== 'check-in' && status !== 'check-out') return 'Not confirmed';
+    if (status !== 'confirmed' && status !== 'check-in' && status !== 'check-out' && status !== 'pending') return 'Not confirmed';
     const total = typeof totalPrice === 'number' ? totalPrice : Number(totalPrice) || 0;
     const downPayment = total * 0.5;
     const balance = total - downPayment;
     return `₱${balance.toLocaleString()}`;
   };
 
-  const canCancel = (status) => {
+  const canCancel = (status, isMultiRoom = false) => {
+    if (isMultiRoom && reservation?.children) {
+      const anyActive = reservation.children.some(child => 
+        child.status === 'pending' || child.status === 'confirmed'
+      );
+      return anyActive;
+    }
     return status === 'pending' || status === 'confirmed';
   };
 
-  const numberOfNights = reservation && reservation.type === 'room' ? calculateNumberOfNights(reservation.checkIn, reservation.checkOut) : 0;
+  const numberOfNights = reservation && reservation.type === 'room' && !reservation.isMultiRoom ? calculateNumberOfNights(reservation.checkIn, reservation.checkOut) : 0;
 
   // Calculate total guests for day tour
   const getTotalGuests = () => {
     if (!reservation) return 0;
     return (reservation.seniors || 0) + (reservation.adults || 0) + (reservation.kids || 0);
+  };
+
+  // Get multi-room display string
+  const getMultiRoomDisplay = () => {
+    if (!reservation.roomTypesArray) return '';
+    return reservation.roomTypesArray.map(room => 
+      `${room.quantity} × ${room.type} (${room.guestsPerRoom} guest${room.guestsPerRoom !== 1 ? 's' : ''})`
+    ).join(', ');
   };
 
   return (
@@ -482,15 +770,15 @@ const addCancellationNotification = async (booking, reason) => {
                 <div className="space-y-6 animate-fadeIn">
                   {/* Status Card */}
                   <div className="bg-white rounded-2xl shadow-md border border-ocean-light/10 p-6">
-                    <div className="flex justify-between items-start mb-4">
+                    <div className="flex justify-between items-start mb-4 flex-wrap gap-3">
                       <div>
                         <h2 className="text-2xl font-bold text-textPrimary font-playfair mb-1">
                           Reservation Details
                         </h2>
-                        <div className="flex items-center gap-2">
+                        <div className="flex items-center gap-2 flex-wrap">
                           <p className="text-sm text-neutral">Booking ID: {reservation.bookingId}</p>
-                          <span className={`text-xs px-2 py-0.5 rounded-full ${reservation.type === 'daytour' ? 'bg-ocean-ice text-ocean-mid' : 'bg-ocean-ice text-ocean-mid'}`}>
-                            {reservation.type === 'daytour' ? 'Day Tour' : 'Room Reservation'}
+                          <span className={`text-xs px-2 py-0.5 rounded-full ${reservation.isMultiRoom ? 'bg-purple-100 text-purple-700' : (reservation.type === 'daytour' ? 'bg-ocean-ice text-ocean-mid' : 'bg-ocean-ice text-ocean-mid')}`}>
+                            {reservation.isMultiRoom ? 'Multi-Room Reservation' : (reservation.type === 'daytour' ? 'Day Tour' : 'Room Reservation')}
                           </span>
                         </div>
                       </div>
@@ -521,7 +809,7 @@ const addCancellationNotification = async (booking, reason) => {
                     )}
 
                     {/* Cancel Button - Only show for active reservations */}
-                    {canCancel(reservation.status) && (
+                    {canCancel(reservation.status, reservation.isMultiRoom) && (
                       <div className="mt-6 flex justify-end">
                         <button
                           onClick={() => setShowCancelModal(true)}
@@ -562,7 +850,7 @@ const addCancellationNotification = async (booking, reason) => {
                     </div>
                   </div>
 
-                  {/* Booking Schedule - Different for Room vs Day Tour */}
+                  {/* Booking Schedule */}
                   <div className="bg-white rounded-2xl shadow-md border border-ocean-light/10 p-6">
                     <h3 className="text-lg font-bold text-textPrimary mb-4 flex items-center gap-2">
                       <i className="fas fa-calendar-alt text-ocean-light"></i>
@@ -570,7 +858,6 @@ const addCancellationNotification = async (booking, reason) => {
                     </h3>
                     
                     {reservation.type === 'daytour' ? (
-                      // Day Tour Schedule
                       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                         <div>
                           <p className="text-xs font-semibold text-neutral uppercase tracking-wide">Tour Date</p>
@@ -588,7 +875,6 @@ const addCancellationNotification = async (booking, reason) => {
                         </div>
                       </div>
                     ) : (
-                      // Room Booking Schedule
                       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                         <div>
                           <p className="text-xs font-semibold text-neutral uppercase tracking-wide">Check-in Date & Time</p>
@@ -602,31 +888,58 @@ const addCancellationNotification = async (booking, reason) => {
                           <p className="text-xs font-semibold text-neutral uppercase tracking-wide">Number of Nights</p>
                           <p className="text-textPrimary font-medium">{numberOfNights} {numberOfNights === 1 ? 'night' : 'nights'}</p>
                         </div>
-                        <div>
-                          <p className="text-xs font-semibold text-neutral uppercase tracking-wide">Number of Guests</p>
-                          <p className="text-textPrimary font-medium">{reservation.guests}</p>
-                        </div>
                       </div>
                     )}
                   </div>
 
-                  {/* Room Details - Only for Room Reservations */}
+                  {/* Room Details - For Room Reservations */}
                   {reservation.type === 'room' && (
                     <div className="bg-white rounded-2xl shadow-md border border-ocean-light/10 p-6">
                       <h3 className="text-lg font-bold text-textPrimary mb-4 flex items-center gap-2">
                         <i className="fas fa-bed text-ocean-light"></i>
                         Room Details
                       </h3>
-                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                        <div>
-                          <p className="text-xs font-semibold text-neutral uppercase tracking-wide">Room Type</p>
-                          <p className="text-textPrimary font-medium">{reservation.roomType}</p>
+                      
+                      {reservation.isMultiRoom ? (
+                        <>
+                          <div className="mb-4">
+                            <p className="text-xs font-semibold text-neutral uppercase tracking-wide mb-2">Room Type Breakdown</p>
+                            <div className="space-y-2">
+                              {reservation.roomTypesArray && reservation.roomTypesArray.map((room, idx) => (
+                                <div key={idx} className="flex justify-between items-center border-b border-ocean-light/10 pb-2">
+                                  <span className="font-medium text-textPrimary">{room.quantity} × {room.type}</span>
+                                  <span className="text-textSecondary">{room.guestsPerRoom} guest{room.guestsPerRoom !== 1 ? 's' : ''}</span>
+                                </div>
+                              ))}
+                            </div>
+                          </div>
+                          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 pt-2 border-t border-ocean-light/20">
+                            <div>
+                              <p className="text-xs font-semibold text-neutral uppercase tracking-wide">Total Rooms</p>
+                              <p className="text-textPrimary font-medium">{reservation.totalRooms}</p>
+                            </div>
+                            <div>
+                              <p className="text-xs font-semibold text-neutral uppercase tracking-wide">Total Guests</p>
+                              <p className="text-textPrimary font-medium">{reservation.totalGuests}</p>
+                            </div>
+                          </div>
+                        </>
+                      ) : (
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                          <div>
+                            <p className="text-xs font-semibold text-neutral uppercase tracking-wide">Room Type</p>
+                            <p className="text-textPrimary font-medium">{reservation.roomType}</p>
+                          </div>
+                          <div>
+                            <p className="text-xs font-semibold text-neutral uppercase tracking-wide">Number of Rooms</p>
+                            <p className="text-textPrimary font-medium">{reservation.numberOfRooms || 1}</p>
+                          </div>
+                          <div>
+                            <p className="text-xs font-semibold text-neutral uppercase tracking-wide">Number of Guests</p>
+                            <p className="text-textPrimary font-medium">{reservation.guests}</p>
+                          </div>
                         </div>
-                        <div>
-                          <p className="text-xs font-semibold text-neutral uppercase tracking-wide">Number of Rooms</p>
-                          <p className="text-textPrimary font-medium">{reservation.numberOfRooms || 1}</p>
-                        </div>
-                      </div>
+                      )}
                     </div>
                   )}
 
@@ -682,7 +995,7 @@ const addCancellationNotification = async (booking, reason) => {
                   <div className="w-14 h-14 mx-auto mb-3 rounded-full bg-red-100 flex items-center justify-center">
                     <i className="fas fa-exclamation-triangle text-red-500 text-2xl"></i>
                   </div>
-                  <h3 className="text-lg font-bold text-textPrimary mb-2">Cancel {reservation?.type === 'daytour' ? 'Day Tour' : 'Room'} Reservation</h3>
+                  <h3 className="text-lg font-bold text-textPrimary mb-2">Cancel {reservation?.isMultiRoom ? 'Multi-Room' : (reservation?.type === 'daytour' ? 'Day Tour' : 'Room')} Reservation</h3>
                   <div className="bg-yellow-50 p-3 mb-3 rounded">
                     <p className="text-sm text-yellow-800">
                       <i className="fas fa-info-circle mr-2"></i>
@@ -690,13 +1003,15 @@ const addCancellationNotification = async (booking, reason) => {
                     </p>
                   </div>
                   <p className="text-textSecondary text-sm">
-                    Are you sure you want to cancel your {reservation?.type === 'daytour' ? 'day tour' : 'room'} reservation for{" "}
+                    Are you sure you want to cancel your {reservation?.isMultiRoom ? 'multi-room' : (reservation?.type === 'daytour' ? 'day tour' : 'room')} reservation for{" "}
                     <span className="font-semibold text-textPrimary">
                       {reservation?.guestInfo?.firstName} {reservation?.guestInfo?.lastName}
                     </span>?<br />
                     <span className="text-xs mt-1 block">
                       Booking ID: {reservation?.bookingId}
-                      {reservation?.type === 'room' ? (
+                      {reservation?.isMultiRoom ? (
+                        <><br />Room Types: {getMultiRoomDisplay()}</>
+                      ) : reservation?.type === 'room' ? (
                         <><br />Room: {reservation?.roomType}<br />Dates: {formatDateOnly(reservation?.checkIn)} - {formatDateOnly(reservation?.checkOut)}</>
                       ) : (
                         <><br />Tour Date: {formatDateOnly(reservation?.selectedDate)}</>
@@ -761,7 +1076,7 @@ const addCancellationNotification = async (booking, reason) => {
                   </div>
                   <h3 className="text-lg font-bold text-textPrimary mb-2">Reservation Cancelled</h3>
                   <p className="text-textSecondary text-sm">
-                    Your {reservation?.type === 'daytour' ? 'day tour' : 'room'} reservation has been successfully cancelled. 
+                    Your {reservation?.isMultiRoom ? 'multi-room' : (reservation?.type === 'daytour' ? 'day tour' : 'room')} reservation has been successfully cancelled. 
                   </p>
                 </div>
                 <div className="flex justify-center">

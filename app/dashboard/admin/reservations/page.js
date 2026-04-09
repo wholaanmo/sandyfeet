@@ -11,6 +11,7 @@ export default function AdminReservations() {
   const [activeTab, setActiveTab] = useState('rooms');
   const [statusFilter, setStatusFilter] = useState('all');
   const [bookings, setBookings] = useState([]);
+  const [groupedBookings, setGroupedBookings] = useState([]);
   const [dayTours, setDayTours] = useState([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
@@ -31,6 +32,9 @@ export default function AdminReservations() {
   
   // New state for move date confirmation modal
   const [moveDateConfirmModal, setMoveDateConfirmModal] = useState({ show: false, booking: null });
+  
+  // New state for image zoom modal
+  const [imageZoomModal, setImageZoomModal] = useState({ show: false, imageUrl: '', title: '' });
   
   // Track which bookings have had notifications sent (persistent - will survive page refresh)
   const [notificationSent, setNotificationSent] = useState({});
@@ -75,6 +79,111 @@ export default function AdminReservations() {
     }
   }, [activeTab, statusFilter]);
 
+  // Function to group multi-room bookings by parentBookingId
+  const groupMultiRoomBookings = (bookingsList) => {
+    const singleBookings = [];
+    const multiRoomGroups = new Map();
+
+    for (const booking of bookingsList) {
+      if (booking.isMultiRoomBooking && booking.parentBookingId) {
+        // This is a multi-room booking child
+        if (!multiRoomGroups.has(booking.parentBookingId)) {
+          multiRoomGroups.set(booking.parentBookingId, {
+            parentBookingId: booking.parentBookingId,
+            bookings: [],
+            guestInfo: booking.guestInfo,
+            checkIn: booking.checkIn,
+            checkOut: booking.checkOut,
+            status: booking.status,
+            paymentMethod: booking.paymentMethod,
+            paymentProofUrl: booking.paymentProofUrl,
+            validIdType: booking.validIdType,
+            validIdUrl: booking.validIdUrl,
+            specialRequest: booking.specialRequest,
+            createdAt: booking.createdAt,
+            type: 'room',
+            isMultiRoomGroup: true,
+            roomTypes: []
+          });
+        }
+        multiRoomGroups.get(booking.parentBookingId).bookings.push(booking);
+      } else if (!booking.isMultiRoomBooking) {
+        // Single room booking
+        singleBookings.push(booking);
+      }
+    }
+
+    // Process multi-room groups to create consolidated display
+    const consolidatedGroups = [];
+    for (const [parentId, group] of multiRoomGroups) {
+      // Get unique room types and aggregate quantities
+      const roomTypeMap = new Map();
+      let totalRooms = 0;
+      let totalPrice = 0;
+      let downPayment = 0;
+      let remainingBalance = 0;
+      let totalGuests = 0;
+      
+      for (const booking of group.bookings) {
+        totalRooms++;
+        totalPrice += booking.totalPrice || 0;
+        downPayment += booking.downPayment || 0;
+        remainingBalance += booking.remainingBalance || 0;
+        totalGuests += booking.guests || 1;
+        
+        if (!roomTypeMap.has(booking.roomType)) {
+          roomTypeMap.set(booking.roomType, {
+            count: 1,
+            price: booking.price,
+            guests: booking.guests || 1
+          });
+        } else {
+          const existing = roomTypeMap.get(booking.roomType);
+          existing.count++;
+        }
+      }
+      
+      // Store detailed room types array for better display
+      const roomTypesArray = Array.from(roomTypeMap.entries()).map(([type, data]) => ({
+        type: type,
+        quantity: data.count,
+        guestsPerRoom: data.guests
+      }));
+      
+      // Build room types display string
+      const roomTypesDisplay = roomTypesArray
+        .map(item => `${item.quantity} × ${item.type} (${item.guestsPerRoom} guest${item.guestsPerRoom !== 1 ? 's' : ''})`)
+        .join(', ');
+      
+      consolidatedGroups.push({
+        id: parentId,
+        bookingId: parentId,
+        guestInfo: group.guestInfo,
+        checkIn: group.checkIn,
+        checkOut: group.checkOut,
+        status: group.status,
+        paymentMethod: group.paymentMethod,
+        paymentProofUrl: group.paymentProofUrl,
+        validIdType: group.validIdType,
+        validIdUrl: group.validIdUrl,
+        specialRequest: group.specialRequest,
+        createdAt: group.createdAt,
+        type: 'room',
+        isMultiRoomGroup: true,
+        roomTypesDisplay,
+        roomTypesArray,
+        totalRooms,
+        totalPrice,
+        downPayment,
+        remainingBalance,
+        totalGuests,
+        childBookings: group.bookings
+      });
+    }
+
+    return [...singleBookings, ...consolidatedGroups];
+  };
+
   // Real-time listener for room bookings
   useEffect(() => {
     const bookingsRef = collection(db, 'bookings');
@@ -92,6 +201,9 @@ export default function AdminReservations() {
         }
       });
       setBookings(bookingsList);
+      // Group multi-room bookings
+      const grouped = groupMultiRoomBookings(bookingsList);
+      setGroupedBookings(grouped);
       setLoading(false);
     }, (error) => {
       console.error('Error fetching bookings:', error);
@@ -107,18 +219,29 @@ export default function AdminReservations() {
   // check-in/confirmed -> check-out from 1 hour before check-out until check-out time
   // check-out/check-in/confirmed -> completed after check-out time
   useEffect(() => {
-    if (!bookings.length) return;
+    if (!groupedBookings.length) return;
     let isProcessing = false;
     const tick = async () => {
       if (isProcessing) return;
       isProcessing = true;
       try {
         const now = new Date();
-        for (const booking of bookings) {
+        for (const booking of groupedBookings) {
           if (!booking?.id || !booking?.status) continue;
           if (['pending', 'cancelled', 'cancelled-by-guest', 'completed'].includes(booking.status)) continue;
-          const checkInRaw = booking.checkIn?.toDate ? booking.checkIn.toDate() : new Date(booking.checkIn);
-          const checkOutRaw = booking.checkOut?.toDate ? booking.checkOut.toDate() : new Date(booking.checkOut);
+          
+          let checkInRaw, checkOutRaw;
+          
+          if (booking.isMultiRoomGroup && booking.childBookings) {
+            // Use first child booking for dates
+            const firstChild = booking.childBookings[0];
+            checkInRaw = firstChild.checkIn?.toDate ? firstChild.checkIn.toDate() : new Date(firstChild.checkIn);
+            checkOutRaw = firstChild.checkOut?.toDate ? firstChild.checkOut.toDate() : new Date(firstChild.checkOut);
+          } else {
+            checkInRaw = booking.checkIn?.toDate ? booking.checkIn.toDate() : new Date(booking.checkIn);
+            checkOutRaw = booking.checkOut?.toDate ? booking.checkOut.toDate() : new Date(booking.checkOut);
+          }
+          
           if (isNaN(checkInRaw?.getTime?.()) || isNaN(checkOutRaw?.getTime?.())) continue;
           const oneHourBeforeCheckOut = new Date(checkOutRaw.getTime() - 60 * 60 * 1000);
           let targetStatus = null;
@@ -129,11 +252,22 @@ export default function AdminReservations() {
           } else if (now >= checkInRaw) {
             targetStatus = 'check-in';
           }
+          
           if (targetStatus && booking.status !== targetStatus) {
-            await updateDoc(doc(db, 'bookings', booking.id), {
-              status: targetStatus,
-              updatedAt: new Date().toISOString()
-            });
+            if (booking.isMultiRoomGroup && booking.childBookings) {
+              // Update all child bookings
+              for (const childBooking of booking.childBookings) {
+                await updateDoc(doc(db, 'bookings', childBooking.id), {
+                  status: targetStatus,
+                  updatedAt: new Date().toISOString()
+                });
+              }
+            } else {
+              await updateDoc(doc(db, 'bookings', booking.id), {
+                status: targetStatus,
+                updatedAt: new Date().toISOString()
+              });
+            }
           }
         }
       } catch (error) {
@@ -145,7 +279,7 @@ export default function AdminReservations() {
     tick();
     const id = setInterval(tick, 1000);
     return () => clearInterval(id);
-  }, [bookings]);
+  }, [groupedBookings]);
 
   // Automatic day-tour status transitions:
   // confirmed -> check-in when selected day starts
@@ -251,23 +385,37 @@ export default function AdminReservations() {
     setRefundConfirmModal(prev => ({ ...prev, sending: true }));
     try {
       const isRoomBooking = booking?.type === 'room';
-      const collectionName = isRoomBooking ? 'bookings' : 'dayTourBookings';
-      const notificationType = isRoomBooking ? 'room' : 'daytour';
-      const bookingRef = doc(db, collectionName, booking.id);
-      await updateDoc(bookingRef, {
-        refundProcessed: true,
-        refundProcessedAt: new Date().toISOString(),
-        balance: 0,
-        refundNotificationSent: true,
-        updatedAt: new Date().toISOString()
-      });
+      
+      if (booking.isMultiRoomGroup && booking.childBookings) {
+        // Update all child bookings
+        for (const childBooking of booking.childBookings) {
+          const bookingRef = doc(db, 'bookings', childBooking.id);
+          await updateDoc(bookingRef, {
+            refundProcessed: true,
+            refundProcessedAt: new Date().toISOString(),
+            balance: 0,
+            refundNotificationSent: true,
+            updatedAt: new Date().toISOString()
+          });
+        }
+      } else {
+        const collectionName = isRoomBooking ? 'bookings' : 'dayTourBookings';
+        const bookingRef = doc(db, collectionName, booking.id);
+        await updateDoc(bookingRef, {
+          refundProcessed: true,
+          refundProcessedAt: new Date().toISOString(),
+          balance: 0,
+          refundNotificationSent: true,
+          updatedAt: new Date().toISOString()
+        });
+      }
       
       setNotificationSent(prev => ({ ...prev, [booking.id]: { refund: true, moveDate: prev[booking.id]?.moveDate || false } }));
       
       const response = await fetch('/api/admin/send-refund-notification', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ bookingId: booking.id, type: notificationType })
+        body: JSON.stringify({ bookingId: booking.id, type: 'room' })
       });
       const data = await response.json();
 
@@ -278,8 +426,8 @@ export default function AdminReservations() {
         
         await logAdminAction({
           action: 'Refund Notification Sent',
-          module: isRoomBooking ? 'Room Reservations' : 'Day Tour Reservations',
-          details: `Sent refund notification for ${isRoomBooking ? 'room' : 'day tour'} booking ${booking.bookingId} to ${booking.guestInfo?.firstName} ${booking.guestInfo?.lastName} (${booking.guestInfo?.email}). Refund amount: ₱${refundAmount.toLocaleString()} (50% of down payment). Balance updated to 0.`
+          module: 'Room Reservations',
+          details: `Sent refund notification for ${booking.isMultiRoomGroup ? 'multi-room' : 'room'} booking ${booking.bookingId} to ${booking.guestInfo?.firstName} ${booking.guestInfo?.lastName} (${booking.guestInfo?.email}). Refund amount: ₱${refundAmount.toLocaleString()} (50% of down payment). Balance updated to 0.`
         });
         
         showNotification(`Refund notification sent and balance updated to 0.`, 'success');
@@ -299,29 +447,41 @@ export default function AdminReservations() {
     setMoveDateConfirmModal(prev => ({ ...prev, sending: true }));
     try {
       const isRoomBooking = booking?.type === 'room';
-      const collectionName = isRoomBooking ? 'bookings' : 'dayTourBookings';
-      const notificationType = isRoomBooking ? 'room' : 'daytour';
-      const bookingRef = doc(db, collectionName, booking.id);
-      await updateDoc(bookingRef, {
-        moveDateNotificationSent: true,
-        moveDateNotificationSentAt: new Date().toISOString(),
-        updatedAt: new Date().toISOString()
-      });
+      
+      if (booking.isMultiRoomGroup && booking.childBookings) {
+        // Update all child bookings
+        for (const childBooking of booking.childBookings) {
+          const bookingRef = doc(db, 'bookings', childBooking.id);
+          await updateDoc(bookingRef, {
+            moveDateNotificationSent: true,
+            moveDateNotificationSentAt: new Date().toISOString(),
+            updatedAt: new Date().toISOString()
+          });
+        }
+      } else {
+        const collectionName = isRoomBooking ? 'bookings' : 'dayTourBookings';
+        const bookingRef = doc(db, collectionName, booking.id);
+        await updateDoc(bookingRef, {
+          moveDateNotificationSent: true,
+          moveDateNotificationSentAt: new Date().toISOString(),
+          updatedAt: new Date().toISOString()
+        });
+      }
       
       setNotificationSent(prev => ({ ...prev, [booking.id]: { refund: prev[booking.id]?.refund || false, moveDate: true } }));
       
       const response = await fetch('/api/admin/send-move-date-notification', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ bookingId: booking.id, type: notificationType })
+        body: JSON.stringify({ bookingId: booking.id, type: 'room' })
       });
       const data = await response.json();
 
       if (response.ok) {
         await logAdminAction({
           action: 'Move Date Notification Sent',
-          module: isRoomBooking ? 'Reservations' : 'Day Tour Reservations',
-          details: `Sent move date notification for ${isRoomBooking ? 'room' : 'day tour'} booking ${booking.bookingId} to ${booking.guestInfo?.firstName} ${booking.guestInfo?.lastName} (${booking.guestInfo?.email}).`
+          module: 'Reservations',
+          details: `Sent move date notification for ${booking.isMultiRoomGroup ? 'multi-room' : 'room'} booking ${booking.bookingId} to ${booking.guestInfo?.firstName} ${booking.guestInfo?.lastName} (${booking.guestInfo?.email}).`
         });
         
         showNotification(`Move date notification sent to ${booking.guestInfo?.email}`, 'success');
@@ -397,158 +557,150 @@ export default function AdminReservations() {
     }
   };
 
-const formatDateOnly = (dateString) => {
-  if (!dateString) return 'N/A';
-  try {
-    // Handle if dateString is already a YYYY-MM-DD string
-    if (typeof dateString === 'string' && dateString.match(/^\d{4}-\d{2}-\d{2}$/)) {
-      // Parse as local date - split the string and create date using local components
-      const [year, month, day] = dateString.split('-');
-      // Create date using UTC to avoid timezone shift, but display as local
-      // The date is already in YYYY-MM-DD format, so we can directly format it
-      const date = new Date(Date.UTC(parseInt(year), parseInt(month) - 1, parseInt(day)));
-      return date.toLocaleDateString('en-US', {
-        year: 'numeric',
-        month: 'short',
-        day: 'numeric',
-        timeZone: 'UTC'
-      });
-    }
-    
-    // Handle Firebase Timestamp objects
-    if (dateString && typeof dateString.toDate === 'function') {
-      const date = dateString.toDate();
+  const formatDateOnly = (dateString) => {
+    if (!dateString) return 'N/A';
+    try {
+      // Handle if dateString is already a YYYY-MM-DD string
+      if (typeof dateString === 'string' && dateString.match(/^\d{4}-\d{2}-\d{2}$/)) {
+        const [year, month, day] = dateString.split('-');
+        const date = new Date(Date.UTC(parseInt(year), parseInt(month) - 1, parseInt(day)));
+        return date.toLocaleDateString('en-US', {
+          year: 'numeric',
+          month: 'short',
+          day: 'numeric',
+          timeZone: 'UTC'
+        });
+      }
+      
+      if (dateString && typeof dateString.toDate === 'function') {
+        const date = dateString.toDate();
+        return date.toLocaleDateString('en-US', {
+          year: 'numeric',
+          month: 'short',
+          day: 'numeric'
+        });
+      }
+      
+      if (dateString && typeof dateString === 'object' && dateString.seconds) {
+        const date = new Date(dateString.seconds * 1000);
+        return date.toLocaleDateString('en-US', {
+          year: 'numeric',
+          month: 'short',
+          day: 'numeric'
+        });
+      }
+      
+      const date = new Date(dateString);
+      if (isNaN(date.getTime())) return 'Invalid Date';
+      
       return date.toLocaleDateString('en-US', {
         year: 'numeric',
         month: 'short',
         day: 'numeric'
       });
+    } catch (error) {
+      console.error('Error formatting date:', error);
+      return 'Invalid Date';
     }
-    
-    // Handle date objects with seconds property
-    if (dateString && typeof dateString === 'object' && dateString.seconds) {
-      const date = new Date(dateString.seconds * 1000);
-      return date.toLocaleDateString('en-US', {
-        year: 'numeric',
-        month: 'short',
-        day: 'numeric'
-      });
-    }
-    
-    // Handle other date formats
-    const date = new Date(dateString);
-    if (isNaN(date.getTime())) return 'Invalid Date';
-    
-    return date.toLocaleDateString('en-US', {
-      year: 'numeric',
-      month: 'short',
-      day: 'numeric'
-    });
-  } catch (error) {
-    console.error('Error formatting date:', error);
-    return 'Invalid Date';
-  }
-};
+  };
 
   // Confirm reservation for day tour
- const handleConfirmDayTourReservation = async () => {
-  const booking = confirmModal.booking;
-  if (!booking) return;
-  
-  if (booking.status !== 'pending') {
-    showNotification('This reservation is no longer pending.', 'error');
-    setConfirmModal({ show: false, booking: null, type: '', note: '' });
-    return;
-  }
-  
-  setActionLoading(prev => ({ ...prev, [booking.id]: true }));
-  try {
-    const bookingRef = doc(db, 'dayTourBookings', booking.id);
-    await updateDoc(bookingRef, {
-      status: 'confirmed',
-      updatedAt: new Date().toISOString()
-    });
-
-    // Send confirmation email for day tour with note
-    const { sendDayTourConfirmationEmail } = await import('../../../../lib/emailService');
-    const emailResult = await sendDayTourConfirmationEmail(booking, confirmModal.note);
-    if (emailResult.success) {
-      console.log('Day tour confirmation email sent successfully');
-    } else {
-      console.warn('Failed to send day tour confirmation email:', emailResult.error);
+  const handleConfirmDayTourReservation = async () => {
+    const booking = confirmModal.booking;
+    if (!booking) return;
+    
+    if (booking.status !== 'pending') {
+      showNotification('This reservation is no longer pending.', 'error');
+      setConfirmModal({ show: false, booking: null, type: '', note: '' });
+      return;
     }
+    
+    setActionLoading(prev => ({ ...prev, [booking.id]: true }));
+    try {
+      const bookingRef = doc(db, 'dayTourBookings', booking.id);
+      await updateDoc(bookingRef, {
+        status: 'confirmed',
+        updatedAt: new Date().toISOString()
+      });
 
-    await logAdminAction({
-      action: 'Confirmed Day Tour Reservation',
-      module: 'Day Tour Reservations',
-      details: `Confirmed day tour booking ${booking.bookingId} for ${booking.guestInfo?.firstName} ${booking.guestInfo?.lastName}. Note: ${confirmModal.note || 'No note provided'}`
-    });
+      const { sendDayTourConfirmationEmail } = await import('../../../../lib/emailService');
+      const emailResult = await sendDayTourConfirmationEmail(booking, confirmModal.note);
+      if (emailResult.success) {
+        console.log('Day tour confirmation email sent successfully');
+      } else {
+        console.warn('Failed to send day tour confirmation email:', emailResult.error);
+      }
 
-    showNotification(`Day tour booking ${booking.bookingId} has been confirmed. A confirmation email has been sent to the guest.`, 'success');
-    setShowPaymentModal(false);
-    setConfirmModal({ show: false, booking: null, type: '', note: '' });
-  } catch (error) {
-    console.error('Error confirming day tour reservation:', error);
-    showNotification('Failed to confirm reservation.', 'error');
-  } finally {
-    setActionLoading(prev => ({ ...prev, [booking.id]: false }));
-  }
-};
+      await logAdminAction({
+        action: 'Confirmed Day Tour Reservation',
+        module: 'Day Tour Reservations',
+        details: `Confirmed day tour booking ${booking.bookingId} for ${booking.guestInfo?.firstName} ${booking.guestInfo?.lastName}. Note: ${confirmModal.note || 'No note provided'}`
+      });
 
- // Cancel reservation for day tour
-const handleCancelDayTourReservation = async () => {
-  const booking = cancelModal.booking;
-  const reason = cancelModal.reason;
-  
-  if (!booking) return;
-  
-  if (!reason.trim()) {
-    showNotification('Please provide a cancellation reason.', 'error');
-    return;
-  }
-  
-  if (booking.status !== 'pending') {
-    showNotification('This reservation is no longer pending.', 'error');
-    setCancelModal({ show: false, booking: null, reason: '' });
-    return;
-  }
-  
-  setActionLoading(prev => ({ ...prev, [booking.id]: true }));
-  try {
-    const bookingRef = doc(db, 'dayTourBookings', booking.id);
-    await updateDoc(bookingRef, {
-      status: 'cancelled',
-      cancelledAt: new Date().toISOString(),
-      cancellationReason: reason,
-      cancelledBy: 'admin',
-      updatedAt: new Date().toISOString()
-    });
-
-    // Send cancellation email for day tour
-    const { sendDayTourCancellationEmail } = await import('../../../../lib/emailService');
-    const emailResult = await sendDayTourCancellationEmail(booking, reason, 'admin');
-    if (emailResult.success) {
-      console.log('Day tour cancellation email sent successfully');
-    } else {
-      console.warn('Failed to send day tour cancellation email:', emailResult.error);
+      showNotification(`Day tour booking ${booking.bookingId} has been confirmed. A confirmation email has been sent to the guest.`, 'success');
+      setShowPaymentModal(false);
+      setConfirmModal({ show: false, booking: null, type: '', note: '' });
+    } catch (error) {
+      console.error('Error confirming day tour reservation:', error);
+      showNotification('Failed to confirm reservation.', 'error');
+    } finally {
+      setActionLoading(prev => ({ ...prev, [booking.id]: false }));
     }
+  };
 
-    await logAdminAction({
-      action: 'Cancelled Day Tour Reservation',
-      module: 'Day Tour Reservations',
-      details: `Cancelled day tour booking ${booking.bookingId} for ${booking.guestInfo?.firstName} ${booking.guestInfo?.lastName}. Reason: ${reason}`
-    });
+  // Cancel reservation for day tour
+  const handleCancelDayTourReservation = async () => {
+    const booking = cancelModal.booking;
+    const reason = cancelModal.reason;
+    
+    if (!booking) return;
+    
+    if (!reason.trim()) {
+      showNotification('Please provide a cancellation reason.', 'error');
+      return;
+    }
+    
+    if (booking.status !== 'pending') {
+      showNotification('This reservation is no longer pending.', 'error');
+      setCancelModal({ show: false, booking: null, reason: '' });
+      return;
+    }
+    
+    setActionLoading(prev => ({ ...prev, [booking.id]: true }));
+    try {
+      const bookingRef = doc(db, 'dayTourBookings', booking.id);
+      await updateDoc(bookingRef, {
+        status: 'cancelled',
+        cancelledAt: new Date().toISOString(),
+        cancellationReason: reason,
+        cancelledBy: 'admin',
+        updatedAt: new Date().toISOString()
+      });
 
-    showNotification(`Day tour booking ${booking.bookingId} has been cancelled. A cancellation email has been sent to the guest.`, 'success');
-    setShowPaymentModal(false);
-    setCancelModal({ show: false, booking: null, reason: '' });
-  } catch (error) {
-    console.error('Error cancelling day tour reservation:', error);
-    showNotification('Failed to cancel reservation.', 'error');
-  } finally {
-    setActionLoading(prev => ({ ...prev, [booking.id]: false }));
-  }
-};
+      const { sendDayTourCancellationEmail } = await import('../../../../lib/emailService');
+      const emailResult = await sendDayTourCancellationEmail(booking, reason, 'admin');
+      if (emailResult.success) {
+        console.log('Day tour cancellation email sent successfully');
+      } else {
+        console.warn('Failed to send day tour cancellation email:', emailResult.error);
+      }
+
+      await logAdminAction({
+        action: 'Cancelled Day Tour Reservation',
+        module: 'Day Tour Reservations',
+        details: `Cancelled day tour booking ${booking.bookingId} for ${booking.guestInfo?.firstName} ${booking.guestInfo?.lastName}. Reason: ${reason}`
+      });
+
+      showNotification(`Day tour booking ${booking.bookingId} has been cancelled. A cancellation email has been sent to the guest.`, 'success');
+      setShowPaymentModal(false);
+      setCancelModal({ show: false, booking: null, reason: '' });
+    } catch (error) {
+      console.error('Error cancelling day tour reservation:', error);
+      showNotification('Failed to cancel reservation.', 'error');
+    } finally {
+      setActionLoading(prev => ({ ...prev, [booking.id]: false }));
+    }
+  };
 
   // Confirm room reservation
   const handleConfirmReservation = async () => {
@@ -563,11 +715,22 @@ const handleCancelDayTourReservation = async () => {
     
     setActionLoading(prev => ({ ...prev, [booking.id]: true }));
     try {
-      const bookingRef = doc(db, 'bookings', booking.id);
-      await updateDoc(bookingRef, {
-        status: 'confirmed',
-        updatedAt: new Date().toISOString()
-      });
+      if (booking.isMultiRoomGroup && booking.childBookings) {
+        // Update all child bookings
+        for (const childBooking of booking.childBookings) {
+          const bookingRef = doc(db, 'bookings', childBooking.id);
+          await updateDoc(bookingRef, {
+            status: 'confirmed',
+            updatedAt: new Date().toISOString()
+          });
+        }
+      } else {
+        const bookingRef = doc(db, 'bookings', booking.id);
+        await updateDoc(bookingRef, {
+          status: 'confirmed',
+          updatedAt: new Date().toISOString()
+        });
+      }
 
       const emailResult = await sendConfirmationEmail(booking, confirmModal.note);
       if (emailResult.success) {
@@ -579,7 +742,7 @@ const handleCancelDayTourReservation = async () => {
       await logAdminAction({
         action: 'Confirmed Reservation',
         module: 'Reservations',
-        details: `Confirmed booking ${booking.bookingId} for ${booking.guestInfo?.firstName} ${booking.guestInfo?.lastName} - ${booking.roomType}. Note: ${confirmModal.note || 'No note provided'}`
+        details: `Confirmed ${booking.isMultiRoomGroup ? 'multi-room' : ''} booking ${booking.bookingId} for ${booking.guestInfo?.firstName} ${booking.guestInfo?.lastName}. Note: ${confirmModal.note || 'No note provided'}`
       });
 
       showNotification(`Booking ${booking.bookingId} has been confirmed. A confirmation email has been sent to the guest.`, 'success');
@@ -613,14 +776,28 @@ const handleCancelDayTourReservation = async () => {
     
     setActionLoading(prev => ({ ...prev, [booking.id]: true }));
     try {
-      const bookingRef = doc(db, 'bookings', booking.id);
-      await updateDoc(bookingRef, {
-        status: 'cancelled',
-        cancelledAt: new Date().toISOString(),
-        cancellationReason: reason,
-        cancelledBy: 'admin',
-        updatedAt: new Date().toISOString()
-      });
+      if (booking.isMultiRoomGroup && booking.childBookings) {
+        // Update all child bookings
+        for (const childBooking of booking.childBookings) {
+          const bookingRef = doc(db, 'bookings', childBooking.id);
+          await updateDoc(bookingRef, {
+            status: 'cancelled',
+            cancelledAt: new Date().toISOString(),
+            cancellationReason: reason,
+            cancelledBy: 'admin',
+            updatedAt: new Date().toISOString()
+          });
+        }
+      } else {
+        const bookingRef = doc(db, 'bookings', booking.id);
+        await updateDoc(bookingRef, {
+          status: 'cancelled',
+          cancelledAt: new Date().toISOString(),
+          cancellationReason: reason,
+          cancelledBy: 'admin',
+          updatedAt: new Date().toISOString()
+        });
+      }
 
       const emailResult = await sendCancellationEmail(booking, reason, 'admin');
       if (emailResult.success) {
@@ -632,7 +809,7 @@ const handleCancelDayTourReservation = async () => {
       await logAdminAction({
         action: 'Cancelled Reservation',
         module: 'Reservations',
-        details: `Cancelled booking ${booking.bookingId} for ${booking.guestInfo?.firstName} ${booking.guestInfo?.lastName} - ${booking.roomType}. Reason: ${reason}`
+        details: `Cancelled ${booking.isMultiRoomGroup ? 'multi-room' : ''} booking ${booking.bookingId} for ${booking.guestInfo?.firstName} ${booking.guestInfo?.lastName}. Reason: ${reason}`
       });
 
       showNotification(`Booking ${booking.bookingId} has been cancelled. A cancellation email has been sent to the guest.`, 'success');
@@ -692,53 +869,28 @@ const handleCancelDayTourReservation = async () => {
     return total * 0.5;
   };
 
+  // Updated balance calculation logic
   const calculateBalance = (booking) => {
     const total = typeof booking.totalPrice === 'number' ? booking.totalPrice : Number(booking.totalPrice) || 0;
     const downPayment = total * 0.5;
     const status = booking.status;
 
-    const resolvedRemaining =
-      typeof booking.remainingBalance === 'number'
-        ? booking.remainingBalance
-        : total - downPayment;
-
-    if (booking.type === 'room') {
-      if (['cancelled', 'check-out', 'completed'].includes(status)) {
-        return '₱0';
-      }
-
-      if (status === 'cancelled-by-guest') {
-        if (booking.refundNotificationSent || booking.moveDateNotificationSent) {
-          return '₱0';
-        }
-        return `₱${resolvedRemaining.toLocaleString()}`;
-      }
-
-      if (['pending', 'confirmed', 'check-in'].includes(status)) {
-        return `₱${resolvedRemaining.toLocaleString()}`;
-      }
-
-      return 'Not Confirmed';
-    }
-
-    // Day tour and other booking types
-    if (status === 'cancelled') {
+    // For cancelled, check-out, or completed - balance is 0
+    if (['cancelled', 'check-out', 'completed'].includes(status)) {
       return '₱0';
     }
 
+    // For cancelled-by-guest - balance is 0 only after refund or move date notification
     if (status === 'cancelled-by-guest') {
       if (booking.refundNotificationSent || booking.moveDateNotificationSent) {
         return '₱0';
       }
-      return `₱${resolvedRemaining.toLocaleString()}`;
+      return `₱${downPayment.toLocaleString()}`;
     }
 
-    if (status === 'completed') {
-      return '₱0';
-    }
-
+    // For pending, confirmed, check-in - balance equals half of total (down payment amount)
     if (['pending', 'confirmed', 'check-in'].includes(status)) {
-      return `₱${resolvedRemaining.toLocaleString()}`;
+      return `₱${downPayment.toLocaleString()}`;
     }
 
     return 'Not Confirmed';
@@ -749,15 +901,26 @@ const handleCancelDayTourReservation = async () => {
   };
 
   const getTotalGuests = (booking) => {
+    if (booking.isMultiRoomGroup) {
+      return booking.totalGuests || 0;
+    }
     return (booking.seniors || 0) + (booking.adults || 0) + (booking.kids || 0);
   };
 
-  const filteredBookings = bookings.filter(booking => {
+  const getRoomGuests = (booking) => {
+    if (booking.isMultiRoomGroup) {
+      return booking.totalGuests || 0;
+    }
+    return booking.guests || 1;
+  };
+
+  const filteredBookings = groupedBookings.filter(booking => {
     const matchesSearch = 
-      booking.roomType?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      booking.guestInfo?.firstName?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      booking.guestInfo?.lastName?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      booking.bookingId?.toLowerCase().includes(searchTerm.toLowerCase());
+      (booking.roomType?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+       booking.roomTypesDisplay?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+       booking.guestInfo?.firstName?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+       booking.guestInfo?.lastName?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+       booking.bookingId?.toLowerCase().includes(searchTerm.toLowerCase()));
     
     const matchesStatus = statusFilter === 'all' || booking.status === statusFilter;
     return matchesSearch && matchesStatus;
@@ -879,7 +1042,7 @@ const handleCancelDayTourReservation = async () => {
         ))}
       </div>
 
-      {/* Rooms Reservations Table */}
+      {/* Rooms Reservations Table - Optimized Layout */}
       {activeTab === 'rooms' && (
         <>
           {loading ? (
@@ -889,28 +1052,24 @@ const handleCancelDayTourReservation = async () => {
           ) : (
             <div className="bg-white rounded-2xl shadow-md border border-ocean-light/10 overflow-hidden">
               <div className="overflow-x-auto">
-                <table className="w-full">
+                <table className="w-full min-w-[700px]">
                   <thead>
                     <tr className="bg-ocean-pale/50 border-b border-ocean-light/20">
-                      <th className="px-4 py-3 text-left text-sm font-semibold text-textPrimary">Booking ID</th>
-                      <th className="px-4 py-3 text-left text-sm font-semibold text-textPrimary">Guest Name</th>
-                      <th className="px-4 py-3 text-left text-sm font-semibold text-textPrimary">Room Type</th>
-                      <th className="px-4 py-3 text-left text-sm font-semibold text-textPrimary">Number of Rooms</th>
-                      <th className="px-4 py-3 text-left text-sm font-semibold text-textPrimary">Check-in</th>
-                      <th className="px-4 py-3 text-left text-sm font-semibold text-textPrimary">Check-out</th>
-                      <th className="px-4 py-3 text-left text-sm font-semibold text-textPrimary">Guests</th>
-                      <th className="px-4 py-3 text-left text-sm font-semibold text-textPrimary">Total</th>
-                      <th className="px-4 py-3 text-left text-sm font-semibold text-textPrimary">50% Down Payment</th>
-                      <th className="px-4 py-3 text-left text-sm font-semibold text-textPrimary">Balance</th>
-                      <th className="px-4 py-3 text-left text-sm font-semibold text-textPrimary min-w-[120px]">Status</th>
-                      <th className="px-4 py-3 text-left text-sm font-semibold text-textPrimary">Actions</th>
-                      <th className="px-4 py-3 text-left text-sm font-semibold text-textPrimary">Booked On</th>
+                      <th className="px-3 py-2 text-left text-xs font-semibold text-textPrimary">Booking ID</th>
+                      <th className="px-3 py-2 text-left text-xs font-semibold text-textPrimary">Guest Name</th>
+                      <th className="px-3 py-2 text-left text-xs font-semibold text-textPrimary">Room Type(s)</th>
+                      <th className="px-3 py-2 text-left text-xs font-semibold text-textPrimary">Rooms</th>
+                      <th className="px-3 py-2 text-left text-xs font-semibold text-textPrimary">Check-in</th>
+                      <th className="px-3 py-2 text-left text-xs font-semibold text-textPrimary">Check-out</th>
+                      <th className="px-3 py-2 text-left text-xs font-semibold text-textPrimary min-w-[80px]">Status</th>
+                      <th className="px-3 py-2 text-left text-xs font-semibold text-textPrimary">Actions</th>
+                      <th className="px-3 py-2 text-left text-xs font-semibold text-textPrimary">Booked On</th>
                     </tr>
                   </thead>
                   <tbody>
                     {filteredBookings.length === 0 ? (
                       <tr>
-                        <td colSpan="13" className="px-4 py-12 text-center text-neutral">
+                        <td colSpan="9" className="px-4 py-12 text-center text-neutral">
                           <i className="fas fa-calendar-alt text-5xl mb-3 opacity-50 block"></i>
                           <p className="text-lg">No reservations found</p>
                           <p className="text-sm">Reservations will appear here once guests book</p>
@@ -919,81 +1078,72 @@ const handleCancelDayTourReservation = async () => {
                     ) : (
                       filteredBookings.map((booking) => (
                         <tr key={booking.id} className="border-b border-ocean-light/10 hover:bg-ocean-ice/30 transition-colors">
-                          <td className="px-4 py-3">
-                            <span className="font-mono text-sm">{booking.bookingId}</span>
+                          <td className="px-3 py-2">
+                            <span className="font-mono text-xs">{booking.bookingId}</span>
+                            {booking.isMultiRoomGroup && (
+                              <span className="ml-1 text-[10px] bg-blue-100 text-blue-700 px-1 py-0.5 rounded-full">Multi</span>
+                            )}
                           </td>
-                          <td className="px-4 py-3">
-                            <div className="font-medium text-textPrimary">
+                          <td className="px-3 py-2">
+                            <div className="font-medium text-textPrimary text-xs">
                               {booking.guestInfo?.firstName} {booking.guestInfo?.lastName}
                             </div>
-                            <div className="text-xs text-neutral">{booking.guestInfo?.email}</div>
+                            <div className="text-[10px] text-neutral">{booking.guestInfo?.email}</div>
                           </td>
-                          <td className="px-4 py-3">
-                            <div className="text-sm text-textPrimary">{booking.roomType}</div>
+                          <td className="px-3 py-2">
+                            {booking.isMultiRoomGroup ? (
+                              <div className="text-xs text-textPrimary max-w-[200px] truncate" title={booking.roomTypesDisplay}>
+                                {booking.roomTypesDisplay}
+                              </div>
+                            ) : (
+                              <div className="text-xs text-textPrimary">{booking.roomType}</div>
+                            )}
                           </td>
-                          <td className="px-4 py-3 text-sm text-textSecondary">
-                            {booking.numberOfRooms || 1} room(s)
+                          <td className="px-3 py-2 text-xs text-textSecondary">
+                            {booking.isMultiRoomGroup ? booking.totalRooms : (booking.numberOfRooms || 1)}
                           </td>
-                          <td className="px-4 py-3 text-sm text-textSecondary">
+                          <td className="px-3 py-2 text-xs text-textSecondary">
                             {formatDateTimeFromDate(booking.checkIn)}
                           </td>
-                          <td className="px-4 py-3 text-sm text-textSecondary">
+                          <td className="px-3 py-2 text-xs text-textSecondary">
                             {formatDateTimeFromDate(booking.checkOut)}
                           </td>
-                          <td className="px-4 py-3 text-sm text-textSecondary">
-                            {booking.guests}
-                          </td>
-                          <td className="px-4 py-3">
-                            <span className="font-semibold text-ocean-mid">₱{Number(booking.totalPrice).toLocaleString()}</span>
-                          </td>
-                          <td className="px-4 py-3">
-                            <span className="font-semibold text-ocean-mid">₱{calculateDownPayment(booking.totalPrice).toLocaleString()}</span>
-                          </td>
-                          <td className="px-4 py-3">
-                            <span className={`text-sm font-medium ${booking.status === 'confirmed' || (booking.status === 'cancelled-by-guest' && booking.refundNotificationSent) ? 'text-ocean-mid' : 'text-neutral'}`}>
-                              {calculateBalance(booking)}
-                            </span>
-                          </td>
-                          <td className="px-4 py-3 min-w-[120px]">
-                            <span className={`inline-flex whitespace-nowrap px-2.5 py-1 rounded-full text-xs font-medium ${getStatusColor(booking.status)}`}>
+                          <td className="px-3 py-2">
+                            <span className={`inline-flex whitespace-nowrap px-2 py-0.5 rounded-full text-[10px] font-medium ${getStatusColor(booking.status)}`}>
                               {booking.status?.charAt(0).toUpperCase() + booking.status?.slice(1)}
                             </span>
                           </td>
-                          <td className="px-4 py-3">
-                            <div className="flex gap-2">
+                          <td className="px-3 py-2">
+                            <div className="flex gap-1">
                               {(booking.paymentProofUrl || booking.status === 'pending') && (
                                 <button
                                   onClick={() => {
                                     setSelectedBooking(booking);
                                     setShowPaymentModal(true);
                                   }}
-                                  className="px-3 py-1.5 text-xs font-medium text-blue-600 hover:text-blue-700 hover:bg-blue-50 rounded-lg transition-all duration-200"
+                                  className="p-1.5 text-blue-600 hover:text-blue-700 hover:bg-blue-50 rounded-lg transition-all duration-200"
                                   title="View Payment Proof"
                                 >
-                                  <i className="fas fa-receipt mr-1"></i>
-                                  View Payment
+                                  <i className="fas fa-eye text-sm"></i>
                                 </button>
                               )}
                               {booking.status === 'cancelled-by-guest' && (
-                                <>
-                                  <button
-                                    onClick={() => setShowReasonModal({ 
-                                      show: true, 
-                                      booking: booking, 
-                                      reason: booking.cancellationReason || 'No reason provided',
-                                      sending: false 
-                                    })}
-                                    className="px-3 py-1.5 text-xs font-medium text-orange-600 hover:text-orange-700 hover:bg-orange-50 rounded-lg transition-all duration-200"
-                                    title="View Cancellation Reason"
-                                  >
-                                    <i className="fas fa-comment-dots mr-1"></i>
-                                    Reason
-                                  </button>
-                                </>
+                                <button
+                                  onClick={() => setShowReasonModal({ 
+                                    show: true, 
+                                    booking: booking, 
+                                    reason: booking.cancellationReason || 'No reason provided',
+                                    sending: false 
+                                  })}
+                                  className="p-1.5 text-orange-600 hover:text-orange-700 hover:bg-orange-50 rounded-lg transition-all duration-200"
+                                  title="View Cancellation Reason"
+                                >
+                                  <i className="fas fa-comment-dots text-sm"></i>
+                                </button>
                               )}
                             </div>
                           </td>
-                          <td className="px-4 py-3 text-sm text-textSecondary">
+                          <td className="px-3 py-2 text-xs text-textSecondary">
                             {formatDateTime(booking.createdAt)}
                           </td>
                         </tr>
@@ -1007,7 +1157,7 @@ const handleCancelDayTourReservation = async () => {
         </>
       )}
 
-      {/* Day Tour Reservations Table */}
+      {/* Day Tour Reservations Table - Optimized Layout */}
       {activeTab === 'daytour' && (
         <>
           {loading ? (
@@ -1017,27 +1167,24 @@ const handleCancelDayTourReservation = async () => {
           ) : (
             <div className="bg-white rounded-2xl shadow-md border border-ocean-light/10 overflow-hidden">
               <div className="overflow-x-auto">
-                <table className="w-full">
+                <table className="w-full min-w-[650px]">
                   <thead>
                     <tr className="bg-ocean-pale/50 border-b border-ocean-light/20">
-                      <th className="px-4 py-3 text-left text-sm font-semibold text-textPrimary">Booking ID</th>
-                      <th className="px-4 py-3 text-left text-sm font-semibold text-textPrimary">Guest Name</th>
-                      <th className="px-4 py-3 text-left text-sm font-semibold text-textPrimary">Date</th>
-                      <th className="px-4 py-3 text-left text-sm font-semibold text-textPrimary">Senior</th>
-                      <th className="px-4 py-3 text-left text-sm font-semibold text-textPrimary">Adult</th>
-                      <th className="px-4 py-3 text-left text-sm font-semibold text-textPrimary">Kid</th>
-                      <th className="px-4 py-3 text-left text-sm font-semibold text-textPrimary">Total Guests</th>
-                      <th className="px-4 py-3 text-left text-sm font-semibold text-textPrimary">50% Down Payment</th>
-                      <th className="px-4 py-3 text-left text-sm font-semibold text-textPrimary">Balance</th>
-                      <th className="px-4 py-3 text-left text-sm font-semibold text-textPrimary min-w-[157px]">Status</th>
-                      <th className="px-4 py-3 text-left text-sm font-semibold text-textPrimary">Actions</th>
-                      <th className="px-4 py-3 text-left text-sm font-semibold text-textPrimary">Booked On</th>
+                      <th className="px-3 py-2 text-left text-xs font-semibold text-textPrimary">Booking ID</th>
+                      <th className="px-3 py-2 text-left text-xs font-semibold text-textPrimary">Guest Name</th>
+                      <th className="px-3 py-2 text-left text-xs font-semibold text-textPrimary">Date</th>
+                      <th className="px-3 py-2 text-left text-xs font-semibold text-textPrimary">Senior</th>
+                      <th className="px-3 py-2 text-left text-xs font-semibold text-textPrimary">Adult</th>
+                      <th className="px-3 py-2 text-left text-xs font-semibold text-textPrimary">Kid</th>
+                      <th className="px-3 py-2 text-left text-xs font-semibold text-textPrimary min-w-[80px]">Status</th>
+                      <th className="px-3 py-2 text-left text-xs font-semibold text-textPrimary">Actions</th>
+                      <th className="px-3 py-2 text-left text-xs font-semibold text-textPrimary">Booked On</th>
                     </tr>
                   </thead>
                   <tbody>
                     {filteredDayTours.length === 0 ? (
                       <tr>
-                        <td colSpan="12" className="px-4 py-12 text-center text-neutral">
+                        <td colSpan="9" className="px-4 py-12 text-center text-neutral">
                           <i className="fas fa-sun text-5xl mb-3 opacity-50 block"></i>
                           <p className="text-lg">No day tour reservations found</p>
                           <p className="text-sm">Day tour reservations will appear here once guests book</p>
@@ -1046,78 +1193,63 @@ const handleCancelDayTourReservation = async () => {
                     ) : (
                       filteredDayTours.map((tour) => (
                         <tr key={tour.id} className="border-b border-ocean-light/10 hover:bg-ocean-ice/30 transition-colors">
-                          <td className="px-4 py-3">
-                            <span className="font-mono text-sm">{tour.bookingId}</span>
+                          <td className="px-3 py-2">
+                            <span className="font-mono text-xs">{tour.bookingId}</span>
                           </td>
-                          <td className="px-4 py-3">
-                            <div className="font-medium text-textPrimary">
+                          <td className="px-3 py-2">
+                            <div className="font-medium text-textPrimary text-xs">
                               {tour.guestInfo?.firstName} {tour.guestInfo?.lastName}
                             </div>
-                            <div className="text-xs text-neutral">{tour.guestInfo?.email}</div>
+                            <div className="text-[10px] text-neutral">{tour.guestInfo?.email}</div>
                           </td>
-                          <td className="px-4 py-3 text-sm text-textSecondary">
+                          <td className="px-3 py-2 text-xs text-textSecondary">
                             {formatDateOnly(tour.selectedDate)}
                           </td>
-                          <td className="px-4 py-3 text-sm text-textSecondary text-center">
+                          <td className="px-3 py-2 text-xs text-textSecondary text-center">
                             {tour.seniors || 0}
                           </td>
-                          <td className="px-4 py-3 text-sm text-textSecondary text-center">
+                          <td className="px-3 py-2 text-xs text-textSecondary text-center">
                             {tour.adults || 0}
                           </td>
-                          <td className="px-4 py-3 text-sm text-textSecondary text-center">
+                          <td className="px-3 py-2 text-xs text-textSecondary text-center">
                             {tour.kids || 0}
                           </td>
-                          <td className="px-4 py-3 text-sm text-textSecondary text-center">
-                            <span className="font-semibold">{getTotalGuests(tour)}</span>
-                          </td>
-                          <td className="px-4 py-3">
-                            <span className="font-semibold text-ocean-mid">₱{calculateDownPayment(tour.totalPrice).toLocaleString()}</span>
-                          </td>
-                          <td className="px-4 py-3">
-                            <span className={`text-sm font-medium ${tour.status === 'confirmed' || (tour.status === 'cancelled-by-guest' && tour.refundNotificationSent) ? 'text-ocean-mid' : 'text-neutral'}`}>
-                              {calculateBalance(tour)}
-                            </span>
-                          </td>
-                          <td className="px-4 py-3">
-                            <span className={`px-2.5 py-1 rounded-full text-xs font-medium ${getStatusColor(tour.status)}`}>
+                          <td className="px-3 py-2">
+                            <span className={`px-2 py-0.5 rounded-full text-[10px] font-medium ${getStatusColor(tour.status)}`}>
                               {tour.status?.charAt(0).toUpperCase() + tour.status?.slice(1)}
                             </span>
                           </td>
-                          <td className="px-4 py-3">
-                            <div className="flex gap-2">
+                          <td className="px-3 py-2">
+                            <div className="flex gap-1">
                               {(tour.paymentProofUrl || tour.status === 'pending') && (
                                 <button
                                   onClick={() => {
                                     setSelectedBooking(tour);
                                     setShowPaymentModal(true);
                                   }}
-                                  className="px-3 py-1.5 text-xs font-medium text-blue-600 hover:text-blue-700 hover:bg-blue-50 rounded-lg transition-all duration-200"
+                                  className="p-1.5 text-blue-600 hover:text-blue-700 hover:bg-blue-50 rounded-lg transition-all duration-200"
                                   title="View Payment Proof"
                                 >
-                                  <i className="fas fa-receipt mr-1"></i>
-                                  View Payment
+                                  <i className="fas fa-eye text-sm"></i>
                                 </button>
                               )}
                               {tour.status === 'cancelled-by-guest' && (
-                                <>
-                                  <button
-                                    onClick={() => setShowReasonModal({ 
-                                      show: true, 
-                                      booking: tour, 
-                                      reason: tour.cancellationReason || 'No reason provided',
-                                      sending: false 
-                                    })}
-                                    className="px-3 py-1.5 text-xs font-medium text-orange-600 hover:text-orange-700 hover:bg-orange-50 rounded-lg transition-all duration-200"
-                                    title="View Cancellation Reason"
-                                  >
-                                    <i className="fas fa-comment-dots mr-1"></i>
-                                    Reason
-                                  </button>
-                                </>
+                                <button
+                                  onClick={() => setShowReasonModal({ 
+                                    show: true, 
+                                    booking: tour, 
+                                    reason: tour.cancellationReason || 'No reason provided',
+                                    sending: false 
+                                  })}
+                                  className="p-1.5 text-orange-600 hover:text-orange-700 hover:bg-orange-50 rounded-lg transition-all duration-200"
+                                  title="View Cancellation Reason"
+                                >
+                                  <i className="fas fa-comment-dots text-sm"></i>
+                                </button>
                               )}
                             </div>
                           </td>
-                          <td className="px-4 py-3 text-sm text-textSecondary">
+                          <td className="px-3 py-2 text-xs text-textSecondary">
                             {formatDateTime(tour.createdAt)}
                           </td>
                         </tr>
@@ -1131,167 +1263,227 @@ const handleCancelDayTourReservation = async () => {
         </>
       )}
 
-      {/* Payment Proof Modal */}
+      {/* Image Zoom Modal */}
+      {imageZoomModal.show && (
+        <div className="fixed inset-0 bg-black/80 backdrop-blur-sm flex items-center justify-center z-[100] p-4" onClick={() => setImageZoomModal({ show: false, imageUrl: '', title: '' })}>
+          <div className="relative max-w-4xl max-h-[90vh] w-full" onClick={(e) => e.stopPropagation()}>
+            <button
+              onClick={() => setImageZoomModal({ show: false, imageUrl: '', title: '' })}
+              className="absolute -top-10 right-0 text-white hover:text-gray-300 transition-colors duration-200"
+            >
+              <i className="fas fa-times text-2xl"></i>
+            </button>
+            <div className="bg-white rounded-lg overflow-hidden">
+              <div className="bg-gradient-to-r from-ocean-mid to-ocean-light px-4 py-2">
+                <h3 className="text-sm font-semibold text-white">{imageZoomModal.title}</h3>
+              </div>
+              <img
+                src={imageZoomModal.imageUrl}
+                alt={imageZoomModal.title}
+                className="w-full h-auto max-h-[80vh] object-contain bg-gray-100"
+              />
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* View Modal - Compact Size with Improved Multi-Room Layout */}
       {showPaymentModal && selectedBooking && (
         <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4" onClick={() => setShowPaymentModal(false)}>
-          <div className="bg-white rounded-2xl w-full max-w-2xl max-h-[90vh] overflow-auto p-6 shadow-2xl" onClick={(e) => e.stopPropagation()}>
-            <div className="flex justify-between items-center mb-5">
-              <h2 className="text-xl font-bold text-textPrimary font-playfair">
-                Payment Proof - {selectedBooking.bookingId}
+          <div className="bg-white rounded-xl w-full max-w-md max-h-[85vh] overflow-auto shadow-2xl" onClick={(e) => e.stopPropagation()}>
+            {/* Header */}
+            <div className="sticky top-0 bg-gradient-to-r from-ocean-mid to-ocean-light px-5 py-3 rounded-t-xl flex justify-between items-center">
+              <h2 className="text-base font-bold text-white">
+                Booking Details - {selectedBooking.bookingId}
               </h2>
               <button
                 onClick={() => setShowPaymentModal(false)}
-                className="w-8 h-8 rounded-full bg-ocean-ice hover:bg-ocean-light/20 text-neutral hover:text-textPrimary transition-all duration-200 flex items-center justify-center"
+                className="w-7 h-7 rounded-full bg-white/20 hover:bg-white/30 text-white transition-all duration-200 flex items-center justify-center"
               >
-                <i className="fas fa-times"></i>
+                <i className="fas fa-times text-sm"></i>
               </button>
             </div>
             
-            <div className="space-y-4">
-              <div className="grid grid-cols-2 gap-4 p-4 bg-ocean-ice rounded-xl">
-                <div>
-                  <p className="text-xs font-semibold text-neutral uppercase tracking-wide">Guest Name</p>
-                  <p className="text-textPrimary font-medium">
-                    {selectedBooking.guestInfo?.firstName} {selectedBooking.guestInfo?.lastName}
-                  </p>
-                </div>
-                {activeTab === 'rooms' ? (
-                  <>
-                    <div>
-                      <p className="text-xs font-semibold text-neutral uppercase tracking-wide">Room Type</p>
-                      <p className="text-textPrimary font-medium">{selectedBooking.roomType}</p>
-                    </div>
-                    <div>
-                      <p className="text-xs font-semibold text-neutral uppercase tracking-wide">Number of Rooms</p>
-                      <p className="text-textPrimary font-medium">{selectedBooking.numberOfRooms || 1} room(s)</p>
-                    </div>
-                    <div>
-                      <p className="text-xs font-semibold text-neutral uppercase tracking-wide">Check-in Date</p>
-                      <p className="text-textPrimary font-medium">
-                        {formatDateTimeFromDate(selectedBooking.checkIn)}
-                      </p>
-                    </div>
-                    <div>
-                      <p className="text-xs font-semibold text-neutral uppercase tracking-wide">Check-out Date</p>
-                      <p className="text-textPrimary font-medium">
-                        {formatDateTimeFromDate(selectedBooking.checkOut)}
-                      </p>
-                    </div>
-                  </>
-                ) : (
-                  <>
-                    <div>
-                      <p className="text-xs font-semibold text-neutral uppercase tracking-wide">Tour Date</p>
-                      <p className="text-textPrimary font-medium">
-                        {formatDateOnly(selectedBooking.selectedDate)}
-                      </p>
-                    </div>
-                    <div>
-                      <p className="text-xs font-semibold text-neutral uppercase tracking-wide">Guests Breakdown</p>
-                      <p className="text-textPrimary font-medium">
+            <div className="p-5 space-y-4">
+              {/* Guest Information */}
+              <div className="bg-ocean-ice rounded-lg p-3">
+                <h3 className="text-xs font-semibold text-ocean-mid uppercase tracking-wide mb-2">Guest Information</h3>
+                <p className="text-sm font-medium text-textPrimary">
+                  {selectedBooking.guestInfo?.firstName} {selectedBooking.guestInfo?.lastName}
+                </p>
+                <p className="text-xs text-textSecondary">{selectedBooking.guestInfo?.email}</p>
+                <p className="text-xs text-textSecondary">{selectedBooking.guestInfo?.phone}</p>
+              </div>
+
+              {/* Room/Tour Details */}
+              {activeTab === 'rooms' ? (
+                <>
+                  <div className="bg-ocean-ice rounded-lg p-3">
+                    <h3 className="text-xs font-semibold text-ocean-mid uppercase tracking-wide mb-2">Room Details</h3>
+                    
+                    {/* Multi-Room Detailed Display */}
+                    {selectedBooking.isMultiRoomGroup && selectedBooking.roomTypesArray && selectedBooking.roomTypesArray.length > 0 ? (
+                      <div className="space-y-2">
+                        <div className="border-b border-ocean-light/20 pb-1 mb-1">
+                          <span className="text-xs font-semibold text-ocean-mid">Room Type Breakdown:</span>
+                        </div>
+                        {selectedBooking.roomTypesArray.map((room, idx) => (
+                          <div key={idx} className="flex justify-between items-center text-sm">
+                            <span className="text-textSecondary">{room.quantity} × {room.type}</span>
+                            <span className="font-medium text-textPrimary">{room.guestsPerRoom} guest{room.guestsPerRoom !== 1 ? 's' : ''}</span>
+                          </div>
+                        ))}
+                        <div className="flex justify-between items-center text-sm pt-2 border-t border-ocean-light/20 mt-2">
+                          <span className="font-semibold text-textPrimary">Total Guests:</span>
+                          <span className="font-bold text-ocean-mid">{selectedBooking.totalGuests}</span>
+                        </div>
+                      </div>
+                    ) : (
+                      <>
+                        <p className="text-sm">
+                          <span className="text-textSecondary">Room Type:</span>{' '}
+                          <span className="font-medium text-textPrimary">{selectedBooking.roomType}</span>
+                        </p>
+                        <p className="text-sm mt-1">
+                          <span className="text-textSecondary">Number of Rooms:</span>{' '}
+                          <span className="font-medium text-textPrimary">{selectedBooking.numberOfRooms || 1}</span>
+                        </p>
+                        <p className="text-sm mt-1">
+                          <span className="text-textSecondary">Number of Guests:</span>{' '}
+                          <span className="font-medium text-textPrimary">{selectedBooking.guests || 1}</span>
+                        </p>
+                      </>
+                    )}
+                  </div>
+
+                  <div className="bg-ocean-ice rounded-lg p-3">
+                    <h3 className="text-xs font-semibold text-ocean-mid uppercase tracking-wide mb-2">Schedule</h3>
+                    <p className="text-sm">
+                      <span className="text-textSecondary">Check-in:</span>{' '}
+                      <span className="font-medium text-textPrimary">{formatDateTimeFromDate(selectedBooking.checkIn)}</span>
+                    </p>
+                    <p className="text-sm mt-1">
+                      <span className="text-textSecondary">Check-out:</span>{' '}
+                      <span className="font-medium text-textPrimary">{formatDateTimeFromDate(selectedBooking.checkOut)}</span>
+                    </p>
+                  </div>
+                </>
+              ) : (
+                <>
+                  <div className="bg-ocean-ice rounded-lg p-3">
+                    <h3 className="text-xs font-semibold text-ocean-mid uppercase tracking-wide mb-2">Tour Details</h3>
+                    <p className="text-sm">
+                      <span className="text-textSecondary">Tour Date:</span>{' '}
+                      <span className="font-medium text-textPrimary">{formatDateOnly(selectedBooking.selectedDate)}</span>
+                    </p>
+                    <p className="text-sm mt-1">
+                      <span className="text-textSecondary">Guest Breakdown:</span>{' '}
+                      <span className="font-medium text-textPrimary">
                         Senior: {selectedBooking.seniors || 0} | Adult: {selectedBooking.adults || 0} | Kid: {selectedBooking.kids || 0}
-                      </p>
-                    </div>
-                  </>
-                )}
-                <div>
-                  <p className="text-xs font-semibold text-neutral uppercase tracking-wide">Total Amount</p>
-                  <p className="text-ocean-mid font-bold">₱{Number(selectedBooking.totalPrice).toLocaleString()}</p>
-                </div>
-                <div>
-                  <p className="text-xs font-semibold text-neutral uppercase tracking-wide">50% Down Payment</p>
-                  <p className="text-ocean-mid font-bold">₱{calculateDownPayment(selectedBooking.totalPrice).toLocaleString()}</p>
-                </div>
-                <div>
-                  <p className="text-xs font-semibold text-neutral uppercase tracking-wide">Balance</p>
-                  <p className="text-ocean-mid font-bold">
+                      </span>
+                    </p>
+                    <p className="text-sm mt-1">
+                      <span className="text-textSecondary">Total Guests:</span>{' '}
+                      <span className="font-medium text-textPrimary">{getTotalGuests(selectedBooking)}</span>
+                    </p>
+                  </div>
+                </>
+              )}
+
+              {/* Payment Information */}
+              <div className="bg-ocean-ice rounded-lg p-3">
+                <h3 className="text-xs font-semibold text-ocean-mid uppercase tracking-wide mb-2">Payment Information</h3>
+                <p className="text-sm">
+                  <span className="text-textSecondary">Total Amount:</span>{' '}
+                  <span className="font-bold text-ocean-mid">₱{Number(selectedBooking.totalPrice).toLocaleString()}</span>
+                </p>
+                <p className="text-sm mt-1">
+                  <span className="text-textSecondary">50% Down Payment:</span>{' '}
+                  <span className="font-bold text-amber-600">₱{calculateDownPayment(selectedBooking.totalPrice).toLocaleString()}</span>
+                </p>
+                <p className="text-sm mt-1">
+                  <span className="text-textSecondary">Balance:</span>{' '}
+                  <span className={`font-bold ${selectedBooking.status === 'confirmed' ? 'text-ocean-mid' : 'text-neutral'}`}>
                     {calculateBalance(selectedBooking)}
-                  </p>
-                </div>
-                <div>
-                  <p className="text-xs font-semibold text-neutral uppercase tracking-wide">Status</p>
-                  <span className={`px-2 py-1 rounded-full text-xs font-medium ${getStatusColor(selectedBooking.status)}`}>
+                  </span>
+                </p>
+                <p className="text-sm mt-1">
+                  <span className="text-textSecondary">Status:</span>{' '}
+                  <span className={`px-2 py-0.5 rounded-full text-[10px] font-medium ${getStatusColor(selectedBooking.status)}`}>
                     {selectedBooking.status?.charAt(0).toUpperCase() + selectedBooking.status?.slice(1)}
                   </span>
-                </div>
+                </p>
               </div>
-              
-              <div>
-                <label className="block text-sm font-semibold text-textPrimary mb-3">Payment Proof Image</label>
-                {selectedBooking.paymentProofUrl ? (
-                  <div className="relative bg-ocean-pale/30 rounded-xl overflow-hidden">
+
+              {/* Payment Proof Image - Clickable */}
+              {selectedBooking.paymentProofUrl && (
+                <div className="bg-ocean-ice rounded-lg p-3">
+                  <h3 className="text-xs font-semibold text-ocean-mid uppercase tracking-wide mb-2">Payment Proof</h3>
+                  <div 
+                    className="relative bg-ocean-pale/30 rounded-lg overflow-hidden cursor-pointer hover:opacity-90 transition-opacity duration-200"
+                    onClick={() => setImageZoomModal({ show: true, imageUrl: selectedBooking.paymentProofUrl, title: 'Payment Proof' })}
+                  >
                     <img
                       src={selectedBooking.paymentProofUrl}
                       alt="Payment Proof"
-                      className="w-full h-auto max-h-[500px] object-contain"
+                      className="w-full h-auto max-h-[200px] object-contain"
                       onError={(e) => {
                         console.error('Error loading image:', e);
                         e.target.style.display = 'none';
-                        e.target.parentElement.innerHTML = '<div class="p-8 text-center"><i class="fas fa-image text-4xl text-neutral mb-2 block"></i><p class="text-textSecondary">Error loading payment proof image</p></div>';
+                        e.target.parentElement.innerHTML = '<div class="p-4 text-center"><i class="fas fa-image text-3xl text-neutral mb-2 block"></i><p class="text-textSecondary">Error loading payment proof image</p></div>';
                       }}
                     />
-                  </div>
-                ) : (
-                  <div className="p-8 text-center bg-ocean-ice rounded-xl">
-                    <i className="fas fa-image text-4xl text-neutral mb-2 block"></i>
-                    <p className="text-textSecondary">No payment proof uploaded</p>
-                  </div>
-                )}
-              </div>
-
-              <div>
-                <label className="block text-sm font-semibold text-textPrimary mb-3">Valid ID</label>
-                {selectedBooking.validIdUrl ? (
-                  <div className="space-y-2">
-                    {selectedBooking.validIdType && (
-                      <p className="text-sm text-textSecondary">
-                        ID Type:{' '}
-                        <span className="font-semibold text-textPrimary">
-                          {selectedBooking.validIdType}
-                        </span>
-                      </p>
-                    )}
-                    <div className="relative bg-ocean-pale/30 rounded-xl overflow-hidden">
-                      <img
-                        src={selectedBooking.validIdUrl}
-                        alt="Valid ID"
-                        className="w-full h-auto max-h-[400px] object-contain bg-white"
-                        onError={(e) => {
-                          console.error('Error loading valid ID image:', e);
-                          e.target.style.display = 'none';
-                          e.target.parentElement.innerHTML = '<div class="p-6 text-center"><i class="fas fa-id-card text-3xl text-neutral mb-2 block"></i><p class="text-textSecondary">Error loading valid ID image</p></div>';
-                        }}
-                      />
+                    <div className="absolute inset-0 bg-black/0 hover:bg-black/20 transition-all duration-200 flex items-center justify-center">
+                      <i className="fas fa-search-plus text-white text-xl opacity-0 hover:opacity-100 transition-opacity duration-200"></i>
                     </div>
                   </div>
-                ) : (
-                  <div className="p-6 text-center bg-ocean-ice rounded-xl">
-                    <i className="fas fa-id-card text-3xl text-neutral mb-2 block"></i>
-                    <p className="text-textSecondary">No valid ID uploaded</p>
-                  </div>
-                )}
-              </div>
+                </div>
+              )}
 
-              {/* Special Request Section - Added at the bottom */}
-              <div>
-                <label className="block text-sm font-semibold text-textPrimary mb-3">Special Request</label>
+              {/* Valid ID - Clickable */}
+              {selectedBooking.validIdUrl && (
+                <div className="bg-ocean-ice rounded-lg p-3">
+                  <h3 className="text-xs font-semibold text-ocean-mid uppercase tracking-wide mb-2">Valid ID</h3>
+                  {selectedBooking.validIdType && (
+                    <p className="text-xs text-textSecondary mb-2">ID Type: <span className="font-medium text-textPrimary">{selectedBooking.validIdType}</span></p>
+                  )}
+                  <div 
+                    className="relative bg-ocean-pale/30 rounded-lg overflow-hidden cursor-pointer hover:opacity-90 transition-opacity duration-200"
+                    onClick={() => setImageZoomModal({ show: true, imageUrl: selectedBooking.validIdUrl, title: `Valid ID - ${selectedBooking.validIdType || 'ID'}` })}
+                  >
+                    <img
+                      src={selectedBooking.validIdUrl}
+                      alt="Valid ID"
+                      className="w-full h-auto max-h-[150px] object-contain bg-white"
+                      onError={(e) => {
+                        console.error('Error loading valid ID image:', e);
+                        e.target.style.display = 'none';
+                        e.target.parentElement.innerHTML = '<div class="p-4 text-center"><i class="fas fa-id-card text-3xl text-neutral mb-2 block"></i><p class="text-textSecondary">Error loading valid ID image</p></div>';
+                      }}
+                    />
+                    <div className="absolute inset-0 bg-black/0 hover:bg-black/20 transition-all duration-200 flex items-center justify-center">
+                      <i className="fas fa-search-plus text-white text-xl opacity-0 hover:opacity-100 transition-opacity duration-200"></i>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {/* Special Request */}
+              <div className="bg-amber-50 rounded-lg p-3 border border-amber-200">
+                <h3 className="text-xs font-semibold text-amber-700 uppercase tracking-wide mb-2">Special Request</h3>
                 {selectedBooking.specialRequest ? (
-                  <div className="p-4 bg-amber-50 rounded-xl border border-amber-200">
-                    <p className="text-amber-800 whitespace-pre-wrap">{selectedBooking.specialRequest}</p>
-                  </div>
+                  <p className="text-sm text-amber-800">{selectedBooking.specialRequest}</p>
                 ) : (
-                  <div className="p-4 text-center bg-ocean-ice rounded-xl">
-                    <i className="fas fa-comment text-2xl text-neutral mb-2 block"></i>
-                    <p className="text-textSecondary">No special requests from guest</p>
-                  </div>
+                  <p className="text-sm text-amber-600 italic">No special requests from guest</p>
                 )}
               </div>
             </div>
             
-            <div className="flex gap-3 justify-end mt-6 pt-4 border-t border-ocean-light/10">
+            {/* Footer Actions */}
+            <div className="sticky bottom-0 bg-white border-t border-ocean-light/20 px-5 py-3 rounded-b-xl flex gap-2 justify-end">
               <button
                 onClick={() => setShowPaymentModal(false)}
-                className="px-5 py-2.5 border border-ocean-light/20 rounded-xl text-textSecondary text-sm font-medium hover:bg-ocean-ice transition-all duration-300"
+                className="px-4 py-1.5 border border-ocean-light/20 rounded-lg text-textSecondary text-sm font-medium hover:bg-ocean-ice transition-all duration-300"
               >
                 Close
               </button>
@@ -1303,10 +1495,10 @@ const handleCancelDayTourReservation = async () => {
                       setConfirmModal({ show: true, booking: selectedBooking, type: activeTab === 'rooms' ? 'room' : 'daytour', note: '' });
                     }}
                     disabled={actionLoading[selectedBooking.id]}
-                    className="px-5 py-2.5 bg-gradient-to-r from-green-500 to-green-600 rounded-xl text-white text-sm font-medium hover:shadow-lg hover:-translate-y-0.5 transition-all duration-300 flex items-center gap-2 disabled:opacity-50"
+                    className="px-4 py-1.5 bg-gradient-to-r from-green-500 to-green-600 rounded-lg text-white text-sm font-medium hover:shadow-lg transition-all duration-300 flex items-center gap-1 disabled:opacity-50"
                   >
-                    <i className="fas fa-check"></i>
-                    Confirm Reservation
+                    <i className="fas fa-check text-xs"></i>
+                    Confirm
                   </button>
                   <button
                     onClick={() => {
@@ -1314,10 +1506,10 @@ const handleCancelDayTourReservation = async () => {
                       setCancelModal({ show: true, booking: selectedBooking, reason: '' });
                     }}
                     disabled={actionLoading[selectedBooking.id]}
-                    className="px-5 py-2.5 bg-gradient-to-r from-red-500 to-red-600 rounded-xl text-white text-sm font-medium hover:shadow-lg hover:-translate-y-0.5 transition-all duration-300 flex items-center gap-2 disabled:opacity-50"
+                    className="px-4 py-1.5 bg-gradient-to-r from-red-500 to-red-600 rounded-lg text-white text-sm font-medium hover:shadow-lg transition-all duration-300 flex items-center gap-1 disabled:opacity-50"
                   >
-                    <i className="fas fa-times"></i>
-                    Cancel Reservation
+                    <i className="fas fa-times text-xs"></i>
+                    Cancel
                   </button>
                 </>
               )}
@@ -1342,7 +1534,12 @@ const handleCancelDayTourReservation = async () => {
                 </span>?<br />
                 <span className="text-xs mt-1 block">
                   Booking ID: {confirmModal.booking.bookingId}
-                  {confirmModal.type === 'room' && <><br />Room: {confirmModal.booking.roomType}<br />Number of Rooms: {confirmModal.booking.numberOfRooms || 1}</>}
+                  {confirmModal.type === 'room' && confirmModal.booking.isMultiRoomGroup && (
+                    <><br />Multi-Room Booking: {confirmModal.booking.roomTypesDisplay}</>
+                  )}
+                  {confirmModal.type === 'room' && !confirmModal.booking.isMultiRoomGroup && (
+                    <><br />Room: {confirmModal.booking.roomType}<br />Number of Rooms: {confirmModal.booking.numberOfRooms || 1}</>
+                  )}
                 </span>
               </p>
             </div>

@@ -1,4 +1,4 @@
-// app/rooms/page.js
+// app/rooms/page.js (updated)
 'use client';
 
 import { useState, useEffect } from 'react';
@@ -6,6 +6,7 @@ import GuestLayout from '../guest/layout';
 import { db } from '@/lib/firebase';
 import { collection, query, orderBy, onSnapshot, where } from 'firebase/firestore';
 import RoomCard from '@/components/guest/RoomCard';
+import { useRouter } from 'next/navigation';
 
 export default function RoomsPage() {
   const [rooms, setRooms] = useState([]);
@@ -14,6 +15,7 @@ export default function RoomsPage() {
   const [selectedType, setSelectedType] = useState('all');
   const [roomTypes, setRoomTypes] = useState([]);
   const [mounted, setMounted] = useState(false);
+  const router = useRouter();
 
   // Handle mounted state for hydration
   useEffect(() => {
@@ -61,6 +63,10 @@ export default function RoomsPage() {
     const matchesType = selectedType === 'all' || room.type === selectedType;
     return matchesSearch && matchesType;
   });
+
+  const handleSelectRoomTypes = () => {
+    router.push('/rooms/select-room-types');
+  };
 
   // Prevent hydration mismatch by not rendering until mounted
   if (!mounted) {
@@ -144,6 +150,15 @@ export default function RoomsPage() {
           <div className="flex flex-col lg:flex-row gap-5">
             {/* Left Sidebar - 30% width */}
             <div className="lg:w-[30%] space-y-4">
+              {/* Select Room Types Button */}
+              <button
+                onClick={handleSelectRoomTypes}
+                className="w-full bg-gradient-to-r from-ocean-mid to-ocean-light text-white rounded-xl px-4 py-3 font-semibold hover:shadow-lg hover:-translate-y-0.5 transition-all duration-300 flex items-center justify-center gap-2"
+              >
+                <i className="fas fa-layer-group"></i>
+                Select Room Types
+              </button>
+
               {/* Search Bar */}
               <div className="bg-white rounded-xl shadow-sm border border-ocean-light/10 p-4">
                 <h3 className="text-base font-semibold text-textPrimary mb-3 font-playfair">
