@@ -18,7 +18,7 @@ export default function AdminPaymentPage() {
   const [bankTransferRequests, setBankTransferRequests] = useState([]);
   const [dayTourBankRequests, setDayTourBankRequests] = useState([]);
   const [selectedRequest, setSelectedRequest] = useState(null);
-  const [showBankDetailsModal, setShowBankDetailsModal] = useState(false);
+  const [showConfirmationModal, setShowConfirmationModal] = useState(false);
   const [showAddBankModal, setShowAddBankModal] = useState(false);
   const [editingBank, setEditingBank] = useState(null);
   const [showArchiveModal, setShowArchiveModal] = useState(false);
@@ -36,10 +36,14 @@ export default function AdminPaymentPage() {
   const [viewedDayTourRequests, setViewedDayTourRequests] = useState(new Set());
   const [hasBankChanges, setHasBankChanges] = useState(false);
   const [originalBankDetails, setOriginalBankDetails] = useState(null);
-  const [selectedBankForRequest, setSelectedBankForRequest] = useState(null);
   const [showArchiveQRModal, setShowArchiveQRModal] = useState(false);
   const [archivingQR, setArchivingQR] = useState(false);
   const [requestsSearchTerm, setRequestsSearchTerm] = useState('');
+
+  // NEW STATE for QR Code upload in Add Bank Modal
+  const [bankQRFile, setBankQRFile] = useState(null);
+  const [bankQRPreview, setBankQRPreview] = useState('');
+  const [bankQRUrl, setBankQRUrl] = useState('');
 
   // Fetch payment settings
  useEffect(() => {
@@ -204,7 +208,13 @@ export default function AdminPaymentPage() {
 
     const isBankFormValid = () => {
     const { bankName, accountName, accountNumber } = tempBankDetails;
-    if (!bankName.trim() || !accountName.trim() || !accountNumber.trim()) return false;
+    // Check if either account number OR QR code is provided (mutually exclusive logic)
+    const hasAccountNumber = accountNumber.trim().length > 0;
+    const hasQRCode = bankQRUrl !== '' || bankQRFile !== null;
+    const isMutuallyExclusiveValid = (hasAccountNumber && !hasQRCode) || (!hasAccountNumber && hasQRCode);
+    
+    if (!bankName.trim() || !accountName.trim()) return false;
+    if (!isMutuallyExclusiveValid) return false;
     if (editingBank && !hasBankChanges) return false;
     return true;
   };
@@ -252,6 +262,12 @@ export default function AdminPaymentPage() {
   // Handle Account Number input – only numeric
   const handleAccountNumberChange = (e) => {
     const numericValue = e.target.value.replace(/\D/g, '');
+    // Clear QR code if user starts typing account number
+    if (numericValue.length > 0) {
+      setBankQRFile(null);
+      setBankQRPreview('');
+      setBankQRUrl('');
+    }
     handleBankDetailsChange('accountNumber', numericValue);
   };
 
@@ -324,19 +340,34 @@ export default function AdminPaymentPage() {
   };
 
 const handleAddBankAccount = async () => {
-  if (!tempBankDetails.bankName || !tempBankDetails.accountName || !tempBankDetails.accountNumber) {
+  // Validation: Must have either account number OR QR code, not both
+  const hasAccountNumber = tempBankDetails.accountNumber.trim().length > 0;
+  const hasQRCode = bankQRUrl !== '' || bankQRFile !== null;
+  
+  if (!tempBankDetails.bankName || !tempBankDetails.accountName) {
     showNotification('Please fill in all bank details', 'error');
+    return;
+  }
+  
+  if ((!hasAccountNumber && !hasQRCode) || (hasAccountNumber && hasQRCode)) {
+    showNotification('Please provide either Account Number OR QR Code, not both.', 'error');
     return;
   }
   
   setSaving(true);
   try {
+    let qrCodeUrl = '';
+    if (hasQRCode && bankQRFile) {
+      qrCodeUrl = await uploadImage(bankQRFile);
+    }
+    
     // Create new bank account with archived: false
     const newBankAccount = {
       id: `${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
       bankName: tempBankDetails.bankName,
       accountName: tempBankDetails.accountName,
-      accountNumber: tempBankDetails.accountNumber,
+      accountNumber: hasAccountNumber ? tempBankDetails.accountNumber : '', // Empty if QR is used
+      qrCodeUrl: hasQRCode ? qrCodeUrl : '', // Empty if account number is used
       createdAt: new Date().toISOString(),
       archived: false // Add archived flag
     };
@@ -357,7 +388,11 @@ const handleAddBankAccount = async () => {
     
     showNotification('Bank account added successfully!');
     setShowAddBankModal(false);
+    // Reset form
     setTempBankDetails({ bankName: '', accountName: '', accountNumber: '' });
+    setBankQRFile(null);
+    setBankQRPreview('');
+    setBankQRUrl('');
   } catch (error) {
     console.error('Error adding bank account:', error);
     showNotification('Failed to add bank account.', 'error');
@@ -368,13 +403,29 @@ const handleAddBankAccount = async () => {
 
 // Replace the handleUpdateBankAccount function
 const handleUpdateBankAccount = async () => {
-  if (!tempBankDetails.bankName || !tempBankDetails.accountName || !tempBankDetails.accountNumber) {
+  // Validation: Must have either account number OR QR code, not both
+  const hasAccountNumber = tempBankDetails.accountNumber.trim().length > 0;
+  const hasQRCode = bankQRUrl !== '' || bankQRFile !== null;
+  
+  if (!tempBankDetails.bankName || !tempBankDetails.accountName) {
     showNotification('Please fill in all bank details', 'error');
+    return;
+  }
+  
+  if ((!hasAccountNumber && !hasQRCode) || (hasAccountNumber && hasQRCode)) {
+    showNotification('Please provide either Account Number OR QR Code, not both.', 'error');
     return;
   }
   
   setSaving(true);
   try {
+    let qrCodeUrl = editingBank.qrCodeUrl || '';
+    if (hasQRCode && bankQRFile) {
+      qrCodeUrl = await uploadImage(bankQRFile);
+    } else if (!hasQRCode) {
+      qrCodeUrl = '';
+    }
+    
     // Find the bank account document in bank_accounts collection
     const bankAccountsRef = collection(db, 'bank_accounts');
     const q = query(bankAccountsRef, where('id', '==', editingBank.id));
@@ -387,7 +438,8 @@ const handleUpdateBankAccount = async () => {
       await updateDoc(bankRef, {
         bankName: tempBankDetails.bankName,
         accountName: tempBankDetails.accountName,
-        accountNumber: tempBankDetails.accountNumber,
+        accountNumber: hasAccountNumber ? tempBankDetails.accountNumber : '',
+        qrCodeUrl: qrCodeUrl,
         updatedAt: new Date().toISOString()
       });
     }
@@ -395,7 +447,7 @@ const handleUpdateBankAccount = async () => {
     // Update local state
     const updatedBankAccounts = bankAccounts.map(account => 
       account.id === editingBank.id 
-        ? { ...account, ...tempBankDetails, updatedAt: new Date().toISOString() }
+        ? { ...account, ...tempBankDetails, accountNumber: hasAccountNumber ? tempBankDetails.accountNumber : '', qrCodeUrl: qrCodeUrl, updatedAt: new Date().toISOString() }
         : account
     );
     
@@ -411,6 +463,9 @@ const handleUpdateBankAccount = async () => {
     setShowAddBankModal(false);
     setEditingBank(null);
     setTempBankDetails({ bankName: '', accountName: '', accountNumber: '' });
+    setBankQRFile(null);
+    setBankQRPreview('');
+    setBankQRUrl('');
     setHasBankChanges(false);
     setOriginalBankDetails(null);
   } catch (error) {
@@ -474,8 +529,17 @@ const handleArchiveBankAccount = async () => {
     setTempBankDetails({
       bankName: account.bankName,
       accountName: account.accountName,
-      accountNumber: account.accountNumber
+      accountNumber: account.accountNumber || '' // Ensure it's a string
     });
+    // Set existing QR if present
+    if (account.qrCodeUrl) {
+      setBankQRUrl(account.qrCodeUrl);
+      setBankQRPreview(account.qrCodeUrl);
+    } else {
+      setBankQRUrl('');
+      setBankQRPreview('');
+    }
+    setBankQRFile(null);
     setHasBankChanges(false);
     setShowAddBankModal(true);
   };
@@ -501,19 +565,36 @@ const handleArchiveBankAccount = async () => {
     setShowArchiveModal(true);
   };
 
-  const openBankDetailsModal = (request, type = 'room') => {
+  // Open confirmation dialog with the guest's requested bank details
+  const openConfirmationDialog = (request) => {
     if (request.status === 'completed') {
       showNotification('Bank details already provided for this request.', 'error');
       return;
     }
-    setSelectedRequest({ ...request, requestType: type });
-    setSelectedBankForRequest(null); // Reset selected bank when opening modal
-    setShowBankDetailsModal(true);
+    
+    // Use the bank details that the guest originally requested
+    const requestedBank = request.requestedBank;
+    if (!requestedBank) {
+      showNotification('No bank account was requested by the guest.', 'error');
+      return;
+    }
+    
+    setSelectedRequest({ ...request, requestType: activeRequestsTab });
+    setShowConfirmationModal(true);
   };
 
-  // Handle providing bank details for Day Tour requests - now called by Send button
-  const handleSendBankDetails = async () => {
-    if (!selectedRequest || !selectedBankForRequest) return;
+  // Handle providing bank details after confirmation - send the guest's requested bank
+  const handleConfirmSendBankDetails = async () => {
+    if (!selectedRequest) return;
+    
+    // Use the bank details that the guest originally requested
+    const bankToSend = selectedRequest.requestedBank;
+    if (!bankToSend) {
+      showNotification('No bank account was requested by the guest.', 'error');
+      setShowConfirmationModal(false);
+      setSelectedRequest(null);
+      return;
+    }
     
     setSaving(true);
     try {
@@ -524,9 +605,10 @@ const handleArchiveBankAccount = async () => {
       await updateDoc(bankRequestRef, {
         status: 'completed',
         providedBankDetails: {
-          bankName: selectedBankForRequest.bankName,
-          accountName: selectedBankForRequest.accountName,
-          accountNumber: selectedBankForRequest.accountNumber,
+          bankName: bankToSend.bankName,
+          accountName: bankToSend.accountName,
+          accountNumber: bankToSend.accountNumber || 'QR Code Provided',
+          qrCodeUrl: bankToSend.qrCodeUrl || '',
           providedAt: new Date().toISOString()
         },
         updatedAt: new Date().toISOString()
@@ -534,17 +616,16 @@ const handleArchiveBankAccount = async () => {
       
       await logAdminAction({
         action: 'Provided Bank Details',
-        module: isDayTour ? 'Day Tour Payment Settings' : 'Payment Settings',
+        module: isDayTour ? 'Day Tour Payment' : 'Room Payment',
         details: `Provided bank details to guest: ${selectedRequest.guestName} for ${isDayTour ? 'day tour' : 'room'} booking`
       });
       
-      showNotification('Bank details provided to guest successfully!');
-      setShowBankDetailsModal(false);
+      showNotification('Bank details sent to guest successfully!');
+      setShowConfirmationModal(false);
       setSelectedRequest(null);
-      setSelectedBankForRequest(null);
     } catch (error) {
       console.error('Error providing bank details:', error);
-      showNotification('Failed to provide bank details.', 'error');
+      showNotification('Failed to send bank details.', 'error');
     } finally {
       setSaving(false);
     }
@@ -599,6 +680,22 @@ const handleArchiveBankAccount = async () => {
       normalizeDateText(request.createdAt).includes(q)
     );
   });
+
+  // Handler for QR Code file selection in Add Bank Modal
+  const handleBankQRFileSelect = (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+    
+    // Clear account number if QR is selected
+    if (tempBankDetails.accountNumber) {
+      handleBankDetailsChange('accountNumber', '');
+    }
+    
+    setBankQRFile(file);
+    const previewUrl = URL.createObjectURL(file);
+    setBankQRPreview(previewUrl);
+    setBankQRUrl('');
+  };
 
   if (loading) {
     return (
@@ -715,6 +812,9 @@ const handleArchiveBankAccount = async () => {
                 setEditingBank(null);
                 setOriginalBankDetails(null);
                 setTempBankDetails({ bankName: '', accountName: '', accountNumber: '' });
+                setBankQRFile(null);
+                setBankQRPreview('');
+                setBankQRUrl('');
                 setHasBankChanges(false);
                 setShowAddBankModal(true);
               }}
@@ -734,6 +834,9 @@ const handleArchiveBankAccount = async () => {
                     setEditingBank(null);
                     setOriginalBankDetails(null);
                     setTempBankDetails({ bankName: '', accountName: '', accountNumber: '' });
+                    setBankQRFile(null);
+                    setBankQRPreview('');
+                    setBankQRUrl('');
                     setHasBankChanges(false);
                     setShowAddBankModal(true);
                   }}
@@ -750,7 +853,14 @@ const handleArchiveBankAccount = async () => {
                       <div className="flex-1">
                         <p className="font-semibold text-textPrimary">{account.bankName}</p>
                         <p className="text-sm text-textSecondary mt-1">{account.accountName}</p>
-                        <p className="text-sm text-textSecondary">{account.accountNumber}</p>
+                        {account.accountNumber ? (
+                          <p className="text-sm text-textSecondary">{account.accountNumber}</p>
+                        ) : account.qrCodeUrl ? (
+                          <div className="mt-1 flex items-center gap-2">
+                            <i className="fas fa-qrcode text-ocean-mid text-sm"></i>
+                            <span className="text-sm text-textSecondary">QR Code provided</span>
+                          </div>
+                        ) : null}
                       </div>
                       <div className="flex gap-2">
                         <button
@@ -849,7 +959,6 @@ const handleArchiveBankAccount = async () => {
                   {roomRequestsFiltered.map((request) => {
                     const isCompleted = request.status === 'completed';
                     const isNew = !viewedRoomRequests.has(request.id);
-                    // Remove orange border once bank details have been provided
                     const hasBorder = isNew && !isCompleted;
 
                     return (
@@ -885,12 +994,27 @@ const handleArchiveBankAccount = async () => {
                             <p className="text-sm font-semibold text-amber-600 mt-1">
                               Down Payment Required (50%): ₱{request.downPayment?.toLocaleString()}
                             </p>
-                            {request.requestedBank && (
-                              <p className="text-sm text-amber-600 mt-1">
-                                <i className="fas fa-university mr-1"></i>
-                                Selected Bank: {request.requestedBank.bankName}
-                              </p>
-                            )}
+                           {request.requestedBank && (
+  <div className="mt-2 p-2 bg-ocean-ice rounded-lg">
+    <p className="text-xs font-semibold text-ocean-mid">Requested Bank:</p>
+    <p className="text-sm text-textPrimary">{request.requestedBank.bankName}</p>
+    <p className="text-xs text-textSecondary">{request.requestedBank.accountName}</p>
+    {request.requestedBank.qrCodeUrl ? (
+      <div className="mt-2">
+        <div className="w-24 h-24 bg-white rounded border border-ocean-light/20 overflow-hidden relative">
+          <img
+            src={request.requestedBank.qrCodeUrl}
+            alt="Bank QR Code"
+            className="object-contain w-full h-full"
+          />
+        </div>
+        <p className="text-xs text-textSecondary mt-1">QR Code</p>
+      </div>
+    ) : request.requestedBank.accountNumber && request.requestedBank.accountNumber !== 'QR Code Provided' ? (
+      <p className="text-xs text-textSecondary">Account: {request.requestedBank.accountNumber}</p>
+    ) : null}
+  </div>
+)}
                             {isCompleted && request.providedBankDetails && (
                               <div className="mt-2 text-xs text-green-600 bg-green-50 p-2 rounded">
                                 <i className="fas fa-check-circle mr-1"></i>
@@ -900,7 +1024,7 @@ const handleArchiveBankAccount = async () => {
                           </div>
                           {!isCompleted ? (
                             <button
-                              onClick={() => openBankDetailsModal(request, 'room')}
+                              onClick={() => openConfirmationDialog(request)}
                               className="px-4 py-2 bg-amber-500 text-white rounded-lg text-sm font-medium hover:bg-amber-600 transition-all duration-200"
                             >
                               Provide Bank Details
@@ -933,7 +1057,6 @@ const handleArchiveBankAccount = async () => {
                   {dayTourRequestsFiltered.map((request) => {
                     const isCompleted = request.status === 'completed';
                     const isNew = !viewedDayTourRequests.has(request.id);
-                    // Remove orange border once bank details have been provided
                     const hasBorder = isNew && !isCompleted;
 
                     return (
@@ -970,11 +1093,26 @@ const handleArchiveBankAccount = async () => {
                               Down Payment Required (50%): ₱{request.downPaymentRequired?.toLocaleString()}
                             </p>
                             {request.requestedBank && (
-                              <p className="text-sm text-amber-600 mt-1">
-                                <i className="fas fa-university mr-1"></i>
-                                Selected Bank: {request.requestedBank.bankName}
-                              </p>
-                            )}
+  <div className="mt-2 p-2 bg-ocean-ice rounded-lg">
+    <p className="text-xs font-semibold text-ocean-mid">Requested Bank:</p>
+    <p className="text-sm text-textPrimary">{request.requestedBank.bankName}</p>
+    <p className="text-xs text-textSecondary">{request.requestedBank.accountName}</p>
+    {request.requestedBank.qrCodeUrl ? (
+      <div className="mt-2">
+        <div className="w-24 h-24 bg-white rounded border border-ocean-light/20 overflow-hidden relative">
+          <img
+            src={request.requestedBank.qrCodeUrl}
+            alt="Bank QR Code"
+            className="object-contain w-full h-full"
+          />
+        </div>
+        <p className="text-xs text-textSecondary mt-1">QR Code</p>
+      </div>
+    ) : request.requestedBank.accountNumber && request.requestedBank.accountNumber !== 'QR Code Provided' ? (
+      <p className="text-xs text-textSecondary">Account: {request.requestedBank.accountNumber}</p>
+    ) : null}
+  </div>
+)}
                             {isCompleted && request.providedBankDetails && (
                               <div className="mt-2 text-xs text-green-600 bg-green-50 p-2 rounded">
                                 <i className="fas fa-check-circle mr-1"></i>
@@ -984,7 +1122,7 @@ const handleArchiveBankAccount = async () => {
                           </div>
                           {!isCompleted ? (
                             <button
-                              onClick={() => openBankDetailsModal(request, 'daytour')}
+                              onClick={() => openConfirmationDialog(request)}
                               className="px-4 py-2 bg-amber-500 text-white rounded-lg text-sm font-medium hover:bg-amber-600 transition-all duration-200"
                             >
                               Provide Bank Details
@@ -1019,6 +1157,9 @@ const handleArchiveBankAccount = async () => {
                   setShowAddBankModal(false);
                   setHasBankChanges(false);
                   setOriginalBankDetails(null);
+                  setBankQRFile(null);
+                  setBankQRPreview('');
+                  setBankQRUrl('');
                 }}
                 className="w-8 h-8 rounded-full bg-ocean-ice hover:bg-ocean-light/20 text-neutral hover:text-textPrimary transition-all duration-200 flex items-center justify-center"
               >
@@ -1053,18 +1194,78 @@ const handleArchiveBankAccount = async () => {
                 />
               </div>
               
+              {/* Helper Text */}
+              <div className="text-sm text-amber-600 bg-amber-50 p-2 rounded-lg flex items-center gap-2">
+                <i className="fas fa-info-circle"></i>
+                <span>Choose only one: Account Number or QR Code.</span>
+              </div>
+
+              {/* Account Number Field - Disabled if QR is uploaded */}
               <div>
                 <label className="block text-sm font-semibold text-textPrimary mb-2">
                   Account Number
                 </label>
-  <input
-    type="text"
-    inputMode="numeric"
-    value={tempBankDetails.accountNumber}
-    onChange={handleAccountNumberChange}
-    placeholder="Account number"
-    className="w-full px-4 py-2.5 border border-ocean-light/20 rounded-xl text-sm focus:outline-none focus:border-ocean-light"
-  />
+                <input
+                  type="text"
+                  inputMode="numeric"
+                  value={tempBankDetails.accountNumber}
+                  onChange={handleAccountNumberChange}
+                  placeholder="Account number"
+                  disabled={bankQRFile !== null || bankQRPreview !== ''}
+                  className={`w-full px-4 py-2.5 border border-ocean-light/20 rounded-xl text-sm focus:outline-none focus:border-ocean-light ${(bankQRFile !== null || bankQRPreview !== '') ? 'bg-gray-100 text-gray-400 cursor-not-allowed' : ''}`}
+                />
+              </div>
+
+              {/* QR Code Upload Field - Disabled if Account Number is entered */}
+              <div>
+                <label className="block text-sm font-semibold text-textPrimary mb-2">
+                  QR Code Image
+                </label>
+                <div className={`border-2 border-dashed border-ocean-light/20 rounded-xl p-4 text-center transition-colors ${tempBankDetails.accountNumber ? 'opacity-50 bg-gray-50' : 'hover:border-ocean-light'}`}>
+                  <input
+                    type="file"
+                    accept="image/*"
+                    onChange={handleBankQRFileSelect}
+                    disabled={tempBankDetails.accountNumber.length > 0}
+                    className="hidden"
+                    id="bank-qr-upload"
+                  />
+                  <label
+                    htmlFor="bank-qr-upload"
+                    className={`cursor-pointer flex flex-col items-center gap-2 ${tempBankDetails.accountNumber ? 'cursor-not-allowed' : ''}`}
+                  >
+                    {bankQRPreview ? (
+                      <div className="relative w-24 h-24">
+                        <Image
+                          src={bankQRPreview}
+                          alt="Bank QR Code Preview"
+                          fill
+                          className="object-contain rounded-lg"
+                        />
+                        <button
+                          type="button"
+                          onClick={(e) => {
+                            e.preventDefault();
+                            setBankQRFile(null);
+                            setBankQRPreview('');
+                            setBankQRUrl('');
+                          }}
+                          className="absolute -top-2 -right-2 bg-red-500 text-white rounded-full w-5 h-5 flex items-center justify-center text-xs"
+                        >
+                          <i className="fas fa-times"></i>
+                        </button>
+                      </div>
+                    ) : (
+                      <>
+                        <i className="fas fa-qrcode text-3xl text-ocean-light"></i>
+                        <span className="text-sm text-textSecondary">
+                          Click to upload QR code
+                        </span>
+                      </>
+                    )}
+                    <span className="text-xs text-neutral">PNG, JPG up to 5MB</span>
+                  </label>
+                </div>
               </div>
             </div>
             
@@ -1074,6 +1275,9 @@ const handleArchiveBankAccount = async () => {
                   setShowAddBankModal(false);
                   setHasBankChanges(false);
                   setOriginalBankDetails(null);
+                  setBankQRFile(null);
+                  setBankQRPreview('');
+                  setBankQRUrl('');
                 }}
                 className="px-5 py-2.5 border border-ocean-light/20 rounded-xl text-textSecondary text-sm font-medium hover:bg-ocean-ice transition-all duration-300"
               >
@@ -1085,6 +1289,61 @@ const handleArchiveBankAccount = async () => {
                 className="px-5 py-2.5 bg-gradient-to-r from-ocean-mid to-ocean-light rounded-xl text-white text-sm font-medium hover:shadow-lg transition-all duration-300 disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 {saving ? 'Saving...' : (editingBank ? 'Update' : 'Add')}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Confirmation Modal for Sending Bank Details - Shows guest's requested bank automatically */}
+      {showConfirmationModal && selectedRequest && (
+        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-2xl w-full max-w-md p-6 shadow-2xl">
+            <div className="text-center mb-5">
+              <div className="w-14 h-14 mx-auto mb-3 rounded-full bg-amber-100 flex items-center justify-center">
+                <i className="fas fa-paper-plane text-amber-600 text-2xl"></i>
+              </div>
+              <h3 className="text-lg font-bold text-textPrimary mb-2">Confirm Send</h3>
+              <p className="text-textSecondary text-sm">
+                Are you sure you want to send the bank account details to <strong>{selectedRequest.guestName}</strong>?
+              </p>
+            </div>
+            {/* Display the guest's requested bank details */}
+            <div className="bg-ocean-ice rounded-lg p-3 mb-5">
+  <p className="text-xs font-semibold text-ocean-mid uppercase">Requested Bank</p>
+  <p className="text-sm font-semibold text-textPrimary mt-1">{selectedRequest.requestedBank?.bankName}</p>
+  <p className="text-sm text-textSecondary">{selectedRequest.requestedBank?.accountName}</p>
+  {selectedRequest.requestedBank?.qrCodeUrl ? (
+    <div className="mt-2">
+      <div className="w-32 h-32 bg-white rounded border border-ocean-light/20 overflow-hidden relative mx-auto">
+        <img
+          src={selectedRequest.requestedBank.qrCodeUrl}
+          alt="Bank QR Code"
+          className="object-contain w-full h-full"
+        />
+      </div>
+      <p className="text-xs text-center text-textSecondary mt-1">QR Code</p>
+    </div>
+  ) : selectedRequest.requestedBank?.accountNumber && selectedRequest.requestedBank.accountNumber !== 'QR Code Provided' ? (
+    <p className="text-sm text-textSecondary">{selectedRequest.requestedBank.accountNumber}</p>
+  ) : null}
+</div>
+            <div className="flex gap-3 justify-center">
+              <button
+                onClick={() => {
+                  setShowConfirmationModal(false);
+                  setSelectedRequest(null);
+                }}
+                className="px-5 py-2 border border-ocean-light/20 rounded-xl text-textSecondary text-sm font-medium hover:bg-ocean-ice transition-all duration-300"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleConfirmSendBankDetails}
+                disabled={saving}
+                className="px-5 py-2 bg-gradient-to-r from-amber-500 to-amber-600 rounded-xl text-white text-sm font-medium hover:shadow-lg transition-all duration-300 disabled:opacity-50"
+              >
+                {saving ? 'Sending...' : 'Send'}
               </button>
             </div>
           </div>
@@ -1254,126 +1513,6 @@ const handleArchiveBankAccount = async () => {
     </div>
   </div>
 )}
-
-      {/* Bank Details Modal - Select which bank account to provide with Send button */}
-      {showBankDetailsModal && selectedRequest && (
-        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4" onClick={() => setShowBankDetailsModal(false)}>
-          <div className="bg-white rounded-2xl w-full max-w-md p-6 shadow-2xl" onClick={(e) => e.stopPropagation()}>
-            <div className="flex justify-between items-center mb-5">
-              <h2 className="text-xl font-bold text-textPrimary font-playfair">
-                Select Bank Account
-              </h2>
-              <button
-                onClick={() => setShowBankDetailsModal(false)}
-                className="w-8 h-8 rounded-full bg-ocean-ice hover:bg-ocean-light/20 text-neutral hover:text-textPrimary transition-all duration-200 flex items-center justify-center"
-              >
-                <i className="fas fa-times"></i>
-              </button>
-            </div>
-            
-            <div className="mb-4">
-              <p className="text-sm text-textSecondary mb-3">
-                Guest: <strong>{selectedRequest.guestName}</strong>
-              </p>
-              <p className="text-sm text-textSecondary mb-2">
-                Email: {selectedRequest.guestEmail}
-              </p>
-              <p className="text-sm text-textSecondary mb-4">
-                Phone: {selectedRequest.guestPhone}
-              </p>
-              <p className="text-sm text-amber-600 mb-4">
-                <i className="fas fa-info-circle mr-1"></i>
-                Payment Method: Bank Transfer ({selectedRequest.requestType === 'daytour' ? 'Day Tour' : 'Room Booking'})
-              </p>
-              {selectedRequest.requestedBank && (
-                <p className="text-sm text-textSecondary mb-4">
-                  Requested Bank: <strong>{selectedRequest.requestedBank.bankName}</strong>
-                </p>
-              )}
-              {selectedRequest.selectedDate && (
-                <p className="text-sm text-textSecondary mb-4">
-                  Selected Date: <strong>{selectedRequest.selectedDate}</strong>
-                </p>
-              )}
-                      {/* Total Amount & Down Payment */}
-<div className="mb-4 p-3 bg-ocean-ice rounded-lg">
-  <p className="text-sm font-semibold text-textPrimary mb-1">Total Amount</p>
-  <p className="text-l font-bold text-ocean-mid">
-    ₱{(selectedRequest.totalPrice || selectedRequest.totalAmount || 0).toLocaleString()}
-  </p>
-  <p className="text-sm font-semibold text-textPrimary mt-2 mb-1">Down Payment Required (50%)</p>
-  <p className="text-l font-bold text-amber-600">
-    ₱{((selectedRequest.totalPrice || selectedRequest.totalAmount || 0) * 0.5).toLocaleString()}
-  </p>
-</div>
-            </div>
-            
-            {activeBankAccounts.length === 0 ? (
-              <div className="text-center py-4">
-                <p className="text-textSecondary mb-3">No bank accounts available. Please add a bank account first.</p>
-                <button
-                  onClick={() => {
-                    setShowBankDetailsModal(false);
-                    setEditingBank(null);
-                    setOriginalBankDetails(null);
-                    setTempBankDetails({ bankName: '', accountName: '', accountNumber: '' });
-                    setHasBankChanges(false);
-                    setShowAddBankModal(true);
-                  }}
-                  className="px-4 py-2 bg-ocean-mid text-white rounded-lg text-sm font-medium"
-                >
-                  Add Bank Account
-                </button>
-              </div>
-            ) : (
-              <>
-                <div className="space-y-3 max-h-64 overflow-y-auto mb-4">
-                  {activeBankAccounts.map((account) => (
-                    <button
-                      key={account.id}
-                      onClick={() => setSelectedBankForRequest(account)}
-                      className={`w-full text-left border rounded-lg p-4 transition-all duration-200 ${
-                        selectedBankForRequest?.id === account.id
-                          ? 'border-ocean-mid bg-ocean-ice ring-2 ring-ocean-mid/20'
-                          : 'border-ocean-light/20 hover:bg-ocean-ice'
-                      }`}
-                    >
-                      <p className="font-semibold text-textPrimary">{account.bankName}</p>
-                      <p className="text-sm text-textSecondary mt-1">{account.accountName}</p>
-                      <p className="text-sm text-textSecondary">{account.accountNumber}</p>
-                    </button>
-                  ))}
-                </div>
-                <div className="flex gap-3 justify-end">
-                  <button
-                    onClick={() => setShowBankDetailsModal(false)}
-                    className="px-5 py-2.5 border border-ocean-light/20 rounded-xl text-textSecondary text-sm font-medium hover:bg-ocean-ice transition-all duration-300"
-                  >
-                    Cancel
-                  </button>
-                  <button
-                    onClick={handleSendBankDetails}
-                    disabled={saving || !selectedBankForRequest}
-                    className="px-5 py-2.5 bg-gradient-to-r from-amber-500 to-amber-600 rounded-xl text-white text-sm font-medium hover:shadow-lg transition-all duration-300 disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
-                  >
-                    {saving ? (
-                      <>
-                        <i className="fas fa-spinner fa-spin"></i>
-                        Sending...
-                      </>
-                    ) : (
-                      <>
-                        <i className="fas fa-paper-plane"></i>
-                        Send
-                      </>
-                    )}
-                  </button>
-                </div>
-              </>
-            )}
-          </div>
-        </div>
-      )}
 
       <style jsx>{`
         @keyframes slideInRight {

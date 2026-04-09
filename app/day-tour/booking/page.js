@@ -362,49 +362,49 @@ export default function DayTourBooking() {
     setShowValidIdModal(false);
   };
 
-  const handleNotifyResort = async () => {
-    if (!selectedBankAccount) {
-      setModalNotification({ message: 'Please select a bank account first', type: 'error' });
-      return;
-    }
+const handleNotifyResort = async () => {
+  if (!selectedBankAccount) {
+    setModalNotification({ message: 'Please select a bank account first', type: 'error' });
+    return;
+  }
+  
+  setNotifyingResort(true);
+  try {
+    const dateKey = formatSelectedDate();
     
-    setNotifyingResort(true);
-    try {
-      const dateKey = formatSelectedDate();
-      
-      const bankRequestsRef = collection(db, 'daytour_bank_requests');
-      const docRef = await addDoc(bankRequestsRef, {
-        guestName: `${bookingData.firstName} ${bookingData.lastName}`,
-        guestEmail: bookingData.email,
-        guestPhone: bookingData.phone,
-        bookingType: 'daytour',
-        bookingId: generatedBookingId,
-        selectedDate: dateKey,
-        totalAmount: totalPrice,
-        downPaymentRequired: downPaymentAmount,
-        requestedBank: {
-          bankName: selectedBankAccount.bankName,
-          accountName: selectedBankAccount.accountName,
-          accountNumber: selectedBankAccount.accountNumber
-        },
-        status: 'pending',
-        createdAt: new Date().toISOString(),
-        read: false
-      });
-      
-      setBankRequestId(docRef.id);
-      setBankRequestSent(true);
-      setModalNotification({ message: 'Request sent to resort! You will receive bank details shortly.', type: 'success' });
-      setShowBankSelection(false);
-      setSelectedBankAccount(null);
-      
-    } catch (error) {
-      console.error('Error sending bank transfer request:', error);
-      setModalNotification({ message: 'Failed to send request. Please try again.', type: 'error' });
-    } finally {
-      setNotifyingResort(false);
-    }
-  };
+    const bankRequestsRef = collection(db, 'daytour_bank_requests');
+    const docRef = await addDoc(bankRequestsRef, {
+      guestName: `${bookingData.firstName} ${bookingData.lastName}`,
+      guestEmail: bookingData.email,
+      guestPhone: bookingData.phone,
+      bookingType: 'daytour',
+      bookingId: generatedBookingId,
+      selectedDate: dateKey,
+      totalAmount: totalPrice,
+      downPaymentRequired: downPaymentAmount,
+      requestedBank: {
+        bankName: selectedBankAccount.bankName,
+        accountName: selectedBankAccount.accountName,
+        accountNumber: selectedBankAccount.accountNumber || '',
+        qrCodeUrl: selectedBankAccount.qrCodeUrl || ''
+      },
+      status: 'pending',
+      createdAt: new Date().toISOString(),
+      read: false
+    });
+    
+    setBankRequestId(docRef.id);
+    setBankRequestSent(true);
+    setModalNotification({ message: 'Request sent to resort! You will receive bank details shortly.', type: 'success' });
+    setShowBankSelection(false);
+    setSelectedBankAccount(null);
+  } catch (error) {
+    console.error('Error sending bank transfer request:', error);
+    setModalNotification({ message: 'Failed to send request. Please try again.', type: 'error' });
+  } finally {
+    setNotifyingResort(false);
+  }
+};
 
   const handleSubmitBooking = async () => {
     setSubmitting(true);
@@ -883,15 +883,31 @@ export default function DayTourBooking() {
                           </div>
                         )}
                         
-                        {bankDetailsProvided ? (
-                          <div className="space-y-3">
-                            <div className="bg-white rounded-lg p-4 space-y-2">
-                              <p><strong>Bank:</strong> {bankDetailsProvided.bankName}</p>
-                              <p><strong>Account Name:</strong> {bankDetailsProvided.accountName}</p>
-                              <p><strong>Account Number:</strong> {bankDetailsProvided.accountNumber}</p>
-                            </div>
-                          </div>
-                        ) : bankRequestSent ? (
+                      {bankDetailsProvided ? (
+  <div className="space-y-3">
+    <div className="bg-white rounded-lg p-4 space-y-2">
+      <p><strong>Bank:</strong> {bankDetailsProvided.bankName}</p>
+      <p><strong>Account Name:</strong> {bankDetailsProvided.accountName}</p>
+      {bankDetailsProvided.accountNumber && bankDetailsProvided.accountNumber !== 'QR Code Provided' ? (
+        <p><strong>Account Number:</strong> {bankDetailsProvided.accountNumber}</p>
+      ) : bankDetailsProvided.qrCodeUrl ? (
+        <div className="mt-3">
+          <p><strong>QR Code:</strong></p>
+          <div className="mt-2 flex flex-col items-center">
+            <div className="w-48 h-48 bg-white rounded-xl border border-ocean-light/20 overflow-hidden relative">
+              <img
+                src={bankDetailsProvided.qrCodeUrl}
+                alt="Bank QR Code"
+                className="object-contain w-full h-full"
+              />
+            </div>
+            <p className="text-sm text-textSecondary mt-2">Scan to pay.</p>
+          </div>
+        </div>
+      ) : null}
+    </div>
+  </div>
+) : bankRequestSent ? (
                           <div className="text-center py-4">
                             <div className="w-16 h-16 bg-blue-100 rounded-full flex items-center justify-center mx-auto mb-3">
                               <i className="fas fa-clock text-blue-600 text-2xl"></i>

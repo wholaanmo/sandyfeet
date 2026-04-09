@@ -351,7 +351,7 @@ export default function AdminCalendar() {
       
       await logAdminAction({
         action: 'Marked Date Unavailable',
-        module: 'Calendar Management',
+        module: 'Room Calendar Management',
         details: `Room: ${roomDetails?.type || selectedRoomId}, Date: ${selectedDate.toDateString()}, Units: ${nBlock}, Reason: ${reason}`
       });
       showNotification(`Date marked as Not Available for ${nBlock} unit(s)`, 'success');
@@ -373,7 +373,7 @@ export default function AdminCalendar() {
       await deleteDoc(doc(db, 'unavailableSlots', blockId));
       await logAdminAction({
         action: 'Removed Blocked Date',
-        module: 'Calendar Management',
+        module: 'Room Calendar Management',
         details: `Removed blocked date from calendar`
       });
       setRemoveConfirm(null);

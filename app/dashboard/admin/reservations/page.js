@@ -278,7 +278,7 @@ export default function AdminReservations() {
         
         await logAdminAction({
           action: 'Refund Notification Sent',
-          module: isRoomBooking ? 'Reservations' : 'Day Tour Reservations',
+          module: isRoomBooking ? 'Room Reservations' : 'Day Tour Reservations',
           details: `Sent refund notification for ${isRoomBooking ? 'room' : 'day tour'} booking ${booking.bookingId} to ${booking.guestInfo?.firstName} ${booking.guestInfo?.lastName} (${booking.guestInfo?.email}). Refund amount: ₱${refundAmount.toLocaleString()} (50% of down payment). Balance updated to 0.`
         });
         

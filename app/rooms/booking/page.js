@@ -417,65 +417,59 @@ export default function BookingPage() {
     }
   };
 
-  const handleNotifyResort = async () => {
-    if (!selectedBankAccount) {
-      setModalNotification({ message: 'Please select a bank account first', type: 'error' });
-      return;
-    }
+ const handleNotifyResort = async () => {
+  if (!selectedBankAccount) {
+    setModalNotification({ message: 'Please select a bank account first', type: 'error' });
+    return;
+  }
+  
+  setNotifyingResort(true);
+  try {
+    setRequestedBankInfo({
+      bankName: selectedBankAccount.bankName,
+      accountName: selectedBankAccount.accountName,
+      accountNumber: selectedBankAccount.accountNumber,
+      requestedAt: new Date().toISOString()
+    });
     
-    setNotifyingResort(true);
-    try {
-      // Store the request in state
-      setRequestedBankInfo({
+    const bankRequestsRef = collection(db, 'bank_requests');
+    const docRef = await addDoc(bankRequestsRef, {
+      guestName: `${bookingData.firstName} ${bookingData.lastName}`,
+      guestEmail: bookingData.email,
+      guestPhone: bookingData.phone,
+      roomType: bookingData.roomType,
+      roomId: bookingData.roomId,
+      bookingId: generatedBookingId,
+      checkIn: bookingData.checkIn,
+      checkOut: bookingData.checkOut,
+      nights: bookingData.nights,
+      numberOfRooms: bookingData.numberOfRooms,
+      totalPrice: totalPrice,
+      downPayment: downPaymentAmount,
+      specialRequest: bookingData.specialRequest,
+      requestedBank: {
         bankName: selectedBankAccount.bankName,
         accountName: selectedBankAccount.accountName,
-        accountNumber: selectedBankAccount.accountNumber,
-        requestedAt: new Date().toISOString()
-      });
-      
-      // Create a bank request document in a separate collection
-      const bankRequestsRef = collection(db, 'bank_requests');
-      const docRef = await addDoc(bankRequestsRef, {
-        guestName: `${bookingData.firstName} ${bookingData.lastName}`,
-        guestEmail: bookingData.email,
-        guestPhone: bookingData.phone,
-        roomType: bookingData.roomType,
-        roomId: bookingData.roomId,
-        bookingId: generatedBookingId, // Store the formatted booking ID
-        checkIn: bookingData.checkIn,
-        checkOut: bookingData.checkOut,
-        nights: bookingData.nights,
-        numberOfRooms: bookingData.numberOfRooms,
-        totalPrice: totalPrice,
-        downPayment: downPaymentAmount,
-        specialRequest: bookingData.specialRequest,
-        requestedBank: {
-          bankName: selectedBankAccount.bankName,
-          accountName: selectedBankAccount.accountName,
-          accountNumber: selectedBankAccount.accountNumber
-        },
-        status: 'pending',
-        createdAt: new Date().toISOString(),
-        read: false
-      });
-      
-      // Store the bank request ID for real-time listener
-      setBankRequestId(docRef.id);
-      
-      setBankRequestSent(true);
-      setModalNotification({ message: 'Request sent to resort! You will receive bank details shortly.', type: 'success' });
-      
-      // Clear the bank selection UI
-      setShowBankSelection(false);
-      setSelectedBankAccount(null);
-      
-    } catch (error) {
-      console.error('Error sending bank transfer request:', error);
-      setModalNotification({ message: 'Failed to send request. Please try again.', type: 'error' });
-    } finally {
-      setNotifyingResort(false);
-    }
-  };
+        accountNumber: selectedBankAccount.accountNumber || '',
+        qrCodeUrl: selectedBankAccount.qrCodeUrl || ''
+      },
+      status: 'pending',
+      createdAt: new Date().toISOString(),
+      read: false
+    });
+    
+    setBankRequestId(docRef.id);
+    setBankRequestSent(true);
+    setModalNotification({ message: 'Request sent to resort! You will receive bank details shortly.', type: 'success' });
+    setShowBankSelection(false);
+    setSelectedBankAccount(null);
+  } catch (error) {
+    console.error('Error sending bank transfer request:', error);
+    setModalNotification({ message: 'Failed to send request. Please try again.', type: 'error' });
+  } finally {
+    setNotifyingResort(false);
+  }
+};
 
   const showNotification = (message, type = 'success') => {
     // Store notification in state to show in modal
@@ -1111,14 +1105,30 @@ export default function BookingPage() {
                         )}
                         
                         {bankDetailsProvided ? (
-                          <div className="space-y-3">
-                            <div className="bg-white rounded-lg p-4 space-y-2">
-                              <p><strong>Bank:</strong> {bankDetailsProvided.bankName}</p>
-                              <p><strong>Account Name:</strong> {bankDetailsProvided.accountName}</p>
-                              <p><strong>Account Number:</strong> {bankDetailsProvided.accountNumber}</p>
-                            </div>
-                          </div>
-                        ) : bankRequestSent ? (
+  <div className="space-y-3">
+    <div className="bg-white rounded-lg p-4 space-y-2">
+      <p><strong>Bank:</strong> {bankDetailsProvided.bankName}</p>
+      <p><strong>Account Name:</strong> {bankDetailsProvided.accountName}</p>
+      {bankDetailsProvided.accountNumber && bankDetailsProvided.accountNumber !== 'QR Code Provided' ? (
+        <p><strong>Account Number:</strong> {bankDetailsProvided.accountNumber}</p>
+      ) : bankDetailsProvided.qrCodeUrl ? (
+        <div className="mt-3">
+          <p><strong>QR Code:</strong></p>
+          <div className="mt-2 flex flex-col items-center">
+            <div className="w-48 h-48 bg-white rounded-xl border border-ocean-light/20 overflow-hidden relative">
+              <img
+                src={bankDetailsProvided.qrCodeUrl}
+                alt="Bank QR Code"
+                className="object-contain w-full h-full"
+              />
+            </div>
+            <p className="text-sm text-textSecondary mt-2">Scan to pay.</p>
+          </div>
+        </div>
+      ) : null}
+    </div>
+  </div>
+) : bankRequestSent ? (
                           <div className="text-center py-4">
                             <div className="w-16 h-16 bg-blue-100 rounded-full flex items-center justify-center mx-auto mb-3">
                               <i className="fas fa-clock text-blue-600 text-2xl"></i>
