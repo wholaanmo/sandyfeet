@@ -31,6 +31,7 @@ export default function RoomCalendar() {
   const [specialRequest, setSpecialRequest] = useState('');
   const [maxSelectableRooms, setMaxSelectableRooms] = useState(1);
   const [availabilityError, setAvailabilityError] = useState('');
+  const [numberOfNights, setNumberOfNights] = useState(1);
 
   const FIXED_CHECK_IN_HOUR = 14;
   const FIXED_CHECK_OUT_HOUR = 12;
@@ -173,17 +174,29 @@ export default function RoomCalendar() {
         }
       });
 
-      // Determine fully blocked dates (all 24 hours have blockedUnits >= cap)
+      // Determine fully blocked dates based on time-range blocking:
+      // - Morning range: 12:00 AM – 12:00 PM (hours 0–11)
+      // - Afternoon range: 2:00 PM – 12:00 AM (hours 14–23)
+      // Fully Blocked means BOTH ranges are fully blocked (for all units).
       if (cap > 0) {
         Object.keys(blocks).forEach((dateKey) => {
-          let allHoursBlocked = true;
-          for (let hour = 0; hour < 24; hour++) {
+          let morningBlocked = true;
+          for (let hour = 0; hour < 12; hour++) {
             if ((blocks[dateKey][hour] || 0) < cap) {
-              allHoursBlocked = false;
+              morningBlocked = false;
               break;
             }
           }
-          if (allHoursBlocked) {
+
+          let afternoonBlocked = true;
+          for (let hour = 14; hour < 24; hour++) {
+            if ((blocks[dateKey][hour] || 0) < cap) {
+              afternoonBlocked = false;
+              break;
+            }
+          }
+
+          if (morningBlocked && afternoonBlocked) {
             fullyBlocked[dateKey] = true;
           }
         });
@@ -195,6 +208,8 @@ export default function RoomCalendar() {
     return () => unsubscribe();
   }, [roomId, totalRoomUnits]);
 
+  const getStayDurationHours = (nights) => Math.max(22, (parseInt(nights, 10) || 1) * 24 - 2);
+
   // Update max selectable rooms based on selected date and availability
   useEffect(() => {
     if (!selectedDate) {
@@ -203,7 +218,7 @@ export default function RoomCalendar() {
       return;
     }
     
-    const maxAvailable = getMaxAvailableRoomsForDateTime(selectedDate, FIXED_CHECK_IN_HOUR);
+    const maxAvailable = getMaxAvailableRoomsForDateTime(selectedDate, FIXED_CHECK_IN_HOUR, numberOfNights);
     setMaxSelectableRooms(maxAvailable);
     
     if (selectedRoomQuantity > maxAvailable) {
@@ -216,7 +231,7 @@ export default function RoomCalendar() {
     } else {
       setAvailabilityError('');
     }
-  }, [selectedDate, bookedDates, blockedSlots, totalRoomUnits, selectedRoomQuantity]);
+  }, [selectedDate, bookedDates, blockedSlots, totalRoomUnits, selectedRoomQuantity, numberOfNights]);
 
   const getDaysInMonth = (date) => {
     const year = date.getFullYear();
@@ -231,14 +246,13 @@ export default function RoomCalendar() {
     return days;
   };
 
-  const BOOKING_DURATION_HOURS = 22;
-
-  const areRoomsAvailableForDateTime = (date, startHour, requiredRooms) => {
+  const areRoomsAvailableForDateTime = (date, startHour, requiredRooms, nights = numberOfNights) => {
     if (!date) return false;
     if (totalRoomUnits <= 0) return false;
     if (requiredRooms > totalRoomUnits) return false;
     
-    for (let offset = 0; offset < BOOKING_DURATION_HOURS; offset++) {
+    const durationHours = getStayDurationHours(nights);
+    for (let offset = 0; offset < durationHours; offset++) {
       const d = new Date(date);
       d.setHours(startHour + offset, 0, 0, 0);
       const dateKey = toLocalDateKey(d);
@@ -251,11 +265,12 @@ export default function RoomCalendar() {
     return true;
   };
 
-  const getMaxAvailableRoomsForDateTime = (date, startHour) => {
+  const getMaxAvailableRoomsForDateTime = (date, startHour, nights = numberOfNights) => {
     if (!date || totalRoomUnits <= 0) return 0;
     
     let maxRooms = totalRoomUnits;
-    for (let offset = 0; offset < BOOKING_DURATION_HOURS; offset++) {
+    const durationHours = getStayDurationHours(nights);
+    for (let offset = 0; offset < durationHours; offset++) {
       const d = new Date(date);
       d.setHours(startHour + offset, 0, 0, 0);
       const dateKey = toLocalDateKey(d);
@@ -300,6 +315,20 @@ export default function RoomCalendar() {
     return fullyBlockedDates[dateKey] === true;
   };
 
+  const getAdminBlockingInfo = (date) => {
+    if (!date || totalRoomUnits <= 0) {
+      return { morningBlocked: false, afternoonBlocked: false, fullyBlocked: false };
+    }
+    const dateKey = toLocalDateKey(date);
+    const day = blockedSlots[dateKey];
+    if (!day) return { morningBlocked: false, afternoonBlocked: false, fullyBlocked: false };
+
+    const morningBlocked = (day[0] || 0) >= totalRoomUnits; // 12:00 AM – 12:00 PM
+    const afternoonBlocked = (day[FIXED_CHECK_IN_HOUR] || 0) >= totalRoomUnits; // 2:00 PM – 12:00 AM
+    const fullyBlocked = morningBlocked && afternoonBlocked;
+    return { morningBlocked, afternoonBlocked, fullyBlocked };
+  };
+
   const isDatePast = (date) => {
     const today = new Date();
     today.setHours(0, 0, 0, 0);
@@ -315,17 +344,6 @@ export default function RoomCalendar() {
     return date < minBookableDate && date >= today;
   };
 
-  const hasAnyHourFullyAdminUnavailable = (date) => {
-    if (!date || totalRoomUnits <= 0) return false;
-    const dateKey = toLocalDateKey(date);
-    const day = blockedSlots[dateKey];
-    if (!day) return false;
-    for (let h = 0; h < 24; h++) {
-      if ((day[h] || 0) >= totalRoomUnits) return true;
-    }
-    return false;
-  };
-
   const handleDateSelect = (date) => {
     if (!isDateSelectable(date)) return;
     setSelectedDate(date);
@@ -338,7 +356,7 @@ export default function RoomCalendar() {
     setSelectedRoomQuantity(newQuantity);
     
     if (selectedDate) {
-      if (!areRoomsAvailableForDateTime(selectedDate, FIXED_CHECK_IN_HOUR, newQuantity)) {
+      if (!areRoomsAvailableForDateTime(selectedDate, FIXED_CHECK_IN_HOUR, newQuantity, numberOfNights)) {
         setAvailabilityError(`Only ${maxSelectableRooms} room(s) available for ${selectedDate.toDateString()}.`);
         if (selectedTime) {
           setSelectedTime('');
@@ -350,33 +368,38 @@ export default function RoomCalendar() {
     }
   };
 
+  const handleNightsChange = (increment) => {
+    const current = parseInt(numberOfNights, 10) || 1;
+    const next = increment ? Math.min(current + 1, 30) : Math.max(1, current - 1);
+    setNumberOfNights(next);
+  };
+
   const handleProceed = () => {
     if (selectedDate && selectedTime && selectedRoomQuantity > 0) {
-      const ok = areRoomsAvailableForDateTime(selectedDate, FIXED_CHECK_IN_HOUR, selectedRoomQuantity);
-      if (!ok) {
-        const blockedDate = (() => {
-          for (let offset = 0; offset < BOOKING_DURATION_HOURS; offset++) {
-            const d = new Date(selectedDate);
-            d.setHours(FIXED_CHECK_IN_HOUR + offset, 0, 0, 0);
-            const dateKey = toLocalDateKey(d);
-            const hour = d.getHours();
-            const blockedUnits = blockedSlots[dateKey]?.[hour] ?? 0;
-            if (blockedUnits >= totalRoomUnits) {
-              return new Date(d.getFullYear(), d.getMonth(), d.getDate());
-            }
-          }
-          return null;
-        })();
+      const checkOutDate = new Date(selectedDate);
+      checkOutDate.setDate(checkOutDate.getDate() + numberOfNights);
 
-        if (blockedDate) {
-          setTimeSelectionError(
-            `Cannot book this date because the resort is unavailable on ${blockedDate.toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })}.`
-          );
-        } else {
-          setTimeSelectionError(
-            `Cannot book this date because the selected stay period is not available. Please choose a different date or reduce the number of rooms.`
-          );
-        }
+      // Time-rule validation:
+      // - Check-in date requires PM (2:00 PM – 12:00 AM) to be available
+      // - Check-out date requires AM (12:00 AM – 12:00 PM) to be available
+      const checkInInfo = getAdminBlockingInfo(selectedDate);
+      const checkOutInfo = getAdminBlockingInfo(checkOutDate);
+
+      if (checkInInfo.afternoonBlocked) {
+        setTimeSelectionError('Check-in is not available on this date');
+        return;
+      }
+      if (checkOutInfo.morningBlocked) {
+        setTimeSelectionError('Selected dates are not available due to time restrictions.');
+        return;
+      }
+
+      // Availability + time-range constraints across the 22-hour stay
+      const ok = areRoomsAvailableForDateTime(selectedDate, FIXED_CHECK_IN_HOUR, selectedRoomQuantity, numberOfNights);
+      if (!ok) {
+        setTimeSelectionError(
+          `Selected dates are not available due to time restrictions.`
+        );
         return;
       }
 
@@ -384,11 +407,11 @@ export default function RoomCalendar() {
       checkInDateTime.setHours(FIXED_CHECK_IN_HOUR, 0, 0, 0);
       
       const checkOutDateTime = new Date(selectedDate);
-      checkOutDateTime.setDate(checkOutDateTime.getDate() + 1);
+      checkOutDateTime.setDate(checkOutDateTime.getDate() + numberOfNights);
       checkOutDateTime.setHours(FIXED_CHECK_OUT_HOUR, 0, 0, 0);
       
       router.push(
-        `/rooms/booking?roomId=${roomId}&roomType=${encodeURIComponent(roomType)}&price=${price}&maxCapacity=${maxCapacity}&totalRooms=${roomDetails?.totalRooms ?? totalRoomUnits}&checkIn=${checkInDateTime.toISOString()}&checkOut=${checkOutDateTime.toISOString()}&numberOfRooms=${selectedRoomQuantity}&specialRequest=${encodeURIComponent(specialRequest)}`
+        `/rooms/booking?roomId=${roomId}&roomType=${encodeURIComponent(roomType)}&price=${price}&maxCapacity=${maxCapacity}&totalRooms=${roomDetails?.totalRooms ?? totalRoomUnits}&checkIn=${checkInDateTime.toISOString()}&checkOut=${checkOutDateTime.toISOString()}&nights=${numberOfNights}&numberOfRooms=${selectedRoomQuantity}&specialRequest=${encodeURIComponent(specialRequest)}`
       );
     }
   };
@@ -492,12 +515,10 @@ export default function RoomCalendar() {
                       const isFullyBooked = isDateFullyBooked(day);
                       const isSelected = selectedDate && selectedDate.toDateString() === day.toDateString();
                       const isFullyBlockedByAdmin = isDateFullyBlockedByAdmin(day);
-                      const showHasUnavailableSlotsDot =
-                        !isPast &&
-                        !isTooSoon &&
-                        !isFullyBooked &&
-                        !isFullyBlockedByAdmin &&
-                        hasAnyHourFullyAdminUnavailable(day);
+                      const { morningBlocked, afternoonBlocked, fullyBlocked } = getAdminBlockingInfo(day);
+                      const isPartiallyBlockedMorningOnly = morningBlocked && !afternoonBlocked;
+                      const isPartiallyBlockedAfternoon = afternoonBlocked && !morningBlocked;
+                      // Orange dot indicator removed (no longer needed)
 
                       let bgColor = 'bg-white';
                       let textColor = 'text-textPrimary';
@@ -520,10 +541,25 @@ export default function RoomCalendar() {
                         titleText = 'Must book at least 1 day in advance';
                       } else if (isFullyBlockedByAdmin) {
                         bgColor = 'bg-orange-100';
-                        textColor = 'text-orange-700';
+                        textColor = 'text-orange-800';
                         borderClass = 'border border-orange-200';
                         cursorClass = 'cursor-not-allowed';
-                        titleText = 'Fully Blocked by Admin';
+                        titleText =
+                          'This date is fully unavailable. Any booking that requires this date (as check-in or check-out) will not be allowed.';
+                      } else if (isPartiallyBlockedAfternoon) {
+                        // Check-in blocked (PM blocked) -> Light Yellow
+                        bgColor = 'bg-yellow-100';
+                        textColor = 'text-yellow-800';
+                        borderClass = 'border border-yellow-200';
+                        cursorClass = 'cursor-not-allowed';
+                        titleText = 'Check-in is not available on this date';
+                      } else if (isPartiallyBlockedMorningOnly) {
+                        // Check-out blocked (AM blocked) -> Light Green
+                        bgColor = 'bg-green-100';
+                        textColor = 'text-green-800';
+                        borderClass = 'border border-green-200';
+                        cursorClass = 'cursor-pointer';
+                        titleText = 'Check-out is not available on this date';
                       } else if (isFullyBooked) {
                         bgColor = 'bg-red-100';
                         textColor = 'text-red-600';
@@ -545,16 +581,14 @@ export default function RoomCalendar() {
                         <button
                           key={index}
                           onClick={() => handleDateSelect(day)}
-                          disabled={isPast || isTooSoon || isFullyBooked || isFullyBlockedByAdmin}
+                          disabled={isPast || isTooSoon || isFullyBooked || isFullyBlockedByAdmin || isPartiallyBlockedAfternoon}
                           title={titleText}
                           className={`w-full pt-[100%] relative rounded-lg transition-all duration-200 ${bgColor} ${borderClass} ${hoverClass} ${cursorClass}`}
                         >
                           <span className={`absolute inset-0 flex items-center justify-center text-sm font-medium ${textColor}`}>
                             {day.getDate()}
                           </span>
-                          {showHasUnavailableSlotsDot && (
-                            <span className="absolute bottom-1 left-1/2 transform -translate-x-1/2 w-1.5 h-1.5 bg-orange-400 rounded-full"></span>
-                          )}
+                          
                         </button>
                       );
                     })}
@@ -570,8 +604,16 @@ export default function RoomCalendar() {
                       <span className="text-textSecondary">Fully Booked</span>
                     </div>
                     <div className="flex items-center gap-1.5">
+                      <div className="w-3 h-3 bg-yellow-100 border border-yellow-200 rounded"></div>
+                      <span className="text-textSecondary">Check-in Blocked</span>
+                    </div>
+                    <div className="flex items-center gap-1.5">
+                      <div className="w-3 h-3 bg-green-100 border border-green-200 rounded"></div>
+                      <span className="text-textSecondary">Check-out Blocked</span>
+                    </div>
+                    <div className="flex items-center gap-1.5">
                       <div className="w-3 h-3 bg-orange-100 border border-orange-200 rounded"></div>
-                      <span className="text-textSecondary">Unavailable Date</span>
+                      <span className="text-textSecondary">Fully Blocked</span>
                     </div>
                     <div className="flex items-center gap-1.5">
                       <div className="w-3 h-3 bg-gray-100 border border-gray-200 rounded"></div>
@@ -654,6 +696,34 @@ export default function RoomCalendar() {
                     
                     {selectedDate ? (
                       <>
+                        <div className="mb-3 p-2 bg-ocean-ice rounded-lg border border-ocean-light/10">
+                          <p className="text-xs font-semibold text-textPrimary">Number of Nights</p>
+                          <div className="flex items-center gap-2 mt-1">
+                            <button
+                              type="button"
+                              onClick={() => handleNightsChange(false)}
+                              disabled={numberOfNights <= 1}
+                              className="w-8 h-8 rounded-lg border border-ocean-light/20 text-ocean-mid font-bold text-lg hover:bg-ocean-ice disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-200"
+                            >
+                              -
+                            </button>
+                            <span className="text-lg font-bold text-textPrimary min-w-[32px] text-center">
+                              {numberOfNights}
+                            </span>
+                            <button
+                              type="button"
+                              onClick={() => handleNightsChange(true)}
+                              disabled={numberOfNights >= 30}
+                              className="w-8 h-8 rounded-lg border border-ocean-light/20 text-ocean-mid font-bold text-lg hover:bg-ocean-ice disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-200"
+                            >
+                              +
+                            </button>
+                          </div>
+                          <p className="text-[11px] text-textSecondary mt-1">
+                            Fixed 22-hour stay (2:00 PM – 12:00 PM next day)
+                          </p>
+                        </div>
+
                         <div className="mb-3">
                           <label className="block text-sm font-medium text-textPrimary mb-1">
                             Number of Rooms
@@ -685,6 +755,19 @@ export default function RoomCalendar() {
                                 `Booking not allowed due to resort unavailability`
                               )}
                             </p>
+                            {(() => {
+                              const nextDay = new Date(selectedDate);
+                              nextDay.setDate(nextDay.getDate() + numberOfNights);
+                              const checkOutBlocked = getAdminBlockingInfo(nextDay).morningBlocked;
+                              const windowOk = areRoomsAvailableForDateTime(selectedDate, FIXED_CHECK_IN_HOUR, selectedRoomQuantity, numberOfNights);
+                              if (!checkOutBlocked && windowOk) return null;
+                              return (
+                                <p className="text-xs text-red-600 mt-1">
+                                  <i className="fas fa-exclamation-circle mr-1"></i>
+                                  Selected number of nights is not available for this date.
+                                </p>
+                              );
+                            })()}
                           </div>
                         </div>
 
@@ -706,7 +789,16 @@ export default function RoomCalendar() {
 
 <button
   onClick={handleProceed}
-  disabled={!selectedDate || !selectedTime || selectedRoomQuantity < 1}
+  disabled={
+    !selectedDate ||
+    !selectedTime ||
+    selectedRoomQuantity < 1 ||
+    (() => {
+      const nextDay = new Date(selectedDate);
+      nextDay.setDate(nextDay.getDate() + numberOfNights);
+      return getAdminBlockingInfo(nextDay).morningBlocked || !areRoomsAvailableForDateTime(selectedDate, FIXED_CHECK_IN_HOUR, selectedRoomQuantity, numberOfNights);
+    })()
+  }
   className={`w-full py-2 rounded-lg font-semibold text-sm transition-all duration-300 mt-2 mt-auto ${
     selectedDate && selectedTime && selectedRoomQuantity >= 1
       ? 'bg-gradient-to-r from-ocean-mid to-ocean-light text-white hover:shadow-lg hover:-translate-y-0.5'

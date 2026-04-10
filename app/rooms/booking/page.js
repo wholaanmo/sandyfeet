@@ -21,6 +21,7 @@ export default function BookingPage() {
   const totalRooms = parseInt(searchParams.get('totalRooms') || '1');
   const checkInDateParam = searchParams.get('checkIn');
   const checkOutDateParam = searchParams.get('checkOut');
+  const nightsParam = searchParams.get('nights');
   const numberOfRoomsParam = searchParams.get('numberOfRooms');
   const specialRequestParam = searchParams.get('specialRequest');
   
@@ -42,7 +43,7 @@ export default function BookingPage() {
     totalRooms,
     checkIn: checkInDateParam ? new Date(checkInDateParam) : null,
     checkOut: checkOutDateParam ? new Date(checkOutDateParam) : null,
-    nights: 1,
+    nights: nightsParam && !isNaN(parseInt(nightsParam)) ? parseInt(nightsParam) : 1,
     guests: 1,
     firstName: '',
     lastName: '',
@@ -790,17 +791,7 @@ export default function BookingPage() {
                       </p>
                     </div>
                     
-                    <div>
-                      <label className="block text-sm font-semibold text-textPrimary mb-2">Number of Nights</label>
-                      <input
-                        type="number"
-                        min="1"
-                        max="30"
-                        value={bookingData.nights}
-                        onChange={(e) => handleInputChange('nights', parseInt(e.target.value))}
-                        className="w-full px-4 py-2 border border-ocean-light/20 rounded-lg focus:outline-none focus:border-ocean-light"
-                      />
-                    </div>
+                    {/* Number of nights is handled in the calendar selection flow */}
                     
                     <div>
                       <label className="block text-sm font-semibold text-textPrimary mb-2">Number of Guests *</label>
@@ -833,7 +824,7 @@ export default function BookingPage() {
                     <div className="p-5 bg-gradient-to-r from-ocean-ice to-blue-white rounded-xl">
                       <label className="block text-sm font-semibold text-textPrimary mb-2">Total Price</label>
                       <p className="text-3xl font-bold text-ocean-mid">₱{totalPrice.toLocaleString()}</p>
-                      <p className="text-xs text-textSecondary">₱{price.toLocaleString()} x {bookingData.nights} night(s) x {bookingData.numberOfRooms} room(s)</p>
+                      <p className="text-xs text-textSecondary">₱{price.toLocaleString()} x {bookingData.numberOfRooms} room(s)</p>
                       
                       {/* Down Payment Display */}
                       <div className="mt-3 pt-3 border-t border-ocean-light/20">
