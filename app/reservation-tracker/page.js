@@ -147,6 +147,27 @@ export default function ReservationTrackerPage() {
           }
         });
         
+        // Determine the overall status for the multi-room booking
+        // If any child is cancelled by admin, show as cancelled
+        // If any child is cancelled by guest, show as cancelled-by-guest
+        // Otherwise use the first child's status
+        let overallStatus = firstChild.status;
+        let cancellationReason = null;
+        let cancelledBy = null;
+        
+        for (const child of children) {
+          if (child.status === 'cancelled') {
+            overallStatus = 'cancelled';
+            cancellationReason = child.cancellationReason;
+            cancelledBy = child.cancelledBy;
+            break;
+          } else if (child.status === 'cancelled-by-guest') {
+            overallStatus = 'cancelled-by-guest';
+            cancellationReason = child.cancellationReason;
+            cancelledBy = child.cancelledBy;
+          }
+        }
+        
         // Create consolidated multi-room reservation object
         const multiRoomReservation = {
           id: bookingId,
@@ -154,7 +175,7 @@ export default function ReservationTrackerPage() {
           guestInfo: firstChild.guestInfo,
           checkIn: firstChild.checkIn,
           checkOut: firstChild.checkOut,
-          status: firstChild.status,
+          status: overallStatus,
           totalPrice: totalPrice,
           type: 'room',
           isMultiRoom: true,
@@ -168,7 +189,10 @@ export default function ReservationTrackerPage() {
             price: data.price
           })),
           createdAt: firstChild.createdAt,
-          children: children
+          children: children,
+          cancellationReason: cancellationReason,
+          cancelledBy: cancelledBy,
+          adminNote: firstChild.adminNote || null  // Add admin note from confirmation
         };
         
         return multiRoomReservation;
@@ -232,17 +256,39 @@ export default function ReservationTrackerPage() {
         // Set up real-time listener for child bookings to update status
         const updateChildStatuses = () => {
           if (multiRoomReservation.children && multiRoomReservation.children.length > 0) {
-            const anyChildNotCancelled = multiRoomReservation.children.some(child => 
-              child.status !== 'cancelled' && child.status !== 'cancelled-by-guest'
-            );
-            const allChildrenCancelled = multiRoomReservation.children.every(child => 
-              child.status === 'cancelled' || child.status === 'cancelled-by-guest'
-            );
+            let hasAdminCancelled = false;
+            let hasGuestCancelled = false;
+            let adminCancellationReason = null;
+            let guestCancellationReason = null;
             
-            if (allChildrenCancelled && multiRoomReservation.status !== 'cancelled-by-guest') {
-              setReservation(prev => ({ ...prev, status: 'cancelled-by-guest' }));
-            } else if (anyChildNotCancelled && multiRoomReservation.status === 'cancelled-by-guest') {
-              setReservation(prev => ({ ...prev, status: 'pending' }));
+            for (const child of multiRoomReservation.children) {
+              if (child.status === 'cancelled') {
+                hasAdminCancelled = true;
+                adminCancellationReason = child.cancellationReason;
+              } else if (child.status === 'cancelled-by-guest') {
+                hasGuestCancelled = true;
+                guestCancellationReason = child.cancellationReason;
+              }
+            }
+            
+            let newStatus = multiRoomReservation.status;
+            let newCancellationReason = null;
+            
+            if (hasAdminCancelled) {
+              newStatus = 'cancelled';
+              newCancellationReason = adminCancellationReason;
+            } else if (hasGuestCancelled) {
+              newStatus = 'cancelled-by-guest';
+              newCancellationReason = guestCancellationReason;
+            }
+            
+            if (newStatus !== multiRoomReservation.status) {
+              setReservation(prev => ({ 
+                ...prev, 
+                status: newStatus,
+                cancellationReason: newCancellationReason,
+                cancelledBy: newStatus === 'cancelled' ? 'admin' : 'guest'
+              }));
             }
           }
         };
@@ -290,7 +336,8 @@ export default function ReservationTrackerPage() {
         setReservation({
           id: bookingDoc.id,
           ...bookingData,
-          type: 'room'
+          type: 'room',
+          adminNote: bookingData.adminNote || null  // Add admin note from confirmation
         });
         
         // Set up real-time listener for this specific booking document
@@ -336,7 +383,8 @@ export default function ReservationTrackerPage() {
         setReservation({
           id: bookingDoc.id,
           ...bookingData,
-          type: 'daytour'
+          type: 'daytour',
+          adminNote: bookingData.adminNote || null  // Add admin note from confirmation
         });
         
         // Set up real-time listener for this specific day tour booking document
@@ -542,7 +590,7 @@ export default function ReservationTrackerPage() {
 
   // Calculate number of nights between check-in and check-out (for room bookings)
   const calculateNumberOfNights = (checkIn, checkOut) => {
-    if (!checkIn || !checkOut) return 'N/A';
+    if (!checkIn || !checkOut) return 0;
     try {
       let checkInDate, checkOutDate;
       
@@ -563,15 +611,18 @@ export default function ReservationTrackerPage() {
       }
       
       if (isNaN(checkInDate.getTime()) || isNaN(checkOutDate.getTime())) {
-        return 'N/A';
+        return 0;
       }
       
-      const timeDiff = checkOutDate - checkInDate;
-      const nights = Math.ceil(timeDiff / (1000 * 3600 * 24));
-      return nights > 0 ? nights : 1;
+      // Calculate difference in days
+      const checkInDay = new Date(checkInDate.getFullYear(), checkInDate.getMonth(), checkInDate.getDate());
+      const checkOutDay = new Date(checkOutDate.getFullYear(), checkOutDate.getMonth(), checkOutDate.getDate());
+      const timeDiff = checkOutDay - checkInDay;
+      const nights = Math.max(1, Math.round(timeDiff / (1000 * 3600 * 24)));
+      return nights;
     } catch (error) {
       console.error('Error calculating nights:', error);
-      return 'N/A';
+      return 0;
     }
   };
 
@@ -621,22 +672,25 @@ export default function ReservationTrackerPage() {
     }
   };
 
-  const getStatusBadge = (status) => {
+  const getStatusBadge = (status, cancelledBy) => {
+    // For multi-room bookings, check if cancelled by admin vs guest
+    if (status === 'cancelled') {
+      if (cancelledBy === 'admin') {
+        return { label: 'Cancelled by Resort', color: 'bg-red-100 text-red-700' };
+      }
+      return { label: 'Not Confirmed', color: 'bg-red-100 text-red-700' };
+    }
+    
     const statusMap = {
       'pending': { label: 'Pending', color: 'bg-yellow-100 text-yellow-700' },
       'confirmed': { label: 'Confirmed', color: 'bg-green-100 text-green-700' },
       'check-in': { label: 'Checked In', color: 'bg-blue-100 text-blue-700' },
       'check-out': { label: 'Checked Out', color: 'bg-purple-100 text-purple-700' },
-      'cancelled': { label: 'Cancelled', color: 'bg-red-100 text-red-700' },
       'cancelled-by-guest': { label: 'Cancelled by Guest', color: 'bg-red-100 text-red-700' }
     };
     
     const statusInfo = statusMap[status] || { label: status, color: 'bg-gray-100 text-gray-700' };
-    return (
-      <span className={`px-3 py-1 rounded-full text-sm font-medium ${statusInfo.color}`}>
-        {statusInfo.label}
-      </span>
-    );
+    return statusInfo;
   };
 
   const calculateDownPayment = (totalPrice) => {
@@ -645,15 +699,51 @@ export default function ReservationTrackerPage() {
     return total * 0.5;
   };
 
+  // Updated calculateBalance function with new rules:
+  // - Pending or Confirmed: 50% of total amount (remaining balance = 50% of total)
+  // - Cancelled: "Not Confirmed"
+  // - Cancelled by Guest: 50% of down payment amount (down payment * 0.5)
   const calculateBalance = (totalPrice, status) => {
-    if (status !== 'confirmed' && status !== 'check-in' && status !== 'check-out' && status !== 'pending') return 'Not confirmed';
     const total = typeof totalPrice === 'number' ? totalPrice : Number(totalPrice) || 0;
     const downPayment = total * 0.5;
-    const balance = total - downPayment;
-    return `₱${balance.toLocaleString()}`;
+    
+    // If status is cancelled, mark as Not Confirmed
+    if (status === 'cancelled') {
+      return 'Not Confirmed';
+    }
+    
+    // If status is pending or confirmed: remaining balance should be 50% of total amount
+    if (status === 'pending' || status === 'confirmed') {
+      const remainingBalance = total - downPayment;
+      return `₱${remainingBalance.toLocaleString()}`;
+    }
+    
+    // If status is cancelled-by-guest: remaining balance should be 50% of the down payment amount
+    if (status === 'cancelled-by-guest') {
+      const balanceAfterCancellation = downPayment * 0.5;
+      return `₱${balanceAfterCancellation.toLocaleString()}`;
+    }
+    
+    // For check-in, check-out, and other statuses
+    if (status === 'check-in' || status === 'check-out') {
+      const remainingBalance = total - downPayment;
+      return `₱${remainingBalance.toLocaleString()}`;
+    }
+    
+    return 'Not Confirmed';
   };
 
-  const canCancel = (status, isMultiRoom = false) => {
+  const canCancel = (status, isMultiRoom = false, cancelledBy = null) => {
+    // For multi-room bookings, if already cancelled (by either party), don't show cancel button
+    if (isMultiRoom && (status === 'cancelled' || status === 'cancelled-by-guest')) {
+      return false;
+    }
+    
+    // For non-multi-room bookings, check if already cancelled
+    if (!isMultiRoom && (status === 'cancelled' || status === 'cancelled-by-guest')) {
+      return false;
+    }
+    
     if (isMultiRoom && reservation?.children) {
       const anyActive = reservation.children.some(child => 
         child.status === 'pending' || child.status === 'confirmed'
@@ -663,7 +753,15 @@ export default function ReservationTrackerPage() {
     return status === 'pending' || status === 'confirmed';
   };
 
-  const numberOfNights = reservation && reservation.type === 'room' && !reservation.isMultiRoom ? calculateNumberOfNights(reservation.checkIn, reservation.checkOut) : 0;
+  // Calculate number of nights for room reservations (non-multi-room)
+  const numberOfNights = reservation && reservation.type === 'room' && !reservation.isMultiRoom 
+    ? calculateNumberOfNights(reservation.checkIn, reservation.checkOut) 
+    : 0;
+
+  // Calculate number of nights for multi-room reservations
+  const multiRoomNumberOfNights = reservation && reservation.isMultiRoom && reservation.checkIn && reservation.checkOut
+    ? calculateNumberOfNights(reservation.checkIn, reservation.checkOut)
+    : 0;
 
   // Calculate total guests for day tour
   const getTotalGuests = () => {
@@ -678,6 +776,8 @@ export default function ReservationTrackerPage() {
       `${room.quantity} × ${room.type} (${room.guestsPerRoom} guest${room.guestsPerRoom !== 1 ? 's' : ''})`
     ).join(', ');
   };
+
+  const statusInfo = reservation ? getStatusBadge(reservation.status, reservation.cancelledBy) : { label: '', color: '' };
 
   return (
     <GuestLayout>
@@ -782,14 +882,40 @@ export default function ReservationTrackerPage() {
                           </span>
                         </div>
                       </div>
-                      {getStatusBadge(reservation.status)}
+                      <span className={`px-3 py-1 rounded-full text-sm font-medium ${statusInfo.color}`}>
+                        {statusInfo.label}
+                      </span>
                     </div>
                     
-                    {reservation.status === 'cancelled-by-guest' && (
+                    {/* Admin Note - Display for all reservation types when confirmed */}
+                    {reservation.adminNote && reservation.status === 'confirmed' && (
+                      <div className="mt-3 p-3 bg-blue-50 rounded-lg border border-blue-200">
+                        <p className="text-blue-700 text-sm">
+                          <i className="fas fa-info-circle mr-2"></i>
+                          <strong>Admin Note:</strong> {reservation.adminNote}
+                        </p>
+                      </div>
+                    )}
+                    
+                    {/* Cancelled by Guest - Show reason */}
+                    {reservation.status === 'cancelled-by-guest' && reservation.cancellationReason && (
                       <div className="mt-3 p-3 bg-red-50 rounded-lg border border-red-200">
                         <p className="text-red-700 text-sm">
                           <i className="fas fa-info-circle mr-2"></i>
                           This reservation was cancelled by the guest. 
+                        </p>
+                        <p className="text-red-700 text-sm mt-2">
+                          <strong>Cancellation Reason:</strong> {reservation.cancellationReason}
+                        </p>
+                      </div>
+                    )}
+                    
+                    {/* Cancelled by Resort - Show reason */}
+                    {reservation.status === 'cancelled' && reservation.cancelledBy === 'admin' && (
+                      <div className="mt-3 p-3 bg-red-50 rounded-lg border border-red-200">
+                        <p className="text-red-700 text-sm">
+                          <i className="fas fa-info-circle mr-2"></i>
+                          This reservation was cancelled by the resort. 
                         </p>
                         {reservation.cancellationReason && (
                           <p className="text-red-700 text-sm mt-2">
@@ -799,7 +925,8 @@ export default function ReservationTrackerPage() {
                       </div>
                     )}
                     
-                    {reservation.status === 'cancelled' && reservation.cancellationReason && (
+                    {/* Cancelled (generic) - Show reason if available */}
+                    {reservation.status === 'cancelled' && reservation.cancelledBy !== 'admin' && reservation.cancellationReason && (
                       <div className="mt-3 p-3 bg-red-50 rounded-lg border border-red-200">
                         <p className="text-red-700 text-sm">
                           <i className="fas fa-info-circle mr-2"></i>
@@ -808,8 +935,8 @@ export default function ReservationTrackerPage() {
                       </div>
                     )}
 
-                    {/* Cancel Button - Only show for active reservations */}
-                    {canCancel(reservation.status, reservation.isMultiRoom) && (
+                    {/* Cancel Button - Only show for active reservations (not cancelled) */}
+                    {canCancel(reservation.status, reservation.isMultiRoom, reservation.cancelledBy) && (
                       <div className="mt-6 flex justify-end">
                         <button
                           onClick={() => setShowCancelModal(true)}
@@ -886,7 +1013,10 @@ export default function ReservationTrackerPage() {
                         </div>
                         <div>
                           <p className="text-xs font-semibold text-neutral uppercase tracking-wide">Number of Nights</p>
-                          <p className="text-textPrimary font-medium">{numberOfNights} {numberOfNights === 1 ? 'night' : 'nights'}</p>
+                          <p className="text-textPrimary font-medium">
+                            {reservation.isMultiRoom ? multiRoomNumberOfNights : numberOfNights} 
+                            {(reservation.isMultiRoom ? multiRoomNumberOfNights : numberOfNights) === 1 ? ' night' : ' nights'}
+                          </p>
                         </div>
                       </div>
                     )}

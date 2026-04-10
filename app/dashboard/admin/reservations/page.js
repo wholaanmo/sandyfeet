@@ -604,49 +604,50 @@ export default function AdminReservations() {
     }
   };
 
-  // Confirm reservation for day tour
-  const handleConfirmDayTourReservation = async () => {
-    const booking = confirmModal.booking;
-    if (!booking) return;
-    
-    if (booking.status !== 'pending') {
-      showNotification('This reservation is no longer pending.', 'error');
-      setConfirmModal({ show: false, booking: null, type: '', note: '' });
-      return;
+ // Confirm reservation for day tour
+const handleConfirmDayTourReservation = async () => {
+  const booking = confirmModal.booking;
+  if (!booking) return;
+  
+  if (booking.status !== 'pending') {
+    showNotification('This reservation is no longer pending.', 'error');
+    setConfirmModal({ show: false, booking: null, type: '', note: '' });
+    return;
+  }
+  
+  setActionLoading(prev => ({ ...prev, [booking.id]: true }));
+  try {
+    const bookingRef = doc(db, 'dayTourBookings', booking.id);
+    await updateDoc(bookingRef, {
+      status: 'confirmed',
+      adminNote: confirmModal.note || null,  // Save admin note
+      updatedAt: new Date().toISOString()
+    });
+
+    const { sendDayTourConfirmationEmail } = await import('../../../../lib/emailService');
+    const emailResult = await sendDayTourConfirmationEmail(booking, confirmModal.note);
+    if (emailResult.success) {
+      console.log('Day tour confirmation email sent successfully');
+    } else {
+      console.warn('Failed to send day tour confirmation email:', emailResult.error);
     }
-    
-    setActionLoading(prev => ({ ...prev, [booking.id]: true }));
-    try {
-      const bookingRef = doc(db, 'dayTourBookings', booking.id);
-      await updateDoc(bookingRef, {
-        status: 'confirmed',
-        updatedAt: new Date().toISOString()
-      });
 
-      const { sendDayTourConfirmationEmail } = await import('../../../../lib/emailService');
-      const emailResult = await sendDayTourConfirmationEmail(booking, confirmModal.note);
-      if (emailResult.success) {
-        console.log('Day tour confirmation email sent successfully');
-      } else {
-        console.warn('Failed to send day tour confirmation email:', emailResult.error);
-      }
+    await logAdminAction({
+      action: 'Confirmed Day Tour Reservation',
+      module: 'Day Tour Reservations',
+      details: `Confirmed day tour booking ${booking.bookingId} for ${booking.guestInfo?.firstName} ${booking.guestInfo?.lastName}. Note: ${confirmModal.note || 'No note provided'}`
+    });
 
-      await logAdminAction({
-        action: 'Confirmed Day Tour Reservation',
-        module: 'Day Tour Reservations',
-        details: `Confirmed day tour booking ${booking.bookingId} for ${booking.guestInfo?.firstName} ${booking.guestInfo?.lastName}. Note: ${confirmModal.note || 'No note provided'}`
-      });
-
-      showNotification(`Day tour booking ${booking.bookingId} has been confirmed. A confirmation email has been sent to the guest.`, 'success');
-      setShowPaymentModal(false);
-      setConfirmModal({ show: false, booking: null, type: '', note: '' });
-    } catch (error) {
-      console.error('Error confirming day tour reservation:', error);
-      showNotification('Failed to confirm reservation.', 'error');
-    } finally {
-      setActionLoading(prev => ({ ...prev, [booking.id]: false }));
-    }
-  };
+    showNotification(`Day tour booking ${booking.bookingId} has been confirmed. A confirmation email has been sent to the guest.`, 'success');
+    setShowPaymentModal(false);
+    setConfirmModal({ show: false, booking: null, type: '', note: '' });
+  } catch (error) {
+    console.error('Error confirming day tour reservation:', error);
+    showNotification('Failed to confirm reservation.', 'error');
+  } finally {
+    setActionLoading(prev => ({ ...prev, [booking.id]: false }));
+  }
+};
 
   // Cancel reservation for day tour
   const handleCancelDayTourReservation = async () => {
@@ -703,58 +704,61 @@ export default function AdminReservations() {
   };
 
   // Confirm room reservation
-  const handleConfirmReservation = async () => {
-    const booking = confirmModal.booking;
-    if (!booking) return;
-    
-    if (booking.status !== 'pending') {
-      showNotification('This reservation is no longer pending.', 'error');
-      setConfirmModal({ show: false, booking: null, type: '', note: '' });
-      return;
-    }
-    
-    setActionLoading(prev => ({ ...prev, [booking.id]: true }));
-    try {
-      if (booking.isMultiRoomGroup && booking.childBookings) {
-        // Update all child bookings
-        for (const childBooking of booking.childBookings) {
-          const bookingRef = doc(db, 'bookings', childBooking.id);
-          await updateDoc(bookingRef, {
-            status: 'confirmed',
-            updatedAt: new Date().toISOString()
-          });
-        }
-      } else {
-        const bookingRef = doc(db, 'bookings', booking.id);
+// Confirm room reservation
+const handleConfirmReservation = async () => {
+  const booking = confirmModal.booking;
+  if (!booking) return;
+  
+  if (booking.status !== 'pending') {
+    showNotification('This reservation is no longer pending.', 'error');
+    setConfirmModal({ show: false, booking: null, type: '', note: '' });
+    return;
+  }
+  
+  setActionLoading(prev => ({ ...prev, [booking.id]: true }));
+  try {
+    if (booking.isMultiRoomGroup && booking.childBookings) {
+      // Update all child bookings
+      for (const childBooking of booking.childBookings) {
+        const bookingRef = doc(db, 'bookings', childBooking.id);
         await updateDoc(bookingRef, {
           status: 'confirmed',
+          adminNote: confirmModal.note || null,  // Save admin note
           updatedAt: new Date().toISOString()
         });
       }
-
-      const emailResult = await sendConfirmationEmail(booking, confirmModal.note);
-      if (emailResult.success) {
-        console.log('Confirmation email sent successfully');
-      } else {
-        console.warn('Failed to send confirmation email:', emailResult.error);
-      }
-
-      await logAdminAction({
-        action: 'Confirmed Reservation',
-        module: 'Reservations',
-        details: `Confirmed ${booking.isMultiRoomGroup ? 'multi-room' : ''} booking ${booking.bookingId} for ${booking.guestInfo?.firstName} ${booking.guestInfo?.lastName}. Note: ${confirmModal.note || 'No note provided'}`
+    } else {
+      const bookingRef = doc(db, 'bookings', booking.id);
+      await updateDoc(bookingRef, {
+        status: 'confirmed',
+        adminNote: confirmModal.note || null,  // Save admin note
+        updatedAt: new Date().toISOString()
       });
-
-      showNotification(`Booking ${booking.bookingId} has been confirmed. A confirmation email has been sent to the guest.`, 'success');
-      setShowPaymentModal(false);
-      setConfirmModal({ show: false, booking: null, type: '', note: '' });
-    } catch (error) {
-      console.error('Error confirming reservation:', error);
-      showNotification('Failed to confirm reservation.', 'error');
-    } finally {
-      setActionLoading(prev => ({ ...prev, [booking.id]: false }));
     }
-  };
+
+    const emailResult = await sendConfirmationEmail(booking, confirmModal.note);
+    if (emailResult.success) {
+      console.log('Confirmation email sent successfully');
+    } else {
+      console.warn('Failed to send confirmation email:', emailResult.error);
+    }
+
+    await logAdminAction({
+      action: 'Confirmed Reservation',
+      module: 'Reservations',
+      details: `Confirmed ${booking.isMultiRoomGroup ? 'multi-room' : ''} booking ${booking.bookingId} for ${booking.guestInfo?.firstName} ${booking.guestInfo?.lastName}. Note: ${confirmModal.note || 'No note provided'}`
+    });
+
+    showNotification(`Booking ${booking.bookingId} has been confirmed. A confirmation email has been sent to the guest.`, 'success');
+    setShowPaymentModal(false);
+    setConfirmModal({ show: false, booking: null, type: '', note: '' });
+  } catch (error) {
+    console.error('Error confirming reservation:', error);
+    showNotification('Failed to confirm reservation.', 'error');
+  } finally {
+    setActionLoading(prev => ({ ...prev, [booking.id]: false }));
+  }
+};
 
   // Cancel room reservation
   const handleCancelReservation = async () => {

@@ -740,11 +740,12 @@ export default function SelectRoomTypesPage() {
             </p>
           </div>
 
-          <div className="flex flex-col lg:flex-row gap-8">
-            {/* Left Column - Calendar Panel (60% width) */}
-            <div className="lg:w-[60%]">
-              <div className="bg-white rounded-2xl shadow-lg overflow-hidden">
-                <div className="bg-gradient-to-r from-ocean-mid to-ocean-light px-6 py-4">
+          {/* Main layout: left column (40%) + right block (60%) */}
+          <div className="flex flex-col lg:flex-row gap-6 items-stretch">
+            {/* LEFT COLUMN (40%) - Select Your Stay Dates */}
+            <div className="lg:w-[40%]">
+              <div className="bg-white rounded-2xl shadow-lg overflow-hidden h-full">
+                <div className="bg-gradient-to-r from-ocean-mid to-ocean-light px-5 py-3">
                   <div>
                     <h2 className="text-xl font-bold text-white">Select Your Stay Dates</h2>
                     <p className="text-white/80 text-sm mt-1">
@@ -753,9 +754,9 @@ export default function SelectRoomTypesPage() {
                   </div>
                 </div>
 
-                <div className="p-6">
+                <div className="p-5">
                   {/* Month Navigation - Back button on left, navigation on right */}
-                  <div className="flex justify-between items-center mb-6">
+                  <div className="flex justify-between items-center mb-4">
                     <button
                       onClick={goBack}
                       className="px-3 py-1.5 border border-ocean-light/20 rounded-lg hover:bg-ocean-ice transition-all duration-200 flex items-center gap-2 text-sm"
@@ -867,7 +868,7 @@ export default function SelectRoomTypesPage() {
                   </div>
 
                   {/* Legend */}
-                  <div className="mt-6 pt-4 border-t border-ocean-light/10 flex justify-center gap-6 text-xs flex-wrap">
+                  <div className="mt-5 pt-3 border-t border-ocean-light/10 flex justify-center gap-4 text-xs flex-wrap">
                     <div className="flex items-center gap-1.5">
                       <div className="w-3 h-3 bg-white border border-gray-300 rounded"></div>
                       <span className="text-textSecondary">Available</span>
@@ -893,256 +894,300 @@ export default function SelectRoomTypesPage() {
               </div>
             </div>
 
-            {/* Right Column (40% width) */}
-            <div className="lg:w-[40%] space-y-5">
-              {/* Select Rooms Container - Refined layout with moderate typography */}
-              <div className="bg-white rounded-xl shadow-lg overflow-hidden">
-                <div className="bg-gradient-to-r from-ocean-mid to-ocean-light px-5 py-3">
-                  <h2 className="text-lg font-bold text-white">Select Rooms</h2>
-                  <p className="text-white/80 text-sm mt-0.5">Choose room types and quantities</p>
-                </div>
-
-                <div className="p-5">
-                  {/* Room Types List - 2 Column Grid with consistent layout */}
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-5">
-                    {availableRoomTypes.map((room) => {
-                      const quantity = selectedRooms[room.type] || 0;
-                      const guests = roomGuests[room.type] || 1;
-                      const availability = availabilityStatus[room.type];
-                      const isSelected = quantity > 0;
-                      const maxCapacity = room.capacityMax;
-                      // Get unit-level available units based on selected date
-                      const realTimeAvailable = checkInDate 
-                        ? (unitLevelAvailability[room.type] || 0)
-                        : room.availableRooms;
-                      
-                      return (
-                        <div key={room.type} className="border border-ocean-light/20 rounded-lg p-3 hover:shadow-md transition-all duration-200 bg-white flex flex-col">
-                          {/* Room header - consistent position */}
-                          <div className="flex justify-between items-start mb-2">
-                            <div>
-                              <h3 className="font-bold text-textPrimary text-sm">{room.type}</h3>
-                              <p className="text-xs text-textSecondary mt-0.5">
-                                <i className="fas fa-users mr-1"></i>
-                                {room.capacityMin}–{room.capacityMax} guests
-                              </p>
-                            </div>
-                            <p className="text-base font-bold text-ocean-mid">
-                              ₱{room.price.toLocaleString()}
-                              <span className="text-xs font-normal text-textSecondary">/night</span>
-                            </p>
-                          </div>
-                          
-                          {/* Quantity controls - consistent position */}
-                          <div className="flex items-center justify-between mt-2">
-                            <div className="flex items-center gap-2">
-                              <button
-                                onClick={() => handleQuantityChange(room.type, false)}
-                                disabled={quantity === 0}
-                                className="w-7 h-7 rounded-md border border-ocean-light/20 text-ocean-mid font-bold text-base hover:bg-ocean-ice disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-200 flex items-center justify-center"
-                              >
-                                -
-                              </button>
-                              <span className="text-base font-bold text-textPrimary min-w-[28px] text-center">
-                                {quantity}
-                              </span>
-                              <button
-                                onClick={() => handleQuantityChange(room.type, true)}
-                                disabled={quantity >= realTimeAvailable}
-                                className="w-7 h-7 rounded-md border border-ocean-light/20 text-ocean-mid font-bold text-base hover:bg-ocean-ice disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-200 flex items-center justify-center"
-                              >
-                                +
-                              </button>
-                            </div>
-                            <div className="text-right">
-                              <p className="text-xs font-medium text-ocean-mid">
-                                {realTimeAvailable} available
-                              </p>
-                            </div>
-                          </div>
-                          
-                          {/* Guest input field - enabled only when room is selected */}
-                          <div className="mt-3 pt-2 border-t border-ocean-light/20">
-                            <label className="block text-xs font-medium text-textPrimary mb-1">
-                              Guests per room
-                            </label>
-                            <div className="flex items-center gap-2">
-                              <button
-                                onClick={() => handleGuestChange(room.type, false)}
-                                disabled={!isSelected || guests <= 1}
-                                className={`w-7 h-7 rounded-md border border-ocean-light/20 font-bold text-base flex items-center justify-center transition-all duration-200 ${
-                                  !isSelected || guests <= 1
-                                    ? 'bg-gray-100 text-gray-400 cursor-not-allowed'
-                                    : 'text-ocean-mid hover:bg-ocean-ice'
-                                }`}
-                              >
-                                -
-                              </button>
-                              <span className={`text-base font-bold min-w-[28px] text-center ${!isSelected ? 'text-gray-400' : 'text-textPrimary'}`}>
-                                {guests}
-                              </span>
-                              <button
-                                onClick={() => handleGuestChange(room.type, true)}
-                                disabled={!isSelected || guests >= maxCapacity}
-                                className={`w-7 h-7 rounded-md border border-ocean-light/20 font-bold text-base flex items-center justify-center transition-all duration-200 ${
-                                  !isSelected || guests >= maxCapacity
-                                    ? 'bg-gray-100 text-gray-400 cursor-not-allowed'
-                                    : 'text-ocean-mid hover:bg-ocean-ice'
-                                }`}
-                              >
-                                +
-                              </button>
-                              <span className="text-xs text-textSecondary ml-1">
-                                (max {maxCapacity})
-                              </span>
-                            </div>
-                          </div>
-                          
-                          {/* Availability warning - consistent position */}
-                          {checkInDate && quantity > 0 && availability && !availability.sufficient && (
-                            <p className="text-xs text-red-600 mt-2">
-                              <i className="fas fa-exclamation-triangle mr-1"></i>
-                              Only {availability.available} available
-                            </p>
-                          )}
-                        </div>
-                      );
-                    })}
-                  </div>
-
-                  {/* Selected Dates Display with Check-in Time */}
-                  {checkInDate && (
-                    <div className="mt-2 p-4 bg-ocean-ice rounded-xl">
-                      <p className="text-sm font-semibold text-textPrimary mb-2">
-                        <i className="fas fa-calendar-check text-ocean-mid mr-2"></i>
-                        Selected Dates
-                      </p>
-                      <p className="text-base font-semibold text-textPrimary">
-                        {checkInDate.toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' })}
-                      </p>
-                      <p className="text-sm text-ocean-mid font-medium mt-1">
-                        <i className="fas fa-clock mr-1"></i>
-                        Check-in: {FIXED_CHECK_IN_DISPLAY}
-                      </p>
-                      {checkOutDate && (
-                        <p className="text-sm text-textSecondary mt-2">
-                          Check-out: {checkOutDate.toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' })} at {FIXED_CHECK_OUT_DISPLAY}
-                        </p>
-                      )}
-                      <p className="text-xs text-textSecondary mt-2">
-                        Duration: {numberOfNights} night(s) | Total: 22 hours per night
-                      </p>
+            {/* RIGHT BLOCK (60%) - contains Select Rooms, Stay Details, and Selected Information */}
+            <div className="lg:w-[60%] flex flex-col gap-5">
+              {/* Top row: Select Rooms (66.66% of 60% = 40% overall) and Stay Details (33.33% of 60% = 20% overall) */}
+              <div className="flex flex-row gap-5 items-stretch">
+                {/* Select Rooms (40% overall) */}
+                <div className="w-[66.666%]">
+                  <div className="bg-white rounded-xl shadow-lg overflow-hidden h-full">
+                    <div className="bg-gradient-to-r from-ocean-mid to-ocean-light px-4 py-2">
+                      <h2 className="text-lg font-bold text-white">Select Rooms</h2>
+                      <p className="text-white/80 text-xs mt-0.5">Choose room types and quantities</p>
                     </div>
-                  )}
-                  
-                  {/* Summary Section */}
-                  {Object.values(selectedRooms).some(q => q > 0) && (
-                    <div className="border-t border-ocean-light/10 pt-4 mt-4">
-                      <h3 className="font-semibold text-textPrimary mb-2 text-sm">Selected Rooms</h3>
-                      <p className="text-xs text-textSecondary mb-3">
-                        {getSelectedRoomsSummary()}
-                      </p>
-                      <div className="bg-ocean-ice rounded-lg p-3">
-                        <div className="flex justify-between items-center text-sm">
-                          <span className="font-semibold text-textPrimary">Total Guests:</span>
-                          <span className="font-bold text-ocean-mid">{getTotalGuests()} guest(s)</span>
-                        </div>
-                        <div className="flex justify-between items-center mt-2 pt-2 border-t border-ocean-light/20 text-sm">
-                          <span className="font-semibold text-textPrimary">Per night:</span>
-                          <span className="font-bold text-ocean-mid">₱{(getTotalPrice() / numberOfNights).toLocaleString()}</span>
-                        </div>
-                        <div className="flex justify-between items-center mt-2 pt-2 border-t border-ocean-light/20 text-sm">
-                          <span className="font-semibold text-textPrimary">Total ({numberOfNights} night{numberOfNights !== 1 ? 's' : ''}):</span>
-                          <span className="font-bold text-ocean-mid">₱{getTotalPrice().toLocaleString()}</span>
-                        </div>
+
+                    <div className="p-4">
+                      {/* Room Types List - 2 Column Grid with reduced gap */}
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                        {availableRoomTypes.map((room) => {
+                          const quantity = selectedRooms[room.type] || 0;
+                          const guests = roomGuests[room.type] || 1;
+                          const availability = availabilityStatus[room.type];
+                          const isSelected = quantity > 0;
+                          const maxCapacity = room.capacityMax;
+                          // Get unit-level available units based on selected date
+                          const realTimeAvailable = checkInDate 
+                            ? (unitLevelAvailability[room.type] || 0)
+                            : room.availableRooms;
+                          
+                          return (
+                            <div key={room.type} className="border border-ocean-light/20 rounded-lg p-2 hover:shadow-md transition-all duration-200 bg-white flex flex-col">
+                              {/* Room header */}
+                              <div className="flex justify-between items-start mb-1">
+                                <div>
+                                  <h3 className="font-bold text-textPrimary text-sm">{room.type}</h3>
+                                  <p className="text-xs text-textSecondary mt-0.5">
+                                    <i className="fas fa-users mr-1"></i>
+                                    {room.capacityMin}–{room.capacityMax} guests
+                                  </p>
+                                </div>
+                                <p className="text-base font-bold text-ocean-mid">
+                                  ₱{room.price.toLocaleString()}
+                                  <span className="text-xs font-normal text-textSecondary">/night</span>
+                                </p>
+                              </div>
+                              
+                              {/* Quantity controls */}
+                              <div className="flex items-center justify-between mt-2">
+                                <div className="flex items-center gap-2">
+                                  <button
+                                    onClick={() => handleQuantityChange(room.type, false)}
+                                    disabled={quantity === 0}
+                                    className="w-6 h-6 rounded-md border border-ocean-light/20 text-ocean-mid font-bold text-base hover:bg-ocean-ice disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-200 flex items-center justify-center"
+                                  >
+                                    -
+                                  </button>
+                                  <span className="text-base font-bold text-textPrimary min-w-[24px] text-center">
+                                    {quantity}
+                                  </span>
+                                  <button
+                                    onClick={() => handleQuantityChange(room.type, true)}
+                                    disabled={quantity >= realTimeAvailable}
+                                    className="w-6 h-6 rounded-md border border-ocean-light/20 text-ocean-mid font-bold text-base hover:bg-ocean-ice disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-200 flex items-center justify-center"
+                                  >
+                                    +
+                                  </button>
+                                </div>
+                                <div className="text-right">
+                                  <p className="text-xs font-medium text-ocean-mid">
+                                    {realTimeAvailable} available
+                                  </p>
+                                </div>
+                              </div>
+                              
+                              {/* Guest input field */}
+                              <div className="mt-2 pt-1 border-t border-ocean-light/20">
+                                <label className="block text-xs font-medium text-textPrimary mb-0.5">
+                                  Guests per room
+                                </label>
+                                <div className="flex items-center gap-2">
+                                  <button
+                                    onClick={() => handleGuestChange(room.type, false)}
+                                    disabled={!isSelected || guests <= 1}
+                                    className={`w-6 h-6 rounded-md border border-ocean-light/20 font-bold text-base flex items-center justify-center transition-all duration-200 ${
+                                      !isSelected || guests <= 1
+                                        ? 'bg-gray-100 text-gray-400 cursor-not-allowed'
+                                        : 'text-ocean-mid hover:bg-ocean-ice'
+                                    }`}
+                                  >
+                                    -
+                                  </button>
+                                  <span className={`text-base font-bold min-w-[24px] text-center ${!isSelected ? 'text-gray-400' : 'text-textPrimary'}`}>
+                                    {guests}
+                                  </span>
+                                  <button
+                                    onClick={() => handleGuestChange(room.type, true)}
+                                    disabled={!isSelected || guests >= maxCapacity}
+                                    className={`w-6 h-6 rounded-md border border-ocean-light/20 font-bold text-base flex items-center justify-center transition-all duration-200 ${
+                                      !isSelected || guests >= maxCapacity
+                                        ? 'bg-gray-100 text-gray-400 cursor-not-allowed'
+                                        : 'text-ocean-mid hover:bg-ocean-ice'
+                                    }`}
+                                  >
+                                    +
+                                  </button>
+                                  <span className="text-xs text-textSecondary ml-1">
+                                    (max {maxCapacity})
+                                  </span>
+                                </div>
+                              </div>
+                              
+                              {/* Availability warning */}
+                              {checkInDate && quantity > 0 && availability && !availability.sufficient && (
+                                <p className="text-xs text-red-600 mt-1">
+                                  <i className="fas fa-exclamation-triangle mr-1"></i>
+                                  Only {availability.available} available
+                                </p>
+                              )}
+                            </div>
+                          );
+                        })}
                       </div>
                     </div>
-                  )}
+                  </div>
+                </div>
+
+                {/* Stay Details (20% overall) */}
+                <div className="w-[33.333%]">
+                  <div className="bg-white rounded-xl shadow-lg overflow-hidden h-full">
+                    <div className="bg-gradient-to-r from-ocean-mid to-ocean-light px-4 py-2">
+                      <h2 className="text-lg font-bold text-white">Stay Details</h2>
+                      <p className="text-white/80 text-xs mt-0.5">Customize your stay</p>
+                    </div>
+
+                    <div className="p-4">
+                      {/* Number of Nights Input */}
+                      <div className="mb-4">
+                        <label className="block text-sm font-semibold text-textPrimary mb-1">
+                          Number of Nights
+                        </label>
+                        <div className="flex items-center gap-2">
+                          <button
+                            onClick={() => handleNightsChange(false)}
+                            disabled={numberOfNights <= 1}
+                            className="w-8 h-8 rounded-lg border border-ocean-light/20 text-ocean-mid font-bold text-lg hover:bg-ocean-ice disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-200 flex items-center justify-center"
+                          >
+                            -
+                          </button>
+                          <span className="text-xl font-bold text-textPrimary min-w-[45px] text-center">
+                            {numberOfNights}
+                          </span>
+                          <button
+                            onClick={() => handleNightsChange(true)}
+                            disabled={numberOfNights >= 30}
+                            className="w-8 h-8 rounded-lg border border-ocean-light/20 text-ocean-mid font-bold text-lg hover:bg-ocean-ice disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-200 flex items-center justify-center"
+                          >
+                            +
+                          </button>
+                        </div>
+                        <p className="text-xs text-textSecondary mt-1">
+                          {numberOfNights === 1 ? '1 night stay' : `${numberOfNights} nights stay`} (22h/night)
+                        </p>
+                      </div>
+
+                      {/* Special Request Input */}
+                      <div className="mb-4">
+                        <label className="block text-sm font-semibold text-textPrimary mb-1">
+                          Special Request
+                        </label>
+<textarea
+  value={specialRequest}
+  onChange={(e) => setSpecialRequest(e.target.value)}
+  placeholder="e.g., early check-in, preferences..."
+  rows="2"
+  className="w-full px-2 pt-2 pb-20 border border-ocean-light/20 rounded-lg text-sm focus:outline-none focus:border-ocean-light resize-none"
+/>
+                        <p className="text-xs text-textSecondary mt-1">
+                          <i className="fas fa-clock mr-1"></i>
+                          Check-in fixed at 2:00 PM.
+                        </p>
+                      </div>
+
+                      {/* Error Message */}
+                      {dateSelectionError && (
+                        <div className="mb-3 p-2 bg-red-50 border border-red-200 rounded-lg">
+                          <p className="text-xs text-red-700">
+                            <i className="fas fa-exclamation-triangle mr-1"></i>
+                            {dateSelectionError}
+                          </p>
+                        </div>
+                      )}
+
+                      {/* Proceed Button */}
+                      <button
+                        onClick={handleProceed}
+                        disabled={
+                          !checkInDate ||
+                          Object.values(selectedRooms).every(q => q === 0) ||
+                          Object.values(availabilityStatus).some(s => s && !s.sufficient && s.quantity > 0)
+                        }
+                        className={`w-full py-2 rounded-lg font-semibold text-sm transition-all duration-300 ${
+                          checkInDate && Object.values(selectedRooms).some(q => q > 0) && 
+                          !Object.values(availabilityStatus).some(s => s && !s.sufficient && s.quantity > 0)
+                            ? 'bg-gradient-to-r from-ocean-mid to-ocean-light text-white hover:shadow-lg hover:-translate-y-0.5'
+                            : 'bg-gray-200 text-gray-500 cursor-not-allowed'
+                        }`}
+                      >
+                        Proceed to Booking
+                      </button>
+                    </div>
+                  </div>
                 </div>
               </div>
 
-              {/* Stay Details Container - With Proceed Button inside */}
-              <div className="bg-white rounded-xl shadow-lg overflow-hidden">
-                <div className="bg-gradient-to-r from-ocean-mid to-ocean-light px-5 py-3">
-                  <h2 className="text-lg font-bold text-white">Stay Details</h2>
-                  <p className="text-white/80 text-sm mt-0.5">Customize your stay</p>
-                </div>
-
-                <div className="p-5">
-                  {/* Number of Nights Input */}
-                  <div className="mb-5">
-                    <label className="block text-sm font-semibold text-textPrimary mb-2">
-                      Number of Nights
-                    </label>
-                    <div className="flex items-center gap-3">
-                      <button
-                        onClick={() => handleNightsChange(false)}
-                        disabled={numberOfNights <= 1}
-                        className="w-9 h-9 rounded-lg border border-ocean-light/20 text-ocean-mid font-bold text-lg hover:bg-ocean-ice disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-200 flex items-center justify-center"
-                      >
-                        -
-                      </button>
-                      <span className="text-xl font-bold text-textPrimary min-w-[55px] text-center">
-                        {numberOfNights}
-                      </span>
-                      <button
-                        onClick={() => handleNightsChange(true)}
-                        disabled={numberOfNights >= 30}
-                        className="w-9 h-9 rounded-lg border border-ocean-light/20 text-ocean-mid font-bold text-lg hover:bg-ocean-ice disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-200 flex items-center justify-center"
-                      >
-                        +
-                      </button>
-                    </div>
-                    <p className="text-xs text-textSecondary mt-1">
-                      {numberOfNights === 1 ? '1 night stay' : `${numberOfNights} nights stay`} (22 hours per night)
-                    </p>
+              {/* Bottom: Selected Information Container (60% width of parent, i.e. 60% overall) */}
+              <div className="w-full">
+                <div className="bg-white rounded-xl shadow-lg overflow-hidden">
+                  <div className="bg-gradient-to-r from-ocean-mid to-ocean-light px-4 py-2">
+                    <h2 className="text-base font-bold text-white">Selected Information</h2>
+                    <p className="text-white/80 text-xs mt-0.5">Your stay summary</p>
                   </div>
-
-                  {/* Special Request Input */}
-                  <div className="mb-5">
-                    <label className="block text-sm font-semibold text-textPrimary mb-2">
-                      Special Request
-                    </label>
-                    <textarea
-                      value={specialRequest}
-                      onChange={(e) => setSpecialRequest(e.target.value)}
-                      placeholder="e.g., Request early check-in, room preferences, special occasion, etc."
-                      rows="3"
-                      className="w-full px-3 py-2 border border-ocean-light/20 rounded-lg text-sm focus:outline-none focus:border-ocean-light resize-none"
-                    />
-                    <p className="text-xs text-textSecondary mt-1">
-                      <i className="fas fa-clock mr-1"></i>
-                      Note: Check-in time is fixed at 2:00 PM. If you need early check-in, please specify here.
-                    </p>
+                  
+                  <div className="p-4">
+                    {/* Selected Dates */}
+                    {checkInDate ? (
+                      <div className="mb-3">
+                        <h3 className="font-semibold text-textPrimary text-xs mb-1">
+                          <i className="fas fa-calendar-alt text-ocean-mid mr-1"></i>
+                          Selected Dates
+                        </h3>
+                        <div className="bg-ocean-ice rounded-lg p-2">
+                          <p className="text-sm font-semibold text-textPrimary">
+                            {checkInDate.toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' })}
+                          </p>
+                          <p className="text-xs text-ocean-mid font-medium mt-0.5">
+                            <i className="fas fa-clock mr-1"></i>
+                            Check-in: {FIXED_CHECK_IN_DISPLAY}
+                          </p>
+                          {checkOutDate && (
+                            <p className="text-xs text-textSecondary mt-1">
+                              Check-out: {checkOutDate.toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' })} at {FIXED_CHECK_OUT_DISPLAY}
+                            </p>
+                          )}
+                          <p className="text-xs text-textSecondary mt-1">
+                            Duration: {numberOfNights} night(s) | 22h/night
+                          </p>
+                        </div>
+                      </div>
+                    ) : (
+                      <div className="mb-3">
+                        <div className="bg-gray-50 rounded-lg p-2 text-center">
+                          <p className="text-textSecondary text-xs">
+                            <i className="fas fa-calendar-alt mr-1"></i>
+                            No dates selected
+                          </p>
+                        </div>
+                      </div>
+                    )}
+                    
+                    {/* Selected Rooms */}
+                    {Object.values(selectedRooms).some(q => q > 0) ? (
+                      <div>
+                        <h3 className="font-semibold text-textPrimary text-xs mb-1">
+                          <i className="fas fa-door-open text-ocean-mid mr-1"></i>
+                          Selected Rooms
+                        </h3>
+                        <div className="bg-ocean-ice rounded-lg p-2">
+                          <p className="text-xs text-textSecondary mb-2">
+                            {getSelectedRoomsSummary()}
+                          </p>
+                          <div className="border-t border-ocean-light/20 pt-2">
+                            <div className="flex justify-between items-center text-xs">
+                              <span className="font-semibold text-textPrimary">Total Guests:</span>
+                              <span className="font-bold text-ocean-mid">{getTotalGuests()} guest(s)</span>
+                            </div>
+                            <div className="flex justify-between items-center mt-1 pt-1 border-t border-ocean-light/20 text-xs">
+                              <span className="font-semibold text-textPrimary">Per night:</span>
+                              <span className="font-bold text-ocean-mid">₱{(getTotalPrice() / numberOfNights).toLocaleString()}</span>
+                            </div>
+                            <div className="flex justify-between items-center mt-1 pt-1 border-t border-ocean-light/20 text-xs">
+                              <span className="font-semibold text-textPrimary">Total ({numberOfNights} night{numberOfNights !== 1 ? 's' : ''}):</span>
+                              <span className="font-bold text-ocean-mid">₱{getTotalPrice().toLocaleString()}</span>
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                    ) : (
+                      <div>
+                        <div className="bg-gray-50 rounded-lg p-2 text-center">
+                          <p className="text-textSecondary text-xs">
+                            <i className="fas fa-door-open mr-1"></i>
+                            No rooms selected
+                          </p>
+                        </div>
+                      </div>
+                    )}
                   </div>
-
-                  {/* Error Message */}
-                  {dateSelectionError && (
-                    <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded-lg">
-                      <p className="text-sm text-red-700">
-                        <i className="fas fa-exclamation-triangle mr-2"></i>
-                        {dateSelectionError}
-                      </p>
-                    </div>
-                  )}
-
-                  {/* Proceed Button */}
-                  <button
-                    onClick={handleProceed}
-                    disabled={
-                      !checkInDate ||
-                      Object.values(selectedRooms).every(q => q === 0) ||
-                      Object.values(availabilityStatus).some(s => s && !s.sufficient && s.quantity > 0)
-                    }
-                    className={`w-full py-3 rounded-lg font-semibold text-base transition-all duration-300 ${
-                      checkInDate && Object.values(selectedRooms).some(q => q > 0) && 
-                      !Object.values(availabilityStatus).some(s => s && !s.sufficient && s.quantity > 0)
-                        ? 'bg-gradient-to-r from-ocean-mid to-ocean-light text-white hover:shadow-lg hover:-translate-y-0.5'
-                        : 'bg-gray-200 text-gray-500 cursor-not-allowed'
-                    }`}
-                  >
-                    Proceed to Booking
-                  </button>
                 </div>
               </div>
             </div>
