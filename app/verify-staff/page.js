@@ -2,113 +2,67 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { useSearchParams, useRouter } from 'next/navigation';
-import { db } from '../../lib/firebase';
-import { collection, query, where, getDocs, updateDoc, doc } from 'firebase/firestore';
-import { sendStaffWelcomeEmail } from '../../lib/staffEmailService';
+import { useSearchParams } from 'next/navigation';
 import Link from 'next/link';
 
 export default function VerifyStaffPage() {
   const searchParams = useSearchParams();
-  const router = useRouter();
   const [verifying, setVerifying] = useState(true);
   const [verificationStatus, setVerificationStatus] = useState({
     success: false,
     message: '',
-    error: false
+    error: false,
   });
 
   useEffect(() => {
-    const verifyEmail = async () => {
+    const run = async () => {
       const token = searchParams.get('token');
       const email = searchParams.get('email');
-      
+
       if (!token || !email) {
         setVerificationStatus({
           success: false,
           message: 'Invalid verification link. Please check your email for the correct link.',
-          error: true
+          error: true,
         });
         setVerifying(false);
         return;
       }
-      
+
       try {
-        // Find user by email and verification token
-        const usersRef = collection(db, 'users');
-        const q = query(
-          usersRef, 
-          where('email', '==', decodeURIComponent(email)),
-          where('verificationToken', '==', token)
-        );
-        const querySnapshot = await getDocs(q);
-        
-        if (querySnapshot.empty) {
-          setVerificationStatus({
-            success: false,
-            message: 'Invalid or expired verification link. Please request a new verification email.',
-            error: true
-          });
-          setVerifying(false);
-          return;
-        }
-        
-        const userDoc = querySnapshot.docs[0];
-        const userData = userDoc.data();
-        
-        // Check if already verified
-        if (userData.emailVerified) {
+        const res = await fetch('/api/auth/complete-staff-verification', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ token, email }),
+        });
+        const data = await res.json().catch(() => ({}));
+
+        if (res.ok && data.success) {
           setVerificationStatus({
             success: true,
-            message: 'Your email has already been verified. You can now log in to your account.',
-            error: false
+            message: data.message || 'Your email has been successfully verified!',
+            error: false,
           });
-          setVerifying(false);
-          return;
-        }
-        
-        // Check if verification has expired
-        const expiresAt = new Date(userData.verificationExpiresAt);
-        if (new Date() > expiresAt) {
+        } else {
           setVerificationStatus({
             success: false,
-            message: 'Verification link has expired. Please request a new verification email.',
-            error: true
+            message: data.message || data.error || 'Verification failed. Please try again.',
+            error: true,
           });
-          setVerifying(false);
-          return;
         }
-        
-        // Update user as verified
-        await updateDoc(doc(db, 'users', userDoc.id), {
-          emailVerified: true,
-          status: 'active',
-          verifiedAt: new Date().toISOString(),
-          verificationToken: null // Clear the token
-        });
-        
-        // Send welcome email with role
-        await sendStaffWelcomeEmail(userData.email, userData.name, userData.role);
-        
-        setVerificationStatus({
-          success: true,
-          message: 'Your email has been successfully verified! Your account is now active.',
-          error: false
-        });
-        setVerifying(false);
-        
       } catch (error) {
         console.error('Error verifying email:', error);
         setVerificationStatus({
           success: false,
           message: 'An error occurred while verifying your email. Please try again later.',
-          error: true
+          error: true,
         });
+      } finally {
         setVerifying(false);
       }
     };
-    
-    verifyEmail();
+
+    run();
   }, [searchParams]);
 
   return (

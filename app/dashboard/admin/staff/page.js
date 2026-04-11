@@ -39,7 +39,7 @@ export default function StaffManagement() {
   const [originalFormData, setOriginalFormData] = useState({});
   
   // Resend verification modal
-  const [resendModal, setResendModal] = useState({ show: false, email: '', staffId: '', name: '' });
+  const [resendModal, setResendModal] = useState({ show: false, email: '', staffId: '', name: '', role: 'staff' });
   const [resendLoading, setResendLoading] = useState(false);
   
   // Confirmation modal states
@@ -213,8 +213,7 @@ export default function StaffManagement() {
     });
     
     // Send verification email using Nodemailer with role
-    const verificationLink = `${process.env.NEXT_PUBLIC_BASE_URL || window.location.origin}/verify-staff?token=${verificationToken}&email=${encodeURIComponent(formData.email)}`;
-    await sendStaffVerificationEmail(formData.email, formData.name, verificationLink, formData.role);
+    await sendStaffVerificationEmail(formData.email, formData.name, verificationToken, formData.role);
     
     // Add audit log
     await logAdminAction({
@@ -259,9 +258,13 @@ const handleResendVerification = async () => {
       verificationExpiresAt: verificationExpiresAt.toISOString()
     });
     
-    // Send new verification email
-    const verificationLink = `${process.env.NEXT_PUBLIC_BASE_URL || window.location.origin}/api/auth/verify-staff?token=${verificationToken}&email=${encodeURIComponent(resendModal.email)}`;
-    await sendStaffVerificationEmail(resendModal.email, resendModal.name || 'Staff Member', verificationLink);
+    await sendStaffVerificationEmail(
+      resendModal.email,
+      resendModal.name || 'Staff Member',
+      verificationToken,
+      resendModal.role || 'staff',
+      'redirect'
+    );
     
     // Add audit log
     await logAdminAction({
@@ -271,7 +274,7 @@ const handleResendVerification = async () => {
     });
     
     showNotification('New verification email sent! Link expires in 15 minutes.');
-    setResendModal({ show: false, email: '', staffId: '', name: '' });
+    setResendModal({ show: false, email: '', staffId: '', name: '', role: 'staff' });
   } catch (error) {
     console.error('Error resending verification:', error);
     showNotification('Failed to send verification email. Please try again.', 'error');
@@ -568,7 +571,7 @@ const handleResendVerification = async () => {
       </div>
       <div className="flex gap-3 justify-center">
         <button
-          onClick={() => setResendModal({ show: false, email: '', staffId: '', name: '' })}
+          onClick={() => setResendModal({ show: false, email: '', staffId: '', name: '', role: 'staff' })}
           className="px-5 py-2 border border-ocean-light/20 rounded-xl text-textSecondary text-sm font-medium hover:bg-ocean-ice transition-all duration-300"
         >
           Cancel
@@ -667,7 +670,7 @@ const handleResendVerification = async () => {
                         <div className="flex gap-2">
 {member.status === 'pending_verification' && (
   <button
-    onClick={() => setResendModal({ show: true, email: member.email, staffId: member.id, name: member.name })}
+    onClick={() => setResendModal({ show: true, email: member.email, staffId: member.id, name: member.name, role: member.role || 'staff' })}
     className="p-2 rounded-lg border border-ocean-light/20 bg-white text-blue-600 hover:bg-blue-600 hover:text-white hover:border-blue-600 transition-all duration-200"
     title="Resend Verification Email"
   >
@@ -925,7 +928,7 @@ const handleResendVerification = async () => {
                         </span>
                         {selectedStaff?.status === 'pending_verification' && (
                           <button
-                            onClick={() => setResendModal({ show: true, email: selectedStaff.email, staffId: selectedStaff.id, name: selectedStaff.name })}
+                            onClick={() => setResendModal({ show: true, email: selectedStaff.email, staffId: selectedStaff.id, name: selectedStaff.name, role: selectedStaff.role || 'staff' })}
                             className="mt-2 text-xs text-ocean-light hover:text-ocean-mid underline"
                           >
                             Resend verification email

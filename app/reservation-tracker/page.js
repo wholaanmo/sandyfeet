@@ -5,7 +5,6 @@ import { useState, useEffect, useRef } from 'react';
 import { db } from '../../lib/firebase';
 import { collection, query, where, getDocs, updateDoc, doc, addDoc, onSnapshot } from 'firebase/firestore';
 import GuestLayout from '../guest/layout';
-import { sendCancellationEmail, sendDayTourCancellationEmail } from '../../lib/emailService';
 
 export default function ReservationTrackerPage() {
   const [email, setEmail] = useState('');
@@ -236,11 +235,18 @@ const addCancellationNotification = async (booking, reason) => {
       // Add notification for admin with reason
       await addCancellationNotification(reservation, cancellationReason);
       
-      // Send cancellation email based on reservation type
-      if (reservation.type === 'daytour') {
-        await sendDayTourCancellationEmail(reservation, cancellationReason, 'guest');
-      } else {
-        await sendCancellationEmail(reservation, cancellationReason, 'guest');
+      const guestEmail = reservation.guestInfo?.email;
+      if (guestEmail) {
+        await fetch('/api/public/guest-cancellation-email', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            bookingId: reservation.id,
+            type: reservation.type === 'daytour' ? 'daytour' : 'room',
+            guestEmail,
+            reason: cancellationReason,
+          }),
+        });
       }
       
       setShowSuccessModal(true);

@@ -1,0 +1,67 @@
+rules_version = '2';
+
+// SandyFeet — deploy: firebase deploy --only firestore:rules
+//
+// Phase B: Tightening `bookings` / `dayTourBookings` for unauthenticated guest flows will
+// break the reservation tracker and public booking UIs until those reads go through trusted APIs.
+//
+// passwordResets: only Firebase Admin SDK (see forgot-password / reset-password API routes).
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    match /passwordResets/{resetId} {
+      allow read, write: if false;
+    }
+
+    match /users/{userId} {
+      allow read, write: if true;
+    }
+    match /bookings/{id} {
+      allow read, write: if true;
+    }
+    match /dayTourBookings/{id} {
+      allow read, write: if true;
+    }
+    match /guest_cancellations/{id} {
+      allow read, write: if true;
+    }
+    match /auditLogs/{id} {
+      allow read, write: if true;
+    }
+    match /bank_requests/{id} {
+      allow read, write: if true;
+    }
+    match /daytour_bank_requests/{id} {
+      allow read, write: if true;
+    }
+    match /rooms/{id} {
+      allow read, write: if true;
+    }
+    match /reservations/{id} {
+      allow read, write: if true;
+    }
+    match /dayTours/{id} {
+      allow read, write: if true;
+    }
+    match /activities/{id} {
+      allow read, write: if true;
+    }
+    match /unavailableSlots/{id} {
+      allow read, write: if true;
+    }
+    match /bank_accounts/{id} {
+      allow read, write: if true;
+    }
+    match /archived_gcash_qr/{id} {
+      allow read, write: if true;
+    }
+    match /daytour_unavailable_dates/{id} {
+      allow read, write: if true;
+    }
+
+    match /{other=**} {
+      allow read, write: if false;
+    }
+  }
+}

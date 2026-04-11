@@ -23,6 +23,7 @@ export default function StaffSidebar({ isOpen, onToggle }) {
 
   const confirmSignOut = async () => {
     try {
+      await fetch('/api/auth/logout', { method: 'POST', credentials: 'include' });
       await signOut(auth);
       
       localStorage.removeItem('userType');

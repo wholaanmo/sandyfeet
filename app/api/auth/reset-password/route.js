@@ -1,11 +1,13 @@
 // app/api/auth/reset-password/route.js
 import { NextResponse } from 'next/server';
-import { db } from '../../../../lib/firebase';          // client SDK for Firestore
-import { doc, getDoc, updateDoc } from 'firebase/firestore';
-import { auth as adminAuth } from '../../../../lib/firebaseAdmin';   // Admin SDK
+import { getAdminAuth, getAdminDb, isAdminInitialized } from '../../../../lib/firebaseAdmin';
 
 export async function POST(request) {
   try {
+    if (!isAdminInitialized()) {
+      return NextResponse.json({ error: 'Server not configured' }, { status: 503 });
+    }
+
     const { token, email, newPassword } = await request.json();
 
     if (!token || !email || !newPassword) {
@@ -15,11 +17,11 @@ export async function POST(request) {
       return NextResponse.json({ error: 'Password must be at least 6 characters' }, { status: 400 });
     }
 
-    // 1. Verify reset token from Firestore (client SDK)
-    const resetRef = doc(db, 'passwordResets', token);
-    const resetDoc = await getDoc(resetRef);
+    const db = getAdminDb();
+    const resetRef = db.collection('passwordResets').doc(token);
+    const resetDoc = await resetRef.get();
 
-    if (!resetDoc.exists()) {
+    if (!resetDoc.exists) {
       return NextResponse.json({ error: 'Invalid or expired reset link' }, { status: 400 });
     }
 
@@ -35,11 +37,9 @@ export async function POST(request) {
       return NextResponse.json({ error: 'Reset link has expired' }, { status: 400 });
     }
 
-    // 2. Update password using Admin SDK (always works on server)
-    await adminAuth.updateUser(resetData.uid, { password: newPassword });
+    await getAdminAuth().updateUser(resetData.uid, { password: newPassword });
 
-    // 3. Mark token as used
-    await updateDoc(resetRef, { used: true, updatedAt: new Date().toISOString() });
+    await resetRef.update({ used: true, updatedAt: new Date().toISOString() });
 
     return NextResponse.json({ message: 'Password updated successfully' });
   } catch (error) {

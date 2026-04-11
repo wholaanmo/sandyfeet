@@ -135,7 +135,6 @@ export default function Login() {
         const userDoc = await getDoc(doc(db, "users", uid));
         const userData = userDoc.data();
         const role = userData.role;
-        const status = userData.status;
         
         const sessionToken = generateSessionToken();
         const sessionExpiry = new Date().getTime() + (24 * 60 * 60 * 1000);
@@ -148,6 +147,23 @@ export default function Login() {
         
         if (rememberMe) {
             localStorage.setItem('rememberMe', 'true');
+        }
+
+        try {
+            const idToken = await auth.currentUser?.getIdToken(true);
+            if (idToken) {
+                const sessionRes = await fetch('/api/auth/session', {
+                    method: 'POST',
+                    credentials: 'include',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ idToken }),
+                });
+                if (!sessionRes.ok) {
+                    console.warn('Session cookie not set:', await sessionRes.text());
+                }
+            }
+        } catch (e) {
+            console.warn('Session cookie error:', e);
         }
         
         if (role === 'admin') {

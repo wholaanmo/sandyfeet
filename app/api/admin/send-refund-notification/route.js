@@ -1,10 +1,13 @@
 // app/api/admin/send-refund-notification/route.js
 import { NextResponse } from 'next/server';
-import { db } from '../../../../lib/firebase';
-import { doc, getDoc } from 'firebase/firestore';
-import { sendRefundNotificationEmail } from '../../../../lib/emailService';
+import { requireAdmin } from '../../../../lib/auth-api';
+import { getAdminDb } from '../../../../lib/firebaseAdmin';
+import { sendRefundNotificationEmail } from '../../../../lib/emailService.server';
 
 export async function POST(request) {
+  const authz = await requireAdmin(request);
+  if ('error' in authz) return authz.error;
+
   try {
     const { bookingId, type } = await request.json();
 
@@ -24,12 +27,10 @@ export async function POST(request) {
     if (!collectionName) {
       return NextResponse.json({ error: 'Invalid booking type' }, { status: 400 });
     }
-    
-    // Fetch booking data from Firestore
-    const bookingRef = doc(db, collectionName, bookingId);
-    const bookingSnap = await getDoc(bookingRef);
 
-    if (!bookingSnap.exists()) {
+    const bookingSnap = await getAdminDb().collection(collectionName).doc(bookingId).get();
+
+    if (!bookingSnap.exists) {
       return NextResponse.json({ error: 'Booking not found' }, { status: 404 });
     }
 

@@ -5,7 +5,11 @@ import { useState, useEffect } from 'react';
 import { db } from '../../../../lib/firebase';
 import { collection, query, orderBy, onSnapshot, updateDoc, doc } from 'firebase/firestore';
 import { logAdminAction } from '../../../../lib/auditLogger';
-import { sendConfirmationEmail, sendCancellationEmail } from '../../../../lib/emailService';
+import {
+  sendConfirmationEmail,
+  sendCancellationEmail,
+  adminAuthJsonHeaders,
+} from '../../../../lib/emailService';
 
 export default function AdminReservations() {
   const [activeTab, setActiveTab] = useState('rooms');
@@ -244,10 +248,16 @@ export default function AdminReservations() {
       
       setNotificationSent(prev => ({ ...prev, [booking.id]: { refund: true, moveDate: prev[booking.id]?.moveDate || false } }));
       
+      const authHeaders = await adminAuthJsonHeaders();
+      if (!authHeaders) {
+        showNotification('Not signed in. Please log in again.', 'error');
+        return;
+      }
       const response = await fetch('/api/admin/send-refund-notification', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ bookingId: booking.id, type: notificationType })
+        credentials: 'include',
+        headers: authHeaders,
+        body: JSON.stringify({ bookingId: booking.id, type: notificationType }),
       });
       const data = await response.json();
 
@@ -290,10 +300,16 @@ export default function AdminReservations() {
       
       setNotificationSent(prev => ({ ...prev, [booking.id]: { refund: prev[booking.id]?.refund || false, moveDate: true } }));
       
+      const authHeaders = await adminAuthJsonHeaders();
+      if (!authHeaders) {
+        showNotification('Not signed in. Please log in again.', 'error');
+        return;
+      }
       const response = await fetch('/api/admin/send-move-date-notification', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ bookingId: booking.id, type: notificationType })
+        credentials: 'include',
+        headers: authHeaders,
+        body: JSON.stringify({ bookingId: booking.id, type: notificationType }),
       });
       const data = await response.json();
 
@@ -632,10 +648,16 @@ const handleCancelDayTourReservation = async () => {
 
     setRefundModal(prev => ({ ...prev, sending: true }));
     try {
+      const authHeaders = await adminAuthJsonHeaders();
+      if (!authHeaders) {
+        showNotification('Not signed in. Please log in again.', 'error');
+        return;
+      }
       const response = await fetch('/api/admin/send-refund-notification', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ bookingId: booking.id, type: 'daytour' })
+        credentials: 'include',
+        headers: authHeaders,
+        body: JSON.stringify({ bookingId: booking.id, type: 'daytour' }),
       });
       const data = await response.json();
 
