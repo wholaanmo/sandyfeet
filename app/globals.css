@@ -68,6 +68,20 @@
   }
 }
 
+@keyframes guest-float-y {
+  0%,
+  100% {
+    transform: translateY(0);
+  }
+  50% {
+    transform: translateY(-10px);
+  }
+}
+
+.guest-float {
+  animation: guest-float-y 5s ease-in-out infinite;
+}
+
 /* Smooth transitions */
 .transition-all {
   transition-property: all;
