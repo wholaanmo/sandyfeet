@@ -1,20 +1,23 @@
 @import "tailwindcss";
 
 :root {
---color-ocean-deep: #15546A;       /* rich cyan-blue */
---color-ocean-mid:  #2EA3C6;       /* vibrant soft cyan */
---color-ocean-light: #4FC3E8;      /* light airy cyan */
---color-ocean-lighter: #AEEBFF;    /* very soft cyan */
---color-ocean-pale: #D6F6FF;       /* pale cyan */
---color-ocean-ice: #F2FCFF;        /* almost white cyan */
---color-blue-white: #F8FAFF;       /* subtle bluish white */
+  /* MAIN THEME (adjusted to your new palette) */
+  --color-ocean-deep: #1F3F49;       /* sidebar (main dark) */
+  --color-ocean-mid:  #2E6F7E;       /* hover / active */
+  --color-ocean-light: #4A8FA1;      /* lighter version of hover */
+  --color-ocean-lighter: #7FB4C1;    /* soft secondary */
+  --color-ocean-pale: #BFDDE5;       /* pale version */
+  --color-ocean-ice: #E8F4F7;        /* very light */
+  --color-blue-white: #FFF8F0;       /* main background */
 
---color-textPrimary: #1F6F8B;      /* readable darker cyan */
---color-textSecondary: #4FC3E8;    /* softer text */
+  /* TEXT COLORS */
+  --color-textPrimary: #1F3F49;      /* strong readable (same as sidebar) */
+  --color-textSecondary: #4A8FA1;    /* softer text */
 
---color-accent-blue: #4FC3E8;      /* buttons / highlights */
---color-neutral: #9CA3AF;
---color-white: #FFFFFF;
+  /* ACCENTS */
+  --color-accent-blue: #2E6F7E;      /* buttons / hover */
+  --color-neutral: #9CA3AF;
+  --color-white: #FFFFFF;
   --navbar-height: 60px;
 }
 

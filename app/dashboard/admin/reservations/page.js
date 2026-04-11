@@ -968,7 +968,7 @@ const handleConfirmReservation = async () => {
   });
 
   return (
-    <div className="p-6 bg-gradient-to-br from-ocean-ice to-blue-white min-h-screen">
+    <div className="p-8 min-h-screen" style={{ backgroundColor: 'var(--color-blue-white)' }}>
       {/* Header */}
       <div className="mb-6">
         <h1 className="text-3xl font-bold text-textPrimary font-playfair mb-1">

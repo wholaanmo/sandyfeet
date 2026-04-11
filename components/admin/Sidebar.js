@@ -1,3 +1,4 @@
+// components/admin/Sidebar.js
 'use client';
 
 import { useState, useEffect } from 'react';
@@ -7,7 +8,7 @@ import { usePathname, useRouter } from 'next/navigation';
 import { auth } from '../../lib/firebase';
 import { signOut } from 'firebase/auth';
 
-export default function AdminSidebar({ isOpen, onToggle }) {
+export default function AdminSidebar({ isOpen, onToggle, isDesktop }) {
   const [is_expanded, setIsExpanded] = useState(false);
   const [showSignOutModal, setShowSignOutModal] = useState(false);
   const pathname = usePathname();
@@ -57,6 +58,18 @@ export default function AdminSidebar({ isOpen, onToggle }) {
     return pathname === path;
   };
 
+  const toggleExpandCollapse = () => {
+    setIsExpanded(!is_expanded);
+    onToggle(!is_expanded);
+  };
+
+  // Close sidebar on mobile after navigation
+  const handleMobileMenuClick = () => {
+    if (!isDesktop) {
+      onToggle(false);
+    }
+  };
+
   const menuItems = [
     { path: '/dashboard/admin/overview', icon: 'dashboard', label: 'Overview', materialIcon: 'dashboard' },
     { path: '/dashboard/admin/reservations', icon: 'event', label: 'Reservations', materialIcon: 'event' },
@@ -71,126 +84,180 @@ export default function AdminSidebar({ isOpen, onToggle }) {
     { path: '/dashboard/admin/archive', icon: 'archive', label: 'Archive', materialIcon: 'archive' } 
   ];
 
+  const getSidebarClasses = () => {
+    if (!isDesktop) {
+      // Mobile: 40% width, slide from left, 3s transition
+      return `fixed left-0 h-screen z-40 transition-all duration-[3000ms] ease-in-out flex flex-col shadow-xl overflow-x-visible ${
+        isOpen ? 'translate-x-0' : '-translate-x-full'
+      }`;
+    }
+    // Desktop: original behavior (0.3s transition)
+    return `fixed left-0 top-0 h-screen z-40 transition-all duration-300 ease-in-out flex flex-col shadow-xl overflow-x-visible ${
+      is_expanded ? 'w-sidebar-expanded' : 'w-sidebar-collapsed'
+    } ${isOpen ? 'translate-x-0' : '-translate-x-full'} lg:translate-x-0`;
+  };
+
+  const getSidebarStyle = () => {
+    if (!isDesktop) {
+      return {
+        backgroundColor: '#2E6F7E',
+        boxShadow: '2px 0 15px rgba(0, 0, 0, 0.08)',
+        transition: 'transform 3s cubic-bezier(0.4, 0, 0.2, 1)', // 3 seconds
+        top: '60px',
+        width: '40%',
+        height: 'calc(100vh - 60px)'
+      };
+    }
+    return {
+      backgroundColor: '#2E6F7E',
+      boxShadow: '2px 0 15px rgba(0, 0, 0, 0.08)',
+      transition: 'width 0.3s cubic-bezier(0.4, 0, 0.2, 1), transform 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
+    };
+  };
+
   return (
     <>
-      {/* Mobile Overlay */}
-      {isOpen && (
+      {/* Mobile Overlay - covers the remaining 60% of the screen */}
+      {isOpen && !isDesktop && (
         <div
-          className="fixed inset-0 bg-black/50 backdrop-blur-sm z-40 lg:hidden transition-opacity duration-300"
+          className="fixed inset-0 bg-black/50 backdrop-blur-sm z-30 transition-opacity duration-300"
+          style={{ top: '60px' }}
+          onClick={() => onToggle(false)}
+        />
+      )}
+      {isOpen && isDesktop && (
+        <div
+          className="fixed inset-0 bg-black/50 backdrop-blur-sm z-30 lg:hidden transition-opacity duration-300"
           onClick={() => onToggle(false)}
         />
       )}
 
       {/* Sidebar */}
       <aside
-        className={`fixed left-0 top-0 h-screen z-50 overflow-y-auto transition-all duration-300 ease-in-out flex flex-col shadow-2xl ${
-          is_expanded ? 'w-sidebar-expanded' : 'w-sidebar-collapsed'
-        } ${isOpen ? 'translate-x-0' : '-translate-x-full'} lg:translate-x-0`}
-        style={{
-          background: 'linear-gradient(135deg, var(--color-ocean-deep) 0%, var(--color-ocean-mid) 50%, var(--color-ocean-light) 100%)',
-          boxShadow: '5px 0 25px rgba(0, 0, 0, 0.1)',
-          scrollbarWidth: 'none',
-          msOverflowStyle: 'none',
-          transition: 'width 0.3s cubic-bezier(0.4, 0, 0.2, 1), transform 0.3s cubic-bezier(0.4, 0, 0.2, 1)'
-        }}
+        className={getSidebarClasses()}
+        style={getSidebarStyle()}
       >
-        {/* Hide scrollbar for Chrome, Safari and Opera */}
-        <style jsx>{`
-          aside::-webkit-scrollbar {
-            display: none;
-          }
-        `}</style>
-        
-        {/* Logo Section */}
-        <div className={`pt-8 pb-6 ${is_expanded ? 'px-6' : 'px-4'} border-b border-white/20`}>
-          <div className={`flex items-center gap-3 ${is_expanded ? 'justify-start' : 'justify-center'}`}>
-            <div className="w-12 h-12 relative">
-              <Image 
-                src="/assets/Sea&RiverView.png" 
-                alt="SandyFeet Reservation" 
-                width={48}
-                height={48}
-                priority
-                className="rounded-full border-2 border-white/40 object-cover shadow-lg"
-              />
+        {/* Logo Section - hidden on mobile */}
+        {isDesktop && (
+          <div className={`pt-6 pb-4 ${is_expanded ? 'px-5' : 'px-3'} border-b border-white/20 flex-shrink-0`}>
+            <div className={`flex items-center gap-2 ${is_expanded ? 'justify-start' : 'justify-center'}`}>
+              <div className="w-10 h-10 relative flex-shrink-0">
+                <Image 
+                  src="/assets/Sea&RiverView.png" 
+                  alt="SandyFeet Reservation" 
+                  width={40}
+                  height={40}
+                  priority
+                  className="rounded-full border-2 border-white/40 object-cover shadow-md"
+                />
+              </div>
+              {is_expanded && (
+                <div className="flex flex-col min-w-0">
+                  <p className="font-bold text-base text-white leading-tight font-playfair m-0 truncate">
+                    SandyFeet
+                  </p>
+                  <p className="font-bold text-[10px] text-white/70 leading-tight m-0 truncate">
+                    Reservation System
+                  </p>
+                </div>
+              )}
             </div>
-            {is_expanded && (
-              <div className="flex flex-col">
-                <p className="font-bold text-lg text-white leading-tight font-playfair m-0">
-                  SandyFeet
-                </p>
-                <p className="font-bold text-xs text-white/70 leading-tight m-0">
-                  Reservation System
-                </p>
-              </div>
-            )}
           </div>
-        </div>
+        )}
 
-        <div className="p-4 flex-1">
-          {/* Menu Items */}
-          <div className="flex flex-col gap-2">
-            {menuItems.map((item) => (
-              <Link
-                key={item.path}
-                href={item.path}
-                className={`group relative flex items-center p-3 rounded-xl transition-all duration-200 w-full ${
-                  is_expanded ? 'justify-start' : 'justify-center'
-                } ${isActive(item.path) 
-                  ? 'bg-white/20 shadow-lg text-white' 
-                  : 'text-white/80 hover:bg-white/10 hover:text-white'}`}
-              >
-                <span className={`material-icons text-2xl min-w-6 text-center transition-all duration-200 ${
-                  isActive(item.path) 
-                    ? 'text-white scale-110' 
-                    : 'text-white/80 group-hover:text-white group-hover:scale-110'
-                }`}>
-                  {item.materialIcon}
-                </span>
-                {is_expanded && (
-                  <span className={`ml-4 text-sm font-medium transition-colors duration-200 ${
-                    isActive(item.path) ? 'text-white' : 'text-white/90'
-                  }`}>
-                    {item.label}
-                  </span>
-                )}
-                {/* Tooltip for collapsed state */}
-                {!is_expanded && (
-                  <div className="absolute left-full ml-2 px-2 py-1 bg-ocean-deep text-white text-xs rounded opacity-0 group-hover:opacity-100 pointer-events-none transition-opacity duration-200 whitespace-nowrap z-50 shadow-lg">
-                    {item.label}
-                  </div>
-                )}
-              </Link>
-            ))}
-          </div>
-        </div>
-
-        {/* Sign Out Button */}
-        <div className="p-4 border-t border-white/20 relative">
-          <button
-            onClick={handleSignOut}
-            className={`group relative flex items-center p-3 rounded-xl transition-all duration-200 w-full ${
-              is_expanded ? 'justify-start' : 'justify-center'
-            } text-white/80 hover:bg-white/10 hover:text-white`}
-          >
-            <span className="material-icons text-2xl min-w-6 text-center transition-transform duration-200 group-hover:scale-110 text-white/80 group-hover:text-white">
-              logout
-            </span>
-            {is_expanded && (
-              <span className="ml-4 text-sm font-medium">
-                Sign Out
+        {/* Toggle Button - only on desktop */}
+        {isDesktop && (
+          <div className="relative h-4 flex items-center justify-end hidden lg:block">
+            <button
+              onClick={toggleExpandCollapse}
+              className="absolute flex items-center justify-center w-7 h-7 rounded-full bg-white text-ocean-mid hover:bg-ocean-ice hover:text-ocean-deep transition-all duration-200 shadow-md z-10"
+              style={{
+                right: '-14px',
+                transform: 'translateY(-50%)',
+                top: '50%',
+                border: '2px solid white'
+              }}
+            >
+              <span className="material-icons text-sm">
+                {is_expanded ? 'chevron_left' : 'chevron_right'}
               </span>
-            )}
-            {!is_expanded && (
-              <div className="absolute left-full ml-2 px-2 py-1 bg-ocean-deep text-white text-xs rounded opacity-0 group-hover:opacity-100 pointer-events-none transition-opacity duration-200 whitespace-nowrap z-50 shadow-lg">
-                Sign Out
-              </div>
-            )}
-          </button>
+            </button>
+          </div>
+        )}
+
+        {/* Menu Items Container */}
+        <div className="flex-1 flex flex-col overflow-hidden mt-2">
+          <div className="p-3 flex-1 overflow-y-auto overflow-x-hidden" style={{ scrollbarWidth: 'none', msOverflowStyle: 'none' }}>
+            <style jsx>{`
+              div::-webkit-scrollbar {
+                display: none;
+              }
+            `}</style>
+            
+            <div className="flex flex-col gap-1.5">
+              {menuItems.map((item) => (
+                <Link
+                  key={item.path}
+                  href={item.path}
+                  onClick={handleMobileMenuClick}
+                  className={`group relative flex items-center p-2.5 rounded-lg transition-all duration-200 w-full ${
+                    (!isDesktop || is_expanded) ? 'justify-start' : 'justify-center'
+                  } ${isActive(item.path) 
+                    ? 'bg-white/25 shadow-md text-white' 
+                    : 'text-white/80 hover:bg-white/15 hover:text-white'}`}
+                >
+                  <span className={`material-icons text-xl min-w-5 text-center transition-all duration-200 ${
+                    isActive(item.path) 
+                      ? 'text-white scale-105' 
+                      : 'text-white/80 group-hover:text-white group-hover:scale-105'
+                  }`}>
+                    {item.materialIcon}
+                  </span>
+                  {(!isDesktop || is_expanded) && (
+                    <span className={`ml-3 text-xs font-medium transition-colors duration-200 ${
+                      isActive(item.path) ? 'text-white' : 'text-white/90'
+                    }`}>
+                      {item.label}
+                    </span>
+                  )}
+                  {/* Tooltip only for desktop collapsed state */}
+                  {isDesktop && !is_expanded && (
+                    <div className="absolute left-full ml-2 px-2 py-1 bg-[#2E6F7E] text-white text-xs rounded opacity-0 group-hover:opacity-100 pointer-events-none transition-opacity duration-200 whitespace-nowrap z-50 shadow-md">
+                      {item.label}
+                    </div>
+                  )}
+                </Link>
+              ))}
+            </div>
+          </div>
+
+          {/* Sign Out Button */}
+          <div className="p-3 border-t border-white/20 flex-shrink-0">
+            <button
+              onClick={handleSignOut}
+              className={`group relative flex items-center p-2.5 rounded-lg transition-all duration-200 w-full ${
+                (!isDesktop || is_expanded) ? 'justify-start' : 'justify-center'
+              } text-white/80 hover:bg-white/15 hover:text-white`}
+            >
+              <span className="material-icons text-xl min-w-5 text-center transition-transform duration-200 group-hover:scale-105 text-white/80 group-hover:text-white">
+                logout
+              </span>
+              {(!isDesktop || is_expanded) && (
+                <span className="ml-3 text-xs font-medium">
+                  Sign Out
+                </span>
+              )}
+              {isDesktop && !is_expanded && (
+                <div className="absolute left-full ml-2 px-2 py-1 bg-[#2E6F7E] text-white text-xs rounded opacity-0 group-hover:opacity-100 pointer-events-none transition-opacity duration-200 whitespace-nowrap z-50 shadow-md">
+                  Sign Out
+                </div>
+              )}
+            </button>
+          </div>
         </div>
       </aside>
 
-      {/* Sign Out Modal */}
+      {/* Sign Out Modal (unchanged) */}
       {showSignOutModal && (
         <div
           className="fixed inset-0 bg-black/50 backdrop-blur-sm z-100 flex justify-center items-center p-4"

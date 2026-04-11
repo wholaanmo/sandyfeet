@@ -5,7 +5,7 @@ import Image from 'next/image';
 import { auth, db } from '../../lib/firebase';
 import { doc, getDoc, collection, query, orderBy, onSnapshot, updateDoc, writeBatch, getDocs } from 'firebase/firestore';
 
-export default function StaffNavbar({ toggleSidebar, sidebarOpen }) {
+export default function StaffNavbar({ toggleSidebar, sidebarOpen, isDesktop }) {
   const [userName, setUserName] = useState('');
   const [userRole, setUserRole] = useState('');
   const [unreadCount, setUnreadCount] = useState(0);
@@ -236,24 +236,46 @@ export default function StaffNavbar({ toggleSidebar, sidebarOpen }) {
     setShowNotifications(!showNotifications);
   };
 
-  return (
-    <nav 
-      className="fixed right-0 h-navbar bg-white z-40 shadow-sm flex items-center transition-all duration-300 ease-in-out"
-      style={{ 
+  // Dynamic navbar style (copied from AdminNavbar)
+  const navbarStyle = isDesktop
+    ? {
         left: sidebarOpen ? '260px' : '80px',
         width: sidebarOpen ? 'calc(100% - 260px)' : 'calc(100% - 80px)',
         transition: 'left 0.3s cubic-bezier(0.4, 0, 0.2, 1), width 0.3s cubic-bezier(0.4, 0, 0.2, 1)'
-      }}
+      }
+    : {
+        left: 0,
+        width: '100%',
+        transition: 'none'
+      };
+
+  return (
+    <nav 
+      className="fixed right-0 h-navbar bg-white z-50 shadow-sm flex items-center"
+      style={navbarStyle}
     >
       <div className="flex items-center justify-between h-full px-6 w-full">
-        {/* Page Title */}
+        {/* Left section: hamburger (mobile) + page title (desktop) */}
         <div className="flex items-center gap-3">
-          <div className="w-1 h-8 bg-gradient-to-b from-ocean-light to-ocean-mid rounded-full"></div>
-          <h1 className="text-xl font-semibold text-ocean-deep font-playfair">
-            Staff Dashboard
-          </h1>
+          {/* Hamburger button - visible only on mobile */}
+          <button
+            onClick={toggleSidebar}
+            className="block lg:hidden text-ocean-mid hover:text-ocean-deep hover:scale-105 transition-all duration-200 p-1 rounded-md focus:outline-none"
+            aria-label="Menu"
+          >
+            <span className="material-icons text-2xl">menu</span>
+          </button>
+          
+          {/* Page Title - hidden on mobile */}
+          <div className="hidden lg:flex items-center gap-3">
+            <div className="w-1 h-8 bg-gradient-to-b from-ocean-light to-ocean-mid rounded-full"></div>
+            <h1 className="text-xl font-semibold text-ocean-deep font-playfair">
+              Staff Dashboard
+            </h1>
+          </div>
         </div>
 
+        {/* Right section: user badge and notifications (unchanged) */}
         <div className="flex items-center gap-4">
           {/* Role and Name Badge */}
           <div className="flex items-center gap-2 px-4 py-2 rounded-full bg-gradient-to-r from-blue-white to-white shadow-sm border border-ocean-light/10 hover:shadow-md transition-all duration-200">
@@ -380,13 +402,6 @@ export default function StaffNavbar({ toggleSidebar, sidebarOpen }) {
               </div>
             )}
           </div>
-          
-          <button
-            onClick={toggleSidebar}
-            className="flex items-center justify-center w-10 h-10 rounded-full bg-gradient-to-r from-blue-white to-white text-ocean-light border border-ocean-light/10 hover:bg-gradient-to-r hover:from-ocean-light hover:to-ocean-mid hover:text-white transition-all duration-300 hover:rotate-180 shadow-sm"
-          >
-            <span className="material-icons">menu</span>
-          </button>
         </div>
       </div>
     </nav>
