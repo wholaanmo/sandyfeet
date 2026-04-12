@@ -615,7 +615,7 @@ export default function AdminCalendar() {
                       break;
                     case 'checkOutBlocked':
                       bgColor = 'bg-green-100';
-                      textColor = 'text-textPrimary';
+                      textColor = 'text-green-800';
                       cursorClass = 'cursor-pointer';
                       titleText = 'Check-out restricted (12:00 AM – 12:00 PM)';
                       break;

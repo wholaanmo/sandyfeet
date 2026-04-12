@@ -935,7 +935,7 @@ const handleTotalGuestsChange = (roomType, value) => {
                         titleText = 'Check-in is not available on this date';
                       } else if (isCheckoutRestrictedAndFullyBooked) {
                         bgColor = 'bg-white';
-                        textColor = 'text-textPrimary';
+                        textColor = 'text-green-800';
                         borderClass = 'border border-gray-200';
                         cursorClass = 'cursor-not-allowed';
                         titleText =
@@ -1003,11 +1003,11 @@ const handleTotalGuestsChange = (roomType, value) => {
                     </div>
                     <div className="flex items-center gap-1.5">
                       <div className="w-3 h-3 bg-red-100 border border-red-200 rounded"></div>
-                      <span className="text-textSecondary">Fully Booked</span>
+                      <span className="text-textSecondary">Fully booked (no check-out restriction)</span>
                     </div>
                     <div className="flex items-center gap-1.5">
                       <div className="w-3 h-3 bg-yellow-100 border border-yellow-200 rounded"></div>
-                      <span className="text-textSecondary">Check-in Restricted</span>
+                      <span className="text-textSecondary">Check-in restricted</span>
                     </div>
                     <div className="flex items-center gap-1.5">
                       <div className="w-3 h-3 bg-green-100 border border-green-200 rounded"></div>

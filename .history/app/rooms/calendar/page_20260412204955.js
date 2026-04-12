@@ -532,7 +532,7 @@ export default function RoomCalendar() {
                         titleText = 'Check-in is not available on this date';
                       } else if (isCheckoutRestrictedAndFullyBooked) {
                         bgColor = 'bg-white';
-                        textColor = 'text-textPrimary';
+                        textColor = 'text-green-800';
                         borderClass = 'border border-gray-200';
                         cursorClass = 'cursor-not-allowed';
                         titleText =
@@ -596,15 +596,15 @@ export default function RoomCalendar() {
                     </div>
                     <div className="flex items-center gap-1.5">
                       <div className="w-3 h-3 bg-red-100 border border-red-200 rounded"></div>
-                      <span className="text-textSecondary">Fully Booked</span>
+                      <span className="text-textSecondary">Fully Booked (no check-out restriction)</span>
                     </div>
                     <div className="flex items-center gap-1.5">
                       <div className="w-3 h-3 bg-yellow-100 border border-yellow-200 rounded"></div>
-                      <span className="text-textSecondary">Check-in Restricted</span>
+                      <span className="text-textSecondary">Check-in restricted</span>
                     </div>
                     <div className="flex items-center gap-1.5">
                       <div className="w-3 h-3 bg-green-100 border border-green-200 rounded"></div>
-                      <span className="text-textSecondary">Check-out Restricted</span>
+                      <span className="text-textSecondary">Check-out restricted only</span>
                     </div>
                     <div className="flex items-center gap-1.5">
                       <div className="w-3 h-3 bg-orange-100 border border-orange-200 rounded"></div>
@@ -616,12 +616,12 @@ export default function RoomCalendar() {
                     </div>
                     <div className="bg-white rounded flex items-center gap-1 px-1 py-0.5">
   <div className="flex items-center gap-1">
-    <span className="w-2.5 h-2 rounded-full bg-green-400" />
-    <span className="w-2.5 h-2 rounded-full bg-red-500" />
+    <span className="w-4 h-2 rounded-full bg-green-400" />
+    <span className="w-4 h-2 rounded-full bg-red-500" />
   </div>
 
-  <span className="text-textSecondary">
-    Fully Booked & Check-out Restricted 
+  <span className="text-sm leading-none">
+    Fully booked + check-out restricted (dots below date)
   </span>
 </div>
                     <div className="flex items-center gap-1.5">

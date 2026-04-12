@@ -532,7 +532,7 @@ export default function RoomCalendar() {
                         titleText = 'Check-in is not available on this date';
                       } else if (isCheckoutRestrictedAndFullyBooked) {
                         bgColor = 'bg-white';
-                        textColor = 'text-textPrimary';
+                        textColor = 'text-green-800';
                         borderClass = 'border border-gray-200';
                         cursorClass = 'cursor-not-allowed';
                         titleText =

@@ -615,7 +615,7 @@ export default function AdminCalendar() {
                       break;
                     case 'checkOutBlocked':
                       bgColor = 'bg-green-100';
-                      textColor = 'text-textPrimary';
+                      textColor = 'text-green-800';
                       cursorClass = 'cursor-pointer';
                       titleText = 'Check-out restricted (12:00 AM – 12:00 PM)';
                       break;
@@ -686,23 +686,18 @@ export default function AdminCalendar() {
 
               <div className="mt-6 pt-4 border-t border-ocean-light/10 flex justify-center gap-6 text-xs flex-wrap">
                 <div className="flex items-center gap-1.5"><div className="w-3 h-3 bg-white border border-gray-300 rounded"></div><span>Available</span></div>
-                <div className="flex items-center gap-1.5"><div className="w-3 h-3 bg-red-100 border border-red-200 rounded"></div><span>Fully booked</span></div>
-                <div className="flex items-center gap-1.5"><div className="w-3 h-3 bg-yellow-100 border border-yellow-200 rounded"></div><span>Check-in Restricted</span></div>
-                <div className="flex items-center gap-1.5"><div className="w-3 h-3 bg-green-100 border border-green-200 rounded"></div><span>Check-out Restricted</span></div>
+                <div className="flex items-center gap-1.5"><div className="w-3 h-3 bg-red-100 border border-red-200 rounded"></div><span>Fully booked (no check-out restriction)</span></div>
+                <div className="flex items-center gap-1.5"><div className="w-3 h-3 bg-yellow-100 border border-yellow-200 rounded"></div><span>Check-in restricted</span></div>
+                <div className="flex items-center gap-1.5"><div className="w-3 h-3 bg-green-100 border border-green-200 rounded"></div><span>Check-out restricted only</span></div>
                 <div className="flex items-center gap-1.5">
+                <div className="bg-white rounded flex items-center justify-center gap-1.5 px-1 py-0.5">
+  <span className="w-2.5 h-2 rounded-full bg-green-400" />
+  <span className="w-2.5 h-2 rounded-full bg-red-500" />
+</div>
+                  <span>Fully Booked and Check-out restricted</span>
                 </div>
                 <div className="flex items-center gap-1.5"><div className="w-3 h-3 bg-gray-100 border border-gray-200 rounded"></div><span>Past Dates</span></div>
                 <div className="flex items-center gap-1.5"><div className="w-3 h-3 bg-orange-100 border border-orange-200 rounded"></div><span>Not Available</span></div>
-                <div className="bg-white rounded flex items-center gap-1 px-1 py-0.5">
-  <div className="flex items-center gap-1">
-    <span className="w-2.5 h-2 rounded-full bg-green-400" />
-    <span className="w-2.5 h-2 rounded-full bg-red-500" />
-  </div>
-
-  <span>
-    Fully Booked & Check-out Restricted
-  </span>
-</div>
                 <div className="flex items-center gap-1.5"><div className="w-3 h-3 bg-ocean-mid rounded"></div><span>Selected</span></div>
               </div>
             </div>

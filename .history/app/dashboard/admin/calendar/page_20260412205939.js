@@ -615,7 +615,7 @@ export default function AdminCalendar() {
                       break;
                     case 'checkOutBlocked':
                       bgColor = 'bg-green-100';
-                      textColor = 'text-textPrimary';
+                      textColor = 'text-green-800';
                       cursorClass = 'cursor-pointer';
                       titleText = 'Check-out restricted (12:00 AM – 12:00 PM)';
                       break;
@@ -703,6 +703,7 @@ export default function AdminCalendar() {
     Fully Booked & Check-out Restricted
   </span>
 </div>
+                  <span>Fully Booked and Check-out Restricted</span>
                 <div className="flex items-center gap-1.5"><div className="w-3 h-3 bg-ocean-mid rounded"></div><span>Selected</span></div>
               </div>
             </div>
