@@ -925,19 +925,19 @@ const handleTotalGuestsChange = (roomType, value) => {
                         borderClass = 'border border-yellow-200';
                         cursorClass = 'cursor-not-allowed';
                         titleText = 'Check-in is not available on this date';
-                      } else if (isPartiallyBlockedMorningOnly) {
-                        // Check-out Blocked -> Light Green
-                        bgColor = 'bg-green-100';
-                        textColor = 'text-green-800';
-                        borderClass = 'border border-green-200';
-                        cursorClass = 'cursor-pointer';
-                        titleText = 'Check-out is not available on this date';
                       } else if (isFullyBooked) {
                         bgColor = 'bg-red-100';
                         textColor = 'text-red-600';
                         borderClass = 'border border-red-200';
                         cursorClass = 'cursor-not-allowed';
                         titleText = 'Fully Booked';
+                      } else if (isPartiallyBlockedMorningOnly) {
+                        // Check-out Blocked -> Light Green (red takes precedence when fully booked)
+                        bgColor = 'bg-green-100';
+                        textColor = 'text-green-800';
+                        borderClass = 'border border-green-200';
+                        cursorClass = 'cursor-pointer';
+                        titleText = 'Check-out is not available on this date';
                       } else if (isSelected) {
                         bgColor = 'bg-ocean-mid';
                         textColor = 'text-white';
