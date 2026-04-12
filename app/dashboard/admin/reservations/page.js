@@ -39,6 +39,10 @@ export default function AdminReservations() {
   // Track which bookings have had notifications sent (persistent - will survive page refresh)
   const [notificationSent, setNotificationSent] = useState({});
 
+  // Fixed check-in and check-out times
+  const FIXED_CHECK_IN_DISPLAY = '02:00 PM';
+  const FIXED_CHECK_OUT_DISPLAY = '12:00 PM';
+
   // Load persisted notification sent status from localStorage on mount
   useEffect(() => {
     const saved = localStorage.getItem('admin_notification_sent');
@@ -78,6 +82,43 @@ export default function AdminReservations() {
       setStatusFilter('all');
     }
   }, [activeTab, statusFilter]);
+
+  // Function to format date with fixed check-in/check-out times
+  const formatDateWithTime = (date, type) => {
+    if (!date) return 'N/A';
+    try {
+      let dateObj;
+      if (date && typeof date.toDate === 'function') {
+        dateObj = date.toDate();
+      } else if (date && typeof date === 'object' && date.seconds) {
+        dateObj = new Date(date.seconds * 1000);
+      } else {
+        dateObj = new Date(date);
+      }
+      
+      if (isNaN(dateObj.getTime())) {
+        return 'Invalid Date';
+      }
+      
+      const formattedDate = dateObj.toLocaleDateString('en-US', {
+        year: 'numeric',
+        month: 'short',
+        day: 'numeric'
+      });
+      
+      // Return date with the appropriate fixed time
+      if (type === 'check-in') {
+        return `${formattedDate} at ${FIXED_CHECK_IN_DISPLAY}`;
+      } else if (type === 'check-out') {
+        return `${formattedDate} at ${FIXED_CHECK_OUT_DISPLAY}`;
+      }
+      
+      return formattedDate;
+    } catch (error) {
+      console.error('Error formatting date:', error);
+      return 'Invalid Date';
+    }
+  };
 
   // Function to group multi-room bookings by parentBookingId
   const groupMultiRoomBookings = (bookingsList) => {
@@ -243,13 +284,23 @@ export default function AdminReservations() {
           }
           
           if (isNaN(checkInRaw?.getTime?.()) || isNaN(checkOutRaw?.getTime?.())) continue;
-          const oneHourBeforeCheckOut = new Date(checkOutRaw.getTime() - 60 * 60 * 1000);
+          
+          // Create check-in time at 2:00 PM on check-in day
+          const checkInTime = new Date(checkInRaw);
+          checkInTime.setHours(14, 0, 0, 0);
+          
+          // Create check-out time at 12:00 PM on check-out day
+          const checkOutTime = new Date(checkOutRaw);
+          checkOutTime.setHours(12, 0, 0, 0);
+          
+          const oneHourBeforeCheckOut = new Date(checkOutTime.getTime() - 60 * 60 * 1000);
           let targetStatus = null;
-          if (now > checkOutRaw) {
+          
+          if (now > checkOutTime) {
             targetStatus = 'completed';
-          } else if (now >= oneHourBeforeCheckOut && now <= checkOutRaw) {
+          } else if (now >= oneHourBeforeCheckOut && now <= checkOutTime) {
             targetStatus = 'check-out';
-          } else if (now >= checkInRaw) {
+          } else if (now >= checkInTime) {
             targetStatus = 'check-in';
           }
           
@@ -1059,15 +1110,15 @@ const handleConfirmReservation = async () => {
                 <table className="w-full min-w-[700px]">
                   <thead>
                     <tr className="bg-ocean-pale/50 border-b border-ocean-light/20">
-                      <th className="px-3 py-2 text-left text-xs font-semibold text-textPrimary">Booking ID</th>
-                      <th className="px-3 py-2 text-left text-xs font-semibold text-textPrimary">Guest Name</th>
-                      <th className="px-3 py-2 text-left text-xs font-semibold text-textPrimary">Room Type(s)</th>
-                      <th className="px-3 py-2 text-left text-xs font-semibold text-textPrimary">Rooms</th>
-                      <th className="px-3 py-2 text-left text-xs font-semibold text-textPrimary">Check-in</th>
-                      <th className="px-3 py-2 text-left text-xs font-semibold text-textPrimary">Check-out</th>
-                      <th className="px-3 py-2 text-left text-xs font-semibold text-textPrimary min-w-[80px]">Status</th>
-                      <th className="px-3 py-2 text-left text-xs font-semibold text-textPrimary">Actions</th>
-                      <th className="px-3 py-2 text-left text-xs font-semibold text-textPrimary">Booked On</th>
+                      <th className="px-3 py-2 text-left text-sm font-semibold text-textPrimary">Booking ID</th>
+                      <th className="px-3 py-2 text-left text-sm font-semibold text-textPrimary">Guest Name</th>
+                      <th className="px-3 py-2 text-left text-sm font-semibold text-textPrimary">Room Type(s)</th>
+                      <th className="px-3 py-2 text-left text-sm font-semibold text-textPrimary">Rooms</th>
+                      <th className="px-3 py-2 text-left text-sm font-semibold text-textPrimary">Check-in</th>
+                      <th className="px-3 py-2 text-left text-sm font-semibold text-textPrimary">Check-out</th>
+                      <th className="px-3 py-2 text-left text-sm font-semibold text-textPrimary min-w-[80px]">Status</th>
+                      <th className="px-3 py-2 text-left text-sm font-semibold text-textPrimary">Actions</th>
+                      <th className="px-3 py-2 text-left text-sm font-semibold text-textPrimary">Booked On</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -1107,10 +1158,10 @@ const handleConfirmReservation = async () => {
                             {booking.isMultiRoomGroup ? booking.totalRooms : (booking.numberOfRooms || 1)}
                           </td>
                           <td className="px-3 py-2 text-xs text-textSecondary">
-                            {formatDateTimeFromDate(booking.checkIn)}
+                            {formatDateWithTime(booking.checkIn, 'check-in')}
                           </td>
                           <td className="px-3 py-2 text-xs text-textSecondary">
-                            {formatDateTimeFromDate(booking.checkOut)}
+                            {formatDateWithTime(booking.checkOut, 'check-out')}
                           </td>
                           <td className="px-3 py-2">
                             <span className={`inline-flex whitespace-nowrap px-2 py-0.5 rounded-full text-[10px] font-medium ${getStatusColor(booking.status)}`}>
@@ -1174,15 +1225,15 @@ const handleConfirmReservation = async () => {
                 <table className="w-full min-w-[650px]">
                   <thead>
                     <tr className="bg-ocean-pale/50 border-b border-ocean-light/20">
-                      <th className="px-3 py-2 text-left text-xs font-semibold text-textPrimary">Booking ID</th>
-                      <th className="px-3 py-2 text-left text-xs font-semibold text-textPrimary">Guest Name</th>
-                      <th className="px-3 py-2 text-left text-xs font-semibold text-textPrimary">Date</th>
-                      <th className="px-3 py-2 text-left text-xs font-semibold text-textPrimary">Senior</th>
-                      <th className="px-3 py-2 text-left text-xs font-semibold text-textPrimary">Adult</th>
-                      <th className="px-3 py-2 text-left text-xs font-semibold text-textPrimary">Kid</th>
-                      <th className="px-3 py-2 text-left text-xs font-semibold text-textPrimary min-w-[80px]">Status</th>
-                      <th className="px-3 py-2 text-left text-xs font-semibold text-textPrimary">Actions</th>
-                      <th className="px-3 py-2 text-left text-xs font-semibold text-textPrimary">Booked On</th>
+                      <th className="px-3 py-2 text-left text-sm font-semibold text-textPrimary">Booking ID</th>
+                      <th className="px-3 py-2 text-left text-sm font-semibold text-textPrimary">Guest Name</th>
+                      <th className="px-3 py-2 text-left text-sm font-semibold text-textPrimary">Date</th>
+                      <th className="px-3 py-2 text-left text-sm font-semibold text-textPrimary">Senior</th>
+                      <th className="px-3 py-2 text-left text-sm font-semibold text-textPrimary">Adult</th>
+                      <th className="px-3 py-2 text-left text-sm font-semibold text-textPrimary">Kid</th>
+                      <th className="px-3 py-2 text-left text-sm font-semibold text-textPrimary min-w-[80px]">Status</th>
+                      <th className="px-3 py-2 text-left text-sm font-semibold text-textPrimary">Actions</th>
+                      <th className="px-3 py-2 text-left text-sm font-semibold text-textPrimary">Booked On</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -1364,11 +1415,11 @@ const handleConfirmReservation = async () => {
                     <h3 className="text-xs font-semibold text-ocean-mid uppercase tracking-wide mb-2">Schedule</h3>
                     <p className="text-sm">
                       <span className="text-textSecondary">Check-in:</span>{' '}
-                      <span className="font-medium text-textPrimary">{formatDateTimeFromDate(selectedBooking.checkIn)}</span>
+                      <span className="font-medium text-textPrimary">{formatDateWithTime(selectedBooking.checkIn, 'check-in')}</span>
                     </p>
                     <p className="text-sm mt-1">
                       <span className="text-textSecondary">Check-out:</span>{' '}
-                      <span className="font-medium text-textPrimary">{formatDateTimeFromDate(selectedBooking.checkOut)}</span>
+                      <span className="font-medium text-textPrimary">{formatDateWithTime(selectedBooking.checkOut, 'check-out')}</span>
                     </p>
                   </div>
                 </>

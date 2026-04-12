@@ -12,6 +12,8 @@ export default function AdminNavbar({ toggleSidebar, sidebarOpen, isDesktop }) {
   const [unreadCount, setUnreadCount] = useState(0);
   const [showNotifications, setShowNotifications] = useState(false);
   const [notifications, setNotifications] = useState([]);
+  // Track which multi-room parent bookings have been added as notifications
+  const [processedMultiRoomParents, setProcessedMultiRoomParents] = useState(new Set());
 
   const asDate = (value) => {
     if (!value) return new Date(0);
@@ -109,25 +111,50 @@ export default function AdminNavbar({ toggleSidebar, sidebarOpen, isDesktop }) {
   }, []);
 
   // Real-time listener for new room reservations
+  // Modified to only show one notification per multi-room reservation (based on parentBookingId)
   useEffect(() => {
     const bookingsRef = collection(db, 'bookings');
     const q = query(bookingsRef, orderBy('createdAt', 'desc'));
 
     const unsubscribe = onSnapshot(q, (querySnapshot) => {
       const reservationNotifications = [];
+      const processedParents = new Set();
+
       querySnapshot.forEach((docSnap) => {
         const data = docSnap.data();
         if (data.type !== 'room') return;
-        reservationNotifications.push({
-          id: docSnap.id,
-          type: 'reservation_room',
-          guestName: `${data.guestInfo?.firstName || ''} ${data.guestInfo?.lastName || ''}`.trim() || 'Guest',
-          bookingId: data.bookingId,
-          roomType: data.roomType || 'N/A',
-          createdAt: data.createdAt,
-          read: data.read === true
-        });
+        
+        // Check if this is a child of a multi-room booking
+        if (data.isMultiRoomBooking && data.parentBookingId) {
+          // Only add one notification per parentBookingId
+          if (!processedParents.has(data.parentBookingId)) {
+            processedParents.add(data.parentBookingId);
+            reservationNotifications.push({
+              id: data.parentBookingId, // Use parentBookingId as the unique ID
+              type: 'reservation_room',
+              guestName: `${data.guestInfo?.firstName || ''} ${data.guestInfo?.lastName || ''}`.trim() || 'Guest',
+              bookingId: data.parentBookingId,
+              roomType: 'Multi-Room Booking',
+              createdAt: data.createdAt,
+              read: data.read === true,
+              isMultiRoom: true
+            });
+          }
+        } else if (!data.isMultiRoomBooking) {
+          // Single room booking
+          reservationNotifications.push({
+            id: docSnap.id,
+            type: 'reservation_room',
+            guestName: `${data.guestInfo?.firstName || ''} ${data.guestInfo?.lastName || ''}`.trim() || 'Guest',
+            bookingId: data.bookingId,
+            roomType: data.roomType || 'N/A',
+            createdAt: data.createdAt,
+            read: data.read === true,
+            isMultiRoom: false
+          });
+        }
       });
+      
       setNotifications((prev) => {
         const combined = [...prev.filter((n) => n.type !== 'reservation_room'), ...reservationNotifications];
         combined.sort((a, b) => asDate(b.createdAt) - asDate(a.createdAt));
@@ -172,26 +199,51 @@ export default function AdminNavbar({ toggleSidebar, sidebarOpen, isDesktop }) {
   }, []);
 
   // Real-time listener for guest cancellation notifications
+  // Modified to only show one cancellation per multi-room reservation
   useEffect(() => {
     const cancellationsRef = collection(db, 'guest_cancellations');
     const q = query(cancellationsRef, orderBy('cancelledAt', 'desc'));
     
     const unsubscribe = onSnapshot(q, (querySnapshot) => {
       const cancellations = [];
+      const processedParents = new Set();
+
       querySnapshot.forEach((doc) => {
         const data = doc.data();
         const isRead = data.read === true;
-        cancellations.push({
-          id: doc.id,
-          type: 'cancellation',
-          guestName: data.guestName,
-          bookingId: data.bookingId,
-          roomType: data.roomType,
-          selectedDate: data.selectedDate || data.reservationDate || data.date,
-          createdAt: data.cancelledAt,
-          read: isRead,
-        });
+        
+        // Check if this is a multi-room cancellation (based on parentBookingId in the data)
+        if (data.isMultiRoom && data.parentBookingId) {
+          if (!processedParents.has(data.parentBookingId)) {
+            processedParents.add(data.parentBookingId);
+            cancellations.push({
+              id: data.parentBookingId,
+              type: 'cancellation',
+              guestName: data.guestName,
+              bookingId: data.parentBookingId,
+              roomType: 'Multi-Room Booking',
+              selectedDate: data.selectedDate || data.reservationDate || data.date,
+              createdAt: data.cancelledAt,
+              read: isRead,
+              isMultiRoom: true
+            });
+          }
+        } else {
+          // Single booking cancellation
+          cancellations.push({
+            id: doc.id,
+            type: 'cancellation',
+            guestName: data.guestName,
+            bookingId: data.bookingId,
+            roomType: data.roomType,
+            selectedDate: data.selectedDate || data.reservationDate || data.date,
+            createdAt: data.cancelledAt,
+            read: isRead,
+            isMultiRoom: false
+          });
+        }
       });
+      
       setNotifications(prev => {
         const combined = [...prev.filter(n => n.type !== 'cancellation'), ...cancellations];
         combined.sort((a, b) => asDate(b.createdAt) - asDate(a.createdAt));
@@ -220,8 +272,39 @@ export default function AdminNavbar({ toggleSidebar, sidebarOpen, isDesktop }) {
       if (notification.type === 'bank_transfer_daytour') collectionName = 'daytour_bank_requests';
       if (notification.type === 'reservation_room') collectionName = 'bookings';
       if (notification.type === 'reservation_daytour') collectionName = 'dayTourBookings';
-      const docRef = doc(db, collectionName, notification.id);
-      await updateDoc(docRef, { read: true });
+      
+      if (notification.type === 'reservation_room' && notification.isMultiRoom) {
+        // For multi-room notifications, mark all child bookings as read
+        const bookingsRef = collection(db, 'bookings');
+        const q = query(bookingsRef);
+        const snapshot = await getDocs(q);
+        const batch = writeBatch(db);
+        
+        snapshot.forEach((docSnap) => {
+          const data = docSnap.data();
+          if (data.type === 'room' && data.isMultiRoomBooking && data.parentBookingId === notification.id && data.read !== true) {
+            batch.update(docSnap.ref, { read: true });
+          }
+        });
+        await batch.commit();
+      } else if (notification.type === 'cancellation' && notification.isMultiRoom) {
+        // For multi-room cancellation notifications, mark all child cancellations as read
+        const cancellationsRef = collection(db, 'guest_cancellations');
+        const q = query(cancellationsRef);
+        const snapshot = await getDocs(q);
+        const batch = writeBatch(db);
+        
+        snapshot.forEach((docSnap) => {
+          const data = docSnap.data();
+          if (data.isMultiRoom && data.parentBookingId === notification.id && data.read !== true) {
+            batch.update(docSnap.ref, { read: true });
+          }
+        });
+        await batch.commit();
+      } else {
+        const docRef = doc(db, collectionName, notification.id);
+        await updateDoc(docRef, { read: true });
+      }
     } catch (error) {
       console.error('Error marking notification as read:', error);
     }
@@ -253,7 +336,7 @@ export default function AdminNavbar({ toggleSidebar, sidebarOpen, isDesktop }) {
         }
       });
 
-      // Mark room reservation notifications as read
+      // Mark room reservation notifications as read (including multi-room children)
       const bookingsRef = collection(db, 'bookings');
       const bookingsSnapshot = await getDocs(query(bookingsRef));
       bookingsSnapshot.forEach((docSnap) => {
@@ -454,6 +537,11 @@ export default function AdminNavbar({ toggleSidebar, sidebarOpen, isDesktop }) {
                                 <p className="text-xs text-textSecondary mt-1">
                                   {notification.guestName} cancelled reservation {notification.bookingId} ({notification.roomType || 'day tour'})
                                 </p>
+                                {notification.isMultiRoom && (
+                                  <p className="text-xs text-blue-600 mt-1 font-medium">
+                                    <i className="fas fa-layer-group mr-1"></i>Multi-room booking
+                                  </p>
+                                )}
                                 {notification.roomType === 'daytour' && (
                                   <p className="text-xs text-ocean-mid mt-1 font-medium">
                                     Date: {notification.selectedDate || 'N/A'}
