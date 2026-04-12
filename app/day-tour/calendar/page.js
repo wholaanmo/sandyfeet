@@ -389,12 +389,12 @@ export default function DayTourCalendar() {
                       <span className="text-textSecondary">Past Dates</span>
                     </div>
                     <div className="flex items-center gap-1.5">
+                      <div className="w-3 h-3 bg-orange-100 border border-orange-200 rounded"></div>
+                      <span className="text-textSecondary">Unavailable Dates</span>
+                    <div className="flex items-center gap-1.5">
                       <div className="w-3 h-3 bg-ocean-mid rounded"></div>
                       <span className="text-textSecondary">Selected</span>
                     </div>
-                    <div className="flex items-center gap-1.5">
-                      <div className="w-1.5 h-1.5 bg-orange-400 rounded-full"></div>
-                      <span className="text-textSecondary">Unavailable Dates</span>
                     </div>
                   </div>
                 </div>

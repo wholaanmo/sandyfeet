@@ -422,8 +422,8 @@ export default function AdminDayTourCalendar() {
                 <div className="flex items-center gap-1.5"><div className="w-3 h-3 bg-white border border-gray-300 rounded"></div><span>Available</span></div>
                 <div className="flex items-center gap-1.5"><div className="w-3 h-3 bg-red-100 border border-red-200 rounded"></div><span>Fully Booked</span></div>
                 <div className="flex items-center gap-1.5"><div className="w-3 h-3 bg-gray-100 border border-gray-200 rounded"></div><span>Past Dates</span></div>
+                <div className="flex items-center gap-1.5"><div className="w-3 h-3 bg-orange-100 border border-orange-200 rounded"><span className="text-textSecondary"></span></div><span>Unavailable Dates</span></div>
                 <div className="flex items-center gap-1.5"><div className="w-3 h-3 bg-ocean-mid rounded"></div><span>Selected</span></div>
-                <div className="flex items-center gap-1.5"><div className="w-1.5 h-1.5 bg-orange-400 rounded-full"><span className="text-textSecondary"></span></div><span>Unavailable Dates</span></div>
               </div>
             </div>
           </div>
