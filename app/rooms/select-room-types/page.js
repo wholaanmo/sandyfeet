@@ -11,7 +11,8 @@ export default function SelectRoomTypesPage() {
   const router = useRouter();
   const [availableRoomTypes, setAvailableRoomTypes] = useState([]);
   const [selectedRooms, setSelectedRooms] = useState({});
-  const [roomGuests, setRoomGuests] = useState({});
+  const [totalGuestsPerType, setTotalGuestsPerType] = useState({});
+  const [guestInputErrors, setGuestInputErrors] = useState({});
   const [loading, setLoading] = useState(true);
   const [checkInDate, setCheckInDate] = useState(null);
   const [checkOutDate, setCheckOutDate] = useState(null);
@@ -85,13 +86,13 @@ export default function SelectRoomTypesPage() {
       
       // Initialize selectedRooms with default quantities
       const initialSelected = {};
-      const initialGuests = {};
+      const initialTotalGuests = {};
       types.forEach(type => {
         initialSelected[type.type] = 0;
-        initialGuests[type.type] = 1;
+        initialTotalGuests[type.type] = 1;
       });
       setSelectedRooms(initialSelected);
-      setRoomGuests(initialGuests);
+      setTotalGuestsPerType(initialTotalGuests);
       setLoading(false);
     }, (error) => {
       console.error('Error fetching rooms:', error);
@@ -395,39 +396,72 @@ export default function SelectRoomTypesPage() {
       [roomType]: newQuantity
     }));
     
-    // Reset guest count to 1 if quantity becomes 0, otherwise ensure guest count is within capacity
+    // Clear error for this room type when quantity changes
+    setGuestInputErrors(prev => ({ ...prev, [roomType]: '' }));
+    
+    // Reset total guests to min if quantity becomes 0
     if (newQuantity === 0) {
-      setRoomGuests(prev => ({ ...prev, [roomType]: 1 }));
+      setTotalGuestsPerType(prev => ({ ...prev, [roomType]: 1 }));
     } else {
-      const typeData = availableRoomTypes.find(t => t.type === roomType);
-      const currentGuests = roomGuests[roomType] || 1;
-      const maxCapacity = typeData?.capacityMax || 10;
-      if (currentGuests > maxCapacity) {
-        setRoomGuests(prev => ({ ...prev, [roomType]: maxCapacity }));
+      // Ensure total guests is within max capacity (units × capacity per unit)
+      const currentTotalGuests = totalGuestsPerType[roomType] || 1;
+      const maxTotalGuests = newQuantity * (typeData?.capacityMax || 10);
+      const minTotalGuests = newQuantity * (typeData?.capacityMin || 1);
+      if (currentTotalGuests > maxTotalGuests) {
+        setTotalGuestsPerType(prev => ({ ...prev, [roomType]: maxTotalGuests }));
+      }
+      if (currentTotalGuests < minTotalGuests) {
+        setTotalGuestsPerType(prev => ({ ...prev, [roomType]: minTotalGuests }));
       }
     }
   };
 
-  const handleGuestChange = (roomType, increment) => {
-    const quantity = selectedRooms[roomType] || 0;
-    if (quantity === 0) return;
-    
-    const typeData = availableRoomTypes.find(t => t.type === roomType);
-    const maxCapacity = typeData?.capacityMax || 10;
-    const currentGuests = roomGuests[roomType] || 1;
-    let newGuests = currentGuests;
-    
-    if (increment) {
-      newGuests = Math.min(currentGuests + 1, maxCapacity);
-    } else {
-      newGuests = Math.max(1, currentGuests - 1);
-    }
-    
-    setRoomGuests(prev => ({
-      ...prev,
-      [roomType]: newGuests
+const handleTotalGuestsChange = (roomType, value) => {
+  const quantity = selectedRooms[roomType] || 0;
+  if (quantity === 0) return;
+  
+  const typeData = availableRoomTypes.find(t => t.type === roomType);
+  const maxTotalGuests = quantity * (typeData?.capacityMax || 10);
+  const minTotalGuests = quantity * (typeData?.capacityMin || 1);
+  
+  let newTotalGuests = parseInt(value, 10);
+  
+  // Check for invalid / negative
+  if (isNaN(newTotalGuests) || newTotalGuests < 0) {
+    setGuestInputErrors(prev => ({ 
+      ...prev, 
+      [roomType]: 'Please enter a valid number (0 or positive)' 
     }));
-  };
+    
+    // still allow input (important!)
+    setTotalGuestsPerType(prev => ({
+      ...prev,
+      [roomType]: value
+    }));
+    return;
+  }
+  
+  // Validate only (NO overriding)
+  if (newTotalGuests > maxTotalGuests) {
+    setGuestInputErrors(prev => ({ 
+      ...prev, 
+      [roomType]: `Maximum ${maxTotalGuests} guests allowed for ${quantity} unit${quantity !== 1 ? 's' : ''}` 
+    }));
+  } else if (newTotalGuests < minTotalGuests) {
+    setGuestInputErrors(prev => ({ 
+      ...prev, 
+      [roomType]: `Minimum ${minTotalGuests} guests required for ${quantity} unit${quantity !== 1 ? 's' : ''}` 
+    }));
+  } else {
+    setGuestInputErrors(prev => ({ ...prev, [roomType]: '' }));
+  }
+  
+  // ✅ ALWAYS set what user typed
+  setTotalGuestsPerType(prev => ({
+    ...prev,
+    [roomType]: newTotalGuests
+  }));
+};
 
   const handleDateSelect = (date) => {
     const today = new Date();
@@ -457,8 +491,8 @@ export default function SelectRoomTypesPage() {
     const selected = Object.entries(selectedRooms).filter(([_, qty]) => qty > 0);
     if (selected.length === 0) return 'No rooms selected';
     return selected.map(([type, qty]) => {
-      const guests = roomGuests[type] || 1;
-      return `${qty} × ${type} (${guests} guest${guests !== 1 ? 's' : ''})`;
+      const totalGuests = totalGuestsPerType[type] || 1;
+      return `${qty} × ${type} (${totalGuests} total guest${totalGuests !== 1 ? 's' : ''})`;
     }).join(', ');
   };
 
@@ -466,8 +500,8 @@ export default function SelectRoomTypesPage() {
     let total = 0;
     for (const [roomType, quantity] of Object.entries(selectedRooms)) {
       if (quantity > 0) {
-        const guestsPerRoom = roomGuests[roomType] || 1;
-        total += quantity * guestsPerRoom;
+        const totalGuestsForType = totalGuestsPerType[roomType] || 1;
+        total += totalGuestsForType;
       }
     }
     return total;
@@ -493,6 +527,13 @@ export default function SelectRoomTypesPage() {
     const selectedTypes = Object.entries(selectedRooms).filter(([_, qty]) => qty > 0);
     if (selectedTypes.length === 0) {
       setDateSelectionError('Please select at least one room type');
+      return;
+    }
+    
+    // Check if there are any guest input errors
+    const hasErrors = Object.values(guestInputErrors).some(error => error !== '');
+    if (hasErrors) {
+      setDateSelectionError('Please fix the guest count errors before proceeding');
       return;
     }
     
@@ -522,7 +563,7 @@ export default function SelectRoomTypesPage() {
     // Store selected rooms and dates in session storage for the booking page
     const bookingData = {
       selectedRooms,
-      roomGuests,
+      totalGuestsPerType,
       checkInDate: checkInDate.toISOString(),
       checkOutDate: checkOutDate.toISOString(),
       numberOfNights,
@@ -532,7 +573,7 @@ export default function SelectRoomTypesPage() {
       roomTypes: availableRoomTypes.filter(t => selectedRooms[t.type] > 0).map(t => ({
         type: t.type,
         quantity: selectedRooms[t.type],
-        guestsPerRoom: roomGuests[t.type] || 1,
+        totalGuests: totalGuestsPerType[t.type] || 1,
         price: t.price,
         roomIds: t.roomIds,
         capacityMin: t.capacityMin,
@@ -884,19 +925,19 @@ export default function SelectRoomTypesPage() {
                         borderClass = 'border border-yellow-200';
                         cursorClass = 'cursor-not-allowed';
                         titleText = 'Check-in is not available on this date';
-                      } else if (isPartiallyBlockedMorningOnly) {
-                        // Check-out Blocked -> Light Green
-                        bgColor = 'bg-green-100';
-                        textColor = 'text-green-800';
-                        borderClass = 'border border-green-200';
-                        cursorClass = 'cursor-pointer';
-                        titleText = 'Check-out is not available on this date';
                       } else if (isFullyBooked) {
                         bgColor = 'bg-red-100';
                         textColor = 'text-red-600';
                         borderClass = 'border border-red-200';
                         cursorClass = 'cursor-not-allowed';
                         titleText = 'Fully Booked';
+                      } else if (isPartiallyBlockedMorningOnly) {
+                        // Check-out Blocked -> Light Green (red takes precedence when fully booked)
+                        bgColor = 'bg-green-100';
+                        textColor = 'text-green-800';
+                        borderClass = 'border border-green-200';
+                        cursorClass = 'cursor-pointer';
+                        titleText = 'Check-out is not available on this date';
                       } else if (isSelected) {
                         bgColor = 'bg-ocean-mid';
                         textColor = 'text-white';
@@ -979,24 +1020,26 @@ export default function SelectRoomTypesPage() {
                       <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                         {availableRoomTypes.map((room) => {
                           const quantity = selectedRooms[room.type] || 0;
-                          const guests = roomGuests[room.type] || 1;
+                          const totalGuests = totalGuestsPerType[room.type] || 1;
                           const availability = availabilityStatus[room.type];
                           const isSelected = quantity > 0;
-                          const maxCapacity = room.capacityMax;
+                          const maxTotalGuests = quantity * room.capacityMax;
+                          const minTotalGuests = quantity * room.capacityMin;
+                          const guestError = guestInputErrors[room.type] || '';
                           // Get unit-level available units based on selected date
                           const realTimeAvailable = checkInDate 
                             ? (unitLevelAvailability[room.type] || 0)
                             : room.availableRooms;
                           
                           return (
-                            <div key={room.type} className="border border-ocean-light/20 rounded-lg p-2 hover:shadow-md transition-all duration-200 bg-white flex flex-col">
+                            <div key={room.type} className="border border-ocean-light/20 rounded-lg p-3 hover:shadow-md transition-all duration-200 bg-white flex flex-col h-full">
                               {/* Room header */}
-                              <div className="flex justify-between items-start mb-1">
+                              <div className="flex justify-between items-start mb-2">
                                 <div>
                                   <h3 className="font-bold text-textPrimary text-sm">{room.type}</h3>
                                   <p className="text-xs text-textSecondary mt-0.5">
                                     <i className="fas fa-users mr-1"></i>
-                                    {room.capacityMin}–{room.capacityMax} guests
+                                    {room.capacityMin}–{room.capacityMax} guests per unit
                                   </p>
                                 </div>
                                 <p className="text-base font-bold text-ocean-mid">
@@ -1006,22 +1049,22 @@ export default function SelectRoomTypesPage() {
                               </div>
                               
                               {/* Quantity controls */}
-                              <div className="flex items-center justify-between mt-2">
+                              <div className="flex items-center justify-between mt-1">
                                 <div className="flex items-center gap-2">
                                   <button
                                     onClick={() => handleQuantityChange(room.type, false)}
                                     disabled={quantity === 0}
-                                    className="w-6 h-6 rounded-md border border-ocean-light/20 text-ocean-mid font-bold text-base hover:bg-ocean-ice disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-200 flex items-center justify-center"
+                                    className="w-7 h-7 rounded-md border border-ocean-light/20 text-ocean-mid font-bold text-base hover:bg-ocean-ice disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-200 flex items-center justify-center"
                                   >
                                     -
                                   </button>
-                                  <span className="text-base font-bold text-textPrimary min-w-[24px] text-center">
+                                  <span className="text-base font-bold text-textPrimary min-w-[28px] text-center">
                                     {quantity}
                                   </span>
                                   <button
                                     onClick={() => handleQuantityChange(room.type, true)}
                                     disabled={quantity >= realTimeAvailable}
-                                    className="w-6 h-6 rounded-md border border-ocean-light/20 text-ocean-mid font-bold text-base hover:bg-ocean-ice disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-200 flex items-center justify-center"
+                                    className="w-7 h-7 rounded-md border border-ocean-light/20 text-ocean-mid font-bold text-base hover:bg-ocean-ice disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-200 flex items-center justify-center"
                                   >
                                     +
                                   </button>
@@ -1033,46 +1076,44 @@ export default function SelectRoomTypesPage() {
                                 </div>
                               </div>
                               
-                              {/* Guest input field */}
-                              <div className="mt-2 pt-1 border-t border-ocean-light/20">
-                                <label className="block text-xs font-medium text-textPrimary mb-0.5">
-                                  Guests per room
+                              {/* Total guests input field */}
+                              <div className="mt-3 pt-2 border-t border-ocean-light/20">
+                                <label className="block text-xs font-medium text-textPrimary mb-1">
+                                  Total Guests ({quantity} unit{quantity !== 1 ? 's' : ''})
                                 </label>
-                                <div className="flex items-center gap-2">
-                                  <button
-                                    onClick={() => handleGuestChange(room.type, false)}
-                                    disabled={!isSelected || guests <= 1}
-                                    className={`w-6 h-6 rounded-md border border-ocean-light/20 font-bold text-base flex items-center justify-center transition-all duration-200 ${
-                                      !isSelected || guests <= 1
-                                        ? 'bg-gray-100 text-gray-400 cursor-not-allowed'
-                                        : 'text-ocean-mid hover:bg-ocean-ice'
-                                    }`}
-                                  >
-                                    -
-                                  </button>
-                                  <span className={`text-base font-bold min-w-[24px] text-center ${!isSelected ? 'text-gray-400' : 'text-textPrimary'}`}>
-                                    {guests}
-                                  </span>
-                                  <button
-                                    onClick={() => handleGuestChange(room.type, true)}
-                                    disabled={!isSelected || guests >= maxCapacity}
-                                    className={`w-6 h-6 rounded-md border border-ocean-light/20 font-bold text-base flex items-center justify-center transition-all duration-200 ${
-                                      !isSelected || guests >= maxCapacity
-                                        ? 'bg-gray-100 text-gray-400 cursor-not-allowed'
-                                        : 'text-ocean-mid hover:bg-ocean-ice'
-                                    }`}
-                                  >
-                                    +
-                                  </button>
-                                  <span className="text-xs text-textSecondary ml-1">
-                                    (max {maxCapacity})
-                                  </span>
+                                <div className="flex flex-col gap-1">
+                                  <div className="flex items-center gap-2">
+                                    <input
+                                      type="number"
+                                      value={totalGuestsPerType[room.type] ?? ''}
+                                      onChange={(e) => handleTotalGuestsChange(room.type, e.target.value)}
+                                      disabled={!isSelected}
+                                      min={0}
+                                      step="1"
+                                      className={`w-28 px-2 py-1.5 text-base font-bold text-center border rounded-md focus:outline-none focus:border-ocean-light ${
+                                        !isSelected 
+                                          ? 'bg-gray-100 text-gray-400 cursor-not-allowed border-gray-200'
+                                          : guestError
+                                            ? 'bg-white text-textPrimary border-red-500 focus:border-red-500'
+                                            : 'bg-white text-textPrimary border-ocean-light/30'
+                                      }`}
+                                    />
+                                    <span className="text-xs text-textSecondary">
+                                      (min {minTotalGuests}, max {maxTotalGuests})
+                                    </span>
+                                  </div>
+                                  {guestError && (
+                                    <p className="text-xs text-red-600 mt-1">
+                                      <i className="fas fa-exclamation-triangle mr-1"></i>
+                                      {guestError}
+                                    </p>
+                                  )}
                                 </div>
                               </div>
                               
                               {/* Availability warning */}
                               {checkInDate && quantity > 0 && availability && !availability.sufficient && (
-                                <p className="text-xs text-red-600 mt-1">
+                                <p className="text-xs text-red-600 mt-2">
                                   <i className="fas fa-exclamation-triangle mr-1"></i>
                                   Only {availability.available} available
                                 </p>
@@ -1157,11 +1198,13 @@ export default function SelectRoomTypesPage() {
                         disabled={
                           !checkInDate ||
                           Object.values(selectedRooms).every(q => q === 0) ||
-                          Object.values(availabilityStatus).some(s => s && !s.sufficient && s.quantity > 0)
+                          Object.values(availabilityStatus).some(s => s && !s.sufficient && s.quantity > 0) ||
+                          Object.values(guestInputErrors).some(error => error !== '')
                         }
                         className={`w-full py-2 rounded-lg font-semibold text-sm transition-all duration-300 ${
                           checkInDate && Object.values(selectedRooms).some(q => q > 0) && 
-                          !Object.values(availabilityStatus).some(s => s && !s.sufficient && s.quantity > 0)
+                          !Object.values(availabilityStatus).some(s => s && !s.sufficient && s.quantity > 0) &&
+                          !Object.values(guestInputErrors).some(error => error !== '')
                             ? 'bg-gradient-to-r from-ocean-mid to-ocean-light text-white hover:shadow-lg hover:-translate-y-0.5'
                             : 'bg-gray-200 text-gray-500 cursor-not-allowed'
                         }`}

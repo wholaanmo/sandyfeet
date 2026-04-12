@@ -309,7 +309,7 @@ export default function AdminDayTourCalendar() {
   }
 
   return (
-    <div className="p-6 bg-gradient-to-br from-ocean-ice to-blue-white min-h-screen">
+    <div className="p-8 min-h-screen" style={{ backgroundColor: 'var(--color-blue-white)' }}>
       {/* Notification */}
       {notification.show && (
         <div className={`fixed top-20 right-5 z-50 px-5 py-3 rounded-xl shadow-lg flex items-center gap-3 animate-slideInRight ${

@@ -75,7 +75,6 @@ export default function MultiRoomBookingPage() {
       paymentProofUrl: null,
       validIdType: '',
       validIdUrl: null,
-      guests: 1,
       nights: 1
     });
     setTotalPrice(data.totalPrice);
@@ -358,10 +357,18 @@ export default function MultiRoomBookingPage() {
         }
       }
 
+      // Calculate total guests per room (distribute total guests evenly across units)
+      const guestsPerRoom = {};
+      for (const roomType of bookingData.roomTypes) {
+        const totalGuestsForType = roomType.totalGuests || (roomType.quantity * 1);
+        guestsPerRoom[roomType.type] = Math.ceil(totalGuestsForType / roomType.quantity);
+      }
+
       // Create individual bookings for each room
       for (let i = 0; i < allRoomIds.length; i++) {
         const roomId = allRoomIds[i];
         const roomTypeObj = bookingData.roomTypes.find(t => t.roomIds.includes(roomId));
+        const guestsPerRoomValue = guestsPerRoom[roomTypeObj.type];
         
         const booking = {
           bookingId: `${bookingId}-${i + 1}`,
@@ -369,7 +376,7 @@ export default function MultiRoomBookingPage() {
           roomType: roomTypeObj.type,
           price: roomTypeObj.price,
           nights: 1,
-          guests: bookingData.guests || 1,
+          guests: guestsPerRoomValue,
           totalPrice: roomTypeObj.price,
           downPayment: roomTypeObj.price * 0.5,
           remainingBalance: roomTypeObj.price * 0.5,
@@ -422,15 +429,15 @@ export default function MultiRoomBookingPage() {
     });
   };
 
-const getSelectedRoomsSummary = () => {
-  if (!bookingData?.selectedRooms) return 'No rooms selected';
-  const selected = Object.entries(bookingData.selectedRooms).filter(([_, qty]) => qty > 0);
-  if (selected.length === 0) return 'No rooms selected';
-  return selected.map(([type, qty]) => {
-    const guestsPerRoom = bookingData.roomGuests?.[type] || 1;
-    return `${qty} × ${type} (${guestsPerRoom} guest${guestsPerRoom !== 1 ? 's' : ''})`;
-  }).join(', ');
-};
+  const getSelectedRoomsSummary = () => {
+    if (!bookingData?.selectedRooms) return 'No rooms selected';
+    const selected = Object.entries(bookingData.selectedRooms).filter(([_, qty]) => qty > 0);
+    if (selected.length === 0) return 'No rooms selected';
+    return selected.map(([type, qty]) => {
+      const totalGuests = bookingData.totalGuestsPerType?.[type] || 1;
+      return `${qty} × ${type} (${totalGuests} total guest${totalGuests !== 1 ? 's' : ''})`;
+    }).join(', ');
+  };
 
   if (loading) {
     return (
@@ -1032,7 +1039,7 @@ const getSelectedRoomsSummary = () => {
     {bookingData.roomTypes && bookingData.roomTypes.map((type, idx) => (
       <div key={idx} className="text-xs text-textSecondary mt-1">
         {type.quantity} × {type.type} ┃ ₱{type.price.toLocaleString()}/night 
-        ({type.guestsPerRoom || 1} guest{(type.guestsPerRoom || 1) !== 1 ? 's' : ''})
+        ({type.totalGuests || 1} total guest{(type.totalGuests || 1) !== 1 ? 's' : ''})
       </div>
     ))}
   </div>

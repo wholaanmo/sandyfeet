@@ -524,7 +524,7 @@ export default function AdminCalendar() {
   const maxUnitsBlockable = selectedDate ? getAvailableUnitsForDate(selectedDate) : totalRoomUnits;
 
   return (
-    <div className="p-6 bg-gradient-to-br from-ocean-ice to-blue-white min-h-screen">
+    <div className="p-8 min-h-screen" style={{ backgroundColor: 'var(--color-blue-white)' }}>
       {notification.show && (
         <div className={`fixed top-20 right-5 z-50 px-5 py-3 rounded-xl shadow-lg flex items-center gap-3 animate-slideInRight ${
           notification.type === 'error' ? 'bg-red-50 border-l-4 border-red-500 text-red-700' : 'bg-green-50 border-l-4 border-green-500 text-green-700'
