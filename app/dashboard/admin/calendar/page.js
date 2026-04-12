@@ -125,9 +125,22 @@ export default function AdminCalendar() {
   const getBlockedUnitsAtHour = (dateKey, hour) => {
     const day = blockedSlots[dateKey];
     if (!day) return 0;
-    const byHour = day[hour] || 0;
-    const fullDay = day[0] || 0; // legacy aggregate
-    return Math.max(byHour, fullDay);
+    const atThisHour = day[hour] || 0;
+    const atHour0 = day[0] || 0;
+    // Hour 0 is both a real slot (12:00 AM–1:00 AM) and, in legacy data, the only
+    // stored value for a full-day block. When any other hour has blocked units,
+    // treat keys as per-hour only (matches app/rooms/calendar blockedSlots usage).
+    let hasPerHourDataBeyondHour0 = false;
+    for (let h = 1; h < 24; h++) {
+      if ((day[h] || 0) > 0) {
+        hasPerHourDataBeyondHour0 = true;
+        break;
+      }
+    }
+    if (!hasPerHourDataBeyondHour0 && atHour0 > 0) {
+      return atHour0;
+    }
+    return atThisHour;
   };
 
   const isAdminRangeFullyUnavailable = (date, rangeKey) => {
