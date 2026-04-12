@@ -355,18 +355,43 @@ export default function BookingPage() {
     return emailRegex.test(email);
   };
 
-  const validateGuests = () => {
-    // Use maxCapacity from roomDetails for validation (maximum allowed guests)
-    const guestValue = parseInt(bookingData.guests);
+  // Calculate max total guests based on number of rooms × max capacity per room
+  const getMaxTotalGuests = () => {
+    const numberOfRooms = bookingData.numberOfRooms || 1;
     const currentMaxCapacity = roomDetails?.capacityMax || bookingData.maxCapacity;
+    return numberOfRooms * currentMaxCapacity;
+  };
+
+  // Calculate min total guests based on number of rooms × min capacity per room
+  const getMinTotalGuests = () => {
+    const numberOfRooms = bookingData.numberOfRooms || 1;
+    const currentMinCapacity = roomDetails?.capacityMin || 1;
+    return numberOfRooms * currentMinCapacity;
+  };
+
+  const validateGuests = () => {
+    const guestValue = parseInt(bookingData.guests);
+    const maxTotalGuests = getMaxTotalGuests();
+    const minTotalGuests = getMinTotalGuests();
     
-    if (isNaN(guestValue) || guestValue < 1) {
+    // Check for negative or NaN
+    if (isNaN(guestValue) || guestValue < 0) {
+      setErrors(prev => ({ ...prev, guests: 'Please enter a valid number of guests' }));
+      return false;
+    }
+    
+    if (guestValue < 1) {
       setErrors(prev => ({ ...prev, guests: 'At least 1 guest is required' }));
       return false;
     }
     
-    if (currentMaxCapacity && guestValue > currentMaxCapacity) {
-      setErrors(prev => ({ ...prev, guests: `Number of guests cannot exceed ${currentMaxCapacity}` }));
+    if (guestValue > maxTotalGuests) {
+      setErrors(prev => ({ ...prev, guests: `Maximum ${maxTotalGuests} guests allowed` }));
+      return false;
+    }
+    
+    if (guestValue < minTotalGuests) {
+      setErrors(prev => ({ ...prev, guests: `Minimum ${minTotalGuests} guests required` }));
       return false;
     }
     
@@ -401,13 +426,18 @@ export default function BookingPage() {
     
     if (field === 'guests') {
       const guestValue = parseInt(value);
-      const currentMaxCapacity = roomDetails?.capacityMax || bookingData.maxCapacity;
+      const maxTotalGuests = getMaxTotalGuests();
+      const minTotalGuests = getMinTotalGuests();
       
       // Validate on change
-      if (isNaN(guestValue) || guestValue < 1) {
+      if (isNaN(guestValue) || guestValue < 0) {
+        setErrors(prev => ({ ...prev, guests: 'Please enter a valid number of guests' }));
+      } else if (guestValue < 1) {
         setErrors(prev => ({ ...prev, guests: 'At least 1 guest is required' }));
-      } else if (currentMaxCapacity && guestValue > currentMaxCapacity) {
-        setErrors(prev => ({ ...prev, guests: `Number of guests cannot exceed ${currentMaxCapacity}` }));
+      } else if (guestValue > maxTotalGuests) {
+        setErrors(prev => ({ ...prev, guests: `Maximum ${maxTotalGuests} guests allowed` }));
+      } else if (guestValue < minTotalGuests) {
+        setErrors(prev => ({ ...prev, guests: `Minimum ${minTotalGuests} guests required` }));
       } else {
         setErrors(prev => ({ ...prev, guests: '' }));
       }
@@ -706,9 +736,9 @@ export default function BookingPage() {
     if (roomDetails) {
       const minCap = roomDetails.capacityMin || 1;
       const maxCap = roomDetails.capacityMax || bookingData.maxCapacity;
-      return `${minCap} – ${maxCap} guests`;
+      return `${minCap} – ${maxCap} guests per room`;
     }
-    return `${bookingData.maxCapacity} guests`;
+    return `${bookingData.maxCapacity} guests per room`;
   };
 
   if (!checkInDateParam) {
@@ -732,6 +762,9 @@ export default function BookingPage() {
 
   // Get the current max capacity for display (from roomDetails)
   const currentMaxCapacity = roomDetails?.capacityMax || bookingData.maxCapacity;
+  const currentMinCapacity = roomDetails?.capacityMin || 1;
+  const maxTotalGuests = getMaxTotalGuests();
+  const minTotalGuests = getMinTotalGuests();
 
   return (
     <GuestLayout>
@@ -798,14 +831,13 @@ export default function BookingPage() {
                       <input
                         type="number"
                         min="1"
-                        max={currentMaxCapacity > 0 ? currentMaxCapacity : undefined}
                         value={bookingData.guests}
                         onChange={(e) => handleInputChange('guests', parseInt(e.target.value))}
                         className={`w-full px-4 py-2 border ${errors.guests ? 'border-red-500' : 'border-ocean-light/20'} rounded-lg focus:outline-none focus:border-ocean-light`}
                       />
                       {errors.guests && <p className="text-red-500 text-sm mt-1">{errors.guests}</p>}
                       <p className="text-xs text-textSecondary mt-1">
-                        Maximum capacity: {currentMaxCapacity > 0 ? currentMaxCapacity : 'Loading...'} {currentMaxCapacity === 1 ? 'guest' : currentMaxCapacity > 0 ? 'guests' : ''}
+                        Maximum of {maxTotalGuests} guests allowed
                       </p>
                     </div>
                     
@@ -824,7 +856,7 @@ export default function BookingPage() {
                     <div className="p-5 bg-gradient-to-r from-ocean-ice to-blue-white rounded-xl">
                       <label className="block text-sm font-semibold text-textPrimary mb-2">Total Price</label>
                       <p className="text-3xl font-bold text-ocean-mid">₱{totalPrice.toLocaleString()}</p>
-                      <p className="text-xs text-textSecondary">₱{price.toLocaleString()} x {bookingData.numberOfRooms} room(s)</p>
+                      <p className="text-xs text-textSecondary">₱{price.toLocaleString()} x {bookingData.numberOfRooms} room(s) x {bookingData.nights} night(s)</p>
                       
                       {/* Down Payment Display */}
                       <div className="mt-3 pt-3 border-t border-ocean-light/20">
@@ -845,9 +877,9 @@ export default function BookingPage() {
                     </button>
                     <button
                       onClick={handleNextStep}
-                      disabled={!availabilityStatus.isAvailable || availabilityStatus.checking || !!errors.guests || !currentMaxCapacity}
+                      disabled={!availabilityStatus.isAvailable || availabilityStatus.checking || !!errors.guests}
                       className={`flex-1 py-3 rounded-xl font-medium transition-all duration-300 ${
-                        availabilityStatus.isAvailable && !availabilityStatus.checking && !errors.guests && currentMaxCapacity
+                        availabilityStatus.isAvailable && !availabilityStatus.checking && !errors.guests
                           ? 'bg-gradient-to-r from-ocean-mid to-ocean-light text-white hover:shadow-lg'
                           : 'bg-gray-200 text-gray-500 cursor-not-allowed'
                       }`}
@@ -1354,7 +1386,7 @@ export default function BookingPage() {
                   <div className="p-4 bg-amber-50 rounded-lg mb-6">
                     <p className="text-sm text-amber-800">
                       <i className="fas fa-info-circle mr-2"></i>
-                      Down payment of <strong>₱{downPaymentAmount.toLocaleString()}</strong> has been confirmed for {bookingData.numberOfRooms} room(s).
+                      Down payment of <strong>₱{downPaymentAmount.toLocaleString()}</strong> has been confirmed for {bookingData.numberOfRooms} room(s) with {bookingData.guests} total guest(s).
                       Remaining balance of <strong>₱{(totalPrice - downPaymentAmount).toLocaleString()}</strong> is payable at the resort.
                     </p>
                   </div>
@@ -1417,6 +1449,14 @@ export default function BookingPage() {
                       <p className="text-sm">
                         <span className="text-textSecondary">Number of Rooms:</span>{' '}
                         <span className="font-semibold text-textPrimary">{bookingData.numberOfRooms} room(s)</span>
+                      </p>
+                      <p className="text-sm">
+                        <span className="text-textSecondary">Guests:</span>{' '}
+                        <span className="font-semibold text-textPrimary">{bookingData.guests} total guest(s)</span>
+                      </p>
+                      <p className="text-sm">
+                        <span className="text-textSecondary">Per room average:</span>{' '}
+                        <span className="font-semibold text-ocean-mid">~{Math.ceil(bookingData.guests / bookingData.numberOfRooms)} guests/room</span>
                       </p>
                       <p className="text-sm">
                         <span className="text-textSecondary">Price per night:</span>{' '}
