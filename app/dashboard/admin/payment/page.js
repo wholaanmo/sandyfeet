@@ -732,10 +732,10 @@ const handleArchiveBankAccount = async () => {
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
         {/* GCash Settings */}
         <div className="bg-white rounded-2xl shadow-md border border-ocean-light/10 overflow-hidden">
-          <div className="bg-gradient-to-r from-ocean-mid to-ocean-light px-6 py-4 flex justify-between items-center">
-            <h2 className="text-xl font-bold text-white flex items-center gap-2">
-              <i className="fab fa-gcash"></i>
-              GCash Settings
+          <div className="bg-ocean-light/20 px-6 py-4 flex justify-between items-center">
+            <h2 className="text-xl font-bold text-textPrimary flex items-center gap-2">
+              <i className="fas fa-wallet"></i>
+              GCash QR Code
             </h2>
 {gcashQRCode && (
   <div className="flex gap-2">
@@ -759,9 +759,6 @@ const handleArchiveBankAccount = async () => {
           
           <div className="p-6">
             <div className="mb-6">
-              <label className="block text-sm font-semibold text-textPrimary mb-3">
-                GCash QR Code
-              </label>
               
               {gcashQRCode ? (
                 <div className="relative inline-block">
@@ -802,10 +799,10 @@ const handleArchiveBankAccount = async () => {
 
         {/* Bank Account Settings */}
         <div className="bg-white rounded-2xl shadow-md border border-ocean-light/10 overflow-hidden">
-          <div className="bg-gradient-to-r from-ocean-mid to-ocean-light px-6 py-4 flex justify-between items-center">
-            <h2 className="text-xl font-bold text-white flex items-center gap-2">
+          <div className="bg-ocean-light/20 px-6 py-4 flex justify-between items-center">
+            <h2 className="text-xl font-bold text-textPrimary flex items-center gap-2">
               <i className="fas fa-university"></i>
-              Bank Accounts
+                Bank Accounts
             </h2>
             <button
               onClick={() => {
@@ -889,8 +886,8 @@ const handleArchiveBankAccount = async () => {
 
       {/* Bank Transfer Requests Section with Tabs */}
       <div className="mt-8 bg-white rounded-2xl shadow-md border border-ocean-light/10 overflow-hidden">
-        <div className="bg-gradient-to-r from-amber-500 to-amber-600 px-6 py-4">
-          <h2 className="text-xl font-bold text-white flex items-center gap-2">
+        <div className="bg-ocean-light/20 px-6 py-4">
+          <h2 className="text-xl font-bold text-textPrimary flex items-center gap-2">
             <i className="fas fa-clock"></i>
             Bank Transfer Requests
           </h2>

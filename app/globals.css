@@ -6,7 +6,8 @@
   --color-ocean-mid:  #2E6F7E;       /* hover / active */
   --color-ocean-light: #4A8FA1;      /* lighter version of hover */
   --color-ocean-lighter: #7FB4C1;    /* soft secondary */
-  --color-ocean-pale: #BFDDE5;       /* pale version */
+  --color-ocean-pales: #b4dce7;       /* pale version */
+  --color-ocean-pale: #BFDDE5;  
   --color-ocean-ice: #E8F4F7;        /* very light */
   --color-blue-white: #FFF8F0;       /* main background */
 
@@ -26,6 +27,7 @@
   --color-ocean-mid: var(--color-ocean-mid);
   --color-ocean-light: var(--color-ocean-light);
   --color-ocean-lighter: var(--color-ocean-lighter);
+  --color-ocean-pales: var(--color-ocean-pales);
   --color-ocean-pale: var(--color-ocean-pale);
   --color-ocean-ice: var(--color-ocean-ice);
   --color-blue-white: var(--color-blue-white);

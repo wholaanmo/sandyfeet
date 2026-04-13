@@ -1,7 +1,7 @@
 // app/dashboard/admin/reservations/page.js
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';  
 import { db } from '../../../../lib/firebase';
 import { collection, query, orderBy, onSnapshot, updateDoc, doc } from 'firebase/firestore';
 import { logAdminAction } from '../../../../lib/auditLogger';
@@ -22,6 +22,9 @@ export default function AdminReservations() {
   const [refundModal, setRefundModal] = useState({ show: false, booking: null, sending: false });
   const [showReasonModal, setShowReasonModal] = useState({ show: false, booking: null, reason: '' });
   const [moveDateModal, setMoveDateModal] = useState({ show: false, booking: null, sending: false });
+      const tabsContainerRef = useRef(null);
+  const sliderRef = useRef(null);
+  const buttonRefs = useRef({});
   
   // New state for confirmation modals
   const [confirmModal, setConfirmModal] = useState({ show: false, booking: null, type: '', note: '' });
@@ -42,6 +45,33 @@ export default function AdminReservations() {
   // Fixed check-in and check-out times
   const FIXED_CHECK_IN_DISPLAY = '02:00 PM';
   const FIXED_CHECK_OUT_DISPLAY = '12:00 PM';
+
+      const updateSlider = useCallback(() => {
+    const activeButton = buttonRefs.current[activeTab];
+    const container = tabsContainerRef.current;
+    const slider = sliderRef.current;
+    if (activeButton && container && slider) {
+      const buttonRect = activeButton.getBoundingClientRect();
+      const containerRect = container.getBoundingClientRect();
+      const left = buttonRect.left - containerRect.left;
+      const width = buttonRect.width;
+      slider.style.transform = `translateX(${left}px)`;
+      slider.style.width = `${width}px`;
+    }
+  }, [activeTab]);
+
+  useEffect(() => {
+    updateSlider();
+    const resizeObserver = new ResizeObserver(() => updateSlider());
+    if (tabsContainerRef.current) {
+      resizeObserver.observe(tabsContainerRef.current);
+    }
+    window.addEventListener('resize', updateSlider);
+    return () => {
+      resizeObserver.disconnect();
+      window.removeEventListener('resize', updateSlider);
+    };
+  }, [updateSlider]);
 
   // Load persisted notification sent status from localStorage on mount
   useEffect(() => {
@@ -1041,30 +1071,52 @@ const handleConfirmReservation = async () => {
       )}
 
       {/* Tabs */}
-      <div className="flex gap-2 mb-6 border-b border-ocean-light/20">
-        <button
-          onClick={() => setActiveTab('rooms')}
-          className={`px-6 py-3 font-medium transition-all duration-200 ${
-            activeTab === 'rooms'
-              ? 'text-ocean-mid border-b-2 border-ocean-mid'
-              : 'text-textSecondary hover:text-ocean-mid'
-          }`}
-        >
-          <i className="fas fa-bed mr-2"></i>
-          Rooms
-        </button>
-        <button
-          onClick={() => setActiveTab('daytour')}
-          className={`px-6 py-3 font-medium transition-all duration-200 ${
-            activeTab === 'daytour'
-              ? 'text-ocean-mid border-b-2 border-ocean-mid'
-              : 'text-textSecondary hover:text-ocean-mid'
-          }`}
-        >
-          <i className="fas fa-sun mr-2"></i>
-          Day Tour
-        </button>
-      </div>
+<div className="relative flex items-center mb-6 border-b border-ocean-light/20">
+  <div className="relative flex w-full">
+
+    {/* Sliding background (fixed 50%) */}
+    <div
+      className="absolute top-1 bottom-1 w-1/2 rounded-md bg-ocean-pales/20 transition-all duration-300 ease-in-out shadow-md"
+      style={{
+        transform: `
+          translateX(${activeTab === 'rooms' ? '0%' : '100%'})
+          scale(0.98)
+        `
+      }}
+    />
+
+    {/* Left Tab - Rooms */}
+    <div className="flex-1 flex justify-center">
+      <button
+        onClick={() => setActiveTab('rooms')}
+        className={`relative z-10 w-full px-6 py-3 font-medium transition-all duration-200 text-center ${
+          activeTab === 'rooms'
+            ? 'text-ocean-mid'
+            : 'text-textSecondary hover:text-ocean-mid'
+        }`}
+      >
+        <i className="fas fa-bed mr-2"></i>
+        Rooms
+      </button>
+    </div>
+
+    {/* Right Tab - Day Tour */}
+    <div className="flex-1 flex justify-center">
+      <button
+        onClick={() => setActiveTab('daytour')}
+        className={`relative z-10 w-full px-6 py-3 font-medium transition-all duration-200 text-center ${
+          activeTab === 'daytour'
+            ? 'text-ocean-mid'
+            : 'text-textSecondary hover:text-ocean-mid'
+        }`}
+      >
+        <i className="fas fa-sun mr-2"></i>
+        Day Tour
+      </button>
+    </div>
+
+  </div>
+</div>
 
       {/* Search Bar */}
       <div className="mb-6">

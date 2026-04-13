@@ -160,7 +160,7 @@ export default function GuestNavbar() {
               <div className="relative w-10 h-10 md:w-12 md:h-12">
                 <div className="absolute inset-0 rounded-full bg-gradient-to-r from-ocean-lighter/30 to-ocean-light/30 blur-md group-hover:blur-lg transition-all duration-500 animate-pulse-slow"></div>
                 <Image
-                  src="/assets/Sea&RiverView.png"
+                  src="/assets/sandyfeet.png"
                   alt="SandyFeet Reservation"
                   width={48}
                   height={48}
@@ -270,7 +270,7 @@ export default function GuestNavbar() {
           <div className="relative w-20 h-20 mb-3">
             <div className="absolute inset-0 rounded-full bg-gradient-to-r from-ocean-lighter/40 to-ocean-light/40 blur-xl animate-pulse"></div>
             <Image
-              src="/assets/Sea&RiverView.png"
+              src="/assets/sandyfeet.png"
               alt="SandyFeet Reservation"
               width={80}
               height={80}

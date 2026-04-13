@@ -530,7 +530,7 @@ const handleResendVerification = async () => {
             Staff Management
           </h1>
           <p className="text-textSecondary">
-            Manage staff accounts, permissions, and status
+            Manage staff accounts, roles, and status
           </p>
         </div>
         

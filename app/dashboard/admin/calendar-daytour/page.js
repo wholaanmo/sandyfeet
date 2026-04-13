@@ -333,9 +333,9 @@ export default function AdminDayTourCalendar() {
         {/* Calendar (60%) */}
         <div className="xl:w-[60%]">
           <div className="bg-white rounded-2xl shadow-lg overflow-hidden">
-            <div className="bg-gradient-to-r from-ocean-mid to-ocean-light px-6 py-4">
-              <h2 className="text-xl font-bold text-white">Availability Calendar</h2>
-              <p className="text-white/80 text-sm">
+            <div className="bg-ocean-light/20 px-6 py-4">
+              <h2 className="text-xl font-bold text-textPrimary">Availability Calendar</h2>
+              <p className="text-textPrimary/80 text-sm">
                 Day Tour – Click on a date to mark it as unavailable
               </p>
             </div>

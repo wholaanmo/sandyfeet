@@ -135,7 +135,7 @@ export default function StaffSidebar({ isOpen, onToggle, isDesktop }) {
             <div className={`flex items-center gap-2 ${is_expanded ? 'justify-start' : 'justify-center'}`}>
               <div className="w-10 h-10 relative flex-shrink-0">
                 <Image 
-                  src="/assets/Sea&RiverView.png" 
+                  src="/assets/sandyfeet.png" 
                   alt="SandyFeet Reservation" 
                   width={40}
                   height={40}

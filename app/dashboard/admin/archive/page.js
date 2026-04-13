@@ -1,7 +1,7 @@
 // app/dashboard/admin/archive/page.js
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import { db } from '../../../../lib/firebase';
 import { collection, query, orderBy, onSnapshot, where, updateDoc, doc, deleteDoc, getDocs, getDoc, setDoc } from 'firebase/firestore';
 import { logAdminAction } from '../../../../lib/auditLogger';
@@ -21,6 +21,10 @@ export default function ArchivePage() {
   const [deleteModal, setDeleteModal] = useState({ show: false, item: null, type: '' });
   const [archivedGCashQRs, setArchivedGCashQRs] = useState([]);
   const router = useRouter();
+  const tabsContainerRef = useRef(null);
+const sliderRef = useRef(null);
+const buttonRefs = useRef({});
+
 
   // Real-time listener for archived rooms
   useEffect(() => {
@@ -149,6 +153,33 @@ export default function ArchivePage() {
     setNotification({ show: true, message, type });
   };
   
+  const updateSlider = useCallback(() => {
+  const activeButton = buttonRefs.current[activeTab];
+  const container = tabsContainerRef.current;
+  const slider = sliderRef.current;
+  if (activeButton && container && slider) {
+    const buttonRect = activeButton.getBoundingClientRect();
+    const containerRect = container.getBoundingClientRect();
+    const left = buttonRect.left - containerRect.left;
+    const width = buttonRect.width;
+    slider.style.transform = `translateX(${left}px)`;
+    slider.style.width = `${width}px`;
+  }
+}, [activeTab]);
+
+  useEffect(() => {
+  updateSlider();
+  const resizeObserver = new ResizeObserver(() => updateSlider());
+  if (tabsContainerRef.current) {
+    resizeObserver.observe(tabsContainerRef.current);
+  }
+  window.addEventListener('resize', updateSlider);
+  return () => {
+    resizeObserver.disconnect();
+    window.removeEventListener('resize', updateSlider);
+  };
+}, [updateSlider]);
+
 const handleRestore = async () => {
   if (!restoreModal.item) return;
   
@@ -311,9 +342,9 @@ const handleDelete = async () => {
   
   const getRoomAvailabilityStyle = (availability) => {
     const styles = {
-      available: 'bg-green-100 text-green-700',
-      unavailable: 'bg-red-100 text-red-700',
-      maintenance: 'bg-yellow-100 text-yellow-700'
+      available: 'bg-green-50 text-green-700 border-green-200',
+      unavailable: 'bg-red-50 text-red-700 border-red-200',
+      maintenance: 'bg-orange-50 text-orange-700 border-orange-200'
     };
     return styles[availability] || 'bg-gray-100 text-gray-700';
   };
@@ -329,8 +360,8 @@ const handleDelete = async () => {
   
   const getTourAvailabilityStyle = (availability) => {
     const styles = {
-      available: 'bg-green-100 text-green-700',
-      unavailable: 'bg-red-100 text-red-700'
+      available: 'bg-green-50 text-green-700 border-green-200',
+      unavailable: 'bg-red-50 text-red-700 border-red-200'
     };
     return styles[availability] || 'bg-gray-100 text-gray-700';
   };
@@ -392,7 +423,7 @@ const handleDelete = async () => {
             Archive Management
           </h1>
           <p className="text-textSecondary">
-            View, restore, or permanently delete archived items
+            Restore, or permanently delete archived items
           </p>
         </div>
       </div>
@@ -407,78 +438,111 @@ const handleDelete = async () => {
         </div>
       )}
       
-      {/* Tabs */}
-      <div className="flex gap-2 mb-6 border-b border-ocean-light/20 overflow-x-auto">
-        <button
-          onClick={() => setActiveTab('rooms')}
-          className={`px-6 py-3 font-medium transition-all duration-200 whitespace-nowrap ${
-            activeTab === 'rooms'
-              ? 'text-ocean-mid border-b-2 border-ocean-mid'
-              : 'text-textSecondary hover:text-ocean-mid'
-          }`}
-        >
-          <i className="fas fa-bed mr-2"></i>
-          Archived Rooms
-        </button>
-        <button
-          onClick={() => setActiveTab('daytours')}
-          className={`px-6 py-3 font-medium transition-all duration-200 whitespace-nowrap ${
-            activeTab === 'daytours'
-              ? 'text-ocean-mid border-b-2 border-ocean-mid'
-              : 'text-textSecondary hover:text-ocean-mid'
-          }`}
-        >
-          <i className="fas fa-sun mr-2"></i>
-          Archived Day Tours
-        </button>
-        <button
-          onClick={() => setActiveTab('activities')}
-          className={`px-6 py-3 font-medium transition-all duration-200 whitespace-nowrap ${
-            activeTab === 'activities'
-              ? 'text-ocean-mid border-b-2 border-ocean-mid'
-              : 'text-textSecondary hover:text-ocean-mid'
-          }`}
-        >
-          <i className="fas fa-bicycle mr-2"></i>
-          Archived Activities
-        </button>
-        <button
-          onClick={() => setActiveTab('bankaccounts')}
-          className={`px-6 py-3 font-medium transition-all duration-200 whitespace-nowrap ${
-            activeTab === 'bankaccounts'
-              ? 'text-ocean-mid border-b-2 border-ocean-mid'
-              : 'text-textSecondary hover:text-ocean-mid'
-          }`}
-        >
-          <i className="fas fa-university mr-2"></i>
-          Archived Bank Accounts
-        </button>
-        <button
-  onClick={() => setActiveTab('gcashqr')}
-  className={`px-6 py-3 font-medium transition-all duration-200 whitespace-nowrap ${
-    activeTab === 'gcashqr'
-      ? 'text-ocean-mid border-b-2 border-ocean-mid'
-      : 'text-textSecondary hover:text-ocean-mid'
-  }`}
+{/* Tabs with sliding underline */}
+<div
+  className="relative flex gap-2 mb-6 border-b border-ocean-light/20 overflow-x-auto"
+  ref={tabsContainerRef}
 >
-  <i className="fab fa-gcash mr-2"></i>
-  Archived GCash QR
-</button>
-      </div>
-      
+  {/* Sliding background (dynamic like your original system) */}
+  <div
+    ref={sliderRef}
+    className="absolute top-1 bottom-1 rounded-md bg-ocean-pales/20 transition-all duration-300 ease-in-out shadow-md"
+    style={{
+      transform: 'translateX(0px)',
+      width: '0px',
+    }}
+  />
+
+  {/* Tabs */}
+  <button
+    ref={(el) => (buttonRefs.current.rooms = el)}
+    onClick={() => setActiveTab('rooms')}
+    className={`relative z-10 px-6 py-3 font-medium transition-all duration-200 whitespace-nowrap ${
+      activeTab === 'rooms'
+        ? 'text-ocean-mid'
+        : 'text-textSecondary hover:text-ocean-mid'
+    }`}
+  >
+    <i className="fas fa-bed mr-2"></i>
+    Archived Rooms
+  </button>
+
+  <button
+    ref={(el) => (buttonRefs.current.daytours = el)}
+    onClick={() => setActiveTab('daytours')}
+    className={`relative z-10 px-6 py-3 font-medium transition-all duration-200 whitespace-nowrap ${
+      activeTab === 'daytours'
+        ? 'text-ocean-mid'
+        : 'text-textSecondary hover:text-ocean-mid'
+    }`}
+  >
+    <i className="fas fa-sun mr-2"></i>
+    Archived Day Tours
+  </button>
+
+  <button
+    ref={(el) => (buttonRefs.current.activities = el)}
+    onClick={() => setActiveTab('activities')}
+    className={`relative z-10 px-6 py-3 font-medium transition-all duration-200 whitespace-nowrap ${
+      activeTab === 'activities'
+        ? 'text-ocean-mid'
+        : 'text-textSecondary hover:text-ocean-mid'
+    }`}
+  >
+    <i className="fas fa-bicycle mr-2"></i>
+    Archived Activities
+  </button>
+
+  <button
+    ref={(el) => (buttonRefs.current.bankaccounts = el)}
+    onClick={() => setActiveTab('bankaccounts')}
+    className={`relative z-10 px-6 py-3 font-medium transition-all duration-200 whitespace-nowrap ${
+      activeTab === 'bankaccounts'
+        ? 'text-ocean-mid'
+        : 'text-textSecondary hover:text-ocean-mid'
+    }`}
+  >
+    <i className="fas fa-university mr-2"></i>
+    Archived Bank Accounts
+  </button>
+
+  <button
+    ref={(el) => (buttonRefs.current.gcashqr = el)}
+    onClick={() => setActiveTab('gcashqr')}
+    className={`relative z-10 px-6 py-3 font-medium transition-all duration-200 whitespace-nowrap ${
+      activeTab === 'gcashqr'
+        ? 'text-ocean-mid'
+        : 'text-textSecondary hover:text-ocean-mid'
+    }`}
+  >
+    <i className="fas fa-wallet mr-2"></i>
+    Archived GCash QR
+  </button>
+</div>
+
       {/* Search */}
-      <div className="mb-6">
-        <div className="relative max-w-md">
-          <i className="fas fa-search absolute left-3 top-1/2 -translate-y-1/2 text-neutral text-sm"></i>
-          <input
-            type="text"
-            placeholder={`Search archived ${activeTab === 'rooms' ? 'rooms by name or type...' : activeTab === 'daytours' ? 'day tours by name or type...' : activeTab === 'activities' ? 'activities by name...' : activeTab === 'bankaccounts' ? 'bank accounts by name...' : 'items...'}`}
-            value={searchTerm}
-            onChange={(e) => setSearchTerm(e.target.value)}
-            className="w-full pl-9 pr-3 py-2.5 border border-ocean-light/20 rounded-xl text-sm focus:outline-none focus:border-ocean-light focus:ring-2 focus:ring-ocean-light/20 transition-all duration-300 bg-white"
-          />
-        </div>
-      </div>
+{activeTab !== 'daytours' && activeTab !== 'gcashqr' && (
+  <div className="mb-6">
+    <div className="relative w-full">
+      <i className="fas fa-search absolute left-3 top-1/2 -translate-y-1/2 text-neutral text-sm"></i>
+      <input
+        type="text"
+        placeholder={`Search archived ${
+          activeTab === 'rooms'
+            ? 'rooms by room type...'
+            : activeTab === 'activities'
+            ? 'activities by name...'
+            : activeTab === 'bankaccounts'
+            ? 'bank accounts by name...'
+            : 'items...'
+        }`}
+        value={searchTerm}
+        onChange={(e) => setSearchTerm(e.target.value)}
+        className="w-full pl-9 pr-3 py-2.5 border border-ocean-light/20 rounded-xl text-sm focus:outline-none focus:border-ocean-light focus:ring-2 focus:ring-ocean-light/20 transition-all duration-300 bg-white"
+      />
+    </div>
+  </div>
+)}
       
       {/* Rooms Tab */}
       {activeTab === 'rooms' && (
@@ -922,9 +986,15 @@ const handleDelete = async () => {
               </div>
               <h3 className="text-lg font-bold text-textPrimary mb-2">Permanently Delete Item</h3>
               <p className="text-textSecondary text-sm">
-                Are you sure you want to permanently delete "{deleteModal.type === 'bankaccount' 
-                  ? `${deleteModal.item.bankName} - ${deleteModal.item.accountName}`
-                  : (deleteModal.item.name || deleteModal.item.type || deleteModal.item.name)}"? 
+                Are you sure you want to permanently delete{" "}
+  {deleteModal.type === 'bankaccount' 
+    ? `${deleteModal.item.bankName?.trim()} - ${deleteModal.item.accountName?.trim()}`
+    : deleteModal.type === 'daytour'
+      ? 'this day tour'
+      : deleteModal.type === 'gcashqr'
+        ? 'this QR code'
+        : (deleteModal.item.name?.trim() || deleteModal.item.type?.trim())
+  }? 
                 This action cannot be undone.
               </p>
             </div>

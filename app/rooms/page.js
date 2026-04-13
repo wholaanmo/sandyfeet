@@ -1,4 +1,4 @@
-// app/rooms/page.js (updated)
+// app/rooms/page.js 
 'use client';
 
 import { useState, useEffect } from 'react';
@@ -129,7 +129,7 @@ export default function RoomsPage() {
 
   return (
     <GuestLayout>
-      <div className="min-h-screen bg-gradient-to-br from-ocean-ice to-blue-white">
+      <div className="p-5 min-h-screen" style={{ backgroundColor: 'var(--color-blue-white)' }}>
         {/* Modern Minimal Header - No Background Color */}
         <div className="pt-12 pb-8">
           <div className="mx-auto" style={{ marginLeft: '5%', marginRight: '5%' }}>
@@ -150,13 +150,14 @@ export default function RoomsPage() {
           <div className="flex flex-col lg:flex-row gap-5">
             {/* Left Sidebar - 30% width */}
             <div className="lg:w-[30%] space-y-4">
-              {/* Select Room Types Button */}
+              {/* Select Room Types Button - Redesigned */}
               <button
                 onClick={handleSelectRoomTypes}
-                className="w-full bg-gradient-to-r from-ocean-mid to-ocean-light text-white rounded-xl px-4 py-3 font-semibold hover:shadow-lg hover:-translate-y-0.5 transition-all duration-300 flex items-center justify-center gap-2"
+                className="w-full bg-gradient-to-r from-ocean-mid to-ocean-light text-white rounded-xl px-4 py-3.5 font-bold text-base shadow-md hover:shadow-xl hover:-translate-y-0.5 transition-all duration-300 flex items-center justify-center gap-3 border-2 border-white/20"
               >
-                <i className="fas fa-layer-group"></i>
-                Select Room Types
+                <i className="fas fa-layer-group text-lg"></i>
+                <span>Select Room Types</span>
+                <i className="fas fa-arrow-right text-sm opacity-80 group-hover:translate-x-1 transition-transform"></i>
               </button>
 
               {/* Search Bar */}

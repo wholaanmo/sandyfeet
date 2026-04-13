@@ -1,7 +1,7 @@
 // app/dashboard/admin/day-tour/page.js
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';  
 import { db } from '../../../../lib/firebase';
 import { collection, addDoc, updateDoc, doc, query, orderBy, onSnapshot, where, getDocs } from 'firebase/firestore';
 import { uploadImage } from '../../../../lib/cloudinary';
@@ -26,6 +26,36 @@ export default function AdminDayTour() {
   const [uploadingImage, setUploadingImage] = useState(false);
   const [confirmArchiveModal, setConfirmArchiveModal] = useState({ show: false, tour: null });
   const [confirmArchiveActivityModal, setConfirmArchiveActivityModal] = useState({ show: false, activity: null });
+    const tabsContainerRef = useRef(null);
+  const sliderRef = useRef(null);
+  const buttonRefs = useRef({});
+
+    const updateSlider = useCallback(() => {
+    const activeButton = buttonRefs.current[activeTab];
+    const container = tabsContainerRef.current;
+    const slider = sliderRef.current;
+    if (activeButton && container && slider) {
+      const buttonRect = activeButton.getBoundingClientRect();
+      const containerRect = container.getBoundingClientRect();
+      const left = buttonRect.left - containerRect.left;
+      const width = buttonRect.width;
+      slider.style.transform = `translateX(${left}px)`;
+      slider.style.width = `${width}px`;
+    }
+  }, [activeTab]);
+
+  useEffect(() => {
+    updateSlider();
+    const resizeObserver = new ResizeObserver(() => updateSlider());
+    if (tabsContainerRef.current) {
+      resizeObserver.observe(tabsContainerRef.current);
+    }
+    window.addEventListener('resize', updateSlider);
+    return () => {
+      resizeObserver.disconnect();
+      window.removeEventListener('resize', updateSlider);
+    };
+  }, [updateSlider]);
 
   // Track original form data for edit mode
   const [originalTourData, setOriginalTourData] = useState(null);
@@ -58,8 +88,8 @@ export default function AdminDayTour() {
   const [inclusionInput, setInclusionInput] = useState('');
   
   const availabilityStatuses = [
-    { value: 'available', label: 'Available', color: 'bg-green-100 text-green-700' },
-    { value: 'unavailable', label: 'Not Available', color: 'bg-red-100 text-red-700' }
+    { value: 'available', label: 'Available', color: 'bg-green-50 text-green-700 border-green-200' },
+    { value: 'unavailable', label: 'Not Available', color: 'bg-red-50 text-red-700 border-red-200' }
   ];
   
   // Pricing type options
@@ -789,30 +819,55 @@ if (!activeToursSnapshot.empty) {
       </div>
       
       {/* Tabs */}
-      <div className="flex gap-2 mb-8 border-b border-ocean-light/20">
-        <button
-          onClick={() => setActiveTab('tours')}
-          className={`px-6 py-3 font-medium transition-all duration-200 ${
-            activeTab === 'tours'
-              ? 'text-ocean-mid border-b-2 border-ocean-mid'
-              : 'text-textSecondary hover:text-ocean-mid'
-          }`}
-        >
-          <i className="fas fa-sun mr-2"></i>
-          Day Tour
-        </button>
-        <button
-          onClick={() => setActiveTab('activities')}
-          className={`px-6 py-3 font-medium transition-all duration-200 ${
-            activeTab === 'activities'
-              ? 'text-ocean-mid border-b-2 border-ocean-mid'
-              : 'text-textSecondary hover:text-ocean-mid'
-          }`}
-        >
-          <i className="fas fa-bicycle mr-2"></i>
-          Activities ({activities.length})
-        </button>
-      </div>
+ <div
+  className="relative flex items-center mb-8 border-b border-ocean-light/20"
+>
+  <div className="relative flex w-full">
+    
+    {/* Sliding background (fixed 50%) */}
+<div
+  className="absolute top-1 bottom-1 w-1/2 rounded-md bg-ocean-pales/20 transition-all duration-300 ease-in-out shadow-md"
+  style={{
+    transform: `
+      translateX(${activeTab === 'tours' ? '0%' : '100%'})
+      scale(0.98)
+    `
+  }}
+/>
+
+    {/* Left Tab */}
+    <div className="flex-1 flex justify-center">
+      <button
+        onClick={() => setActiveTab('tours')}
+        className={`relative z-10 w-full px-6 py-3 font-medium transition-all duration-200 text-center ${
+          activeTab === 'tours'
+            ? 'text-ocean-mid'
+            : 'text-textSecondary hover:text-ocean-mid'
+        }`}
+      >
+        <i className="fas fa-sun mr-2"></i>
+        Day Tour
+      </button>
+    </div>
+
+    {/* Right Tab */}
+    <div className="flex-1 flex justify-center">
+      <button
+        onClick={() => setActiveTab('activities')}
+        className={`relative z-10 w-full px-6 py-3 font-medium transition-all duration-200 text-center ${
+          activeTab === 'activities'
+            ? 'text-ocean-mid'
+            : 'text-textSecondary hover:text-ocean-mid'
+        }`}
+      >
+        <i className="fas fa-bicycle mr-2"></i>
+        Activities
+      </button>
+    </div>
+
+  </div>
+</div>
+
       
       {/* Notification */}
       {notification.show && (

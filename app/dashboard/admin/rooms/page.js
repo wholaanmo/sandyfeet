@@ -41,9 +41,9 @@ export default function AdminRooms() {
   const [inclusionInput, setInclusionInput] = useState('');
   
   const availabilityStatuses = [
-    { value: 'available', label: 'Available', color: 'bg-green-100 text-green-700' },
-    { value: 'unavailable', label: 'Unavailable', color: 'bg-red-100 text-red-700' },
-    { value: 'maintenance', label: 'Under Maintenance', color: 'bg-yellow-100 text-yellow-700' }
+    { value: 'available', label: 'Available', color: 'bg-green-50 text-green-700 border-green-200' },
+    { value: 'unavailable', label: 'Unavailable', color: 'bg-red-50 text-red-700 border-red-200' },
+    { value: 'maintenance', label: 'Under Maintenance', color: 'bg-orange-50 text-orange-700 border-orange-200' }
   ];
   
   // Real-time listener for active rooms (not archived)

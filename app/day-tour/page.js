@@ -123,7 +123,7 @@ export default function DayTourPage() {
 
   return (
     <GuestLayout>
-      <div className="min-h-screen bg-gradient-to-br from-ocean-ice to-blue-white">
+       <div className="p-5 min-h-screen" style={{ backgroundColor: 'var(--color-blue-white)' }}>
         {/* Modern Minimal Header */}
         <div className="pt-12 pb-8">
           <div className="mx-auto" style={{ marginLeft: '5%', marginRight: '5%' }}>
