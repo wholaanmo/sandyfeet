@@ -1,24 +1,26 @@
 @import "tailwindcss";
 
 :root {
-  /* MAIN THEME (adjusted to your new palette) */
-  --color-ocean-deep: #1F3F49;       /* sidebar (main dark) */
-  --color-ocean-mid:  #2E6F7E;       /* hover / active */
-  --color-ocean-light: #4A8FA1;      /* lighter version of hover */
-  --color-ocean-lighter: #7FB4C1;    /* soft secondary */
-  --color-ocean-pales: #b4dce7;       /* pale version */
-  --color-ocean-pale: #BFDDE5;  
-  --color-ocean-ice: #E8F4F7;        /* very light */
-  --color-blue-white: #FFF8F0;       /* main background */
+  /* MAIN THEME */
+  --color-ocean-deep: #174FCC;       /* darker blue (sidebar) */
+  --color-ocean-mid:  #2169F3;       /* main blue */
+  --color-ocean-light: #4D8CF5;      /* lighter blue */
+  --color-ocean-lighter: #7AAAF8;    /* softer blue */
+  --color-ocean-pales: #A7C7FB;      /* pale blue */
+  --color-ocean-pale: #CFE0FD;  
+  --color-ocean-ice: #EEF4FF;        /* very light blue */
+  --color-blue-white: #FFFFFF;       /* main background */
 
-  /* TEXT COLORS */
-  --color-textPrimary: #1F3F49;      /* strong readable (same as sidebar) */
-  --color-textSecondary: #4A8FA1;    /* softer text */
+  /* TEXT COLORS (UPDATED) */
+  --color-textPrimary: #1F2937;      /* dark gray (main text) */
+  --color-textSecondary: #6B7280;    /* softer gray */
 
   /* ACCENTS */
-  --color-accent-blue: #2E6F7E;      /* buttons / hover */
+  --color-accent-blue: #2169F3;      /* buttons */
+  --color-accent-yellow: #FFB327;    /* small highlights */
   --color-neutral: #9CA3AF;
   --color-white: #FFFFFF;
+
   --navbar-height: 60px;
 }
 

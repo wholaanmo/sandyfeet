@@ -92,8 +92,8 @@ export default function StaffSidebar({ isOpen, onToggle, isDesktop }) {
   const getSidebarStyle = () => {
     if (!isDesktop) {
       return {
-        backgroundColor: '#2E6F7E',
-        boxShadow: '2px 0 15px rgba(0, 0, 0, 0.08)',
+        backgroundColor: '#FFFFFF',
+        boxShadow: '2px 0 20px rgba(0, 0, 0, 0.06)',
         transition: 'transform 3s cubic-bezier(0.4, 0, 0.2, 1)',
         top: '60px',
         width: '40%',
@@ -101,8 +101,8 @@ export default function StaffSidebar({ isOpen, onToggle, isDesktop }) {
       };
     }
     return {
-      backgroundColor: '#2E6F7E',
-      boxShadow: '2px 0 15px rgba(0, 0, 0, 0.08)',
+      backgroundColor: '#FFFFFF',
+      boxShadow: '2px 0 20px rgba(0, 0, 0, 0.06)',
       transition: 'width 0.3s cubic-bezier(0.4, 0, 0.2, 1), transform 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
     };
   };
@@ -131,7 +131,7 @@ export default function StaffSidebar({ isOpen, onToggle, isDesktop }) {
       >
         {/* Logo Section - hidden on mobile */}
         {isDesktop && (
-          <div className={`pt-6 pb-4 ${is_expanded ? 'px-5' : 'px-3'} border-b border-white/20 flex-shrink-0`}>
+          <div className={`pt-6 pb-4 ${is_expanded ? 'px-5' : 'px-3'} border-b border-gray-100 flex-shrink-0`}>
             <div className={`flex items-center gap-2 ${is_expanded ? 'justify-start' : 'justify-center'}`}>
               <div className="w-10 h-10 relative flex-shrink-0">
                 <Image 
@@ -140,15 +140,15 @@ export default function StaffSidebar({ isOpen, onToggle, isDesktop }) {
                   width={40}
                   height={40}
                   priority
-                  className="rounded-full border-2 border-white/40 object-cover shadow-md"
+                  className="rounded-full border-2 border-ocean-mid/20 object-cover shadow-md"
                 />
               </div>
               {is_expanded && (
                 <div className="flex flex-col min-w-0">
-                  <p className="font-bold text-base text-white leading-tight font-playfair m-0 truncate">
+                  <p className="font-bold text-base text-[#1E3A8A] leading-tight font-playfair m-0 truncate">
                     SandyFeet
                   </p>
-                  <p className="font-bold text-[10px] text-white/70 leading-tight m-0 truncate">
+                  <p className="font-bold text-[10px] text-gray-500 leading-tight m-0 truncate">
                     Reservation System
                   </p>
                 </div>
@@ -159,18 +159,18 @@ export default function StaffSidebar({ isOpen, onToggle, isDesktop }) {
 
         {/* Toggle Button - only on desktop */}
         {isDesktop && (
-          <div className="relative h-4 flex items-center justify-end hidden lg:block">
+          <div className="relative h-0.5 flex items-center justify-end hidden lg:block">
             <button
               onClick={toggleExpandCollapse}
-              className="absolute flex items-center justify-center w-7 h-7 rounded-full bg-white text-ocean-mid hover:bg-ocean-ice hover:text-ocean-deep transition-all duration-200 shadow-md z-10"
+              className="absolute flex items-center justify-center w-6 h-6 rounded-full bg-white text-[#2169F3] shadow-sm ring-1 ring-[#2169F3]/20 transition-all duration-300 z-10 hover:scale-110 hover:ring-[#2169F3]/40 hover:shadow-lg active:scale-95"
               style={{
                 right: '-14px',
                 transform: 'translateY(-50%)',
                 top: '50%',
-                border: '2px solid white'
+                border: '1px solid #2169F3'
               }}
             >
-              <span className="material-icons text-sm">
+              <span className="material-icons text-sm transition-transform duration-200">
                 {is_expanded ? 'chevron_left' : 'chevron_right'}
               </span>
             </button>
@@ -192,29 +192,33 @@ export default function StaffSidebar({ isOpen, onToggle, isDesktop }) {
                   key={item.path}
                   href={item.path}
                   onClick={handleMobileMenuClick}
-                  className={`group relative flex items-center p-2.5 rounded-lg transition-all duration-200 w-full ${
+                  className={`group relative flex items-center p-2.5 rounded-lg transition-all duration-300 w-full ${
                     (!isDesktop || is_expanded) ? 'justify-start' : 'justify-center'
-                  } ${isActive(item.path) 
-                    ? 'bg-white/25 shadow-md text-white' 
-                    : 'text-white/80 hover:bg-white/15 hover:text-white'}`}
-                >
-                  <span className={`material-icons text-xl min-w-5 text-center transition-all duration-200 ${
+                  } ${
                     isActive(item.path) 
-                      ? 'text-white scale-105' 
-                      : 'text-white/80 group-hover:text-white group-hover:scale-105'
+                      ? 'bg-[#2169F3]/15 text-[#174FCC] shadow-md shadow-[#2169F3]/10 scale-[1.02]'
+                      : 'text-gray-700 hover:bg-[#2169F3]/5 hover:text-[#174FCC] hover:shadow-sm'
+                  }`}
+                >
+                  <span className={`material-icons text-xl min-w-5 text-center transition-all duration-300 ${
+                    isActive(item.path) 
+                      ? 'text-[#174FCC] scale-110' 
+                      : 'text-gray-400 group-hover:text-[#174FCC] group-hover:scale-110'
                   }`}>
                     {item.materialIcon}
                   </span>
                   {(!isDesktop || is_expanded) && (
-                    <span className={`ml-3 text-xs font-medium transition-colors duration-200 ${
-                      isActive(item.path) ? 'text-white' : 'text-white/90'
+                    <span className={`ml-3 text-xs font-medium transition-all duration-300 ${
+                      isActive(item.path) 
+                        ? 'text-[#174FCC]' 
+                        : 'text-gray-700 group-hover:text-[#174FCC]'
                     }`}>
                       {item.label}
                     </span>
                   )}
                   {/* Tooltip only for desktop collapsed state */}
                   {isDesktop && !is_expanded && (
-                    <div className="absolute left-full ml-2 px-2 py-1 bg-[#2E6F7E] text-white text-xs rounded opacity-0 group-hover:opacity-100 pointer-events-none transition-opacity duration-200 whitespace-nowrap z-50 shadow-md">
+                    <div className="absolute left-full ml-2 px-2.5 py-1.5 bg-[#2169F3] text-white text-xs rounded-lg opacity-0 group-hover:opacity-100 pointer-events-none transition-all duration-200 whitespace-nowrap z-50 shadow-lg">
                       {item.label}
                     </div>
                   )}
@@ -224,23 +228,23 @@ export default function StaffSidebar({ isOpen, onToggle, isDesktop }) {
           </div>
 
           {/* Sign Out Button */}
-          <div className="p-3 border-t border-white/20 flex-shrink-0">
+          <div className="p-3 border-t border-gray-100 flex-shrink-0">
             <button
               onClick={handleSignOut}
-              className={`group relative flex items-center p-2.5 rounded-lg transition-all duration-200 w-full ${
+              className={`group relative flex items-center p-2.5 rounded-lg transition-all duration-300 w-full ${
                 (!isDesktop || is_expanded) ? 'justify-start' : 'justify-center'
-              } text-white/80 hover:bg-white/15 hover:text-white`}
+              } text-gray-600 hover:bg-[#2169F3]/5 hover:text-[#2169F3]`}
             >
-              <span className="material-icons text-xl min-w-5 text-center transition-transform duration-200 group-hover:scale-105 text-white/80 group-hover:text-white">
+              <span className="material-icons text-xl min-w-5 text-center transition-all duration-300 text-gray-400 group-hover:text-[#2169F3] group-hover:scale-110">
                 logout
               </span>
               {(!isDesktop || is_expanded) && (
-                <span className="ml-3 text-xs font-medium">
+                <span className="ml-3 text-xs font-medium transition-all duration-300 text-gray-600 group-hover:text-[#2169F3] group-hover:translate-x-0.5">
                   Sign Out
                 </span>
               )}
               {isDesktop && !is_expanded && (
-                <div className="absolute left-full ml-2 px-2 py-1 bg-[#2E6F7E] text-white text-xs rounded opacity-0 group-hover:opacity-100 pointer-events-none transition-opacity duration-200 whitespace-nowrap z-50 shadow-md">
+                <div className="absolute left-full ml-2 px-2.5 py-1.5 bg-[#2169F3] text-white text-xs rounded-lg opacity-0 group-hover:opacity-100 pointer-events-none transition-all duration-200 whitespace-nowrap z-50 shadow-lg">
                   Sign Out
                 </div>
               )}
