@@ -1,7 +1,7 @@
 // app/rooms/select-room-types/page.js
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import GuestLayout from '@/app/guest/layout';
 import { db } from '@/lib/firebase';
@@ -29,6 +29,8 @@ export default function SelectRoomTypesPage() {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [checkInHour, setCheckInHour] = useState(14);
   const [checkOutHour, setCheckOutHour] = useState(12);
+  const calendarPopoverRef = useRef(null);
+  const calendarTriggerRef = useRef(null);
 
   const CHECK_IN_OPTIONS = [14, 15, 16];
   const CHECK_OUT_OPTIONS = [10, 11, 12, 13];
@@ -229,9 +231,18 @@ export default function SelectRoomTypesPage() {
   }, [checkInHour]);
 
   useEffect(() => {
-    document.body.style.overflow = isModalOpen ? 'hidden' : 'unset';
+    if (!isModalOpen) return;
+
+    const handleClickOutside = (event) => {
+      const target = event.target;
+      if (calendarPopoverRef.current?.contains(target)) return;
+      if (calendarTriggerRef.current?.contains(target)) return;
+      setIsModalOpen(false);
+    };
+
+    document.addEventListener('mousedown', handleClickOutside);
     return () => {
-      document.body.style.overflow = 'unset';
+      document.removeEventListener('mousedown', handleClickOutside);
     };
   }, [isModalOpen]);
 
@@ -905,9 +916,10 @@ const handleTotalGuestsChange = (roomType, value) => {
                   </div>
                 </div>
 
-                <div className="mb-6 p-4 bg-gray-50/50 rounded-[1.5rem] border border-gray-100">
+                 <div className="mb-6 p-4 bg-gray-50/50 rounded-[1.5rem] border border-gray-100 relative">
                     <h3 className="text-xs font-semibold text-gray-800 mb-3 uppercase tracking-wider">Stay Schedule</h3>
                     <div 
+                      ref={calendarTriggerRef}
                        className="flex items-center justify-between text-sm font-semibold text-gray-700 bg-white p-3.5 rounded-xl border border-gray-200 mb-3 cursor-pointer hover:border-blue-400 transition-colors shadow-sm" 
                        onClick={() => setIsModalOpen(true)}
                     >
@@ -918,22 +930,106 @@ const handleTotalGuestsChange = (roomType, value) => {
                        )}
                        <i className="fas fa-calendar-alt text-blue-500"></i>
                     </div>
-                    <div className="grid grid-cols-2 gap-3">
-                       <select
-                          value={checkInHour}
-                          onChange={(e) => setCheckInHour(parseInt(e.target.value, 10))}
-                          className="w-full px-2 py-2.5 border border-gray-200 rounded-xl text-xs font-semibold text-gray-700 bg-white focus:outline-none focus:border-blue-400"
-                        >
-                          {CHECK_IN_OPTIONS.map((h) => <option key={h} value={h}>In: {formatHour(h)}</option>)}
-                        </select>
-                        <select
-                          value={checkOutHour}
-                          onChange={(e) => setCheckOutHour(parseInt(e.target.value, 10))}
-                          className="w-full px-2 py-2.5 border border-gray-200 rounded-xl text-xs font-semibold text-gray-700 bg-white focus:outline-none focus:border-blue-400"
-                        >
-                          {CHECK_OUT_OPTIONS.map((h) => <option key={h} value={h}>Out: {formatHour(h)}</option>)}
-                        </select>
+                    <div className="text-[11px] font-semibold text-gray-600 bg-white p-3 rounded-xl border border-gray-200">
+                      Fixed schedule: Check-in {checkInDisplay}, Check-out {checkOutDisplay}
                     </div>
+
+                    {isModalOpen && (
+                      <div
+                        ref={calendarPopoverRef}
+                        className="absolute right-0 top-[calc(100%+0.5rem)] z-40 bg-white w-[340px] max-w-[calc(100vw-2rem)] rounded-[2rem] shadow-2xl p-6 border border-gray-100"
+                      >
+                        <div className="flex justify-between items-center mb-6">
+                          <div>
+                            <h2 className="text-2xl font-bold font-playfair text-gray-900 leading-tight">Select<br/>Dates</h2>
+                            <p className="text-xs text-gray-500 font-medium mt-1">When are you arriving?</p>
+                          </div>
+                          <button onClick={() => setIsModalOpen(false)} className="w-10 h-10 flex items-center justify-center rounded-full bg-gray-50 text-gray-400 hover:bg-gray-100 hover:text-gray-600 transition-colors">
+                            <i className="fas fa-times text-sm"></i>
+                          </button>
+                        </div>
+
+                        <div className="overflow-y-auto max-h-[62vh] pb-3 scrollbar-hide">
+                          <div className="flex justify-between items-center mb-5 px-1">
+                            <button onClick={goToPreviousMonth} className="w-8 h-8 flex justify-center items-center text-gray-400 border border-gray-200 hover:text-blue-500 hover:border-blue-200 rounded-full transition-colors">
+                              <i className="fas fa-chevron-left text-[10px]"></i>
+                            </button>
+                            <h2 className="font-bold text-gray-800 text-sm tracking-wide">{monthNames[currentMonth.getMonth()]} {currentMonth.getFullYear()}</h2>
+                            <button onClick={goToNextMonth} className="w-8 h-8 flex justify-center items-center text-gray-400 border border-gray-200 hover:text-blue-500 hover:border-blue-200 rounded-full transition-colors">
+                              <i className="fas fa-chevron-right text-[10px]"></i>
+                            </button>
+                          </div>
+
+                          <div className="grid grid-cols-7 gap-1 mb-2">
+                            {['Su', 'Mo', 'Tu', 'We', 'Th', 'Fr', 'Sa'].map(d => (
+                              <div key={d} className="text-center text-[10px] font-bold uppercase tracking-widest text-gray-400 py-1">{d}</div>
+                            ))}
+                          </div>
+                          <div className="grid grid-cols-7 gap-x-1 gap-y-1.5">
+                            {days.map((day, index) => {
+                              if (!day) return <div key={index}></div>;
+                              const isPast = isDatePast(day);
+                              const isTooSoon = isDateTooSoon(day);
+                              const isFullyBlocked = isDateFullyBlockedByAdmin(day);
+                              const isFullyBooked = isDateFullyBooked(day);
+                              const isSelected = checkInDate && checkInDate.toDateString() === day.toDateString();
+
+                              let bg = 'bg-white border border-gray-100';
+                              let text = 'text-gray-700';
+                              let stateClass = 'hover:border-blue-400 hover:text-blue-600 cursor-pointer';
+                              if (isPast || isTooSoon) {
+                                bg = 'bg-gray-50 border-transparent';
+                                text = 'text-gray-300';
+                                stateClass = 'cursor-not-allowed';
+                              } else if (isFullyBlocked || isFullyBooked) {
+                                bg = 'bg-red-50 border-red-100';
+                                text = 'text-red-300';
+                                stateClass = 'cursor-not-allowed';
+                              } else if (isSelected) {
+                                bg = 'bg-blue-500 border-blue-500';
+                                text = 'text-white';
+                                stateClass = 'shadow-md cursor-pointer ring-4 ring-blue-500/20';
+                              }
+
+                              return (
+                                <button
+                                  key={index}
+                                  disabled={isPast || isTooSoon || isFullyBlocked || isFullyBooked}
+                                  onClick={() => handleDateSelect(day)}
+                                  className={`aspect-square rounded-[10px] flex items-center justify-center font-bold text-xs transition-all ${bg} ${text} ${stateClass}`}
+                                >
+                                  {day.getDate()}
+                                </button>
+                              );
+                            })}
+                          </div>
+
+                          <div className="mt-8 bg-[#F8FCFF] border border-blue-100/50 p-4 rounded-2xl relative overflow-hidden">
+                            <div className="flex items-center justify-between relative z-10">
+                              <div>
+                                <h3 className="text-sm font-bold text-gray-800">Duration</h3>
+                                <p className="text-[10px] uppercase font-bold text-blue-500/70 tracking-widest mt-0.5">Nights</p>
+                              </div>
+                              <div className="flex items-center bg-white rounded-xl p-1 border border-gray-200 shadow-sm">
+                                <button onClick={() => handleNightsChange(false)} disabled={numberOfNights<=1} className="w-8 h-8 flex items-center justify-center rounded-lg text-gray-500 hover:bg-gray-50 disabled:opacity-30 transition-colors">
+                                  <i className="fas fa-minus text-[10px]"></i>
+                                </button>
+                                <span className="font-bold text-sm w-8 text-center text-gray-800">{numberOfNights}</span>
+                                <button onClick={() => handleNightsChange(true)} disabled={numberOfNights>=30} className="w-8 h-8 flex items-center justify-center rounded-lg text-gray-500 hover:bg-gray-50 disabled:opacity-30 transition-colors">
+                                  <i className="fas fa-plus text-[10px]"></i>
+                                </button>
+                              </div>
+                            </div>
+                          </div>
+                        </div>
+
+                        <div className="mt-4 pt-4 border-t border-gray-100">
+                          <button onClick={() => setIsModalOpen(false)} className="w-full py-3.5 bg-gray-900 text-white rounded-xl text-sm font-bold hover:bg-black transition-colors shadow-lg shadow-gray-900/20">
+                            Confirm Dates
+                          </button>
+                        </div>
+                      </div>
+                    )}
                  </div>
 
                 <div className="space-y-3 mb-6">
@@ -1021,100 +1117,7 @@ const handleTotalGuestsChange = (roomType, value) => {
         </div>
       </div>
 
-      {isModalOpen && (
-        <div className="fixed inset-0 z-50 overflow-hidden flex items-center justify-center p-4">
-          <button
-            type="button"
-            onClick={() => setIsModalOpen(false)}
-            className="absolute inset-0 bg-gray-900/40 backdrop-blur-sm"
-          />
 
-          <div className="relative bg-white w-full max-w-[340px] rounded-[2rem] shadow-2xl p-6 z-10 flex flex-col overflow-hidden max-h-[90vh]">
-            <div className="flex justify-between items-center mb-6">
-               <div>
-                 <h2 className="text-2xl font-bold font-playfair text-gray-900 leading-tight">Select<br/>Dates</h2>
-                 <p className="text-xs text-gray-500 font-medium mt-1">When are you arriving?</p>
-               </div>
-               <button onClick={() => setIsModalOpen(false)} className="w-10 h-10 flex items-center justify-center rounded-full bg-gray-50 text-gray-400 hover:bg-gray-100 hover:text-gray-600 transition-colors">
-                  <i className="fas fa-times text-sm"></i>
-               </button>
-            </div>
-            
-            <div className="overflow-y-auto flex-1 pb-6 scrollbar-hide">
-               <div className="flex justify-between items-center mb-5 px-1">
-                 <button onClick={goToPreviousMonth} className="w-8 h-8 flex justify-center items-center text-gray-400 border border-gray-200 hover:text-blue-500 hover:border-blue-200 rounded-full transition-colors">
-                    <i className="fas fa-chevron-left text-[10px]"></i>
-                 </button>
-                 <h2 className="font-bold text-gray-800 text-sm tracking-wide">{monthNames[currentMonth.getMonth()]} {currentMonth.getFullYear()}</h2>
-                 <button onClick={goToNextMonth} className="w-8 h-8 flex justify-center items-center text-gray-400 border border-gray-200 hover:text-blue-500 hover:border-blue-200 rounded-full transition-colors">
-                    <i className="fas fa-chevron-right text-[10px]"></i>
-                 </button>
-               </div>
-               
-               <div className="grid grid-cols-7 gap-1 mb-2">
-                 {['Su', 'Mo', 'Tu', 'We', 'Th', 'Fr', 'Sa'].map(d => (
-                    <div key={d} className="text-center text-[10px] font-bold uppercase tracking-widest text-gray-400 py-1">{d}</div>
-                 ))}
-               </div>
-               <div className="grid grid-cols-7 gap-x-1 gap-y-1.5">
-                 {days.map((day, index) => {
-                    if (!day) return <div key={index}></div>;
-                    const isPast = isDatePast(day);
-                    const isTooSoon = isDateTooSoon(day);
-                    const isFullyBlocked = isDateFullyBlockedByAdmin(day);
-                    const isFullyBooked = isDateFullyBooked(day);
-                    const isSelected = checkInDate && checkInDate.toDateString() === day.toDateString();
-                    
-                    let bg = "bg-white border border-gray-100"; let text = "text-gray-700";
-                    let stateClass = "hover:border-blue-400 hover:text-blue-600 cursor-pointer";
-                    if (isPast || isTooSoon) {
-                        bg = "bg-gray-50 border-transparent"; text = "text-gray-300"; stateClass = "cursor-not-allowed";
-                    } else if (isFullyBlocked || isFullyBooked) {
-                        bg = "bg-red-50 border-red-100"; text = "text-red-300"; stateClass = "cursor-not-allowed";
-                    } else if (isSelected) {
-                        bg = "bg-blue-500 border-blue-500"; text = "text-white"; stateClass = "shadow-md cursor-pointer ring-4 ring-blue-500/20";
-                    }
-                    
-                    return (
-                        <button 
-                           key={index}
-                           disabled={isPast || isTooSoon || isFullyBlocked || isFullyBooked}
-                           onClick={() => handleDateSelect(day)}
-                           className={`aspect-square rounded-[10px] flex items-center justify-center font-bold text-xs transition-all ${bg} ${text} ${stateClass}`}
-                        >
-                           {day.getDate()}
-                        </button>
-                    )
-                 })}
-               </div>
-               
-               <div className="mt-8 bg-[#F8FCFF] border border-blue-100/50 p-4 rounded-2xl relative overflow-hidden">
-                  <div className="flex items-center justify-between relative z-10">
-                     <div>
-                        <h3 className="text-sm font-bold text-gray-800">Duration</h3>
-                        <p className="text-[10px] uppercase font-bold text-blue-500/70 tracking-widest mt-0.5">Nights</p>
-                     </div>
-                     <div className="flex items-center bg-white rounded-xl p-1 border border-gray-200 shadow-sm">
-                       <button onClick={() => handleNightsChange(false)} disabled={numberOfNights<=1} className="w-8 h-8 flex items-center justify-center rounded-lg text-gray-500 hover:bg-gray-50 disabled:opacity-30 transition-colors">
-                          <i className="fas fa-minus text-[10px]"></i>
-                       </button>
-                       <span className="font-bold text-sm w-8 text-center text-gray-800">{numberOfNights}</span>
-                       <button onClick={() => handleNightsChange(true)} disabled={numberOfNights>=30} className="w-8 h-8 flex items-center justify-center rounded-lg text-gray-500 hover:bg-gray-50 disabled:opacity-30 transition-colors">
-                          <i className="fas fa-plus text-[10px]"></i>
-                       </button>
-                     </div>
-                  </div>
-               </div>
-            </div>
-            
-            <div className="mt-auto pt-4 border-t border-gray-100">
-               <button onClick={() => setIsModalOpen(false)} className="w-full py-3.5 bg-gray-900 text-white rounded-xl text-sm font-bold hover:bg-black transition-colors shadow-lg shadow-gray-900/20">
-                  Confirm Dates
-               </button>
-            </div>
-          </div>
-        </div>
-      )}
     </GuestLayout>
   );
 }
