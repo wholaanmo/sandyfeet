@@ -17,7 +17,21 @@ export default function HomePage() {
       <div className="bg-white min-h-screen overflow-hidden text-[#143B36]">
 
         {/* --- HERO SECTION --- */}
-        <section className="relative w-full max-w-7xl mx-auto px-6 pt-24 pb-12 mt-6 md:pt-32 md:flex md:items-center md:min-h-[75vh]">
+        <section className="relative isolate overflow-hidden w-full pt-24 pb-12 md:pt-32 md:min-h-[75vh]">
+          <div className="absolute inset-0 -z-10">
+            <Image
+              src="/assets/View/Front view.jpg"
+              alt="Sandyfeet hero background"
+              fill
+              priority
+              className="object-cover object-[center_58%]"
+            />
+            <div className="absolute inset-0 bg-gradient-to-r from-white/95 via-white/80 to-white/55" />
+            <div className="absolute inset-0 bg-gradient-to-b from-white/40 via-transparent to-white/55" />
+          </div>
+
+          <div className="relative z-10 w-full max-w-7xl mx-auto px-6 md:flex md:items-center">
+
           {/* Left Content */}
           <div className="md:w-5/12 z-10">
             <span className="text-[#3B82F6] font-bold text-[10px] tracking-widest uppercase mb-4 block">
@@ -46,13 +60,13 @@ export default function HomePage() {
           </div>
 
           {/* Right Images (Collage) */}
-          <div className="md:w-7/12 relative h-[500px] mt-10 md:mt-0">
+          <div className="md:w-7/12 relative h-[500px] mt-10 md:mt-4">
             {/* Main Center Image */}
-            <div className="absolute right-12 top-0 z-20 transform -rotate-2 hover:rotate-0 transition-transform duration-500 rounded-[2rem] border-8 border-white shadow-2xl overflow-hidden w-[460px] h-[320px]">
+            <div className="absolute right-12 top-2 z-20 transform -rotate-2 hover:rotate-0 transition-transform duration-500 rounded-[2rem] border-8 border-white shadow-2xl overflow-hidden w-[460px] h-[320px]">
               <Image src="/assets/View/IMG3.jpg" alt="Pool View" fill className="object-cover" />
             </div>
             {/* Top Left Smaller Image */}
-            <div className="absolute left-8 top-[-30px] z-10 transform -rotate-12 hover:-rotate-6 transition-transform duration-500 rounded-3xl border-8 border-white shadow-xl overflow-hidden w-[220px] h-[220px]">
+            <div className="absolute left-8 -top-2 z-10 transform -rotate-12 hover:-rotate-6 transition-transform duration-500 rounded-3xl border-8 border-white shadow-xl overflow-hidden w-[220px] h-[220px]">
               <Image src="/assets/View/Banner.jpg" alt="Camp View" fill className="object-cover" />
             </div>
             {/* Bottom Left Image */}
@@ -60,13 +74,14 @@ export default function HomePage() {
               <Image src="/assets/GroundFloor/Ground floor room.jpg" alt="Room View" fill className="object-cover" />
             </div>
             {/* Bottom Right Image */}
-            <div className="absolute right-0 -bottom-8 z-40 transform rotate-6 hover:rotate-12 transition-transform duration-500 rounded-3xl border-8 border-white shadow-xl overflow-hidden w-[180px] h-[180px]">
+            <div className="absolute right-0 bottom-0 z-40 transform rotate-6 hover:rotate-12 transition-transform duration-500 rounded-3xl border-8 border-white shadow-xl overflow-hidden w-[180px] h-[180px]">
               <Image src="/assets/View/Front view.jpg" alt="Signage" fill className="object-cover" />
             </div>
             {/* Top Right Tiny Image */}
-            <div className="absolute right-40 -top-16 z-0 transform rotate-12 hover:rotate-6 transition-transform duration-500 rounded-2xl border-[6px] border-white shadow-xl overflow-hidden w-[160px] h-[160px]">
+            <div className="absolute right-40 -top-4 z-0 transform rotate-12 hover:rotate-6 transition-transform duration-500 rounded-2xl border-[6px] border-white shadow-xl overflow-hidden w-[160px] h-[160px]">
               <Image src="/assets/GroupRoom/GroupRoom1.1.jpg" alt="Group Room" fill className="object-cover" />
             </div>
+          </div>
           </div>
         </section>
 
