@@ -442,8 +442,8 @@ export default function MultiRoomBookingPage() {
   if (loading) {
     return (
       <GuestLayout>
-        <div className="min-h-screen bg-gradient-to-br from-ocean-ice to-blue-white flex items-center justify-center">
-          <i className="fas fa-spinner fa-spin text-3xl text-ocean-light"></i>
+        <div className="min-h-screen bg-[#F8FCFF] pt-32 pb-14 flex items-center justify-center">
+          <i className="fas fa-spinner fa-spin text-3xl text-blue-500"></i>
         </div>
       </GuestLayout>
     );
@@ -452,13 +452,13 @@ export default function MultiRoomBookingPage() {
   if (!bookingData) {
     return (
       <GuestLayout>
-        <div className="min-h-screen bg-gradient-to-br from-ocean-ice to-blue-white flex items-center justify-center">
-          <div className="text-center">
-            <i className="fas fa-exclamation-triangle text-5xl text-ocean-light mb-4"></i>
-            <p className="text-textPrimary">No booking data found. Please select rooms first.</p>
+        <div className="min-h-screen bg-[#F8FCFF] pt-32 pb-14 flex items-center justify-center px-4">
+          <div className="text-center bg-white border border-gray-200 rounded-2xl p-8 shadow-sm">
+            <i className="fas fa-exclamation-triangle text-5xl text-amber-500 mb-4"></i>
+            <p className="text-gray-700">No booking data found. Please select rooms first.</p>
             <button
               onClick={() => router.push('/rooms/select-room-types')}
-              className="mt-4 px-6 py-2 bg-gradient-to-r from-ocean-mid to-ocean-light text-white rounded-lg"
+              className="mt-4 px-6 py-2.5 bg-blue-500 hover:bg-blue-600 text-white rounded-xl font-semibold transition-colors"
             >
               Back to Room Selection
             </button>
@@ -470,29 +470,58 @@ export default function MultiRoomBookingPage() {
 
   return (
     <GuestLayout>
-      <div className="min-h-screen bg-gradient-to-br from-ocean-ice to-blue-white py-12">
-        <div className="max-w-7xl w-full mx-auto px-4">
-          <div className="flex flex-col lg:flex-row gap-8">
-            {/* Left Column - Booking Form (70%) */}
-            <div className="lg:w-[70%]">
+      <div className="min-h-screen bg-[#F8FCFF] pt-32 pb-16">
+        <div className="max-w-6xl w-full mx-auto px-4 sm:px-6 lg:px-8">
+          <div className="mb-6 space-y-3">
+            <button
+              onClick={() => router.push('/rooms/select-room-types')}
+              className="inline-flex items-center gap-2 px-3 py-2 rounded-xl border border-gray-200 bg-white text-gray-700 text-xs font-semibold uppercase tracking-wider hover:border-blue-300 hover:text-blue-600 transition-colors"
+            >
+              <i className="fas fa-arrow-left text-[10px]"></i>
+              Back to Room Selection
+            </button>
+
+            <nav className="inline-flex bg-white/95 border border-gray-200 rounded-xl px-3 py-2 text-gray-600 text-xs font-semibold uppercase tracking-wider shadow-sm" aria-label="Breadcrumb">
+              <ol className="inline-flex items-center space-x-2">
+                <li>
+                  <button onClick={() => router.push('/')} className="hover:text-blue-500 transition-colors">Home</button>
+                </li>
+                <li><i className="fas fa-chevron-right text-[10px]"></i></li>
+                <li>
+                  <button onClick={() => router.push('/rooms')} className="hover:text-blue-500 transition-colors">Rooms</button>
+                </li>
+                <li><i className="fas fa-chevron-right text-[10px]"></i></li>
+                <li className="text-gray-900" aria-current="page">Checkout</li>
+              </ol>
+            </nav>
+
+            <div>
+              <h1 className="text-2xl md:text-3xl font-playfair font-extrabold text-gray-900 tracking-tight">Complete Your Reservation</h1>
+              <p className="text-sm text-gray-500 mt-1">Review your room selection, provide guest details, and finalize your down payment.</p>
+            </div>
+          </div>
+
+          <div className="flex flex-col lg:flex-row gap-6 items-start">
+            {/* Left Column - Booking Form */}
+            <div className="lg:w-[66%] w-full">
               {/* Progress Steps - Starting from Step 2 */}
-              <div className="mb-8">
-                <div className="flex justify-between items-center">
+              <div className="mb-6 bg-white rounded-2xl border border-gray-200 shadow-sm p-4 sm:p-5">
+                <div className="flex justify-between items-center gap-2">
                   {[2, 3, 4].map((s, idx) => (
                     <div key={s} className="flex-1 relative">
-                      <div className={`w-10 h-10 mx-auto rounded-full flex items-center justify-center font-semibold ${
-                        step >= s ? 'bg-ocean-mid text-white' : 'bg-gray-200 text-gray-500'
+                      <div className={`w-9 h-9 mx-auto rounded-full flex items-center justify-center text-sm font-bold border ${
+                        step >= s ? 'bg-blue-500 border-blue-500 text-white' : 'bg-white border-gray-300 text-gray-500'
                       }`}>
                         {idx + 2}
                       </div>
-                      <div className="text-center text-xs mt-2 text-textSecondary">
+                      <div className="text-center text-[11px] mt-2 font-semibold text-gray-500 uppercase tracking-wide">
                         {s === 2 && 'Guest Details'}
                         {s === 3 && 'Payment'}
                         {s === 4 && 'Confirmation'}
                       </div>
                       {s < 4 && (
-                        <div className={`absolute top-5 left-1/2 w-full h-0.5 ${
-                          step > s ? 'bg-ocean-mid' : 'bg-gray-200'
+                        <div className={`absolute top-[18px] left-1/2 w-full h-[2px] ${
+                          step > s ? 'bg-blue-500' : 'bg-gray-200'
                         }`} style={{ transform: 'translateY(-50%)' }}></div>
                       )}
                     </div>
@@ -502,8 +531,8 @@ export default function MultiRoomBookingPage() {
 
               {/* Step 2: Guest Details */}
               {step === 2 && (
-                <div className="bg-white rounded-2xl shadow-lg p-8">
-                  <h2 className="text-2xl font-bold text-textPrimary mb-6">Guest Details</h2>
+                <div className="bg-white rounded-2xl border border-gray-200 shadow-[0_10px_30px_rgb(0,0,0,0.05)] p-5 sm:p-6">
+                  <h2 className="text-2xl font-playfair font-bold text-gray-900 mb-6">Guest Details</h2>
                   
                   <div className="space-y-5">
                     <div>
@@ -512,7 +541,7 @@ export default function MultiRoomBookingPage() {
                         type="text"
                         value={bookingData.firstName}
                         onChange={(e) => handleInputChange('firstName', e.target.value)}
-                        className={`w-full px-4 py-2 border ${errors.firstName ? 'border-red-500' : 'border-ocean-light/20'} rounded-lg focus:outline-none focus:border-ocean-light`}
+                        className={`w-full px-4 py-2.5 border ${errors.firstName ? 'border-red-500' : 'border-gray-200'} rounded-xl focus:outline-none focus:border-blue-400`}
                       />
                       {errors.firstName && <p className="text-red-500 text-sm mt-1">{errors.firstName}</p>}
                     </div>
@@ -523,7 +552,7 @@ export default function MultiRoomBookingPage() {
                         type="text"
                         value={bookingData.lastName}
                         onChange={(e) => handleInputChange('lastName', e.target.value)}
-                        className={`w-full px-4 py-2 border ${errors.lastName ? 'border-red-500' : 'border-ocean-light/20'} rounded-lg focus:outline-none focus:border-ocean-light`}
+                        className={`w-full px-4 py-2.5 border ${errors.lastName ? 'border-red-500' : 'border-gray-200'} rounded-xl focus:outline-none focus:border-blue-400`}
                       />
                       {errors.lastName && <p className="text-red-500 text-sm mt-1">{errors.lastName}</p>}
                     </div>
@@ -534,7 +563,7 @@ export default function MultiRoomBookingPage() {
                         type="email"
                         value={bookingData.email}
                         onChange={(e) => handleInputChange('email', e.target.value)}
-                        className={`w-full px-4 py-2 border ${errors.email ? 'border-red-500' : 'border-ocean-light/20'} rounded-lg focus:outline-none focus:border-ocean-light`}
+                        className={`w-full px-4 py-2.5 border ${errors.email ? 'border-red-500' : 'border-gray-200'} rounded-xl focus:outline-none focus:border-blue-400`}
                       />
                       {errors.email && <p className="text-red-500 text-sm mt-1">{errors.email}</p>}
                     </div>
@@ -546,7 +575,7 @@ export default function MultiRoomBookingPage() {
                         value={bookingData.phone}
                         onChange={(e) => handleInputChange('phone', e.target.value)}
                         placeholder="09123456789"
-                        className={`w-full px-4 py-2 border ${errors.phone ? 'border-red-500' : 'border-ocean-light/20'} rounded-lg focus:outline-none focus:border-ocean-light`}
+                        className={`w-full px-4 py-2.5 border ${errors.phone ? 'border-red-500' : 'border-gray-200'} rounded-xl focus:outline-none focus:border-blue-400`}
                       />
                       {errors.phone && <p className="text-red-500 text-sm mt-1">{errors.phone}</p>}
                     </div>
@@ -555,14 +584,14 @@ export default function MultiRoomBookingPage() {
                   <div className="flex gap-3 mt-6">
                     <button
                       onClick={handlePreviousStep}
-                      className="flex-1 py-3 border border-ocean-light/20 rounded-xl text-textSecondary font-medium hover:bg-ocean-ice transition-all duration-300"
+                      className="flex-1 py-3 border border-gray-200 rounded-xl text-gray-600 font-semibold hover:bg-gray-50 transition-all duration-300"
                     >
                       <i className="fas fa-arrow-left mr-2"></i>
                       Back
                     </button>
                     <button
                       onClick={handleNextStep}
-                      className="flex-1 py-3 bg-gradient-to-r from-ocean-mid to-ocean-light text-white rounded-xl font-medium hover:shadow-lg transition-all duration-300"
+                      className="flex-1 py-3 bg-gradient-to-r from-blue-500 to-blue-600 text-white rounded-xl font-semibold hover:shadow-lg hover:shadow-blue-500/30 transition-all duration-300"
                     >
                       Continue to Payment
                     </button>
@@ -572,8 +601,8 @@ export default function MultiRoomBookingPage() {
 
               {/* Step 3: Payment */}
               {step === 3 && (
-                <div className="bg-white rounded-2xl shadow-lg p-8">
-                  <h2 className="text-2xl font-bold text-textPrimary mb-6">Payment</h2>
+                <div className="bg-white rounded-2xl border border-gray-200 shadow-[0_10px_30px_rgb(0,0,0,0.05)] p-5 sm:p-6">
+                  <h2 className="text-2xl font-playfair font-bold text-gray-900 mb-6">Payment</h2>
                   
                   {/* Payment Method Selection */}
                   <div className="mb-6">
@@ -584,24 +613,24 @@ export default function MultiRoomBookingPage() {
                         onClick={() => setPaymentMethod('gcash')}
                         className={`p-4 rounded-xl border-2 transition-all duration-200 flex flex-col items-center gap-2 ${
                           paymentMethod === 'gcash'
-                            ? 'border-ocean-mid bg-ocean-ice'
-                            : 'border-ocean-light/20 bg-white hover:border-ocean-light'
+                            ? 'border-blue-500 bg-blue-50'
+                            : 'border-gray-200 bg-white hover:border-blue-300'
                         }`}
                       >
-                        <i className={`fab fa-gcash text-3xl ${paymentMethod === 'gcash' ? 'text-ocean-mid' : 'text-gray-400'}`}></i>
-                        <span className={`text-sm font-medium ${paymentMethod === 'gcash' ? 'text-ocean-mid' : 'text-textSecondary'}`}>GCash</span>
+                        <i className={`fab fa-gcash text-3xl ${paymentMethod === 'gcash' ? 'text-blue-600' : 'text-gray-400'}`}></i>
+                        <span className={`text-sm font-medium ${paymentMethod === 'gcash' ? 'text-blue-600' : 'text-gray-500'}`}>GCash</span>
                       </button>
                       <button
                         type="button"
                         onClick={() => setPaymentMethod('bank_transfer')}
                         className={`p-4 rounded-xl border-2 transition-all duration-200 flex flex-col items-center gap-2 ${
                           paymentMethod === 'bank_transfer'
-                            ? 'border-ocean-mid bg-ocean-ice'
-                            : 'border-ocean-light/20 bg-white hover:border-ocean-light'
+                            ? 'border-blue-500 bg-blue-50'
+                            : 'border-gray-200 bg-white hover:border-blue-300'
                         }`}
                       >
-                        <i className={`fas fa-university text-3xl ${paymentMethod === 'bank_transfer' ? 'text-ocean-mid' : 'text-gray-400'}`}></i>
-                        <span className={`text-sm font-medium ${paymentMethod === 'bank_transfer' ? 'text-ocean-mid' : 'text-textSecondary'}`}>Bank Transfer</span>
+                        <i className={`fas fa-university text-3xl ${paymentMethod === 'bank_transfer' ? 'text-blue-600' : 'text-gray-400'}`}></i>
+                        <span className={`text-sm font-medium ${paymentMethod === 'bank_transfer' ? 'text-blue-600' : 'text-gray-500'}`}>Bank Transfer</span>
                       </button>
                     </div>
                   </div>
@@ -934,7 +963,7 @@ export default function MultiRoomBookingPage() {
                   <div className="flex gap-3 mt-6">
                     <button
                       onClick={handlePreviousStep}
-                      className="flex-1 py-3 border border-ocean-light/20 rounded-xl text-textSecondary font-medium hover:bg-ocean-ice transition-all duration-300"
+                      className="flex-1 py-3 border border-gray-200 rounded-xl text-gray-600 font-semibold hover:bg-gray-50 transition-all duration-300"
                     >
                       <i className="fas fa-arrow-left mr-2"></i>
                       Back
@@ -952,7 +981,7 @@ export default function MultiRoomBookingPage() {
                         bookingData.validIdUrl &&
                         !submitting &&
                         (paymentMethod !== 'bank_transfer' || bankDetailsProvided)
-                          ? 'bg-gradient-to-r from-ocean-mid to-ocean-light text-white hover:shadow-lg'
+                          ? 'bg-gradient-to-r from-blue-500 to-blue-600 text-white hover:shadow-lg hover:shadow-blue-500/30'
                           : 'bg-gray-200 text-gray-500 cursor-not-allowed'
                       }`}
                     >
@@ -964,7 +993,7 @@ export default function MultiRoomBookingPage() {
 
               {/* Step 4: Confirmation */}
               {step === 4 && (
-                <div className="bg-white rounded-2xl shadow-lg p-8 text-center">
+                <div className="bg-white rounded-2xl border border-gray-200 shadow-[0_10px_30px_rgb(0,0,0,0.05)] p-6 sm:p-8 text-center">
                   <div className="w-20 h-20 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-4">
                     <i className="fas fa-check text-3xl text-green-600"></i>
                   </div>
@@ -1003,13 +1032,13 @@ export default function MultiRoomBookingPage() {
                   <div className="flex gap-3">
                     <button
                       onClick={() => router.push('/rooms')}
-                      className="flex-1 py-3 border border-ocean-light/20 rounded-xl text-textSecondary font-medium hover:bg-ocean-ice transition"
+                      className="flex-1 py-3 border border-gray-200 rounded-xl text-gray-600 font-semibold hover:bg-gray-50 transition"
                     >
                       Back to Room Page
                     </button>
                     <button
                       onClick={() => router.push('/')}
-                      className="flex-1 py-3 bg-gradient-to-r from-ocean-mid to-ocean-light text-white rounded-xl font-medium hover:shadow-lg transition"
+                      className="flex-1 py-3 bg-gradient-to-r from-blue-500 to-blue-600 text-white rounded-xl font-semibold hover:shadow-lg hover:shadow-blue-500/30 transition"
                     >
                       Go to Home Page
                     </button>
@@ -1018,48 +1047,48 @@ export default function MultiRoomBookingPage() {
               )}
             </div>
 
-            {/* Right Column - Booking Summary Panel (30%) */}
-            <div className="lg:w-[30%]">
-              <div className="bg-white rounded-xl shadow-md border border-ocean-light/20 overflow-hidden sticky top-8">
-                <div className="bg-gradient-to-r from-ocean-mid to-ocean-light px-5 py-4">
-                  <h3 className="font-bold text-white text-lg flex items-center gap-2">
-                    <i className="fas fa-receipt"></i>
+            {/* Right Column - Booking Summary Panel */}
+            <div className="lg:w-[34%] w-full">
+              <div className="bg-[#fffdf8] rounded-2xl shadow-sm border border-amber-200 overflow-hidden sticky top-32">
+                <div className="px-5 py-4 border-b border-dashed border-amber-300 bg-amber-50/70">
+                  <h3 className="font-bold text-gray-800 text-base flex items-center gap-2 uppercase tracking-wider">
+                    <i className="fas fa-receipt text-amber-600"></i>
                     Booking Summary
                   </h3>
                 </div>
 
-                <div className="p-5">
+                <div className="p-5 space-y-4">
                   {/* Selected Rooms Summary */}
-                <div className="mb-4">
-  <h4 className="text-xs font-semibold text-ocean-mid uppercase tracking-wide mb-2 flex items-center gap-1">
-    <i className="fas fa-door-open text-ocean-light text-xs"></i>
-    Selected Rooms
-  </h4>
-  <div className="bg-ocean-ice rounded-lg p-3">
-    {bookingData.roomTypes && bookingData.roomTypes.map((type, idx) => (
-      <div key={idx} className="text-xs text-textSecondary mt-1">
-        {type.quantity} × {type.type} ┃ ₱{type.price.toLocaleString()}/night 
-        ({type.totalGuests || 1} total guest{(type.totalGuests || 1) !== 1 ? 's' : ''})
-      </div>
-    ))}
-  </div>
-</div>
+                  <div>
+                    <h4 className="text-xs font-semibold text-amber-700 uppercase tracking-wide mb-2 flex items-center gap-1">
+                      <i className="fas fa-door-open text-amber-600 text-xs"></i>
+                      Selected Rooms
+                    </h4>
+                    <div className="bg-white rounded-xl border border-amber-200 p-3">
+                      {bookingData.roomTypes && bookingData.roomTypes.map((type, idx) => (
+                        <div key={`${type.type}-${idx}`} className="text-xs text-gray-600 mt-1">
+                          {type.quantity} × {type.type} • ₱{type.price.toLocaleString()}/night
+                          ({type.totalGuests || 1} total guest{(type.totalGuests || 1) !== 1 ? 's' : ''})
+                        </div>
+                      ))}
+                    </div>
+                  </div>
 
                   {/* Schedule Summary */}
                   <div className="mb-4">
-                    <h4 className="text-xs font-semibold text-ocean-mid uppercase tracking-wide mb-2 flex items-center gap-1">
-                      <i className="fas fa-calendar-check text-ocean-light text-xs"></i>
+                    <h4 className="text-xs font-semibold text-amber-700 uppercase tracking-wide mb-2 flex items-center gap-1">
+                      <i className="fas fa-calendar-check text-amber-600 text-xs"></i>
                       Schedule
                     </h4>
-                    <div className="bg-ocean-ice rounded-lg p-3">
-                      <p className="text-sm font-semibold text-textPrimary">
+                    <div className="bg-white rounded-xl border border-amber-200 p-3">
+                      <p className="text-sm font-semibold text-gray-800">
                         {formatDateOnly(bookingData.checkIn)}
                       </p>
-                      <p className="text-sm text-ocean-mid font-medium mt-1">
+                      <p className="text-sm text-blue-600 font-medium mt-1">
                         <i className="fas fa-clock mr-1"></i>
                         Check-in: {FIXED_CHECK_IN_DISPLAY}
                       </p>
-                      <p className="text-xs text-textSecondary mt-2">
+                      <p className="text-xs text-gray-500 mt-2">
                         Check-out: {formatDateOnly(bookingData.checkOut)} at {FIXED_CHECK_OUT_DISPLAY}
                       </p>
                     </div>
@@ -1067,28 +1096,28 @@ export default function MultiRoomBookingPage() {
 
                   {/* Price Breakdown */}
                   <div className="mb-4">
-                    <h4 className="text-xs font-semibold text-ocean-mid uppercase tracking-wide mb-2 flex items-center gap-1">
-                      <i className="fas fa-tag text-ocean-light text-xs"></i>
+                    <h4 className="text-xs font-semibold text-amber-700 uppercase tracking-wide mb-2 flex items-center gap-1">
+                      <i className="fas fa-tag text-amber-600 text-xs"></i>
                       Price Breakdown
                     </h4>
-                    <div className="bg-ocean-ice rounded-lg p-3 space-y-1">
+                    <div className="bg-white rounded-xl border border-amber-200 p-3 space-y-1">
                       <div className="flex justify-between text-sm">
-                        <span className="text-textSecondary">Total per night:</span>
-                        <span className="font-semibold text-ocean-mid">₱{totalPrice.toLocaleString()}</span>
+                        <span className="text-gray-500">Total per night:</span>
+                        <span className="font-semibold text-gray-800">₱{totalPrice.toLocaleString()}</span>
                       </div>
-                      <div className="flex justify-between text-sm pt-2 border-t border-ocean-light/20">
-                        <span className="text-textSecondary">Down Payment (50%):</span>
+                      <div className="flex justify-between text-sm pt-2 border-t border-dashed border-amber-300">
+                        <span className="text-gray-500">Down Payment (50%):</span>
                         <span className="font-semibold text-amber-600">₱{downPaymentAmount.toLocaleString()}</span>
                       </div>
                       <div className="flex justify-between text-sm">
-                        <span className="text-textSecondary">Remaining Balance:</span>
-                        <span className="font-semibold text-textPrimary">₱{(totalPrice - downPaymentAmount).toLocaleString()}</span>
+                        <span className="text-gray-500">Remaining Balance:</span>
+                        <span className="font-semibold text-gray-800">₱{(totalPrice - downPaymentAmount).toLocaleString()}</span>
                       </div>
                     </div>
                   </div>
 
                   {/* Special Request Section - Editable */}
-                  <div className="bg-amber-50 rounded-lg p-3 border border-amber-200">
+                  <div className="bg-amber-50 rounded-xl p-3 border border-amber-200">
                     <h4 className="text-xs font-semibold text-amber-700 uppercase tracking-wide mb-2 flex items-center gap-1">
                       <i className="fas fa-comment text-amber-600 text-xs"></i>
                       Special Request
@@ -1098,7 +1127,7 @@ export default function MultiRoomBookingPage() {
                       onChange={(e) => setBookingData(prev => ({ ...prev, specialRequest: e.target.value }))}
                       placeholder="e.g., Request early check-in, room preferences, special occasion, etc."
                       rows="3"
-                      className="w-full px-3 py-2 border border-amber-300 rounded-lg text-sm focus:outline-none focus:border-ocean-light resize-none bg-white"
+                      className="w-full px-3 py-2 border border-amber-300 rounded-xl text-sm focus:outline-none focus:border-blue-400 resize-none bg-white"
                     />
                     <p className="text-xs text-amber-600 mt-1">
                       <i className="fas fa-clock mr-1"></i>

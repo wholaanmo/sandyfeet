@@ -16,7 +16,11 @@ export default function GuestNavbar() {
     { href: '/reservation-tracker', label: 'TRACK RESERVATION' },
   ];
 
-  const isActive = (path) => pathname === path;
+  const isActive = (path) => {
+    if (!pathname) return false;
+    if (path === '/') return pathname === '/';
+    return pathname === path || pathname.startsWith(`${path}/`);
+  };
 
   useEffect(() => {
     setMounted(true);
@@ -71,7 +75,11 @@ export default function GuestNavbar() {
           <div className="hidden md:block">
             <Link
               href="/rooms"
-              className="bg-[#3B82F6] hover:bg-[#2563EB] text-white px-8 py-3 rounded-full text-[15px] font-semibold transition-all shadow-md hover:shadow-lg shadow-blue-500/20"
+              className={`px-8 py-3 rounded-full text-[15px] font-semibold transition-all shadow-md hover:shadow-lg ${
+                isActive('/rooms')
+                  ? 'bg-[#2563EB] text-white shadow-blue-500/30'
+                  : 'bg-[#3B82F6] hover:bg-[#2563EB] text-white shadow-blue-500/20'
+              }`}
             >
               Book Now
             </Link>

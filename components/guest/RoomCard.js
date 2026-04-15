@@ -58,16 +58,16 @@ export default function RoomCard({ room }) {
 
   return (
     <>
-      <div className="bg-white rounded-2xl shadow-md overflow-hidden hover:shadow-xl transition-all duration-300 group">
+      <div className="group overflow-hidden rounded-2xl border border-ocean-light/15 bg-white shadow-[0_10px_24px_rgb(0,0,0,0.06)] transition-all duration-300 hover:-translate-y-1 hover:shadow-[0_16px_34px_rgb(0,0,0,0.1)]">
         {/* Room Image with Carousel */}
-        <div className="relative h-56 bg-gradient-to-br from-ocean-pale to-ocean-ice overflow-hidden">
+        <div className="relative h-52 overflow-hidden bg-gradient-to-br from-ocean-pale to-ocean-ice">
           {room.images && room.images.length > 0 ? (
             <>
               <Image
                 src={room.images[currentImageIndex]}
                 alt={room.type}
                 fill
-                className="object-cover transition-transform duration-500"
+                className="object-cover transition-transform duration-500 group-hover:scale-[1.04]"
                 onError={(e) => {
                   e.target.style.display = 'none';
                   if (room.images.length > 1) {
@@ -77,6 +77,14 @@ export default function RoomCard({ room }) {
                   }
                 }}
               />
+
+              <div className="pointer-events-none absolute inset-x-0 bottom-0 h-20 bg-gradient-to-t from-black/35 to-transparent" />
+              <div className="absolute left-3 top-3 rounded-full bg-white/90 px-2.5 py-1 text-[11px] font-semibold text-ocean-mid backdrop-blur-sm">
+                {room.type}
+              </div>
+              <div className="absolute right-3 top-3 rounded-full bg-ocean-mid/95 px-3 py-1 text-[11px] font-semibold text-white shadow-sm">
+                ₱{room.price.toLocaleString()}/night
+              </div>
               
               {/* Navigation Arrows - Always visible */}
               {room.images.length > 1 && (
@@ -127,38 +135,45 @@ export default function RoomCard({ room }) {
         </div>
         
         {/* Room Details */}
-        <div className="p-6">
-          <div className="flex justify-between items-start mb-2">
+        <div className="p-5">
+          <div className="mb-3 flex items-start justify-between gap-3">
             <div>
-              <h3 className="text-xl font-bold text-textPrimary font-playfair">{room.type}</h3>
+              <h3 className="font-playfair text-xl font-bold text-textPrimary">{room.type}</h3>
+              <p className="mt-0.5 text-xs uppercase tracking-wider text-textSecondary">Resort accommodation</p>
             </div>
-            <p className="text-2xl font-bold text-ocean-mid">
+            <p className="text-right text-lg font-bold text-ocean-mid">
               ₱{room.price.toLocaleString()}
-              <span className="text-sm font-normal text-textSecondary">/night</span>
+              <span className="block text-[11px] font-normal uppercase tracking-wider text-textSecondary">per night</span>
             </p>
           </div>
           
           {/* Room Features - Removed totalRooms display */}
-          <div className="flex gap-4 mt-3 text-sm text-textSecondary border-b border-ocean-light/10 pb-3">
-            <span className="flex items-center gap-1">
-              <i className="fas fa-users"></i> 
+          <div className="mt-2 flex items-center gap-2 border-y border-ocean-light/10 py-3 text-sm text-textSecondary">
+            <span className="inline-flex items-center gap-1 rounded-full bg-ocean-ice px-2.5 py-1 text-xs font-medium text-ocean-mid">
+              <i className="fas fa-users text-[11px]"></i>
               {room.capacityMin && room.capacityMax 
                 ? `${room.capacityMin}–${room.capacityMax} Guests` 
                 : room.capacity || `${room.capacityMin || room.capacityMax} Guests`}
             </span>
+            {(room.totalRooms || 0) > 0 && (
+              <span className="inline-flex items-center gap-1 rounded-full bg-ocean-ice px-2.5 py-1 text-xs font-medium text-ocean-mid">
+                <i className="fas fa-door-open text-[11px]"></i>
+                {room.totalRooms} unit{room.totalRooms > 1 ? 's' : ''}
+              </span>
+            )}
           </div>
           
           {/* Inclusions Preview */}
           {room.inclusions && room.inclusions.length > 0 && (
             <div className="mt-3">
-              <div className="flex flex-wrap gap-1">
+              <div className="flex flex-wrap gap-1.5">
                 {room.inclusions.slice(0, 3).map((inclusion, idx) => (
-                  <span key={idx} className="text-xs px-2 py-0.5 bg-ocean-ice text-ocean-mid rounded-full">
+                  <span key={idx} className="rounded-full bg-ocean-ice px-2.5 py-1 text-[11px] font-medium text-ocean-mid">
                     {inclusion}
                   </span>
                 ))}
                 {room.inclusions.length > 3 && (
-                  <span className="text-xs px-2 py-0.5 bg-ocean-ice text-ocean-mid rounded-full">
+                  <span className="rounded-full bg-ocean-ice px-2.5 py-1 text-[11px] font-medium text-ocean-mid">
                     +{room.inclusions.length - 3}
                   </span>
                 )}
@@ -167,21 +182,21 @@ export default function RoomCard({ room }) {
           )}
           
           {/* Description Preview */}
-          <p className="text-sm text-textSecondary mt-3 line-clamp-2">
+          <p className="mt-3 line-clamp-2 text-sm leading-relaxed text-textSecondary">
             {room.description}
           </p>
           
           {/* Buttons - Medium size design */}
-          <div className="flex gap-2 mt-4">
+          <div className="mt-5 flex gap-2">
             <button
               onClick={openSidebar}
-              className="flex-1 px-3 py-2 text-sm border-2 border-ocean-mid/30 text-ocean-mid rounded-lg font-semibold hover:bg-ocean-mid hover:text-white hover:border-ocean-mid transition-all duration-300"
+              className="flex-1 rounded-lg border border-ocean-mid/35 px-3 py-2 text-sm font-semibold text-ocean-mid transition-all duration-300 hover:border-ocean-mid hover:bg-ocean-mid hover:text-white"
             >
               Details
             </button>
             <button 
               onClick={handleBookNow}
-              className="flex-1 px-3 py-2 text-sm bg-gradient-to-r from-ocean-mid to-ocean-light text-white rounded-lg font-semibold shadow-md hover:shadow-lg hover:-translate-y-0.5 transition-all duration-300"
+              className="flex-1 rounded-lg bg-gradient-to-r from-ocean-mid to-ocean-light px-3 py-2 text-sm font-semibold text-white shadow-md transition-all duration-300 hover:-translate-y-0.5 hover:shadow-lg"
             >
               Book Now
             </button>
