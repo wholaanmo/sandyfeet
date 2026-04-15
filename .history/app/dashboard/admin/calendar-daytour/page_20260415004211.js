@@ -20,7 +20,6 @@ export default function AdminDayTourCalendar() {
   const [removeConfirm, setRemoveConfirm] = useState(null);
   const [bookedDates, setBookedDates] = useState({});
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
-  
   // Helper function to convert Date to YYYY-MM-DD local date string
   const toLocalDateKey = (date) => {
     const year = date.getFullYear();

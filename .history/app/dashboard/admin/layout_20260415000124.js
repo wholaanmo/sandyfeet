@@ -48,7 +48,7 @@ export default function AdminLayout({ children }) {
           style={{ 
             marginLeft: mainMarginLeft,
             marginTop: '60px',
-            backgroundColor: '#f5f5f5',
+            backgroundColor: '#FFFFFF',
             transition: 'margin-left 0.3s cubic-bezier(0.4, 0, 0.2, 1)'
           }}
         >

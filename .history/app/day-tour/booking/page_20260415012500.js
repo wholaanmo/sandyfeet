@@ -6,7 +6,6 @@ import { useSearchParams, useRouter } from 'next/navigation';
 import GuestLayout from '@/app/guest/layout';
 import { db } from '@/lib/firebase';
 import { collection, query, where, getDocs, addDoc, doc, getDoc, serverTimestamp, onSnapshot } from 'firebase/firestore';
-import { uploadImage } from '@/lib/cloudinary';
 
 export default function DayTourBooking() {
   const searchParams = useSearchParams();
@@ -323,13 +322,14 @@ export default function DayTourBooking() {
     
     setUploading(true);
     try {
-      // Upload to Cloudinary using the existing function
-      const cloudinaryUrl = await uploadImage(file);
-      setBookingData(prev => ({ ...prev, paymentProof: cloudinaryUrl }));
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        setBookingData(prev => ({ ...prev, paymentProof: reader.result }));
+        setUploading(false);
+      };
+      reader.readAsDataURL(file);
     } catch (error) {
-      console.error('Error uploading to Cloudinary:', error);
-      setModalNotification({ message: 'Failed to upload payment proof. Please try again.', type: 'error' });
-    } finally {
+      console.error('Error uploading file:', error);
       setUploading(false);
     }
   };
@@ -340,13 +340,14 @@ export default function DayTourBooking() {
 
     setValidIdUploading(true);
     try {
-      // Upload to Cloudinary using the existing function
-      const cloudinaryUrl = await uploadImage(file);
-      setTempValidIdImage(cloudinaryUrl);
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        setTempValidIdImage(reader.result);
+        setValidIdUploading(false);
+      };
+      reader.readAsDataURL(file);
     } catch (error) {
-      console.error('Error uploading valid ID to Cloudinary:', error);
-      setModalNotification({ message: 'Failed to upload valid ID. Please try again.', type: 'error' });
-    } finally {
+      console.error('Error uploading valid ID:', error);
       setValidIdUploading(false);
     }
   };

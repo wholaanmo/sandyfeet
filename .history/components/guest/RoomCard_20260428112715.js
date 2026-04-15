@@ -58,7 +58,7 @@ export default function RoomCard({ room }) {
 
   return (
     <>
-      <div className="bg-white rounded-2xl shadow-md overflow-hidden hover:shadow-xl transition-all duration-300 group">
+      <div className="bg-white/50 rounded-2xl shadow-md overflow-hidden hover:shadow-xl transition-all duration-300 group">
         {/* Room Image with Carousel */}
         <div className="relative h-56 bg-gradient-to-br from-ocean-pale to-ocean-ice overflow-hidden">
           {room.images && room.images.length > 0 ? (

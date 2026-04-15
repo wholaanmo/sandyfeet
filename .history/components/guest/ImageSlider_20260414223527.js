@@ -37,7 +37,7 @@ export default function ImageSlider({ images, roomType }) {
       {/* Main Image Container */}
       <div 
         className={`relative overflow-hidden rounded-xl bg-ocean-pale/30 ${isZoomed ? 'cursor-zoom-out' : 'cursor-zoom-in'}`}
-        style={{ height: '350px' }}
+        style={{ height: '400px' }}
         onClick={toggleZoom}
         onMouseMove={handleMouseMove}
       >
@@ -59,7 +59,7 @@ export default function ImageSlider({ images, roomType }) {
               alt={`${roomType} - Image ${currentIndex + 1}`}
               fill
               className="object-contain"
-              sizes="(max-width: 768px) 100vw, 600px"
+              sizes="(max-width: 768px) 100vw, 800px"
               priority
             />
           </div>

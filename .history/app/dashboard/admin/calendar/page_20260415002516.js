@@ -24,7 +24,7 @@ export default function AdminCalendar() {
   const [actionLoading, setActionLoading] = useState(false);
   const [unavailableEntries, setUnavailableEntries] = useState([]);
   const [totalBlockedUnitsByDate, setTotalBlockedUnitsByDate] = useState({});
-  const [isSidebarOpen, setIsSidebarOpen] = useState(false);
+  const [isBlockModalOpen, setIsBlockModalOpen] = useState(false);
   
 
   // Fetch rooms list (only non-archived)
@@ -439,7 +439,7 @@ export default function AdminCalendar() {
     return 'available';
   };
 
-   if (loading && rooms.length === 0) {
+  if (loading && rooms.length === 0) {
     return (
       <div className="min-h-screen bg-gradient-to-br from-ocean-ice to-blue-white flex items-center justify-center">
         <i className="fas fa-spinner fa-spin text-3xl text-ocean-light"></i>
@@ -563,8 +563,6 @@ export default function AdminCalendar() {
               <div className="mt-6 pt-4 border-t border-ocean-light/10 flex justify-center gap-6 text-xs flex-wrap">
                 <div className="flex items-center gap-1.5"><div className="w-3 h-3 bg-white border border-gray-300 rounded"></div><span>Available</span></div>
                 <div className="flex items-center gap-1.5"><div className="w-3 h-3 bg-red-100 border border-red-200 rounded"></div><span>Fully booked</span></div>
-                <div className="flex items-center gap-1.5">
-                </div>
                 <div className="flex items-center gap-1.5"><div className="w-3 h-3 bg-gray-100 border border-gray-200 rounded"></div><span>Past Dates</span></div>
                 <div className="flex items-center gap-1.5"><div className="w-3 h-3 bg-orange-100 border border-orange-200 rounded"></div><span>Unavailable</span></div>
                 <div className="flex items-center gap-1.5"><div className="w-3 h-3 bg-ocean-mid rounded"></div><span>Selected</span></div>
@@ -573,277 +571,269 @@ export default function AdminCalendar() {
           </div>
         </div>
 
-        {/* Right Column (40%) – contains controls + Block Date container */}
+        {/* Right Column (40%) – controls + Block Dates Button */}
         <div className="xl:w-[40%] flex flex-col h-full gap-4">
-          {/* Controls: Room selector and Book for Guest button - Equal width with Block Date container */}
-          <div className="flex flex-col gap-4">
-            <div className="flex flex-col sm:flex-row gap-3">
-              <div className="flex-1">
-                <label className="text-sm font-medium text-textPrimary block mb-1">Select Room Type:</label>
-                <select
-                  value={selectedRoomId}
-                  onChange={(e) => {
-                    setSelectedRoomId(e.target.value);
-                    setSelectedDate(null);
-                    setUnitsToBlock(1);
-                  }}
-                  className="w-full px-4 py-2 border border-ocean-light/20 rounded-xl text-sm focus:outline-none focus:border-ocean-light bg-white"
-                >
-                  {rooms.map(room => (
-                    <option key={room.id} value={room.id}>{room.type || room.name || room.id}</option>
-                  ))}
-                </select>
-              </div>
-              <div className="sm:w-auto flex items-end">
-                <Link
-                  href={`/rooms?roomId=${selectedRoomId}&adminMode=true`}
-                  target="_blank"
-                  className="w-full sm:w-auto flex items-center justify-center gap-2 px-5 py-2 bg-gradient-to-r from-blue-500 to-indigo-600 text-white rounded-xl font-medium shadow-lg hover:shadow-xl hover:-translate-y-0.5 transition-all duration-300 whitespace-nowrap"
-                >
-                  <i className="fas fa-user-plus text-sm"></i> Book for Guest
-                </Link>
-              </div>
+          {/* Controls: Room selector and Book for Guest button - Equal width with Block Dates button */}
+          <div className="flex flex-row items-center gap-4">
+            <div className="flex items-center gap-3 flex-1">
+              <label className="text-sm font-medium text-textPrimary whitespace-nowrap">Select Room Type:</label>
+              <select
+                value={selectedRoomId}
+                onChange={(e) => {
+                  setSelectedRoomId(e.target.value);
+                  setSelectedDate(null);
+                  setUnitsToBlock(1);
+                }}
+                className="flex-1 px-4 py-2 border border-ocean-light/20 rounded-xl text-sm focus:outline-none focus:border-ocean-light bg-white"
+              >
+                {rooms.map(room => (
+                  <option key={room.id} value={room.id}>{room.type || room.name || room.id}</option>
+                ))}
+              </select>
             </div>
+            <Link
+              href={`/rooms?roomId=${selectedRoomId}&adminMode=true`}
+              target="_blank"
+              className="flex items-center gap-2 px-5 py-2.5 bg-gradient-to-r from-blue-500 to-indigo-600 text-white rounded-xl font-medium shadow-lg hover:shadow-xl hover:-translate-y-0.5 transition-all duration-300 whitespace-nowrap"
+            >
+              <i className="fas fa-user-plus text-sm"></i> Book for Guest
+            </Link>
           </div>
 
-          {/* Block Date container – takes remaining vertical space */}
-          <div className="bg-white rounded-2xl shadow-lg border border-ocean-light/10 p-5 flex-1">
-            <h3 className="text-lg font-bold text-textPrimary mb-4 flex items-center gap-2">
-              <i className="fas fa-calendar-times text-ocean-light"></i> Block Date
-            </h3>
-            
-            {!selectedDate ? (
-              <div className="text-center py-10 text-neutral">
-                <i className="fas fa-calendar-day text-4xl mb-3 block"></i>
-                <p>Select a date from the calendar to block</p>
-                <p className="text-xs mt-2 text-textSecondary">Click on any available date to start</p>
-              </div>
-            ) : (
-              <div>
-                <div className="bg-ocean-ice rounded-xl p-4 mb-4">
-                  <p className="text-sm text-textSecondary">Selected Date</p>
-                  <p className="text-md font-semibold text-textPrimary">{selectedDate.toDateString()}</p>
-                  <p className="text-sm text-textSecondary mt-1">Room Type: {roomDetails?.type || selectedRoomId}</p>
-                  <p className="text-sm text-textSecondary mt-1">
-                    Available units: <span className="font-semibold text-green-600">{maxUnitsBlockable}</span> of {totalRoomUnits}
-                  </p>
-                </div>
-                
-                {totalRoomUnits > 0 && (
-                  <>
-                    <label className="block text-sm font-medium text-textPrimary mb-2">
-                      Units to mark unavailable <span className="text-red-500">*</span>
-                    </label>
-                    <p className="text-xs text-textSecondary mb-2">
-                      This room type has {totalRoomUnits} unit(s) in service.
-                      Currently <strong>{maxUnitsBlockable}</strong> unit(s) are available to block on this date.
-                    </p>
-                    {maxUnitsBlockable < 1 ? (
-                      <p className="text-sm text-red-600 mb-4">
-                        No units remain available to block on this date. Choose a different date.
-                      </p>
-                    ) : (
-                      <>
-                        <input
-                          type="number"
-                          min={1}
-                          max={maxUnitsBlockable}
-                          value={unitsToBlock}
-                          onChange={(e) => {
-                            const raw = e.target.value;
-                            if (raw === '') {
-                              setUnitsToBlock('');
-                              setUnitsBlockInputError('');
-                              return;
-                            }
-                            const v = parseInt(raw, 10);
-                            if (Number.isNaN(v)) return;
-                            setUnitsToBlock(v);
-                            if (v > maxUnitsBlockable) {
-                              setUnitsBlockInputError(
-                                `You cannot block more than ${maxUnitsBlockable} unit(s); that is the current availability for this date.`
-                              );
-                            } else if (v < 1) {
-                              setUnitsBlockInputError('Enter at least 1 unit.');
-                            } else {
-                              setUnitsBlockInputError('');
-                            }
-                          }}
-                          onBlur={() => {
-                            if (unitsToBlock === '' || !Number.isFinite(unitsToBlock)) {
-                              setUnitsToBlock(1);
-                              setUnitsBlockInputError('');
-                              return;
-                            }
-                            const clamped = Math.min(Math.max(1, unitsToBlock), maxUnitsBlockable);
-                            if (clamped !== unitsToBlock) {
-                              setUnitsToBlock(clamped);
-                            }
-                            setUnitsBlockInputError('');
-                          }}
-                          className={`w-full px-3 py-2 border rounded-xl text-sm focus:outline-none focus:border-ocean-light bg-white ${
-                            unitsBlockInputError ? 'border-red-400 mb-1' : 'border-ocean-light/20 mb-4'
-                          }`}
-                        />
-                        {unitsBlockInputError && (
-                          <p className="text-xs text-red-600 mb-4" role="alert">
-                            {unitsBlockInputError}
-                          </p>
-                        )}
-                      </>
-                    )}
-                  </>
-                )}
-                
-                <label className="block text-sm font-medium text-textPrimary mb-2">
-                  Reason for blocking <span className="text-red-500">*</span>
-                </label>
-                <textarea
-                  value={reason}
-                  onChange={(e) => setReason(e.target.value)}
-                  placeholder="e.g., Maintenance, Private Event, Renovation, etc."
-                  rows="3"
-                  className="w-full px-3 py-2 border border-ocean-light/20 rounded-xl text-sm focus:outline-none focus:border-ocean-light mb-4"
-                />
-                
-                <div className="flex gap-3">
-                  <button
-                    onClick={() => {
-                      setSelectedDate(null);
-                      setReason('');
-                      setUnitsBlockInputError('');
-                    }}
-                    className="flex-1 py-2.5 border border-ocean-light/20 rounded-xl text-textSecondary text-sm font-medium hover:bg-ocean-ice transition-all duration-200"
-                  >
-                    Cancel
-                  </button>
-                  <button
-                    onClick={handleMarkUnavailable}
-                    disabled={
-                      actionLoading ||
-                      !reason.trim() ||
-                      totalRoomUnits < 1 ||
-                      maxUnitsBlockable < 1 ||
-                      unitsToBlock === '' ||
-                      !Number.isFinite(unitsToBlock) ||
-                      unitsToBlock < 1 ||
-                      unitsToBlock > maxUnitsBlockable ||
-                      !!unitsBlockInputError
-                    }
-                    className="flex-1 py-2.5 bg-orange-600 hover:bg-orange-700 text-white rounded-xl font-medium transition-all duration-200 disabled:opacity-50"
-                  >
-                    {actionLoading ? <i className="fas fa-spinner fa-spin mr-2"></i> : <i className="fas fa-ban mr-2"></i>}
-                    Block Date
-                  </button>
-                </div>
-              </div>
-            )}
-          </div>
-
-          {/* List of Block Dates Button - Placed below Block Date container */}
+          {/* Block Dates Button - Same width as the dropdown above */}
           <button
-            onClick={() => setIsSidebarOpen(true)}
-            className="w-full py-3 bg-gradient-to-r from-orange-500 to-orange-600 text-white rounded-xl font-semibold text-sm shadow-lg hover:shadow-xl hover:-translate-y-0.5 transition-all duration-300 flex items-center justify-center gap-2"
+            onClick={() => setIsBlockModalOpen(true)}
+            className="w-full py-2.5 bg-orange-600 hover:bg-orange-700 text-white rounded-xl font-medium transition-all duration-200 shadow-md hover:shadow-lg flex items-center justify-center gap-2"
           >
-            <i className="fas fa-list-ul text-sm"></i>
-            List of Block Dates
+            <i className="fas fa-calendar-times"></i>
+            Block Dates
           </button>
         </div>
       </div>
 
-      {/* Right Sidebar Modal for Blocked Dates */}
-      {isSidebarOpen && (
-        <>
-          {/* Backdrop overlay */}
+      {/* Blocked Dates container (full width, below both columns) */}
+      <div className="mt-8 bg-white rounded-2xl shadow-lg border border-ocean-light/10 p-5">
+        <h3 className="text-lg font-bold text-textPrimary mb-4 flex items-center gap-2">
+          <i className="fas fa-calendar-times text-orange-500"></i> Blocked Dates
+        </h3>
+        {unavailableEntries.length === 0 ? (
+          <div className="text-center py-8 text-neutral">
+            <i className="fas fa-check-circle text-3xl mb-2 block text-green-400"></i>
+            <p className="text-sm">No blocked dates</p>
+            <p className="text-xs mt-1">All dates are available for booking</p>
+          </div>
+        ) : (
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+            {unavailableEntries.map((entry) => {
+              const dateKey = entry.date;
+              const totalBlockedForDate = totalBlockedUnitsByDate[dateKey] || 0;
+              const remainingAvailable = Math.max(0, totalRoomUnits - totalBlockedForDate);
+              const entryRangeLabel =
+                entry.startHour === 0 && entry.endHour === 12
+                  ? '12:00 AM – 12:00 PM'
+                  : entry.startHour === 14 && entry.endHour === 24
+                    ? '2:00 PM – 12:00 AM'
+                    : entry.startHour === 0 && entry.endHour === 24
+                      ? 'Full day'
+                      : entry.startHour != null && entry.endHour != null
+                        ? `${entry.startHour}:00 – ${entry.endHour}:00`
+                        : 'Unknown range';
+              
+              return (
+                <div key={entry.id} className="p-3 bg-orange-50 border border-orange-200 rounded-lg">
+                  <div className="flex justify-between items-start">
+                    <div className="flex-1">
+                      <p className="text-sm font-semibold text-orange-800">
+                        {formatDateDisplay(entry.date)}
+                      </p>
+                      <p className="text-xs text-orange-700 mt-0.5">
+                        This entry: {entry.unitsBlocked} unit(s) blocked
+                        <span className="ml-1 text-amber-700">({entryRangeLabel})</span>
+                      </p>
+                      <p className="text-xs text-orange-700">
+                        Total blocked: {totalBlockedForDate} of {totalRoomUnits} units
+                        {totalBlockedForDate >= totalRoomUnits 
+                          ? ' (Fully blocked - 0 available)' 
+                          : ` (${remainingAvailable} available)`}
+                      </p>
+                      <p className="text-xs text-orange-600 mt-2">
+                        <span className="font-medium">Reason:</span> {entry.reason}
+                      </p>
+                      <p className="text-xs text-orange-500 mt-1">
+                        <span className="font-medium">Blocked on:</span> {entry.createdAtFormatted}
+                      </p>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => setRemoveConfirm(entry)}
+                      disabled={actionLoading}
+                      className="ml-2 px-3 py-1 bg-red-500 hover:bg-red-600 text-white rounded-lg text-xs font-medium transition-all duration-200 disabled:opacity-50 flex items-center gap-1"
+                    >
+                      <i className="fas fa-trash-alt text-xs"></i> Remove
+                    </button>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        )}
+      </div>
+
+      {/* Right-Side Sidebar Modal for Block Dates */}
+      {isBlockModalOpen && (
+        <div className="fixed inset-0 z-50 overflow-hidden">
+          {/* Backdrop */}
           <div 
-            className="fixed inset-0 bg-black/50 z-50 transition-opacity duration-300"
-            onClick={() => setIsSidebarOpen(false)}
+            className="absolute inset-0 bg-black/50 transition-opacity duration-300"
+            onClick={() => setIsBlockModalOpen(false)}
           />
           
-          {/* Sidebar that slides in from right */}
-          <div className={`fixed right-0 top-0 h-full w-full max-w-md bg-white shadow-2xl z-50 transform transition-transform duration-300 ease-out flex flex-col ${isSidebarOpen ? 'translate-x-0' : 'translate-x-full'}`}>
-            {/* Sidebar Header */}
-            <div className="sticky top-0 bg-gradient-to-r from-orange-500 to-orange-600 px-5 py-4 flex justify-between items-center z-10 flex-shrink-0">
+          {/* Slide-in Panel from Right */}
+          <div className="absolute right-0 top-0 h-full w-full max-w-md bg-white shadow-2xl transform transition-transform duration-300 ease-out overflow-y-auto">
+            <div className="sticky top-0 bg-gradient-to-r from-orange-600 to-orange-700 px-5 py-3 flex justify-between items-center z-10">
               <div>
-                <h2 className="text-lg font-bold text-white flex items-center gap-2">
-                  <i className="fas fa-calendar-times"></i> Blocked Dates
-                </h2>
-                <p className="text-white/80 text-xs mt-1">List of all blocked dates and reasons</p>
+                <h2 className="text-lg font-bold text-white">Block Dates</h2>
+                <p className="text-white/80 text-xs mt-0.5">Mark dates as unavailable</p>
               </div>
               <button
-                onClick={() => setIsSidebarOpen(false)}
+                onClick={() => setIsBlockModalOpen(false)}
                 className="text-white hover:text-white/80 transition-colors"
               >
                 <i className="fas fa-times text-xl"></i>
               </button>
             </div>
             
-            {/* Scrollable Content - Same as original Blocked Dates container */}
-            <div className="flex-1 overflow-y-auto p-5">
-              {unavailableEntries.length === 0 ? (
-                <div className="text-center py-12 text-neutral">
-                  <i className="fas fa-check-circle text-4xl mb-3 block text-green-400"></i>
-                  <p className="text-sm">No blocked dates</p>
-                  <p className="text-xs mt-1">All dates are available for booking</p>
+            <div className="p-5">
+              {!selectedDate ? (
+                <div className="text-center py-10 text-neutral">
+                  <i className="fas fa-calendar-day text-4xl mb-3 block"></i>
+                  <p>Select a date from the calendar to block</p>
+                  <p className="text-xs mt-2 text-textSecondary">Click on any available date to start</p>
                 </div>
               ) : (
-                <div className="flex flex-col gap-3">
-                  {unavailableEntries.map((entry) => {
-                    const dateKey = entry.date;
-                    const totalBlockedForDate = totalBlockedUnitsByDate[dateKey] || 0;
-                    const remainingAvailable = Math.max(0, totalRoomUnits - totalBlockedForDate);
-                    const entryRangeLabel =
-                      entry.startHour === 0 && entry.endHour === 12
-                        ? '12:00 AM – 12:00 PM'
-                        : entry.startHour === 14 && entry.endHour === 24
-                          ? '2:00 PM – 12:00 AM'
-                          : entry.startHour === 0 && entry.endHour === 24
-                            ? 'Full day'
-                            : entry.startHour != null && entry.endHour != null
-                              ? `${entry.startHour}:00 – ${entry.endHour}:00`
-                              : 'Unknown range';
-                    
-                    return (
-                      <div key={entry.id} className="p-4 bg-orange-50 border border-orange-200 rounded-lg">
-                        <div className="flex justify-between items-start">
-                          <div className="flex-1">
-                            <p className="text-sm font-semibold text-orange-800">
-                              {formatDateDisplay(entry.date)}
+                <div>
+                  <div className="bg-orange-50 rounded-xl p-4 mb-4 border border-orange-200">
+                    <p className="text-sm text-textSecondary">Selected Date</p>
+                    <p className="text-md font-semibold text-textPrimary">{selectedDate.toDateString()}</p>
+                    <p className="text-sm text-textSecondary mt-1">Room Type: {roomDetails?.type || selectedRoomId}</p>
+                    <p className="text-sm text-textSecondary mt-1">
+                      Available units: <span className="font-semibold text-green-600">{maxUnitsBlockable}</span> of {totalRoomUnits}
+                    </p>
+                  </div>
+                  
+                  {totalRoomUnits > 0 && (
+                    <>
+                      <label className="block text-sm font-medium text-textPrimary mb-2">
+                        Units to mark unavailable <span className="text-red-500">*</span>
+                      </label>
+                      <p className="text-xs text-textSecondary mb-2">
+                        This room type has {totalRoomUnits} unit(s) in service.
+                        Currently <strong>{maxUnitsBlockable}</strong> unit(s) are available to block on this date.
+                      </p>
+                      {maxUnitsBlockable < 1 ? (
+                        <p className="text-sm text-red-600 mb-4">
+                          No units remain available to block on this date. Choose a different date.
+                        </p>
+                      ) : (
+                        <>
+                          <input
+                            type="number"
+                            min={1}
+                            max={maxUnitsBlockable}
+                            value={unitsToBlock}
+                            onChange={(e) => {
+                              const raw = e.target.value;
+                              if (raw === '') {
+                                setUnitsToBlock('');
+                                setUnitsBlockInputError('');
+                                return;
+                              }
+                              const v = parseInt(raw, 10);
+                              if (Number.isNaN(v)) return;
+                              setUnitsToBlock(v);
+                              if (v > maxUnitsBlockable) {
+                                setUnitsBlockInputError(
+                                  `You cannot block more than ${maxUnitsBlockable} unit(s); that is the current availability for this date.`
+                                );
+                              } else if (v < 1) {
+                                setUnitsBlockInputError('Enter at least 1 unit.');
+                              } else {
+                                setUnitsBlockInputError('');
+                              }
+                            }}
+                            onBlur={() => {
+                              if (unitsToBlock === '' || !Number.isFinite(unitsToBlock)) {
+                                setUnitsToBlock(1);
+                                setUnitsBlockInputError('');
+                                return;
+                              }
+                              const clamped = Math.min(Math.max(1, unitsToBlock), maxUnitsBlockable);
+                              if (clamped !== unitsToBlock) {
+                                setUnitsToBlock(clamped);
+                              }
+                              setUnitsBlockInputError('');
+                            }}
+                            className={`w-full px-3 py-2 border rounded-xl text-sm focus:outline-none focus:border-orange-500 bg-white ${
+                              unitsBlockInputError ? 'border-red-400 mb-1' : 'border-gray-200 mb-4'
+                            }`}
+                          />
+                          {unitsBlockInputError && (
+                            <p className="text-xs text-red-600 mb-4" role="alert">
+                              {unitsBlockInputError}
                             </p>
-                            <p className="text-xs text-orange-700 mt-0.5">
-                              This entry: {entry.unitsBlocked} unit(s) blocked
-                              <span className="ml-1 text-amber-700">({entryRangeLabel})</span>
-                            </p>
-                            <p className="text-xs text-orange-700">
-                              Total blocked: {totalBlockedForDate} of {totalRoomUnits} units
-                              {totalBlockedForDate >= totalRoomUnits 
-                                ? ' (Fully blocked - 0 available)' 
-                                : ` (${remainingAvailable} available)`}
-                            </p>
-                            <p className="text-xs text-orange-600 mt-2">
-                              <span className="font-medium">Reason:</span> {entry.reason}
-                            </p>
-                            <p className="text-xs text-orange-500 mt-1">
-                              <span className="font-medium">Blocked on:</span> {entry.createdAtFormatted}
-                            </p>
-                          </div>
-                          <button
-                            type="button"
-                            onClick={() => setRemoveConfirm(entry)}
-                            disabled={actionLoading}
-                            className="ml-2 px-3 py-1 bg-red-500 hover:bg-red-600 text-white rounded-lg text-xs font-medium transition-all duration-200 disabled:opacity-50 flex items-center gap-1 flex-shrink-0"
-                          >
-                            <i className="fas fa-trash-alt text-xs"></i> Remove
-                          </button>
-                        </div>
-                      </div>
-                    );
-                  })}
+                          )}
+                        </>
+                      )}
+                    </>
+                  )}
+                  
+                  <label className="block text-sm font-medium text-textPrimary mb-2">
+                    Reason for blocking <span className="text-red-500">*</span>
+                  </label>
+                  <textarea
+                    value={reason}
+                    onChange={(e) => setReason(e.target.value)}
+                    placeholder="e.g., Maintenance, Private Event, Renovation, etc."
+                    rows="3"
+                    className="w-full px-3 py-2 border border-gray-200 rounded-xl text-sm focus:outline-none focus:border-orange-500 mb-4"
+                  />
+                  
+                  <div className="flex gap-3">
+                    <button
+                      onClick={() => {
+                        setSelectedDate(null);
+                        setReason('');
+                        setUnitsBlockInputError('');
+                        setIsBlockModalOpen(false);
+                      }}
+                      className="flex-1 py-2.5 border border-gray-200 rounded-xl text-textSecondary text-sm font-medium hover:bg-gray-50 transition-all duration-200"
+                    >
+                      Cancel
+                    </button>
+                    <button
+                      onClick={handleMarkUnavailable}
+                      disabled={
+                        actionLoading ||
+                        !reason.trim() ||
+                        totalRoomUnits < 1 ||
+                        maxUnitsBlockable < 1 ||
+                        unitsToBlock === '' ||
+                        !Number.isFinite(unitsToBlock) ||
+                        unitsToBlock < 1 ||
+                        unitsToBlock > maxUnitsBlockable ||
+                        !!unitsBlockInputError
+                      }
+                      className="flex-1 py-2.5 bg-orange-600 hover:bg-orange-700 text-white rounded-xl font-medium transition-all duration-200 disabled:opacity-50 flex items-center justify-center gap-2"
+                    >
+                      {actionLoading ? <i className="fas fa-spinner fa-spin"></i> : <i className="fas fa-ban"></i>}
+                      Block Date
+                    </button>
+                  </div>
                 </div>
               )}
             </div>
           </div>
-        </>
+        </div>
       )}
 
       {removeConfirm && (

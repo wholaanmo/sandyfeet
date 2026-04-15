@@ -34,10 +34,10 @@ export default function ImageSlider({ images, roomType }) {
 
   return (
     <div className="relative">
-      {/* Main Image Container */}
+      {/* Main Image Container - Reduced height for compact modal */}
       <div 
-        className={`relative overflow-hidden rounded-xl bg-ocean-pale/30 ${isZoomed ? 'cursor-zoom-out' : 'cursor-zoom-in'}`}
-        style={{ height: '350px' }}
+        className={`relative overflow-hidden rounded-lg bg-ocean-pale/30 ${isZoomed ? 'cursor-zoom-out' : 'cursor-zoom-in'}`}
+        style={{ height: '280px' }}
         onClick={toggleZoom}
         onMouseMove={handleMouseMove}
       >
@@ -65,43 +65,43 @@ export default function ImageSlider({ images, roomType }) {
           </div>
         )}
         
-        {/* Zoom Indicator */}
+        {/* Zoom Indicator - Smaller and cleaner */}
         <button
           onClick={(e) => {
             e.stopPropagation();
             toggleZoom();
           }}
-          className="absolute top-4 right-4 bg-black/50 hover:bg-black/70 text-white rounded-full w-10 h-10 flex items-center justify-center transition-all duration-200 backdrop-blur-sm z-10"
+          className="absolute top-3 right-3 bg-black/50 hover:bg-black/70 text-white rounded-full w-8 h-8 flex items-center justify-center transition-all duration-200 backdrop-blur-sm z-10"
           title={isZoomed ? 'Zoom Out' : 'Zoom In'}
         >
-          <i className={`fas fa-${isZoomed ? 'search-minus' : 'search-plus'} text-lg`}></i>
+          <i className={`fas fa-${isZoomed ? 'search-minus' : 'search-plus'} text-sm`}></i>
         </button>
       </div>
 
-      {/* Navigation Controls */}
+      {/* Navigation Controls - Repositioned and cleaner */}
       {images.length > 1 && (
         <>
           <button
             onClick={prevSlide}
-            className="absolute left-4 top-1/2 -translate-y-1/2 bg-black/50 hover:bg-black/70 text-white rounded-full w-10 h-10 flex items-center justify-center transition-all duration-200 backdrop-blur-sm z-10"
+            className="absolute left-3 top-1/2 -translate-y-1/2 bg-black/50 hover:bg-black/70 text-white rounded-full w-8 h-8 flex items-center justify-center transition-all duration-200 backdrop-blur-sm z-10"
             title="Previous Image"
           >
-            <i className="fas fa-chevron-left text-lg"></i>
+            <i className="fas fa-chevron-left text-sm"></i>
           </button>
           
           <button
             onClick={nextSlide}
-            className="absolute right-4 top-1/2 -translate-y-1/2 bg-black/50 hover:bg-black/70 text-white rounded-full w-10 h-10 flex items-center justify-center transition-all duration-200 backdrop-blur-sm z-10"
+            className="absolute right-3 top-1/2 -translate-y-1/2 bg-black/50 hover:bg-black/70 text-white rounded-full w-8 h-8 flex items-center justify-center transition-all duration-200 backdrop-blur-sm z-10"
             title="Next Image"
           >
-            <i className="fas fa-chevron-right text-lg"></i>
+            <i className="fas fa-chevron-right text-sm"></i>
           </button>
         </>
       )}
 
-      {/* Thumbnail Navigation */}
+      {/* Thumbnail Navigation - More compact */}
       {images.length > 1 && (
-        <div className="flex gap-2 mt-4 overflow-x-auto pb-2">
+        <div className="flex gap-1.5 mt-3 overflow-x-auto pb-1 justify-center">
           {images.map((image, index) => (
             <button
               key={index}
@@ -109,9 +109,9 @@ export default function ImageSlider({ images, roomType }) {
                 setCurrentIndex(index);
                 setIsZoomed(false);
               }}
-              className={`relative flex-shrink-0 w-20 h-20 rounded-lg overflow-hidden transition-all duration-200 ${
+              className={`relative flex-shrink-0 w-12 h-12 rounded-md overflow-hidden transition-all duration-200 ${
                 currentIndex === index
-                  ? 'ring-2 ring-ocean-mid ring-offset-2'
+                  ? 'ring-2 ring-ocean-mid ring-offset-1'
                   : 'opacity-60 hover:opacity-100'
               }`}
             >
@@ -126,8 +126,8 @@ export default function ImageSlider({ images, roomType }) {
         </div>
       )}
 
-      {/* Image Counter */}
-      <div className="absolute bottom-4 right-4 bg-black/50 text-white px-3 py-1 rounded-full text-sm backdrop-blur-sm z-10">
+      {/* Image Counter - Compact */}
+      <div className="absolute bottom-3 right-3 bg-black/50 text-white px-2 py-0.5 rounded-full text-xs backdrop-blur-sm z-10">
         {currentIndex + 1} / {images.length}
       </div>
     </div>

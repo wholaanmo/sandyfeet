@@ -200,14 +200,14 @@ export default function RoomCard({ room }) {
             onClick={closeSidebar}
           />
           
-          {/* Sidebar Modal - Slides from right */}
+          {/* Sidebar Modal - 50% transparent with backdrop blur */}
           <div 
-            className={`fixed top-0 right-0 h-full w-full max-w-md bg-white/95 backdrop-blur-md shadow-2xl z-50 transform transition-transform duration-300 ease-out ${
+            className={`fixed top-0 right-0 h-full w-full max-w-md bg-black/50 backdrop-blur-lg shadow-2xl z-50 transform transition-transform duration-300 ease-out ${
               isAnimating ? 'translate-x-0' : 'translate-x-full'
             }`}
           >
-            {/* Modal Content Container with improved structure */}
-            <div className="flex flex-col h-full overflow-hidden">
+            {/* Content Container with solid background for readability */}
+            <div className="flex flex-col h-full overflow-hidden bg-white/95">
               {/* Modal Header - Clean & Minimal with sticky positioning */}
               <div className="sticky top-0 bg-white/90 backdrop-blur-sm border-b border-gray-100 px-5 py-4 flex justify-between items-center z-10 flex-shrink-0">
                 <h2 className="text-lg font-bold text-textPrimary font-playfair truncate flex-1">

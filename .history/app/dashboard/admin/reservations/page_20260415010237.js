@@ -1190,6 +1190,7 @@ const handleConfirmReservation = async () => {
                       <th className="px-3 py-2 text-left text-sm font-semibold text-textPrimary">Booked On</th>
                     </tr>
                     </thead>
+                    </table>
                   <tbody>
                     {filteredBookings.length === 0 ? (
                       <tr>
@@ -1518,16 +1519,16 @@ const handleConfirmReservation = async () => {
                 </p>
               </div>
 
-              {/* Payment Proof Image - Clickable (for both rooms and day tour) */}
-              {(sidebarBooking.paymentProof || sidebarBooking.paymentProofUrl) && (
+              {/* Payment Proof Image - Clickable */}
+              {sidebarBooking.paymentProofUrl && (
                 <div className="bg-ocean-ice rounded-lg p-3">
                   <h3 className="text-xs font-semibold text-ocean-mid uppercase tracking-wide mb-2">Payment Proof</h3>
                   <div 
                     className="relative bg-ocean-pale/30 rounded-lg overflow-hidden cursor-pointer hover:opacity-90 transition-opacity duration-200"
-                    onClick={() => setImageZoomModal({ show: true, imageUrl: sidebarBooking.paymentProof || sidebarBooking.paymentProofUrl, title: 'Payment Proof' })}
+                    onClick={() => setImageZoomModal({ show: true, imageUrl: sidebarBooking.paymentProofUrl, title: 'Payment Proof' })}
                   >
                     <img
-                      src={sidebarBooking.paymentProof || sidebarBooking.paymentProofUrl}
+                      src={sidebarBooking.paymentProofUrl}
                       alt="Payment Proof"
                       className="w-full h-auto max-h-[200px] object-contain"
                       onError={(e) => {
@@ -1543,8 +1544,8 @@ const handleConfirmReservation = async () => {
                 </div>
               )}
 
-              {/* Valid ID - Clickable (for both rooms and day tour) */}
-              {(sidebarBooking.validIdImage || sidebarBooking.validIdUrl) && (
+              {/* Valid ID - Clickable */}
+              {sidebarBooking.validIdUrl && (
                 <div className="bg-ocean-ice rounded-lg p-3">
                   <h3 className="text-xs font-semibold text-ocean-mid uppercase tracking-wide mb-2">Valid ID</h3>
                   {sidebarBooking.validIdType && (
@@ -1552,10 +1553,10 @@ const handleConfirmReservation = async () => {
                   )}
                   <div 
                     className="relative bg-ocean-pale/30 rounded-lg overflow-hidden cursor-pointer hover:opacity-90 transition-opacity duration-200"
-                    onClick={() => setImageZoomModal({ show: true, imageUrl: sidebarBooking.validIdImage || sidebarBooking.validIdUrl, title: `Valid ID - ${sidebarBooking.validIdType || 'ID'}` })}
+                    onClick={() => setImageZoomModal({ show: true, imageUrl: sidebarBooking.validIdUrl, title: `Valid ID - ${sidebarBooking.validIdType || 'ID'}` })}
                   >
                     <img
-                      src={sidebarBooking.validIdImage || sidebarBooking.validIdUrl}
+                      src={sidebarBooking.validIdUrl}
                       alt="Valid ID"
                       className="w-full h-auto max-h-[150px] object-contain bg-white"
                       onError={(e) => {

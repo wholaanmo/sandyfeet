@@ -19,8 +19,7 @@ export default function AdminDayTourCalendar() {
   const [actionLoading, setActionLoading] = useState(false);
   const [removeConfirm, setRemoveConfirm] = useState(null);
   const [bookedDates, setBookedDates] = useState({});
-  const [isSidebarOpen, setIsSidebarOpen] = useState(false);
-  
+
   // Helper function to convert Date to YYYY-MM-DD local date string
   const toLocalDateKey = (date) => {
     const year = date.getFullYear();
@@ -423,7 +422,7 @@ export default function AdminDayTourCalendar() {
                 <div className="flex items-center gap-1.5"><div className="w-3 h-3 bg-white border border-gray-300 rounded"></div><span>Available</span></div>
                 <div className="flex items-center gap-1.5"><div className="w-3 h-3 bg-red-100 border border-red-200 rounded"></div><span>Fully Booked</span></div>
                 <div className="flex items-center gap-1.5"><div className="w-3 h-3 bg-gray-100 border border-gray-200 rounded"></div><span>Past Dates</span></div>
-                <div className="flex items-center gap-1.5"><div className="w-3 h-3 bg-orange-100 border border-orange-200 rounded"></div><span>Unavailable Dates</span></div>
+                <div className="flex items-center gap-1.5"><div className="w-3 h-3 bg-orange-100 border border-orange-200 rounded"><span className="text-textSecondary"></span></div><span>Unavailable Dates</span></div>
                 <div className="flex items-center gap-1.5"><div className="w-3 h-3 bg-ocean-mid rounded"></div><span>Selected</span></div>
               </div>
             </div>
@@ -515,85 +514,50 @@ export default function AdminDayTourCalendar() {
             )}
           </div>
 
-          {/* Unavailable Dates Button - Placed below Mark Date as Unavailable container */}
-          <button
-            onClick={() => setIsSidebarOpen(true)}
-            className="w-full py-3 bg-gradient-to-r from-orange-500 to-orange-600 text-white rounded-xl font-semibold text-sm shadow-lg hover:shadow-xl hover:-translate-y-0.5 transition-all duration-300 flex items-center justify-center gap-2"
-          >
-            <i className="fas fa-calendar-times text-sm"></i>
-            Unavailable Dates
-          </button>
+          {/* Unavailable Dates List */}
+          <div className="bg-white rounded-2xl shadow-lg border border-ocean-light/10 p-5">
+            <h3 className="text-lg font-bold text-textPrimary mb-4 flex items-center gap-2">
+              <i className="fas fa-calendar-times text-orange-500"></i> Unavailable Dates
+            </h3>
+            
+            {unavailableDatesList.length === 0 ? (
+              <div className="text-center py-8 text-neutral">
+                <i className="fas fa-check-circle text-3xl mb-2 block text-green-400"></i>
+                <p className="text-sm">No unavailable dates</p>
+                <p className="text-xs mt-1">All dates are available for booking</p>
+              </div>
+            ) : (
+              <div className="space-y-3 max-h-96 overflow-y-auto">
+                {unavailableDatesList.map((item) => (
+                  <div key={item.id} className="p-3 bg-orange-50 border border-orange-200 rounded-lg">
+                    <div className="flex justify-between items-start">
+                      <div className="flex-1">
+                        <p className="text-sm font-semibold text-orange-800">
+                          {formatDateDisplay(item.date)}
+                        </p>
+                        <p className="text-xs text-orange-600 mt-2">
+                          <span className="font-medium">Reason:</span> {item.reason}
+                        </p>
+                        <p className="text-xs text-orange-400 mt-1">
+                          Marked on: {new Date(item.createdAt).toLocaleDateString()}
+                        </p>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => setRemoveConfirm(item)}
+                        disabled={actionLoading}
+                        className="ml-2 px-3 py-1 bg-red-500 hover:bg-red-600 text-white rounded-lg text-xs font-medium transition-all duration-200 disabled:opacity-50 flex items-center gap-1"
+                      >
+                        <i className="fas fa-trash-alt text-xs"></i> Remove
+                      </button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
         </div>
       </div>
-
-      {/* Right Sidebar Modal for Unavailable Dates */}
-      {isSidebarOpen && (
-        <>
-          {/* Backdrop overlay */}
-          <div 
-            className="fixed inset-0 bg-black/50 z-50 transition-opacity duration-300"
-            onClick={() => setIsSidebarOpen(false)}
-          />
-          
-          {/* Sidebar that slides in from right */}
-          <div className={`fixed right-0 top-0 h-full w-full max-w-md bg-white shadow-2xl z-50 transform transition-transform duration-300 ease-out flex flex-col ${isSidebarOpen ? 'translate-x-0' : 'translate-x-full'}`}>
-            {/* Sidebar Header */}
-            <div className="sticky top-0 bg-gradient-to-r from-orange-500 to-orange-600 px-5 py-4 flex justify-between items-center z-10 flex-shrink-0">
-              <div>
-                <h2 className="text-lg font-bold text-white flex items-center gap-2">
-                  <i className="fas fa-calendar-times"></i> Unavailable Dates
-                </h2>
-                <p className="text-white/80 text-xs mt-1">List of all dates marked as unavailable</p>
-              </div>
-              <button
-                onClick={() => setIsSidebarOpen(false)}
-                className="text-white hover:text-white/80 transition-colors"
-              >
-                <i className="fas fa-times text-xl"></i>
-              </button>
-            </div>
-            
-            {/* Scrollable Content - Same as original Unavailable Dates container */}
-            <div className="flex-1 overflow-y-auto p-5">
-              {unavailableDatesList.length === 0 ? (
-                <div className="text-center py-12 text-neutral">
-                  <i className="fas fa-check-circle text-4xl mb-3 block text-green-400"></i>
-                  <p className="text-sm">No unavailable dates</p>
-                  <p className="text-xs mt-1">All dates are available for booking</p>
-                </div>
-              ) : (
-                <div className="flex flex-col gap-3">
-                  {unavailableDatesList.map((item) => (
-                    <div key={item.id} className="p-4 bg-orange-50 border border-orange-200 rounded-lg">
-                      <div className="flex justify-between items-start">
-                        <div className="flex-1">
-                          <p className="text-sm font-semibold text-orange-800">
-                            {formatDateDisplay(item.date)}
-                          </p>
-                          <p className="text-xs text-orange-600 mt-2">
-                            <span className="font-medium">Reason:</span> {item.reason}
-                          </p>
-                          <p className="text-xs text-orange-400 mt-1">
-                            Marked on: {new Date(item.createdAt).toLocaleDateString()}
-                          </p>
-                        </div>
-                        <button
-                          type="button"
-                          onClick={() => setRemoveConfirm(item)}
-                          disabled={actionLoading}
-                          className="ml-2 px-3 py-1 bg-red-500 hover:bg-red-600 text-white rounded-lg text-xs font-medium transition-all duration-200 disabled:opacity-50 flex items-center gap-1 flex-shrink-0"
-                        >
-                          <i className="fas fa-trash-alt text-xs"></i> Remove
-                        </button>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              )}
-            </div>
-          </div>
-        </>
-      )}
 
       {/* Remove Confirmation Modal */}
       {removeConfirm && (

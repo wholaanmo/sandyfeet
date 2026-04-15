@@ -1048,23 +1048,6 @@ const handleConfirmReservation = async () => {
     return dbt - da;
   });
 
-  // State for sidebar modal
-  const [isSidebarOpen, setIsSidebarOpen] = useState(false);
-  const [sidebarBooking, setSidebarBooking] = useState(null);
-
-  // Function to open sidebar
-  const openSidebar = (booking) => {
-    setSidebarBooking(booking);
-    setIsSidebarOpen(true);
-    setShowPaymentModal(false);
-  };
-
-  // Function to close sidebar
-  const closeSidebar = () => {
-    setIsSidebarOpen(false);
-    setSidebarBooking(null);
-  };
-
   return (
     <div className="p-8 min-h-screen" style={{ backgroundColor: 'var(--color-blue-whites)' }}>
       {/* Header */}
@@ -1189,7 +1172,7 @@ const handleConfirmReservation = async () => {
                       <th className="px-3 py-2 text-left text-sm font-semibold text-textPrimary">Actions</th>
                       <th className="px-3 py-2 text-left text-sm font-semibold text-textPrimary">Booked On</th>
                     </tr>
-                    </thead>
+                  </thead>
                   <tbody>
                     {filteredBookings.length === 0 ? (
                       <tr>
@@ -1239,13 +1222,18 @@ const handleConfirmReservation = async () => {
                           </td>
                           <td className="px-3 py-2">
                             <div className="flex gap-1">
-                              <button
-                                onClick={() => openSidebar(booking)}
-                                className="p-1.5 text-blue-600 hover:text-blue-700 hover:bg-blue-50 rounded-lg transition-all duration-200"
-                                title="View Details"
-                              >
-                                <i className="fas fa-eye text-sm"></i>
-                              </button>
+                              {(booking.paymentProofUrl || booking.status === 'pending') && (
+                                <button
+                                  onClick={() => {
+                                    setSelectedBooking(booking);
+                                    setShowPaymentModal(true);
+                                  }}
+                                  className="p-1.5 text-blue-600 hover:text-blue-700 hover:bg-blue-50 rounded-lg transition-all duration-200"
+                                  title="View Payment Proof"
+                                >
+                                  <i className="fas fa-eye text-sm"></i>
+                                </button>
+                              )}
                               {booking.status === 'cancelled-by-guest' && (
                                 <button
                                   onClick={() => setShowReasonModal({ 
@@ -1340,13 +1328,18 @@ const handleConfirmReservation = async () => {
                           </td>
                           <td className="px-3 py-2">
                             <div className="flex gap-1">
-                              <button
-                                onClick={() => openSidebar(tour)}
-                                className="p-1.5 text-blue-600 hover:text-blue-700 hover:bg-blue-50 rounded-lg transition-all duration-200"
-                                title="View Details"
-                              >
-                                <i className="fas fa-eye text-sm"></i>
-                              </button>
+                              {(tour.paymentProofUrl || tour.status === 'pending') && (
+                                <button
+                                  onClick={() => {
+                                    setSelectedBooking(tour);
+                                    setShowPaymentModal(true);
+                                  }}
+                                  className="p-1.5 text-blue-600 hover:text-blue-700 hover:bg-blue-50 rounded-lg transition-all duration-200"
+                                  title="View Payment Proof"
+                                >
+                                  <i className="fas fa-eye text-sm"></i>
+                                </button>
+                              )}
                               {tour.status === 'cancelled-by-guest' && (
                                 <button
                                   onClick={() => setShowReasonModal({ 
@@ -1377,252 +1370,32 @@ const handleConfirmReservation = async () => {
         </>
       )}
 
-      {/* Right Sidebar Modal for Booking Details */}
-      {isSidebarOpen && sidebarBooking && (
-        <>
-          {/* Backdrop overlay */}
-          <div 
-            className="fixed inset-0 bg-black/50 z-50 transition-opacity duration-300"
-            onClick={closeSidebar}
-          />
-          
-          {/* Sidebar that slides in from right */}
-          <div className={`fixed right-0 top-0 h-full w-full max-w-md bg-white shadow-2xl z-50 transform transition-transform duration-300 ease-out flex flex-col ${isSidebarOpen ? 'translate-x-0' : 'translate-x-full'}`}>
-            {/* Sidebar Header */}
-            <div className="sticky top-0 bg-gradient-to-r from-ocean-mid to-ocean-light px-5 py-3 rounded-t-xl flex justify-between items-center z-10 flex-shrink-0">
-              <div>
-                <h2 className="text-base font-bold text-white">
-                  Booking Details - {sidebarBooking.bookingId}
-                </h2>
-                <p className="text-white/80 text-xs mt-0.5">
-                  {sidebarBooking.isMultiRoomGroup ? 'Multi-Room Booking' : (activeTab === 'rooms' ? 'Room Booking' : 'Day Tour Booking')}
-                </p>
+      {/* Image Zoom Modal */}
+      {imageZoomModal.show && (
+        <div className="fixed inset-0 bg-black/80 backdrop-blur-sm flex items-center justify-center z-[100] p-4" onClick={() => setImageZoomModal({ show: false, imageUrl: '', title: '' })}>
+          <div className="relative max-w-4xl max-h-[90vh] w-full" onClick={(e) => e.stopPropagation()}>
+            <button
+              onClick={() => setImageZoomModal({ show: false, imageUrl: '', title: '' })}
+              className="absolute -top-10 right-0 text-white hover:text-gray-300 transition-colors duration-200"
+            >
+              <i className="fas fa-times text-2xl"></i>
+            </button>
+            <div className="bg-white rounded-lg overflow-hidden">
+              <div className="bg-gradient-to-r from-ocean-mid to-ocean-light px-4 py-2">
+                <h3 className="text-sm font-semibold text-white">{imageZoomModal.title}</h3>
               </div>
-              <button
-                onClick={closeSidebar}
-                className="w-7 h-7 rounded-full bg-white/20 hover:bg-white/30 text-white transition-all duration-200 flex items-center justify-center"
-              >
-                <i className="fas fa-times text-sm"></i>
-              </button>
-            </div>
-            
-            {/* Scrollable Content - Same as original modal content */}
-            <div className="flex-1 overflow-y-auto p-5 space-y-4">
-              {/* Guest Information */}
-              <div className="bg-ocean-ice rounded-lg p-3">
-                <h3 className="text-xs font-semibold text-ocean-mid uppercase tracking-wide mb-2">Guest Information</h3>
-                <p className="text-sm font-medium text-textPrimary">
-                  {sidebarBooking.guestInfo?.firstName} {sidebarBooking.guestInfo?.lastName}
-                </p>
-                <p className="text-xs text-textSecondary">{sidebarBooking.guestInfo?.email}</p>
-                <p className="text-xs text-textSecondary">{sidebarBooking.guestInfo?.phone}</p>
-              </div>
-
-              {/* Room/Tour Details */}
-              {activeTab === 'rooms' ? (
-                <>
-                  <div className="bg-ocean-ice rounded-lg p-3">
-                    <h3 className="text-xs font-semibold text-ocean-mid uppercase tracking-wide mb-2">Room Details</h3>
-                    
-                    {/* Multi-Room Detailed Display */}
-                    {sidebarBooking.isMultiRoomGroup && sidebarBooking.roomTypesArray && sidebarBooking.roomTypesArray.length > 0 ? (
-                      <div className="space-y-2">
-                        <div className="border-b border-ocean-light/20 pb-1 mb-1">
-                          <span className="text-xs font-semibold text-ocean-mid">Room Type Breakdown:</span>
-                        </div>
-                        {sidebarBooking.roomTypesArray.map((room, idx) => (
-                          <div key={idx} className="flex justify-between items-center text-sm">
-                            <span className="text-textSecondary">{room.quantity} × {room.type}</span>
-                            <span className="font-medium text-textPrimary">{room.guestsPerRoom} guest{room.guestsPerRoom !== 1 ? 's' : ''}</span>
-                          </div>
-                        ))}
-                        <div className="flex justify-between items-center text-sm pt-2 border-t border-ocean-light/20 mt-2">
-                          <span className="font-semibold text-textPrimary">Total Guests:</span>
-                          <span className="font-bold text-ocean-mid">{sidebarBooking.totalGuests}</span>
-                        </div>
-                      </div>
-                    ) : (
-                      <>
-                        <p className="text-sm">
-                          <span className="text-textSecondary">Room Type:</span>{' '}
-                          <span className="font-medium text-textPrimary">{sidebarBooking.roomType}</span>
-                        </p>
-                        <p className="text-sm mt-1">
-                          <span className="text-textSecondary">Number of Rooms:</span>{' '}
-                          <span className="font-medium text-textPrimary">{sidebarBooking.numberOfRooms || 1}</span>
-                        </p>
-                        <p className="text-sm mt-1">
-                          <span className="text-textSecondary">Number of Guests:</span>{' '}
-                          <span className="font-medium text-textPrimary">{sidebarBooking.guests || 1}</span>
-                        </p>
-                      </>
-                    )}
-                  </div>
-
-                  <div className="bg-ocean-ice rounded-lg p-3">
-                    <h3 className="text-xs font-semibold text-ocean-mid uppercase tracking-wide mb-2">Schedule</h3>
-                    <p className="text-sm">
-                      <span className="text-textSecondary">Check-in:</span>{' '}
-                      <span className="font-medium text-textPrimary">{formatDateWithTime(sidebarBooking.checkIn, 'check-in')}</span>
-                    </p>
-                    <p className="text-sm mt-1">
-                      <span className="text-textSecondary">Check-out:</span>{' '}
-                      <span className="font-medium text-textPrimary">{formatDateWithTime(sidebarBooking.checkOut, 'check-out')}</span>
-                    </p>
-                  </div>
-                </>
-              ) : (
-                <>
-                  <div className="bg-ocean-ice rounded-lg p-3">
-                    <h3 className="text-xs font-semibold text-ocean-mid uppercase tracking-wide mb-2">Tour Details</h3>
-                    <p className="text-sm">
-                      <span className="text-textSecondary">Tour Date:</span>{' '}
-                      <span className="font-medium text-textPrimary">{formatDateOnly(sidebarBooking.selectedDate)}</span>
-                    </p>
-                    <p className="text-sm mt-1">
-                      <span className="text-textSecondary">Guest Breakdown:</span>{' '}
-                      <span className="font-medium text-textPrimary">
-                        Senior: {sidebarBooking.seniors || 0} | Adult: {sidebarBooking.adults || 0} | Kid: {sidebarBooking.kids || 0}
-                      </span>
-                    </p>
-                    <p className="text-sm mt-1">
-                      <span className="text-textSecondary">Total Guests:</span>{' '}
-                      <span className="font-medium text-textPrimary">{getTotalGuests(sidebarBooking)}</span>
-                    </p>
-                  </div>
-                </>
-              )}
-
-              {/* Payment Information */}
-              <div className="bg-ocean-ice rounded-lg p-3">
-                <h3 className="text-xs font-semibold text-ocean-mid uppercase tracking-wide mb-2">Payment Information</h3>
-                <p className="text-sm">
-                  <span className="text-textSecondary">Total Amount:</span>{' '}
-                  <span className="font-bold text-ocean-mid">₱{Number(sidebarBooking.totalPrice).toLocaleString()}</span>
-                </p>
-                <p className="text-sm mt-1">
-                  <span className="text-textSecondary">50% Down Payment:</span>{' '}
-                  <span className="font-bold text-amber-600">₱{calculateDownPayment(sidebarBooking.totalPrice).toLocaleString()}</span>
-                </p>
-                <p className="text-sm mt-1">
-                  <span className="text-textSecondary">Balance:</span>{' '}
-                  <span className={`font-bold ${sidebarBooking.status === 'confirmed' ? 'text-ocean-mid' : 'text-neutral'}`}>
-                    {calculateBalance(sidebarBooking)}
-                  </span>
-                </p>
-                <p className="text-sm mt-1">
-                  <span className="text-textSecondary">Status:</span>{' '}
-                  <span className={`px-2 py-0.5 rounded-full text-[10px] font-medium ${getStatusColor(sidebarBooking.status)}`}>
-                    {sidebarBooking.status?.charAt(0).toUpperCase() + sidebarBooking.status?.slice(1)}
-                  </span>
-                </p>
-              </div>
-
-              {/* Payment Proof Image - Clickable (for both rooms and day tour) */}
-              {(sidebarBooking.paymentProof || sidebarBooking.paymentProofUrl) && (
-                <div className="bg-ocean-ice rounded-lg p-3">
-                  <h3 className="text-xs font-semibold text-ocean-mid uppercase tracking-wide mb-2">Payment Proof</h3>
-                  <div 
-                    className="relative bg-ocean-pale/30 rounded-lg overflow-hidden cursor-pointer hover:opacity-90 transition-opacity duration-200"
-                    onClick={() => setImageZoomModal({ show: true, imageUrl: sidebarBooking.paymentProof || sidebarBooking.paymentProofUrl, title: 'Payment Proof' })}
-                  >
-                    <img
-                      src={sidebarBooking.paymentProof || sidebarBooking.paymentProofUrl}
-                      alt="Payment Proof"
-                      className="w-full h-auto max-h-[200px] object-contain"
-                      onError={(e) => {
-                        console.error('Error loading image:', e);
-                        e.target.style.display = 'none';
-                        e.target.parentElement.innerHTML = '<div class="p-4 text-center"><i class="fas fa-image text-3xl text-neutral mb-2 block"></i><p class="text-textSecondary">Error loading payment proof image</p></div>';
-                      }}
-                    />
-                    <div className="absolute inset-0 bg-black/0 hover:bg-black/20 transition-all duration-200 flex items-center justify-center">
-                      <i className="fas fa-search-plus text-white text-xl opacity-0 hover:opacity-100 transition-opacity duration-200"></i>
-                    </div>
-                  </div>
-                </div>
-              )}
-
-              {/* Valid ID - Clickable (for both rooms and day tour) */}
-              {(sidebarBooking.validIdImage || sidebarBooking.validIdUrl) && (
-                <div className="bg-ocean-ice rounded-lg p-3">
-                  <h3 className="text-xs font-semibold text-ocean-mid uppercase tracking-wide mb-2">Valid ID</h3>
-                  {sidebarBooking.validIdType && (
-                    <p className="text-xs text-textSecondary mb-2">ID Type: <span className="font-medium text-textPrimary">{sidebarBooking.validIdType}</span></p>
-                  )}
-                  <div 
-                    className="relative bg-ocean-pale/30 rounded-lg overflow-hidden cursor-pointer hover:opacity-90 transition-opacity duration-200"
-                    onClick={() => setImageZoomModal({ show: true, imageUrl: sidebarBooking.validIdImage || sidebarBooking.validIdUrl, title: `Valid ID - ${sidebarBooking.validIdType || 'ID'}` })}
-                  >
-                    <img
-                      src={sidebarBooking.validIdImage || sidebarBooking.validIdUrl}
-                      alt="Valid ID"
-                      className="w-full h-auto max-h-[150px] object-contain bg-white"
-                      onError={(e) => {
-                        console.error('Error loading valid ID image:', e);
-                        e.target.style.display = 'none';
-                        e.target.parentElement.innerHTML = '<div class="p-4 text-center"><i class="fas fa-id-card text-3xl text-neutral mb-2 block"></i><p class="text-textSecondary">Error loading valid ID image</p></div>';
-                      }}
-                    />
-                    <div className="absolute inset-0 bg-black/0 hover:bg-black/20 transition-all duration-200 flex items-center justify-center">
-                      <i className="fas fa-search-plus text-white text-xl opacity-0 hover:opacity-100 transition-opacity duration-200"></i>
-                    </div>
-                  </div>
-                </div>
-              )}
-
-              {/* Special Request */}
-              <div className="bg-amber-50 rounded-lg p-3 border border-amber-200">
-                <h3 className="text-xs font-semibold text-amber-700 uppercase tracking-wide mb-2">Special Request</h3>
-                {sidebarBooking.specialRequest ? (
-                  <p className="text-sm text-amber-800">{sidebarBooking.specialRequest}</p>
-                ) : (
-                  <p className="text-sm text-amber-600 italic">No special requests from guest</p>
-                )}
-              </div>
-            </div>
-            
-            {/* Fixed Footer with Confirm and Cancel buttons */}
-            <div className="sticky bottom-0 bg-white border-t border-ocean-light/20 px-5 py-3 rounded-b-xl flex gap-2 justify-end flex-shrink-0">
-              <button
-                onClick={closeSidebar}
-                className="px-4 py-1.5 border border-ocean-light/20 rounded-lg text-textSecondary text-sm font-medium hover:bg-ocean-ice transition-all duration-300"
-              >
-                Close
-              </button>
-              {sidebarBooking.status === 'pending' && (
-                <>
-                  <button
-                    onClick={() => {
-                      closeSidebar();
-                      setConfirmModal({ show: true, booking: sidebarBooking, type: activeTab === 'rooms' ? 'room' : 'daytour', note: '' });
-                    }}
-                    disabled={actionLoading[sidebarBooking.id]}
-                    className="px-4 py-1.5 bg-gradient-to-r from-green-500 to-green-600 rounded-lg text-white text-sm font-medium hover:shadow-lg transition-all duration-300 flex items-center gap-1 disabled:opacity-50"
-                  >
-                    <i className="fas fa-check text-xs"></i>
-                    Confirm
-                  </button>
-                  <button
-                    onClick={() => {
-                      closeSidebar();
-                      setCancelModal({ show: true, booking: sidebarBooking, reason: '' });
-                    }}
-                    disabled={actionLoading[sidebarBooking.id]}
-                    className="px-4 py-1.5 bg-gradient-to-r from-red-500 to-red-600 rounded-lg text-white text-sm font-medium hover:shadow-lg transition-all duration-300 flex items-center gap-1 disabled:opacity-50"
-                  >
-                    <i className="fas fa-times text-xs"></i>
-                    Cancel
-                  </button>
-                </>
-              )}
+              <img
+                src={imageZoomModal.imageUrl}
+                alt={imageZoomModal.title}
+                className="w-full h-auto max-h-[80vh] object-contain bg-gray-100"
+              />
             </div>
           </div>
-        </>
+        </div>
       )}
 
-      {/* Original Payment Modal - Kept for backward compatibility but hidden via CSS when sidebar is open */}
-      {showPaymentModal && selectedBooking && !isSidebarOpen && (
+      {/* View Modal - Compact Size with Improved Multi-Room Layout */}
+      {showPaymentModal && selectedBooking && (
         <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4" onClick={() => setShowPaymentModal(false)}>
           <div className="bg-white rounded-xl w-full max-w-md max-h-[85vh] overflow-auto shadow-2xl" onClick={(e) => e.stopPropagation()}>
             {/* Header */}
@@ -1847,30 +1620,6 @@ const handleConfirmReservation = async () => {
                   </button>
                 </>
               )}
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* Image Zoom Modal */}
-      {imageZoomModal.show && (
-        <div className="fixed inset-0 bg-black/80 backdrop-blur-sm flex items-center justify-center z-[100] p-4" onClick={() => setImageZoomModal({ show: false, imageUrl: '', title: '' })}>
-          <div className="relative max-w-4xl max-h-[90vh] w-full" onClick={(e) => e.stopPropagation()}>
-            <button
-              onClick={() => setImageZoomModal({ show: false, imageUrl: '', title: '' })}
-              className="absolute -top-10 right-0 text-white hover:text-gray-300 transition-colors duration-200"
-            >
-              <i className="fas fa-times text-2xl"></i>
-            </button>
-            <div className="bg-white rounded-lg overflow-hidden">
-              <div className="bg-gradient-to-r from-ocean-mid to-ocean-light px-4 py-2">
-                <h3 className="text-sm font-semibold text-white">{imageZoomModal.title}</h3>
-              </div>
-              <img
-                src={imageZoomModal.imageUrl}
-                alt={imageZoomModal.title}
-                className="w-full h-auto max-h-[80vh] object-contain bg-gray-100"
-              />
             </div>
           </div>
         </div>

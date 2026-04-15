@@ -24,7 +24,6 @@ export default function AdminCalendar() {
   const [actionLoading, setActionLoading] = useState(false);
   const [unavailableEntries, setUnavailableEntries] = useState([]);
   const [totalBlockedUnitsByDate, setTotalBlockedUnitsByDate] = useState({});
-  const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   
 
   // Fetch rooms list (only non-archived)

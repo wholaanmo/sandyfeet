@@ -6,7 +6,6 @@ import { useSearchParams, useRouter } from 'next/navigation';
 import GuestLayout from '@/app/guest/layout';
 import { db } from '@/lib/firebase';
 import { collection, query, where, getDocs, addDoc, doc, getDoc, serverTimestamp, onSnapshot } from 'firebase/firestore';
-import { uploadImage } from '@/lib/cloudinary';
 
 export default function DayTourBooking() {
   const searchParams = useSearchParams();
@@ -241,6 +240,39 @@ export default function DayTourBooking() {
     return `${year}-${month}-${day}`;
   };
 
+  // Upload file to Cloudinary
+  const uploadToCloudinary = async (file, folder) => {
+    const formData = new FormData();
+    formData.append('file', file);
+    formData.append('upload_preset', 'daytour_uploads'); // You'll need to create this preset in Cloudinary
+    formData.append('folder', `daytour/${folder}`);
+    
+    const response = await fetch('https://api.cloudinary.com/v1_1/ddw1bmtgh/image/upload', {
+      method: 'POST',
+      body: formData
+    });
+    
+    if (!response.ok) {
+      throw new Error('Upload failed');
+    }
+    
+    const data = await response.json();
+    return data.secure_url;
+  };
+
+  // Convert data URL to File object
+  const dataURLToFile = (dataURL, filename) => {
+    const arr = dataURL.split(',');
+    const mime = arr[0].match(/:(.*?);/)[1];
+    const bstr = atob(arr[1]);
+    let n = bstr.length;
+    const u8arr = new Uint8Array(n);
+    while (n--) {
+      u8arr[n] = bstr.charCodeAt(n);
+    }
+    return new File([u8arr], filename, { type: mime });
+  };
+
   const validateGuests = () => {
     if (totalGuests < 1) {
       setErrors(prev => ({ ...prev, guests: 'At least 1 guest is required' }));
@@ -323,8 +355,8 @@ export default function DayTourBooking() {
     
     setUploading(true);
     try {
-      // Upload to Cloudinary using the existing function
-      const cloudinaryUrl = await uploadImage(file);
+      // Upload directly to Cloudinary
+      const cloudinaryUrl = await uploadToCloudinary(file, 'payment_proofs');
       setBookingData(prev => ({ ...prev, paymentProof: cloudinaryUrl }));
     } catch (error) {
       console.error('Error uploading to Cloudinary:', error);
@@ -340,8 +372,8 @@ export default function DayTourBooking() {
 
     setValidIdUploading(true);
     try {
-      // Upload to Cloudinary using the existing function
-      const cloudinaryUrl = await uploadImage(file);
+      // Upload directly to Cloudinary
+      const cloudinaryUrl = await uploadToCloudinary(file, 'valid_ids');
       setTempValidIdImage(cloudinaryUrl);
     } catch (error) {
       console.error('Error uploading valid ID to Cloudinary:', error);

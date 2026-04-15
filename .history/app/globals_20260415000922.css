@@ -9,8 +9,8 @@
   --color-ocean-pales: #A7C7FB;      /* pale blue */
   --color-ocean-pale: #CFE0FD;  
   --color-ocean-ice: #EEF4FF;        /* very light blue */
-  --color-blue-white: #FFFFFF;       /* main background */
-  --color-blue-whites: #f5f5f5; 
+  --color-blue-white: #FFFFFF;  
+  --color-blue-white: #FFFFFF;     /* main background */
 
   /* TEXT COLORS (UPDATED) */
   --color-textPrimary: #1F2937;      /* dark gray (main text) */
@@ -34,7 +34,6 @@
   --color-ocean-pale: var(--color-ocean-pale);
   --color-ocean-ice: var(--color-ocean-ice);
   --color-blue-white: var(--color-blue-white);
-  --color-blue-whites: var(--color-blue-whites);
   --color-textPrimary: var(--color-textPrimary);
   --color-accent-blue: var(--color-accent-blue);
   
