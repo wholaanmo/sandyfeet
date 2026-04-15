@@ -1,0 +1,90 @@
+@import "tailwindcss";
+
+:root {
+  /* MAIN THEME */
+  --color-ocean-deep: #174FCC;       /* darker blue (sidebar) */
+  --color-ocean-mid:  #2169F3;       /* main blue */
+  --color-ocean-light: #4D8CF5;      /* lighter blue */
+  --color-ocean-lighter: #7AAAF8;    /* softer blue */
+  --color-ocean-pales: #A7C7FB;      /* pale blue */
+  --color-ocean-pale: #CFE0FD;  
+  --color-ocean-ice: #EEF4FF;        /* very light blue */
+  --color-blue-white: #FFFFFF;       /* main background */
+  --color-blue-whites: #F5f5f5;     
+
+  /* TEXT COLORS (UPDATED) */
+  --color-textPrimary: #1F2937;      /* dark gray (main text) */
+  --color-textSecondary: #6B7280;    /* softer gray */
+
+  /* ACCENTS */
+  --color-accent-blue: #2169F3;      /* buttons */
+  --color-accent-yellow: #FFB327;    /* small highlights */
+  --color-neutral: #9CA3AF;
+  --color-white: #FFFFFF;
+
+  --navbar-height: 60px;
+}
+
+@theme {
+  --color-ocean-deep: var(--color-ocean-deep);
+  --color-ocean-mid: var(--color-ocean-mid);
+  --color-ocean-light: var(--color-ocean-light);
+  --color-ocean-lighter: var(--color-ocean-lighter);
+  --color-ocean-pales: var(--color-ocean-pales);
+  --color-ocean-pale: var(--color-ocean-pale);
+  --color-ocean-ice: var(--color-ocean-ice);
+  --color-blue-white: var(--color-blue-white);
+  --color-blue-whites: var(--color-blue-whites);
+  --color-textPrimary: var(--color-textPrimary);
+  --color-accent-blue: var(--color-accent-blue);
+  
+  --spacing-navbar: 60px;
+  --spacing-sidebar-expanded: 260px;
+  --spacing-sidebar-collapsed: 80px;
+  
+  --font-playfair: "Playfair Display", serif;
+  --font-poppins: "Poppins", sans-serif;
+}
+
+@layer base {
+  body {
+    font-family: var(--font-poppins);
+    margin: 0;
+    padding: 0;
+    background-color: var(--color-blue-white);
+    color: var(--color-textPrimary);
+  }
+}
+
+@layer utilities {
+  .h-navbar {
+    height: 60px;
+  }
+  .min-h-screen-minus-navbar {
+    min-height: calc(100vh - 60px);
+  }
+  .top-navbar {
+    top: 60px;
+  }
+  .mt-navbar {
+    margin-top: 60px;
+  }
+  .w-sidebar-expanded {
+    width: 260px;
+  }
+  .w-sidebar-collapsed {
+    width: 80px;
+  }
+}
+
+/* Smooth transitions */
+.transition-all {
+  transition-property: all;
+  transition-timing-function: cubic-bezier(0.4, 0, 0.2, 1);
+  transition-duration: 300ms;
+}
+
+/* Custom cubic-bezier for smoother animations */
+.ease-smooth {
+  transition-timing-function: cubic-bezier(0.4, 0, 0.2, 1);
+}

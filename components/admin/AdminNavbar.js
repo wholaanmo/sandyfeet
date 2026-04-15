@@ -411,7 +411,7 @@ export default function AdminNavbar({ toggleSidebar, sidebarOpen, isDesktop }) {
           {/* Page Title - hidden on mobile */}
           <div className="hidden lg:flex items-center gap-3">
             <div className="w-1 h-8 bg-gradient-to-b from-ocean-light to-ocean-mid rounded-full"></div>
-            <h1 className="text-xl font-semibold text-ocean-deep font-playfair">
+            <h1 className="text-xl font-semibold text-[#1E3A8A] font-playfair">
               Admin Dashboard
             </h1>
           </div>
