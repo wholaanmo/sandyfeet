@@ -236,10 +236,155 @@ export default function DayTourCalendar() {
     <GuestLayout>
       <div className="min-h-screen bg-gradient-to-br from-ocean-ice to-blue-white py-8">
         <div className="max-w-7xl w-full mx-auto px-4">
-          {/* Reordered: Right column (Pricing) now comes BEFORE Left column (Calendar) */}
           <div className="flex flex-col lg:flex-row gap-6 items-stretch">
-            {/* Right Column - Day Tour Pricing + Maximum Capacity (40%) - NOW ON THE RIGHT */}
-            <div className="lg:w-[40%] flex order-2 lg:order-2">
+            {/* Left Column - Select Date Calendar (60%) */}
+            <div className="lg:w-[60%] flex">
+              <div className="bg-white rounded-2xl shadow-lg overflow-hidden w-full flex flex-col">
+                <div className="bg-gradient-to-r from-ocean-mid to-ocean-light px-5 py-3 flex-shrink-0">
+                  <h1 className="text-xl font-bold text-white">Select Your Day Tour Date</h1>
+                  <p className="text-white/80 text-sm mt-0.5">
+                    Choose a date for your day tour experience
+                  </p>
+                </div>
+
+                <div className="p-5 flex-1 flex flex-col">
+                  {/* Month Navigation */}
+                  <div className="flex justify-between items-center mb-4 flex-shrink-0">
+                    <button
+                      onClick={goBack}
+                      className="px-3 py-1.5 border border-ocean-light/20 rounded-lg hover:bg-ocean-ice transition-all duration-200 flex items-center gap-1 text-sm"
+                    >
+                      <i className="fas fa-arrow-left text-xs"></i>
+                      Back
+                    </button>
+                    <div className="flex gap-2">
+                      <button
+                        onClick={goToPreviousMonth}
+                        className="px-3 py-1.5 border border-ocean-light/20 rounded-lg hover:bg-ocean-ice transition-all duration-200 text-sm"
+                      >
+                        <i className="fas fa-chevron-left mr-1 text-xs"></i>
+                        Prev
+                      </button>
+                      <h2 className="text-base font-semibold text-textPrimary px-2">
+                        {monthNames[currentDate.getMonth()]} {currentDate.getFullYear()}
+                      </h2>
+                      <button
+                        onClick={goToNextMonth}
+                        className="px-3 py-1.5 border border-ocean-light/20 rounded-lg hover:bg-ocean-ice transition-all duration-200 text-sm"
+                      >
+                        Next
+                        <i className="fas fa-chevron-right ml-1 text-xs"></i>
+                      </button>
+                    </div>
+                  </div>
+
+                  {/* Calendar Grid */}
+                  <div className="flex-1 flex flex-col">
+                    <div className="grid grid-cols-7 gap-1 mb-2">
+                      {['Su', 'Mo', 'Tu', 'We', 'Th', 'Fr', 'Sa'].map(day => (
+                        <div key={day} className="text-center font-semibold text-textSecondary text-xs py-1">
+                          {day}
+                        </div>
+                      ))}
+                    </div>
+
+                    <div className="grid grid-cols-7 gap-1 flex-1">
+                      {days.map((day, index) => {
+                        if (!day) return <div key={index} className="aspect-square"></div>;
+
+                        const dateKey = toLocalDateKey(day);
+                        const isPast = isDatePast(day);
+                        const isTomorrow = isDateTomorrow(day);
+                        const isFullyBooked = !isPast && !isTomorrow && getRemainingCapacity(day) <= 0;
+                        const isSelectable = isDateSelectable(day);
+                        const isSelected = selectedDate && selectedDate.toDateString() === day.toDateString();
+                        const remainingCapacity = getRemainingCapacity(day);
+
+                        let bgColor = 'bg-white';
+                        let textColor = 'text-textPrimary';
+                        let borderClass = 'border border-gray-200';
+                        let hoverClass = '';
+                        let cursorClass = 'cursor-pointer';
+                        let titleText = '';
+
+                        if (isPast) {
+                          bgColor = 'bg-gray-100';
+                          textColor = 'text-gray-400';
+                          borderClass = 'border border-gray-200';
+                          cursorClass = 'cursor-not-allowed';
+                          titleText = 'Past date';
+                        } else if (isTomorrow) {
+                          bgColor = 'bg-gray-100';
+                          textColor = 'text-gray-400';
+                          borderClass = 'border border-gray-200';
+                          cursorClass = 'cursor-not-allowed';
+                          titleText = 'Cannot book for tomorrow (must book at least 1 day in advance)';
+                        } else if (isFullyBooked) {
+                          bgColor = 'bg-red-100';
+                          textColor = 'text-red-600';
+                          borderClass = 'border border-red-200';
+                          cursorClass = 'cursor-not-allowed';
+                          titleText = 'Fully Booked';
+                        } else if (isSelected) {
+                          bgColor = 'bg-ocean-mid';
+                          textColor = 'text-white';
+                          borderClass = 'border border-ocean-mid';
+                          hoverClass = 'hover:bg-ocean-mid';
+                          titleText = 'Selected';
+                        } else if (isSelectable) {
+                          hoverClass = 'hover:bg-ocean-ice';
+                          titleText = `${remainingCapacity} slot(s) available`;
+                        } else {
+                          bgColor = 'bg-gray-100';
+                          textColor = 'text-gray-400';
+                          borderClass = 'border border-gray-200';
+                          cursorClass = 'cursor-not-allowed';
+                          titleText = 'Not available';
+                        }
+
+                        return (
+                          <button
+                            key={index}
+                            onClick={() => handleDateSelect(day)}
+                            disabled={!isSelectable}
+                            title={titleText}
+                            className={`w-full pt-[100%] relative rounded-lg transition-all duration-200 ${bgColor} ${borderClass} ${hoverClass} ${cursorClass}`}
+                          >
+                            <span className={`absolute inset-0 flex items-center justify-center text-sm font-medium ${textColor}`}>
+                              {day.getDate()}
+                            </span>
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
+
+                  {/* Legend */}
+                  <div className="mt-5 pt-3 border-t border-ocean-light/10 flex justify-center gap-4 text-xs flex-shrink-0 flex-wrap">
+                    <div className="flex items-center gap-1.5">
+                      <div className="w-3 h-3 bg-white border border-gray-300 rounded"></div>
+                      <span className="text-textSecondary">Available</span>
+                    </div>
+                    <div className="flex items-center gap-1.5">
+                      <div className="w-3 h-3 bg-red-100 border border-red-200 rounded"></div>
+                      <span className="text-textSecondary">Fully Booked</span>
+                    </div>
+                    <div className="flex items-center gap-1.5">
+                      <div className="w-3 h-3 bg-gray-100 border border-gray-200 rounded"></div>
+                      <span className="text-textSecondary">Past Dates</span>
+                    </div>
+                    <div className="flex items-center gap-1.5">
+                      <div className="w-3 h-3 bg-ocean-mid rounded"></div>
+                      <span className="text-textSecondary">Selected</span>
+                    </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* Right Column - Day Tour Pricing + Maximum Capacity (40%) */}
+            <div className="lg:w-[40%] flex">
               <div className="w-full flex flex-col gap-3">
                 {/* Day Tour Pricing Container - reduced padding */}
                 <div className="bg-white rounded-xl shadow-md border border-ocean-light/20 overflow-hidden">
@@ -384,154 +529,10 @@ export default function DayTourCalendar() {
                 </div>
               </div>
             </div>
-
-            {/* Left Column - Select Date Calendar (60%) - NOW ON THE LEFT */}
-            <div className="lg:w-[60%] flex order-1 lg:order-1">
-              <div className="bg-white rounded-2xl shadow-lg overflow-hidden w-full flex flex-col">
-                <div className="bg-gradient-to-r from-ocean-mid to-ocean-light px-5 py-3 flex-shrink-0">
-                  <h1 className="text-xl font-bold text-white">Select Your Day Tour Date</h1>
-                  <p className="text-white/80 text-sm mt-0.5">
-                    Choose a date for your day tour experience
-                  </p>
-                </div>
-
-                <div className="p-5 flex-1 flex flex-col">
-                  {/* Month Navigation */}
-                  <div className="flex justify-between items-center mb-4 flex-shrink-0">
-                    <button
-                      onClick={goBack}
-                      className="px-3 py-1.5 border border-ocean-light/20 rounded-lg hover:bg-ocean-ice transition-all duration-200 flex items-center gap-1 text-sm"
-                    >
-                      <i className="fas fa-arrow-left text-xs"></i>
-                      Back
-                    </button>
-                    <div className="flex gap-2">
-                      <button
-                        onClick={goToPreviousMonth}
-                        className="px-3 py-1.5 border border-ocean-light/20 rounded-lg hover:bg-ocean-ice transition-all duration-200 text-sm"
-                      >
-                        <i className="fas fa-chevron-left mr-1 text-xs"></i>
-                        Prev
-                      </button>
-                      <h2 className="text-base font-semibold text-textPrimary px-2">
-                        {monthNames[currentDate.getMonth()]} {currentDate.getFullYear()}
-                      </h2>
-                      <button
-                        onClick={goToNextMonth}
-                        className="px-3 py-1.5 border border-ocean-light/20 rounded-lg hover:bg-ocean-ice transition-all duration-200 text-sm"
-                      >
-                        Next
-                        <i className="fas fa-chevron-right ml-1 text-xs"></i>
-                      </button>
-                    </div>
-                  </div>
-
-                  {/* Calendar Grid */}
-                  <div className="flex-1 flex flex-col">
-                    <div className="grid grid-cols-7 gap-1 mb-2">
-                      {['Su', 'Mo', 'Tu', 'We', 'Th', 'Fr', 'Sa'].map(day => (
-                        <div key={day} className="text-center font-semibold text-textSecondary text-xs py-1">
-                          {day}
-                        </div>
-                      ))}
-                    </div>
-
-                    <div className="grid grid-cols-7 gap-1 flex-1">
-                      {days.map((day, index) => {
-                        if (!day) return <div key={index} className="aspect-square"></div>;
-
-                        const dateKey = toLocalDateKey(day);
-                        const isPast = isDatePast(day);
-                        const isTomorrow = isDateTomorrow(day);
-                        const isFullyBooked = !isPast && !isTomorrow && getRemainingCapacity(day) <= 0;
-                        const isSelectable = isDateSelectable(day);
-                        const isSelected = selectedDate && selectedDate.toDateString() === day.toDateString();
-                        const remainingCapacity = getRemainingCapacity(day);
-
-                        let bgColor = 'bg-white';
-                        let textColor = 'text-textPrimary';
-                        let borderClass = 'border border-gray-200';
-                        let hoverClass = '';
-                        let cursorClass = 'cursor-pointer';
-                        let titleText = '';
-
-                        if (isPast) {
-                          bgColor = 'bg-gray-100';
-                          textColor = 'text-gray-400';
-                          borderClass = 'border border-gray-200';
-                          cursorClass = 'cursor-not-allowed';
-                          titleText = 'Past date';
-                        } else if (isTomorrow) {
-                          bgColor = 'bg-gray-100';
-                          textColor = 'text-gray-400';
-                          borderClass = 'border border-gray-200';
-                          cursorClass = 'cursor-not-allowed';
-                          titleText = 'Cannot book for tomorrow (must book at least 1 day in advance)';
-                        } else if (isFullyBooked) {
-                          bgColor = 'bg-red-100';
-                          textColor = 'text-red-600';
-                          borderClass = 'border border-red-200';
-                          cursorClass = 'cursor-not-allowed';
-                          titleText = 'Fully Booked';
-                        } else if (isSelected) {
-                          bgColor = 'bg-ocean-mid';
-                          textColor = 'text-white';
-                          borderClass = 'border border-ocean-mid';
-                          hoverClass = 'hover:bg-ocean-mid';
-                          titleText = 'Selected';
-                        } else if (isSelectable) {
-                          hoverClass = 'hover:bg-ocean-ice';
-                          titleText = `${remainingCapacity} slot(s) available`;
-                        } else {
-                          bgColor = 'bg-gray-100';
-                          textColor = 'text-gray-400';
-                          borderClass = 'border border-gray-200';
-                          cursorClass = 'cursor-not-allowed';
-                          titleText = 'Not available';
-                        }
-
-                        return (
-                          <button
-                            key={index}
-                            onClick={() => handleDateSelect(day)}
-                            disabled={!isSelectable}
-                            title={titleText}
-                            className={`w-full pt-[100%] relative rounded-lg transition-all duration-200 ${bgColor} ${borderClass} ${hoverClass} ${cursorClass}`}
-                          >
-                            <span className={`absolute inset-0 flex items-center justify-center text-sm font-medium ${textColor}`}>
-                              {day.getDate()}
-                            </span>
-                          </button>
-                        );
-                      })}
-                    </div>
-                  </div>
-
-                  {/* Legend */}
-                  <div className="mt-5 pt-3 border-t border-ocean-light/10 flex justify-center gap-4 text-xs flex-shrink-0 flex-wrap">
-                    <div className="flex items-center gap-1.5">
-                      <div className="w-3 h-3 bg-white border border-gray-300 rounded"></div>
-                      <span className="text-textSecondary">Available</span>
-                    </div>
-                    <div className="flex items-center gap-1.5">
-                      <div className="w-3 h-3 bg-red-100 border border-red-200 rounded"></div>
-                      <span className="text-textSecondary">Fully Booked</span>
-                    </div>
-                    <div className="flex items-center gap-1.5">
-                      <div className="w-3 h-3 bg-gray-100 border border-gray-200 rounded"></div>
-                      <span className="text-textSecondary">Past Dates</span>
-                    </div>
-                    <div className="flex items-center gap-1.5">
-                      <div className="w-3 h-3 bg-ocean-mid rounded"></div>
-                      <span className="text-textSecondary">Selected</span>
-                    </div>
-                    </div>
-                  </div>
-                </div>
-              </div>
-            </div>
           </div>
         </div>
+      </div>
+      )}
     </GuestLayout>
   );
 }

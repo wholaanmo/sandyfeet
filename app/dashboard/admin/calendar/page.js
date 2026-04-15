@@ -3,7 +3,7 @@
 
 import { useState, useEffect } from 'react';
 import { db } from '@/lib/firebase';
-import { collection, query, where, doc, onSnapshot, addDoc, deleteDoc } from 'firebase/firestore';
+import { collection, query, where, doc, onSnapshot, addDoc, deleteDoc, updateDoc } from 'firebase/firestore';
 import { logAdminAction } from '@/lib/auditLogger';
 import Link from 'next/link';
 
@@ -21,6 +21,7 @@ export default function AdminCalendar() {
   const [unitsToBlock, setUnitsToBlock] = useState(1);
   const [unitsBlockInputError, setUnitsBlockInputError] = useState('');
   const [removeConfirm, setRemoveConfirm] = useState(null);
+  const [editingBlockEntry, setEditingBlockEntry] = useState(null);
   const [actionLoading, setActionLoading] = useState(false);
   const [unavailableEntries, setUnavailableEntries] = useState([]);
   const [totalBlockedUnitsByDate, setTotalBlockedUnitsByDate] = useState({});
@@ -316,6 +317,7 @@ export default function AdminCalendar() {
   const handleDateSelect = (date) => {
     if (isDatePast(date)) return;
     setSelectedDate(date);
+    setEditingBlockEntry(null);
     setReason('');
     setUnitsToBlock(1);
     setUnitsBlockInputError('');
@@ -326,12 +328,10 @@ export default function AdminCalendar() {
       showNotification('Please select a date to block', 'error');
       return;
     }
-    if (!reason.trim()) {
-      showNotification('Please provide a reason for blocking this date', 'error');
-      return;
-    }
-    
-    const maxBlock = getAvailableUnitsForDate(selectedDate);
+    const maxBlockBase = getAvailableUnitsForDate(selectedDate);
+    const maxBlock = editingBlockEntry
+      ? Math.min(totalRoomUnits, maxBlockBase + (editingBlockEntry.unitsBlocked || 0))
+      : maxBlockBase;
     if (maxBlock < 1) {
       showNotification('No units are available to block for this date.', 'error');
       return;
@@ -358,26 +358,42 @@ export default function AdminCalendar() {
     try {
       const dateKey = toLocalDateKey(selectedDate);
 
-      await addDoc(collection(db, 'unavailableSlots'), {
-        roomId: selectedRoomId,
-        date: dateKey,
-        startHour: 0,
-        endHour: 24,
-        reason: reason.trim(),
-        unitsBlocked: nBlock,
-        createdAt: new Date().toISOString(),
-        updatedAt: new Date().toISOString()
-      });
-      
-      await logAdminAction({
-        action: 'Marked Date Unavailable',
-        module: 'Room Calendar Management',
-        details: `Room: ${roomDetails?.type || selectedRoomId}, Date: ${selectedDate.toDateString()}, Units: ${nBlock}, Reason: ${reason}`
-      });
-      showNotification(`Date marked as unavailable for ${nBlock} unit(s)`, 'success');
+      if (editingBlockEntry?.id) {
+        await updateDoc(doc(db, 'unavailableSlots', editingBlockEntry.id), {
+          reason: reason.trim(),
+          unitsBlocked: nBlock,
+          updatedAt: new Date().toISOString()
+        });
+
+        await logAdminAction({
+          action: 'Updated Blocked Date',
+          module: 'Room Calendar Management',
+          details: `Room: ${roomDetails?.type || selectedRoomId}, Date: ${selectedDate.toDateString()}, Units: ${nBlock}, Reason: ${reason}`
+        });
+        showNotification(`Blocked entry updated for ${nBlock} unit(s)`, 'success');
+      } else {
+        await addDoc(collection(db, 'unavailableSlots'), {
+          roomId: selectedRoomId,
+          date: dateKey,
+          startHour: 0,
+          endHour: 24,
+          reason: reason.trim(),
+          unitsBlocked: nBlock,
+          createdAt: new Date().toISOString(),
+          updatedAt: new Date().toISOString()
+        });
+
+        await logAdminAction({
+          action: 'Marked Date Unavailable',
+          module: 'Room Calendar Management',
+          details: `Room: ${roomDetails?.type || selectedRoomId}, Date: ${selectedDate.toDateString()}, Units: ${nBlock}, Reason: ${reason}`
+        });
+        showNotification(`Date marked as unavailable for ${nBlock} unit(s)`, 'success');
+      }
       setReason('');
       setUnitsToBlock(1);
       setUnitsBlockInputError('');
+      setEditingBlockEntry(null);
       setSelectedDate(null);
     } catch (error) {
       console.error(error);
@@ -447,7 +463,19 @@ export default function AdminCalendar() {
     );
   }
 
-  const maxUnitsBlockable = selectedDate ? getAvailableUnitsForDate(selectedDate) : totalRoomUnits;
+  const maxUnitsBlockable = selectedDate
+    ? (
+      editingBlockEntry
+        ? Math.min(totalRoomUnits, getAvailableUnitsForDate(selectedDate) + (editingBlockEntry.unitsBlocked || 0))
+        : getAvailableUnitsForDate(selectedDate)
+    )
+    : totalRoomUnits;
+  const hasEditBlockChanges = editingBlockEntry
+    ? (
+      Number(unitsToBlock) !== Number(editingBlockEntry.unitsBlocked || 0) ||
+      reason.trim() !== (editingBlockEntry.reason || '').trim()
+    )
+    : true;
 
   return (
     <div className="p-8 min-h-screen" style={{ backgroundColor: 'var(--color-blue-white)' }}>
@@ -620,6 +648,14 @@ export default function AdminCalendar() {
               </div>
             ) : (
               <div>
+                {editingBlockEntry && (
+                  <div className="mb-4 p-3 bg-blue-50 border border-blue-200 rounded-lg">
+                    <p className="text-sm text-blue-700">
+                      <i className="fas fa-edit mr-2"></i>
+                      Editing blocked date entry
+                    </p>
+                  </div>
+                )}
                 <div className="bg-ocean-ice rounded-xl p-4 mb-4">
                   <p className="text-sm text-textSecondary">Selected Date</p>
                   <p className="text-md font-semibold text-textPrimary">{selectedDate.toDateString()}</p>
@@ -696,7 +732,7 @@ export default function AdminCalendar() {
                 )}
                 
                 <label className="block text-sm font-medium text-textPrimary mb-2">
-                  Reason for blocking <span className="text-red-500">*</span>
+                  Reason for blocking (optional)
                 </label>
                 <textarea
                   value={reason}
@@ -710,6 +746,7 @@ export default function AdminCalendar() {
                   <button
                     onClick={() => {
                       setSelectedDate(null);
+                      setEditingBlockEntry(null);
                       setReason('');
                       setUnitsBlockInputError('');
                     }}
@@ -721,19 +758,19 @@ export default function AdminCalendar() {
                     onClick={handleMarkUnavailable}
                     disabled={
                       actionLoading ||
-                      !reason.trim() ||
                       totalRoomUnits < 1 ||
                       maxUnitsBlockable < 1 ||
                       unitsToBlock === '' ||
                       !Number.isFinite(unitsToBlock) ||
                       unitsToBlock < 1 ||
                       unitsToBlock > maxUnitsBlockable ||
-                      !!unitsBlockInputError
+                      !!unitsBlockInputError ||
+                      !hasEditBlockChanges
                     }
                     className="flex-1 py-2.5 bg-orange-600 hover:bg-orange-700 text-white rounded-xl font-medium transition-all duration-200 disabled:opacity-50"
                   >
                     {actionLoading ? <i className="fas fa-spinner fa-spin mr-2"></i> : <i className="fas fa-ban mr-2"></i>}
-                    Block Date
+                    {editingBlockEntry ? 'Update Block' : 'Block Date'}
                   </button>
                 </div>
               </div>
@@ -827,14 +864,34 @@ export default function AdminCalendar() {
                               <span className="font-medium">Blocked on:</span> {entry.createdAtFormatted}
                             </p>
                           </div>
-                          <button
-                            type="button"
-                            onClick={() => setRemoveConfirm(entry)}
-                            disabled={actionLoading}
-                            className="ml-2 px-3 py-1 bg-red-500 hover:bg-red-600 text-white rounded-lg text-xs font-medium transition-all duration-200 disabled:opacity-50 flex items-center gap-1 flex-shrink-0"
-                          >
-                            <i className="fas fa-trash-alt text-xs"></i> Remove
-                          </button>
+                          <div className="ml-2 flex items-center gap-2 flex-shrink-0">
+                            <button
+                              type="button"
+                              onClick={() => {
+                                const [year, month, day] = entry.date.split('-').map(Number);
+                                setSelectedDate(new Date(year, month - 1, day));
+                                setReason(entry.reason || '');
+                                setUnitsToBlock(entry.unitsBlocked || 1);
+                                setUnitsBlockInputError('');
+                                setEditingBlockEntry(entry);
+                                setIsSidebarOpen(false);
+                              }}
+                              disabled={actionLoading}
+                              title="Edit blocked entry"
+                              className="w-8 h-8 bg-blue-500 hover:bg-blue-600 text-white rounded-lg text-xs transition-all duration-200 disabled:opacity-50 flex items-center justify-center"
+                            >
+                              <i className="fas fa-edit text-xs"></i>
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => setRemoveConfirm(entry)}
+                              disabled={actionLoading}
+                              title="Remove blocked entry"
+                              className="w-8 h-8 bg-red-500 hover:bg-red-600 text-white rounded-lg text-xs transition-all duration-200 disabled:opacity-50 flex items-center justify-center"
+                            >
+                              <i className="fas fa-trash-alt text-xs"></i>
+                            </button>
+                          </div>
                         </div>
                       </div>
                     );

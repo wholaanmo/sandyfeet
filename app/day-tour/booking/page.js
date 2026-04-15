@@ -152,22 +152,24 @@ export default function DayTourBooking() {
     const dateKey = `${year}-${month}-${day}`;
     
     const bookingsRef = collection(db, 'dayTourBookings');
-    const q = query(
+    const bookingsQuery = query(
       bookingsRef,
       where('selectedDate', '==', dateKey),
       where('status', 'in', ['pending', 'confirmed', 'check-in'])
     );
-    
-    const unsubscribe = onSnapshot(q, (querySnapshot) => {
-      let totalBookedGuests = 0;
-      querySnapshot.forEach((docSnap) => {
-        const booking = docSnap.data();
-        totalBookedGuests += (booking.adults || 0) + (booking.kids || 0) + (booking.seniors || 0);
-      });
-      
-      const capacity = dayTour.maxCapacity ? dayTour.maxCapacity - totalBookedGuests : Infinity;
+    const unavailableRef = collection(db, 'daytour_unavailable_dates');
+    const unavailableQuery = query(unavailableRef, where('date', '==', dateKey));
+
+    let latestBookedGuests = 0;
+    let latestUnavailableGuests = 0;
+
+    const updateRemainingCapacity = () => {
+      const capacity = dayTour.maxCapacity
+        ? dayTour.maxCapacity - (latestBookedGuests + latestUnavailableGuests)
+        : Infinity;
+
       setRemainingCapacity(capacity);
-      
+
       // Re-validate guests if capacity changed
       const currentTotalGuests = bookingData.adults + bookingData.kids + bookingData.seniors;
       if (capacity !== Infinity && currentTotalGuests > capacity) {
@@ -175,11 +177,36 @@ export default function DayTourBooking() {
       } else if (errors.guests && errors.guests.includes('remaining')) {
         setErrors(prev => ({ ...prev, guests: '' }));
       }
+    };
+
+    const unsubscribeBookings = onSnapshot(bookingsQuery, (querySnapshot) => {
+      let totalBookedGuests = 0;
+      querySnapshot.forEach((docSnap) => {
+        const booking = docSnap.data();
+        totalBookedGuests += (booking.adults || 0) + (booking.kids || 0) + (booking.seniors || 0);
+      });
+      latestBookedGuests = totalBookedGuests;
+      updateRemainingCapacity();
     }, (error) => {
       console.error('Error fetching day tour bookings:', error);
     });
-    
-    return () => unsubscribe();
+
+    const unsubscribeUnavailable = onSnapshot(unavailableQuery, (querySnapshot) => {
+      let totalUnavailableGuests = 0;
+      querySnapshot.forEach((docSnap) => {
+        const data = docSnap.data();
+        totalUnavailableGuests += Number(data.unavailableGuests || 0);
+      });
+      latestUnavailableGuests = totalUnavailableGuests;
+      updateRemainingCapacity();
+    }, (error) => {
+      console.error('Error fetching unavailable guest count:', error);
+    });
+
+    return () => {
+      unsubscribeBookings();
+      unsubscribeUnavailable();
+    };
   }, [selectedDate, dayTour, bookingData.adults, bookingData.kids, bookingData.seniors]);
 
   // Parse selected date
@@ -426,8 +453,19 @@ const handleNotifyResort = async () => {
         const booking = docSnap.data();
         totalBookedGuests += (booking.adults || 0) + (booking.kids || 0) + (booking.seniors || 0);
       });
-      
-      const availableCapacity = dayTour.maxCapacity ? dayTour.maxCapacity - totalBookedGuests : Infinity;
+
+      const unavailableRef = collection(db, 'daytour_unavailable_dates');
+      const unavailableQuery = query(unavailableRef, where('date', '==', dateKey));
+      const unavailableSnapshot = await getDocs(unavailableQuery);
+      let totalUnavailableGuests = 0;
+      unavailableSnapshot.forEach((docSnap) => {
+        const data = docSnap.data();
+        totalUnavailableGuests += Number(data.unavailableGuests || 0);
+      });
+
+      const availableCapacity = dayTour.maxCapacity
+        ? dayTour.maxCapacity - (totalBookedGuests + totalUnavailableGuests)
+        : Infinity;
       
       if (totalGuests > availableCapacity) {
         alert(`Sorry, only ${availableCapacity} slot(s) remain for this date. Please adjust your guest count.`);

@@ -3,7 +3,7 @@
 
 import { useState, useEffect } from 'react';
 import { db } from '@/lib/firebase';
-import { collection, query, where, doc, onSnapshot, addDoc, deleteDoc, getDocs } from 'firebase/firestore';
+import { collection, query, where, doc, onSnapshot, addDoc, deleteDoc, getDocs, updateDoc } from 'firebase/firestore';
 import { logAdminAction } from '@/lib/auditLogger';
 import Link from 'next/link';
 
@@ -16,8 +16,10 @@ export default function AdminDayTourCalendar() {
   const [unavailableDatesList, setUnavailableDatesList] = useState([]);
   const [notification, setNotification] = useState({ show: false, message: '', type: '' });
   const [reason, setReason] = useState('');
+  const [unavailableGuests, setUnavailableGuests] = useState('');
   const [actionLoading, setActionLoading] = useState(false);
   const [removeConfirm, setRemoveConfirm] = useState(null);
+  const [editingEntry, setEditingEntry] = useState(null);
   const [bookedDates, setBookedDates] = useState({});
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   
@@ -61,20 +63,23 @@ export default function AdminDayTourCalendar() {
       querySnapshot.forEach((docSnap) => {
         const data = docSnap.data();
         const dateKey = data.date;
-        unavailable[dateKey] = {
-          id: docSnap.id,
-          reason: data.reason,
-          createdAt: data.createdAt
-        };
+        unavailable[dateKey] = (unavailable[dateKey] || 0) + Number(data.unavailableGuests || 0);
         list.push({
           id: docSnap.id,
           date: dateKey,
           reason: data.reason,
+          unavailableGuests: Number(data.unavailableGuests || 0),
           createdAt: data.createdAt
         });
       });
       setUnavailableDates(unavailable);
-      setUnavailableDatesList(list.sort((a, b) => a.date.localeCompare(b.date)));
+      setUnavailableDatesList(
+        list.sort((a, b) => {
+          const byDate = a.date.localeCompare(b.date);
+          if (byDate !== 0) return byDate;
+          return (a.createdAt || '').localeCompare(b.createdAt || '');
+        })
+      );
     }, (error) => {
       console.error('Error fetching unavailable dates:', error);
     });
@@ -137,11 +142,17 @@ export default function AdminDayTourCalendar() {
     return !!unavailableDates[dateKey];
   };
 
+  const getUnavailableGuestsCount = (date) => {
+    const dateKey = toLocalDateKey(date);
+    return unavailableDates[dateKey] || 0;
+  };
+
   const isDateFullyBooked = (date) => {
     if (!dayTour?.maxCapacity) return false;
     const dateKey = toLocalDateKey(date);
     const bookedCount = bookedDates[dateKey] || 0;
-    return bookedCount >= dayTour.maxCapacity;
+    const unavailableGuestCount = unavailableDates[dateKey] || 0;
+    return bookedCount + unavailableGuestCount >= dayTour.maxCapacity;
   };
 
   const getBookedGuestsCount = (date) => {
@@ -154,23 +165,16 @@ export default function AdminDayTourCalendar() {
   const canMarkUnavailable = (date) => {
     if (!date) return false;
     if (isDatePast(date)) return false;
-    if (isDateUnavailable(date)) return false;
     if (isDateFullyBooked(date)) return false;
-    // Check if there are any existing reservations
-    const bookedGuests = getBookedGuestsCount(date);
-    if (bookedGuests > 0) return false;
     return true;
   };
 
   const handleDateSelect = (date) => {
     if (isDatePast(date)) return;
-    // Prevent selecting dates that are already unavailable
-    if (isDateUnavailable(date)) {
-      showNotification('This date is already marked as unavailable and cannot be modified.', 'error');
-      return;
-    }
     setSelectedDate(date);
+    setEditingEntry(null);
     setReason('');
+    setUnavailableGuests('');
   };
 
   const handleMarkUnavailable = async () => {
@@ -179,43 +183,64 @@ export default function AdminDayTourCalendar() {
       return;
     }
     
-    if (!reason.trim()) {
-      showNotification('Please provide a reason for marking this date unavailable', 'error');
+    const unavailableGuestsNumber = Number(unavailableGuests);
+    if (!Number.isInteger(unavailableGuestsNumber) || unavailableGuestsNumber < 0) {
+      showNotification('Please provide a valid number of unavailable guests', 'error');
       return;
     }
-    
+
     const dateKey = toLocalDateKey(selectedDate);
-    
-    // Check if already unavailable
-    if (unavailableDates[dateKey]) {
-      showNotification('This date is already marked as unavailable', 'error');
-      return;
-    }
-    
-    // Check if there are existing reservations
     const bookedGuests = getBookedGuestsCount(selectedDate);
-    if (bookedGuests > 0) {
-      showNotification(`This date cannot be marked as unavailable because there are ${bookedGuests} existing reservation(s).`, 'error');
+    const dateUnavailableTotal = unavailableDates[dateKey] || 0;
+    const editingEntryCurrentGuests =
+      editingEntry && editingEntry.date === dateKey ? Number(editingEntry.unavailableGuests || 0) : 0;
+    const updatedUnavailableTotal = dateUnavailableTotal - editingEntryCurrentGuests + unavailableGuestsNumber;
+    const totalGuests = bookedGuests + updatedUnavailableTotal;
+    if (dayTour?.maxCapacity && totalGuests > dayTour.maxCapacity) {
+      showNotification(
+        `Unavailable guests cannot exceed remaining capacity. Maximum allowed is ${Math.max(dayTour.maxCapacity - bookedGuests, 0)}.`,
+        'error'
+      );
       return;
     }
-    
+
     setActionLoading(true);
     try {
-      await addDoc(collection(db, 'daytour_unavailable_dates'), {
-        date: dateKey,
-        reason: reason.trim(),
-        createdAt: new Date().toISOString(),
-        updatedAt: new Date().toISOString()
-      });
-      
-      await logAdminAction({
-        action: 'Marked Day Tour Date Unavailable',
-        module: 'Day Tour Calendar Management',
-        details: `Marked ${selectedDate.toDateString()} as unavailable. Reason: ${reason}`
-      });
-      
-      showNotification(`Date ${selectedDate.toDateString()} marked as unavailable`, 'success');
+      if (editingEntry?.id) {
+        await updateDoc(doc(db, 'daytour_unavailable_dates', editingEntry.id), {
+          reason: reason.trim(),
+          unavailableGuests: unavailableGuestsNumber,
+          updatedAt: new Date().toISOString()
+        });
+        await logAdminAction({
+          action: 'Updated Day Tour Unavailable Entry',
+          module: 'Day Tour Calendar Management',
+          details: `Updated unavailable entry on ${selectedDate.toDateString()} to ${unavailableGuestsNumber} unavailable guests. Reason: ${reason}`
+        });
+      } else {
+        await addDoc(collection(db, 'daytour_unavailable_dates'), {
+          date: dateKey,
+          reason: reason.trim(),
+          unavailableGuests: unavailableGuestsNumber,
+          createdAt: new Date().toISOString(),
+          updatedAt: new Date().toISOString()
+        });
+        await logAdminAction({
+          action: 'Marked Day Tour Date Unavailable',
+          module: 'Day Tour Calendar Management',
+          details: `Marked ${selectedDate.toDateString()} as unavailable with ${unavailableGuestsNumber} guests. Reason: ${reason}`
+        });
+      }
+
+      showNotification(
+        editingEntry
+          ? `Updated unavailable entry for ${selectedDate.toDateString()}`
+          : `Saved unavailable guest count for ${selectedDate.toDateString()}`,
+        'success'
+      );
       setReason('');
+      setUnavailableGuests('');
+      setEditingEntry(null);
       setSelectedDate(null);
     } catch (error) {
       console.error('Error marking date unavailable:', error);
@@ -224,6 +249,13 @@ export default function AdminDayTourCalendar() {
       setActionLoading(false);
     }
   };
+
+  const hasEditUnavailableChanges = editingEntry
+    ? (
+      Number(unavailableGuests) !== Number(editingEntry.unavailableGuests || 0) ||
+      reason.trim() !== (editingEntry.reason || '').trim()
+    )
+    : true;
 
   const handleRemoveUnavailable = async (dateKey, dateId) => {
     setActionLoading(true);
@@ -277,7 +309,6 @@ export default function AdminDayTourCalendar() {
 
   const getDateStatus = (date) => {
     if (isDatePast(date)) return 'past';
-    if (isDateUnavailable(date)) return 'unavailable';
     if (isDateFullyBooked(date)) return 'fullyBooked';
     if (selectedDate && selectedDate.toDateString() === date.toDateString()) return 'selected';
     return 'available';
@@ -378,13 +409,6 @@ export default function AdminDayTourCalendar() {
                       cursorClass = 'cursor-not-allowed';
                       titleText = 'Past date';
                       break;
-                    case 'unavailable':
-                      bgColor = 'bg-orange-100';
-                      textColor = 'text-orange-700';
-                      borderClass = 'border border-orange-200';
-                      cursorClass = 'cursor-not-allowed';
-                      titleText = 'Marked as Unavailable (cannot be modified)';
-                      break;
                     case 'fullyBooked':
                       bgColor = 'bg-red-100';
                       textColor = 'text-red-600';
@@ -405,8 +429,8 @@ export default function AdminDayTourCalendar() {
                   return (
                     <button
                       key={idx}
-                      onClick={() => (status !== 'past' && status !== 'fullyBooked' && status !== 'unavailable') && handleDateSelect(day)}
-                      disabled={status === 'past' || status === 'fullyBooked' || status === 'unavailable'}
+                      onClick={() => (status !== 'past' && status !== 'fullyBooked') && handleDateSelect(day)}
+                      disabled={status === 'past' || status === 'fullyBooked'}
                       title={titleText}
                       className={`relative w-full pt-[100%] rounded-lg transition-all duration-200 ${bgColor} ${borderClass} ${cursorClass}`}
                     >
@@ -423,7 +447,6 @@ export default function AdminDayTourCalendar() {
                 <div className="flex items-center gap-1.5"><div className="w-3 h-3 bg-white border border-gray-300 rounded"></div><span>Available</span></div>
                 <div className="flex items-center gap-1.5"><div className="w-3 h-3 bg-red-100 border border-red-200 rounded"></div><span>Fully Booked</span></div>
                 <div className="flex items-center gap-1.5"><div className="w-3 h-3 bg-gray-100 border border-gray-200 rounded"></div><span>Past Dates</span></div>
-                <div className="flex items-center gap-1.5"><div className="w-3 h-3 bg-orange-100 border border-orange-200 rounded"></div><span>Unavailable Dates</span></div>
                 <div className="flex items-center gap-1.5"><div className="w-3 h-3 bg-ocean-mid rounded"></div><span>Selected</span></div>
               </div>
             </div>
@@ -451,10 +474,18 @@ export default function AdminDayTourCalendar() {
               <div className="text-center py-10 text-neutral">
                 <i className="fas fa-calendar-day text-4xl mb-3 block"></i>
                 <p>Select a date from the calendar</p>
-                <p className="text-xs mt-2">Past dates, fully booked dates, and already unavailable dates cannot be selected</p>
+                <p className="text-xs mt-2">Past dates and fully booked dates cannot be selected</p>
               </div>
             ) : (
               <div>
+                {editingEntry && (
+                  <div className="mb-4 p-3 bg-blue-50 border border-blue-200 rounded-lg">
+                    <p className="text-sm text-blue-700">
+                      <i className="fas fa-edit mr-2"></i>
+                      Editing existing unavailable entry
+                    </p>
+                  </div>
+                )}
                 <div className="bg-ocean-ice rounded-xl p-4 mb-4">
                   <p className="text-sm text-textSecondary">Selected Date</p>
                   <p className="text-md font-semibold text-textPrimary">
@@ -468,20 +499,25 @@ export default function AdminDayTourCalendar() {
                       {getBookedGuestsCount(selectedDate)} / {dayTour.maxCapacity}
                     </strong>
                   </p>
+                  <p className="text-sm text-textSecondary mt-1">
+                    Unavailable Guests: <strong>{getUnavailableGuestsCount(selectedDate)}</strong>
+                  </p>
                 </div>
-                
-                {/* Show error if there are existing reservations */}
-                {getBookedGuestsCount(selectedDate) > 0 && (
-                  <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded-lg">
-                    <p className="text-sm text-red-700">
-                      <i className="fas fa-exclamation-triangle mr-2"></i>
-                      This date cannot be marked as unavailable because there are {getBookedGuestsCount(selectedDate)} existing reservation(s).
-                    </p>
-                  </div>
-                )}
-                
+
                 <label className="block text-sm font-medium text-textPrimary mb-2">
-                  Reason for marking unavailable <span className="text-red-500">*</span>
+                  Number of unavailable guests <span className="text-red-500">*</span>
+                </label>
+                <input
+                  type="number"
+                  min="0"
+                  value={unavailableGuests}
+                  onChange={(e) => setUnavailableGuests(e.target.value)}
+                  placeholder="Enter guest count"
+                  className="w-full px-3 py-2 border border-ocean-light/20 rounded-xl text-sm focus:outline-none focus:border-ocean-light mb-4"
+                />
+
+                <label className="block text-sm font-medium text-textPrimary mb-2">
+                  Reason (optional)
                 </label>
                 <textarea
                   value={reason}
@@ -489,24 +525,28 @@ export default function AdminDayTourCalendar() {
                   placeholder="e.g., Maintenance, Private Event, Holiday, etc."
                   rows="3"
                   className="w-full px-3 py-2 border border-ocean-light/20 rounded-xl text-sm focus:outline-none focus:border-ocean-light mb-4"
-                  disabled={getBookedGuestsCount(selectedDate) > 0}
                 />
                 
                 <button
                   onClick={handleMarkUnavailable}
-                  disabled={actionLoading || !reason.trim() || getBookedGuestsCount(selectedDate) > 0}
+                  disabled={actionLoading || unavailableGuests === '' || !hasEditUnavailableChanges}
                   className={`w-full py-2.5 rounded-xl font-medium transition-all duration-200 flex items-center justify-center gap-2 ${
-                    getBookedGuestsCount(selectedDate) > 0
+                    (unavailableGuests === '' || !hasEditUnavailableChanges)
                       ? 'bg-gray-400 cursor-not-allowed'
                       : 'bg-orange-600 hover:bg-orange-700 text-white'
                   }`}
                 >
                   {actionLoading ? <i className="fas fa-spinner fa-spin"></i> : <i className="fas fa-ban"></i>}
-                  Mark as Not Available
+                  {editingEntry ? 'Update Unavailable Guests' : 'Save Unavailable Guests'}
                 </button>
                 
                 <button
-                  onClick={() => setSelectedDate(null)}
+                  onClick={() => {
+                    setSelectedDate(null);
+                    setEditingEntry(null);
+                    setReason('');
+                    setUnavailableGuests('');
+                  }}
                   className="w-full mt-3 py-2 border border-ocean-light/20 rounded-xl text-textSecondary text-sm hover:bg-ocean-ice transition"
                 >
                   Cancel Selection
@@ -571,20 +611,51 @@ export default function AdminDayTourCalendar() {
                             {formatDateDisplay(item.date)}
                           </p>
                           <p className="text-xs text-orange-600 mt-2">
-                            <span className="font-medium">Reason:</span> {item.reason}
+                            <span className="font-medium">Number of Unavailable Guests:</span> {item.unavailableGuests || 0}
+                          </p>
+                          <p className="text-xs text-orange-600 mt-1">
+                            <span className="font-medium">Total Unavailable Guests:</span> {unavailableDates[item.date] || 0}
+                          </p>
+                          <p className="text-xs text-orange-600 mt-1">
+                            <span className="font-medium">Number of Reserved Guests:</span> {bookedDates[item.date] || 0}
+                          </p>
+                          <p className="text-xs text-orange-600 mt-1">
+                            <span className="font-medium">Remaining Available Slots:</span> {Math.max(0, (dayTour?.maxCapacity || 0) - ((bookedDates[item.date] || 0) + (unavailableDates[item.date] || 0)))}
+                          </p>
+                          <p className="text-xs text-orange-600 mt-1">
+                            <span className="font-medium">Reason:</span> {item.reason || '-'}
                           </p>
                           <p className="text-xs text-orange-400 mt-1">
-                            Marked on: {new Date(item.createdAt).toLocaleDateString()}
+                            <span className="font-medium">Date & Timestamp:</span> {new Date(item.createdAt).toLocaleString()}
                           </p>
                         </div>
-                        <button
-                          type="button"
-                          onClick={() => setRemoveConfirm(item)}
-                          disabled={actionLoading}
-                          className="ml-2 px-3 py-1 bg-red-500 hover:bg-red-600 text-white rounded-lg text-xs font-medium transition-all duration-200 disabled:opacity-50 flex items-center gap-1 flex-shrink-0"
-                        >
-                          <i className="fas fa-trash-alt text-xs"></i> Remove
-                        </button>
+                        <div className="ml-2 flex items-center gap-2 flex-shrink-0">
+                          <button
+                            type="button"
+                            onClick={() => {
+                              const [year, month, day] = item.date.split('-').map(Number);
+                              setSelectedDate(new Date(year, month - 1, day));
+                              setReason(item.reason || '');
+                              setUnavailableGuests(String(item.unavailableGuests || 0));
+                              setEditingEntry(item);
+                              setIsSidebarOpen(false);
+                            }}
+                            disabled={actionLoading}
+                            title="Edit entry"
+                            className="w-8 h-8 bg-blue-500 hover:bg-blue-600 text-white rounded-lg text-xs transition-all duration-200 disabled:opacity-50 flex items-center justify-center"
+                          >
+                            <i className="fas fa-edit text-xs"></i>
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => setRemoveConfirm(item)}
+                            disabled={actionLoading}
+                            title="Remove entry"
+                            className="w-8 h-8 bg-red-500 hover:bg-red-600 text-white rounded-lg text-xs transition-all duration-200 disabled:opacity-50 flex items-center justify-center"
+                          >
+                            <i className="fas fa-trash-alt text-xs"></i>
+                          </button>
+                        </div>
                       </div>
                     </div>
                   ))}
