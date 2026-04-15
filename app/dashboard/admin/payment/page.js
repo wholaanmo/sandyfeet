@@ -699,7 +699,7 @@ const handleArchiveBankAccount = async () => {
 
   if (loading) {
     return (
-      <div className="p-8 min-h-screen" style={{ backgroundColor: 'var(--color-blue-white)' }}>
+      <div className="p-8 min-h-screen" style={{ backgroundColor: 'var(--color-blue-whites)' }}>
         <div className="flex justify-center items-center h-64">
           <i className="fas fa-spinner fa-spin text-3xl text-ocean-light"></i>
         </div>

@@ -604,7 +604,7 @@ export default function AdminRooms() {
   const totalMaintenanceRooms = rooms.reduce((sum, room) => sum + (room.maintenanceRooms || 0), 0);
   
   return (
-    <div className="p-8 min-h-screen" style={{ backgroundColor: 'var(--color-blue-white)' }}>
+    <div className="p-8 min-h-screen" style={{ backgroundColor: 'var(--color-blue-whites)' }}>
       {/* Header */}
       <div className="flex justify-between items-center mb-6">
         <div>

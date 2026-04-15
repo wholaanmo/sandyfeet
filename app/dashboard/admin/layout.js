@@ -39,7 +39,7 @@ export default function AdminLayout({ children }) {
   if (!mounted) return null;
 
   return (
-    <div className="min-h-screen" style={{ backgroundColor: '#FFFFFF' }}>
+    <div className="min-h-screen" style={{ backgroundColor: '#fafafa' }}>
       <AdminSidebar isOpen={sidebarOpen} onToggle={setSidebarOpen} isDesktop={isDesktop} />
       <div className="flex flex-col min-h-screen transition-all duration-300 ease-in-out">
         <AdminNavbar toggleSidebar={toggleSidebar} sidebarOpen={sidebarOpen} isDesktop={isDesktop} />
@@ -48,7 +48,7 @@ export default function AdminLayout({ children }) {
           style={{ 
             marginLeft: mainMarginLeft,
             marginTop: '60px',
-            backgroundColor: '#f5f5f5',
+            backgroundColor: '#fcfcfc',
             transition: 'margin-left 0.3s cubic-bezier(0.4, 0, 0.2, 1)'
           }}
         >

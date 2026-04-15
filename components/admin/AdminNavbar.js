@@ -421,7 +421,7 @@ export default function AdminNavbar({ toggleSidebar, sidebarOpen, isDesktop }) {
           {/* Role and Name Badge */}
           <div className="flex items-center gap-2 px-4 py-2 rounded-full bg-gradient-to-r from-blue-white to-white shadow-sm border border-ocean-light/10 hover:shadow-md transition-all duration-200">
             <i className="fas fa-user-circle text-ocean-light text-base"></i>
-            <span className="text-sm font-semibold text-ocean-deep">
+            <span className="text-sm font-semibold text-[#1E3A8A]">
               {userRole}: {userName}
             </span>
           </div>

@@ -1088,17 +1088,17 @@ const handleConfirmReservation = async () => {
       )}
 
       {/* Tabs */}
-<div className="relative flex items-center mb-6 border-b border-ocean-light/20">
+<div className="relative flex items-center mb-6 border-b border-[#4D8CF5]/20">
   <div className="relative flex w-full">
 
-    {/* Sliding background (fixed 50%) */}
+    {/* Sliding background */}
     <div
-      className="absolute top-1 bottom-1 w-1/2 rounded-md bg-ocean-pales/20 transition-all duration-300 ease-in-out shadow-md"
+      className="absolute top-1 bottom-1 w-1/2 rounded-lg bg-[#4D8CF5]/10 transition-all duration-300 ease-in-out shadow-sm"
       style={{
         transform: `
           translateX(${activeTab === 'rooms' ? '0%' : '100%'})
           scale(0.98)
-        `
+        `,
       }}
     />
 
@@ -1106,13 +1106,13 @@ const handleConfirmReservation = async () => {
     <div className="flex-1 flex justify-center">
       <button
         onClick={() => setActiveTab('rooms')}
-        className={`relative z-10 w-full px-6 py-3 font-medium transition-all duration-200 text-center ${
+        className={`relative z-10 w-full px-6 py-3 font-medium transition-all duration-200 text-center flex items-center justify-center gap-2 ${
           activeTab === 'rooms'
-            ? 'text-ocean-mid'
-            : 'text-textSecondary hover:text-ocean-mid'
+            ? 'text-[#1E3A8A]'
+            : 'text-[#1E3A8A]/60 hover:text-[#4D8CF5]'
         }`}
       >
-        <i className="fas fa-bed mr-2"></i>
+        <i className="fas fa-bed"></i>
         Rooms
       </button>
     </div>
@@ -1121,13 +1121,13 @@ const handleConfirmReservation = async () => {
     <div className="flex-1 flex justify-center">
       <button
         onClick={() => setActiveTab('daytour')}
-        className={`relative z-10 w-full px-6 py-3 font-medium transition-all duration-200 text-center ${
+        className={`relative z-10 w-full px-6 py-3 font-medium transition-all duration-200 text-center flex items-center justify-center gap-2 ${
           activeTab === 'daytour'
-            ? 'text-ocean-mid'
-            : 'text-textSecondary hover:text-ocean-mid'
+            ? 'text-[#1E3A8A]'
+            : 'text-[#1E3A8A]/60 hover:text-[#4D8CF5]'
         }`}
       >
-        <i className="fas fa-sun mr-2"></i>
+        <i className="fas fa-sun"></i>
         Day Tour
       </button>
     </div>
