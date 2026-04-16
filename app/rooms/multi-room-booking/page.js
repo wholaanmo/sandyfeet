@@ -59,7 +59,7 @@ export default function MultiRoomBookingPage() {
   useEffect(() => {
     const storedData = sessionStorage.getItem('multiRoomBooking');
     if (!storedData) {
-      router.push('/rooms/select-room-types');
+      router.push('/rooms');
       return;
     }
 
@@ -262,7 +262,7 @@ export default function MultiRoomBookingPage() {
     sessionStorage.setItem('multiRoomBookingDraft', JSON.stringify(storagePayload));
 
     if (nextRoomTypes.length === 0) {
-      router.push('/rooms/select-room-types');
+      router.push('/rooms');
     }
   };
 
@@ -273,7 +273,7 @@ export default function MultiRoomBookingPage() {
         sessionStorage.setItem('multiRoomBooking', JSON.stringify(storagePayload));
         sessionStorage.setItem('multiRoomBookingDraft', JSON.stringify(storagePayload));
       }
-      router.push('/rooms/select-room-types');
+      router.push('/rooms');
     } else {
       setStep(step - 1);
     }
@@ -511,7 +511,7 @@ export default function MultiRoomBookingPage() {
             <i className="fas fa-exclamation-triangle text-5xl text-amber-500 mb-4"></i>
             <p className="text-gray-700">No booking data found. Please select rooms first.</p>
             <button
-              onClick={() => router.push('/rooms/select-room-types')}
+              onClick={() => router.push('/rooms')}
               className="mt-4 px-6 py-2.5 bg-blue-500 hover:bg-blue-600 text-white rounded-xl font-semibold transition-colors"
             >
               Back to Room Selection
@@ -528,7 +528,7 @@ export default function MultiRoomBookingPage() {
         <div className="max-w-6xl w-full mx-auto px-4 sm:px-6 lg:px-8">
           <div className="mb-6 space-y-3">
             <button
-              onClick={() => router.push('/rooms/select-room-types')}
+              onClick={() => router.push('/rooms')}
               className="inline-flex items-center gap-2 px-3 py-2 rounded-xl border border-gray-200 bg-white text-gray-700 text-xs font-semibold uppercase tracking-wider hover:border-blue-300 hover:text-blue-600 transition-colors"
             >
               <i className="fas fa-arrow-left text-[10px]"></i>
