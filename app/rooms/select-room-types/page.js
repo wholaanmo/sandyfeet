@@ -29,6 +29,8 @@ export default function SelectRoomTypesPage() {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [checkInHour, setCheckInHour] = useState(14);
   const [checkOutHour, setCheckOutHour] = useState(12);
+  const [activeCategory, setActiveCategory] = useState('All Rooms');
+  const hasHydratedInitialState = useRef(false);
   const calendarPopoverRef = useRef(null);
   const calendarTriggerRef = useRef(null);
 
@@ -95,16 +97,90 @@ export default function SelectRoomTypesPage() {
       
       setAvailableRoomTypes(types);
       setRoomDetailsMap(roomDetails);
-      
-      // Initialize selectedRooms with default quantities
-      const initialSelected = {};
-      const initialTotalGuests = {};
-      types.forEach(type => {
-        initialSelected[type.type] = 0;
-        initialTotalGuests[type.type] = 1;
+
+      let savedBookingState = null;
+      if (!hasHydratedInitialState.current && typeof window !== 'undefined') {
+        try {
+          const savedPrimary = sessionStorage.getItem('multiRoomBooking');
+          const savedDraft = sessionStorage.getItem('multiRoomBookingDraft');
+          const rawSaved = savedPrimary || savedDraft;
+          savedBookingState = rawSaved ? JSON.parse(rawSaved) : null;
+        } catch (error) {
+          console.error('Failed to parse saved booking state:', error);
+        }
+      }
+
+      // Keep user selections stable when data refreshes in real time.
+      setSelectedRooms((prev) => {
+        const next = {};
+        types.forEach((type) => {
+          const previousQuantity = prev[type.type];
+          const savedQuantity = Number(savedBookingState?.selectedRooms?.[type.type]);
+          if (typeof previousQuantity === 'number') {
+            next[type.type] = previousQuantity;
+          } else if (!Number.isNaN(savedQuantity)) {
+            next[type.type] = Math.max(0, savedQuantity);
+          } else {
+            next[type.type] = 0;
+          }
+        });
+        return next;
       });
-      setSelectedRooms(initialSelected);
-      setTotalGuestsPerType(initialTotalGuests);
+
+      setTotalGuestsPerType((prev) => {
+        const next = {};
+        types.forEach((type) => {
+          const previousGuests = prev[type.type];
+          const savedGuests = Number(savedBookingState?.totalGuestsPerType?.[type.type]);
+          if (typeof previousGuests === 'number' && !Number.isNaN(previousGuests)) {
+            next[type.type] = Math.max(1, previousGuests);
+          } else if (!Number.isNaN(savedGuests)) {
+            next[type.type] = Math.max(1, savedGuests);
+          } else {
+            next[type.type] = 1;
+          }
+        });
+        return next;
+      });
+
+      if (!hasHydratedInitialState.current) {
+        if (savedBookingState) {
+          if (savedBookingState.checkInDate) {
+            const savedCheckInDate = new Date(savedBookingState.checkInDate);
+            if (!Number.isNaN(savedCheckInDate.getTime())) {
+              setCheckInDate(savedCheckInDate);
+              setCurrentMonth(new Date(savedCheckInDate.getFullYear(), savedCheckInDate.getMonth(), 1));
+            }
+          }
+
+          if (savedBookingState.checkOutDate) {
+            const savedCheckOutDate = new Date(savedBookingState.checkOutDate);
+            if (!Number.isNaN(savedCheckOutDate.getTime())) {
+              setCheckOutDate(savedCheckOutDate);
+            }
+          }
+
+          const savedNights = Number(savedBookingState.numberOfNights);
+          if (!Number.isNaN(savedNights) && savedNights >= 1) {
+            setNumberOfNights(Math.min(savedNights, 30));
+          }
+
+          if (typeof savedBookingState.checkInHour === 'number') {
+            setCheckInHour(savedBookingState.checkInHour);
+          }
+
+          if (typeof savedBookingState.checkOutHour === 'number') {
+            setCheckOutHour(savedBookingState.checkOutHour);
+          }
+
+          if (typeof savedBookingState.specialRequest === 'string') {
+            setSpecialRequest(savedBookingState.specialRequest);
+          }
+        }
+
+        hasHydratedInitialState.current = true;
+      }
+
       setLoading(false);
     }, (error) => {
       console.error('Error fetching rooms:', error);
@@ -229,6 +305,24 @@ export default function SelectRoomTypesPage() {
       setCheckInDate(updated);
     }
   }, [checkInHour]);
+
+  // Save in-progress booking selections so users can navigate back without losing state.
+  useEffect(() => {
+    if (loading || typeof window === 'undefined') return;
+
+    const draftState = {
+      selectedRooms,
+      totalGuestsPerType,
+      checkInDate: checkInDate ? checkInDate.toISOString() : null,
+      checkOutDate: checkOutDate ? checkOutDate.toISOString() : null,
+      checkInHour,
+      checkOutHour,
+      numberOfNights,
+      specialRequest
+    };
+
+    sessionStorage.setItem('multiRoomBookingDraft', JSON.stringify(draftState));
+  }, [loading, selectedRooms, totalGuestsPerType, checkInDate, checkOutDate, checkInHour, checkOutHour, numberOfNights, specialRequest]);
 
   useEffect(() => {
     if (!isModalOpen) return;
@@ -525,6 +619,23 @@ const handleTotalGuestsChange = (roomType, value) => {
     setNumberOfNights(newNights);
   };
 
+  const handleRemoveFromReceipt = (roomType) => {
+    setSelectedRooms((prev) => ({
+      ...prev,
+      [roomType]: 0
+    }));
+
+    setTotalGuestsPerType((prev) => ({
+      ...prev,
+      [roomType]: 1
+    }));
+
+    setGuestInputErrors((prev) => ({
+      ...prev,
+      [roomType]: ''
+    }));
+  };
+
   const getSelectedRoomsSummary = () => {
     const selected = Object.entries(selectedRooms).filter(([_, qty]) => qty > 0);
     if (selected.length === 0) return 'No rooms selected';
@@ -614,6 +725,7 @@ const handleTotalGuestsChange = (roomType, value) => {
     };
     
     sessionStorage.setItem('multiRoomBooking', JSON.stringify(bookingData));
+    sessionStorage.setItem('multiRoomBookingDraft', JSON.stringify(bookingData));
     router.push('/rooms/multi-room-booking');
   };
 
@@ -769,7 +881,6 @@ const handleTotalGuestsChange = (roomType, value) => {
     );
   }
 
-  const [activeCategory, setActiveCategory] = useState('All Rooms');
   const filteredRoomTypes = activeCategory === 'All Rooms' 
     ? availableRoomTypes 
     : availableRoomTypes.filter(room => {
@@ -888,7 +999,12 @@ const handleTotalGuestsChange = (roomType, value) => {
                                 </button>
                               </div>
                            )}
-                           <button className="w-12 h-12 shrink-0 flex items-center justify-center border border-gray-200 rounded-xl text-gray-400 hover:text-blue-500 hover:border-blue-200 transition-colors">
+                          <button
+                            onClick={() => router.push(`/rooms/${room.id}`)}
+                            className="w-12 h-12 shrink-0 flex items-center justify-center border border-gray-200 rounded-xl text-gray-400 hover:text-blue-500 hover:border-blue-200 transition-colors"
+                            aria-label={`View ${room.type} details`}
+                            title={`View ${room.type} details`}
+                          >
                               <i className="fas fa-external-link-alt text-sm"></i>
                            </button>
                         </div>
@@ -916,38 +1032,38 @@ const handleTotalGuestsChange = (roomType, value) => {
                   </div>
                 </div>
 
-                 <div className="mb-6 p-4 bg-gray-50/50 rounded-[1.5rem] border border-gray-100 relative">
+                 <div className="mb-4 p-4 bg-gray-50/50 rounded-[1.5rem] border border-gray-100">
                     <h3 className="text-xs font-semibold text-gray-800 mb-3 uppercase tracking-wider">Stay Schedule</h3>
-                    <div 
-                      ref={calendarTriggerRef}
-                       className="flex items-center justify-between text-sm font-semibold text-gray-700 bg-white p-3.5 rounded-xl border border-gray-200 mb-3 cursor-pointer hover:border-blue-400 transition-colors shadow-sm" 
-                       onClick={() => setIsModalOpen(true)}
-                    >
-                       {checkInDate ? (
-                         <span>{checkInDate.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })} &rarr; {checkOutDate ? checkOutDate.toLocaleDateString('en-US', { month: 'short', day: 'numeric' }) : '...'}</span>
-                       ) : (
-                         <span className="text-gray-400">Choose Check-in Dates</span>
-                       )}
-                       <i className="fas fa-calendar-alt text-blue-500"></i>
-                    </div>
-                    <div className="text-[11px] font-semibold text-gray-600 bg-white p-3 rounded-xl border border-gray-200">
-                      Fixed schedule: Check-in {checkInDisplay}, Check-out {checkOutDisplay}
-                    </div>
-
-                    {isModalOpen && (
-                      <div
-                        ref={calendarPopoverRef}
-                        className="absolute right-0 top-[calc(100%+0.5rem)] z-40 bg-white w-[340px] max-w-[calc(100vw-2rem)] rounded-[2rem] shadow-2xl p-6 border border-gray-100"
+                    
+                    {/* Wrap trigger and popover in a relative container so it pops right below the button */}
+                    <div className="relative mb-3">
+                      <div 
+                        ref={calendarTriggerRef}
+                        className="flex items-center justify-between text-sm font-semibold text-gray-700 bg-white p-3.5 rounded-xl border border-gray-200 cursor-pointer hover:border-blue-400 transition-colors shadow-sm" 
+                        onClick={() => setIsModalOpen(true)}
                       >
-                        <div className="flex justify-between items-center mb-6">
-                          <div>
-                            <h2 className="text-2xl font-bold font-playfair text-gray-900 leading-tight">Select<br/>Dates</h2>
-                            <p className="text-xs text-gray-500 font-medium mt-1">When are you arriving?</p>
+                         {checkInDate ? (
+                           <span>{checkInDate.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })} &rarr; {checkOutDate ? checkOutDate.toLocaleDateString('en-US', { month: 'short', day: 'numeric' }) : '...'}</span>
+                         ) : (
+                           <span className="text-gray-400">Choose Check-in Dates</span>
+                         )}
+                         <i className="fas fa-calendar-alt text-blue-500"></i>
+                      </div>
+
+                      {isModalOpen && (
+                        <div
+                          ref={calendarPopoverRef}
+                          className="absolute right-0 top-[calc(100%+0.5rem)] z-[100] bg-white w-[340px] max-w-[calc(100vw-2rem)] rounded-[2rem] shadow-[0_10px_40px_rgb(0,0,0,0.1)] p-6 border border-gray-100 animate-fadeIn"
+                        >
+                          <div className="flex justify-between items-center mb-5">
+                            <div>
+                              <h2 className="text-xl font-bold font-playfair text-gray-900 leading-tight">Select<br/>Dates</h2>
+                              <p className="text-[10px] text-gray-500 font-medium mt-1">When are you arriving?</p>
+                            </div>
+                            <button onClick={() => setIsModalOpen(false)} className="w-8 h-8 flex items-center justify-center rounded-full bg-gray-50 text-gray-400 hover:bg-gray-100 hover:text-gray-600 transition-colors">
+                              <i className="fas fa-times text-xs"></i>
+                            </button>
                           </div>
-                          <button onClick={() => setIsModalOpen(false)} className="w-10 h-10 flex items-center justify-center rounded-full bg-gray-50 text-gray-400 hover:bg-gray-100 hover:text-gray-600 transition-colors">
-                            <i className="fas fa-times text-sm"></i>
-                          </button>
-                        </div>
 
                         <div className="overflow-y-auto max-h-[62vh] pb-3 scrollbar-hide">
                           <div className="flex justify-between items-center mb-5 px-1">
@@ -1029,7 +1145,11 @@ const handleTotalGuestsChange = (roomType, value) => {
                           </button>
                         </div>
                       </div>
-                    )}
+                      )}
+                    </div>
+                    <div className="text-[11px] font-semibold text-gray-600 bg-white p-3 rounded-xl border border-gray-200">
+                      Fixed schedule: Check-in {checkInDisplay}, Check-out {checkOutDisplay}
+                    </div>
                  </div>
 
                 <div className="space-y-3 mb-6">
@@ -1049,9 +1169,19 @@ const handleTotalGuestsChange = (roomType, value) => {
                               <p className="text-sm font-bold text-gray-800 truncate max-w-[120px]">{room.type}</p>
                               <p className="text-[10px] text-blue-500 font-extrabold uppercase tracking-widest mt-1">{selectedRooms[room.type]} unit{selectedRooms[room.type] > 1 ? 's' : ''}</p>
                            </div>
-                           <p className="text-sm font-bold text-gray-800">
-                             ₱{(room.price * selectedRooms[room.type] * numberOfNights).toLocaleString()}
-                           </p>
+                           <div className="flex items-center gap-2">
+                             <p className="text-sm font-bold text-gray-800">
+                               ₱{(room.price * selectedRooms[room.type] * numberOfNights).toLocaleString()}
+                             </p>
+                             <button
+                               onClick={() => handleRemoveFromReceipt(room.type)}
+                               className="w-7 h-7 rounded-md border border-red-200 text-red-500 hover:bg-red-50 transition-colors"
+                               title={`Remove ${room.type}`}
+                               aria-label={`Remove ${room.type} from receipt`}
+                             >
+                               <i className="fas fa-times text-[10px]"></i>
+                             </button>
+                           </div>
                         </div>
                         <div className="flex items-center justify-between bg-gray-50/80 rounded-xl p-2 mt-3 ml-2">
                            <span className="text-[10px] uppercase font-bold text-gray-500">Total Guests:</span>

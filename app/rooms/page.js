@@ -113,6 +113,50 @@ export default function RoomsPage() {
         initialSelected[type.type] = 0;
         initialTotalGuests[type.type] = 1;
       });
+
+      // Restore state from sessionStorage if returning from detail page
+      try {
+        const savedState = sessionStorage.getItem('roomsPageState');
+        if (savedState) {
+          const parsed = JSON.parse(savedState);
+          sessionStorage.removeItem('roomsPageState'); // consume once
+
+          // Restore selected rooms
+          if (parsed.selectedRooms) {
+            Object.keys(parsed.selectedRooms).forEach(roomType => {
+              if (roomType in initialSelected) {
+                initialSelected[roomType] = parsed.selectedRooms[roomType];
+              }
+            });
+          }
+
+          // Restore guest counts
+          if (parsed.totalGuestsPerType) {
+            Object.keys(parsed.totalGuestsPerType).forEach(roomType => {
+              if (roomType in initialTotalGuests) {
+                initialTotalGuests[roomType] = parsed.totalGuestsPerType[roomType];
+              }
+            });
+          }
+
+          // Restore dates and settings
+          if (parsed.checkInDate) {
+            const restoredDate = new Date(parsed.checkInDate);
+            if (!Number.isNaN(restoredDate.getTime())) {
+              restoredDate.setHours(parsed.checkInHour || 14, 0, 0, 0);
+              setCheckInDate(restoredDate);
+            }
+          }
+          if (parsed.numberOfNights) setNumberOfNights(parsed.numberOfNights);
+          if (parsed.checkInHour) setCheckInHour(parsed.checkInHour);
+          if (parsed.checkOutHour) setCheckOutHour(parsed.checkOutHour);
+          if (parsed.specialRequest) setSpecialRequest(parsed.specialRequest);
+          if (parsed.activeCategory) setActiveCategory(parsed.activeCategory);
+        }
+      } catch {
+        // no-op on malformed data
+      }
+
       setSelectedRooms(initialSelected);
       setTotalGuestsPerType(initialTotalGuests);
       setLoading(false);
@@ -863,66 +907,86 @@ const handleTotalGuestsChange = (roomType, value) => {
                           </div>
                           
                           <div className="flex flex-wrap gap-2 mb-6">
-                            <span className="px-3 py-1.5 bg-gray-50 border border-gray-100 text-[11px] font-medium text-gray-600 rounded-lg">Airconditioned</span>
-                            <span className="px-3 py-1.5 bg-gray-50 border border-gray-100 text-[11px] font-medium text-gray-600 rounded-lg">Common bathroom</span>
+                            <span className="px-3 py-1.5 bg-gray-50 border border-gray-100 text-[11px] font-medium text-gray-600 rounded-full">Airconditioned</span>
+                            <span className="px-3 py-1.5 bg-gray-50 border border-gray-100 text-[11px] font-medium text-gray-600 rounded-full">Common bathroom</span>
                           </div>
                         </div>
 
-                        <div className="flex items-center gap-3">
+                        <div className="flex flex-col gap-2 relative z-10 w-full mb-0 mt-auto">
                            {quantity === 0 ? (
                               <button 
                                 onClick={() => handleQuantityChange(room.type, true)}
                                 disabled={realTimeAvailable <= 0}
-                                className="flex-1 py-3 bg-blue-500 hover:bg-blue-600 disabled:opacity-50 disabled:bg-gray-300 text-white text-sm font-semibold rounded-xl transition-colors flex items-center justify-center"
+                                className="w-full py-3 bg-blue-600 hover:bg-blue-700 disabled:opacity-50 disabled:bg-gray-300 text-white text-sm font-semibold rounded-xl transition-all shadow-[0_4px_14px_0_rgb(37,99,235,0.39)] hover:shadow-[0_6px_20px_rgb(37,99,235,0.23)] hover:-translate-y-0.5 flex items-center justify-center gap-2"
                               >
-                                {realTimeAvailable > 0 ? 'Select Room' : 'Sold Out'}
+                                {realTimeAvailable > 0 ? (
+                                  <>
+                                    <i className="fas fa-plus text-xs"></i> Add to Reservation
+                                  </>
+                                ) : 'Sold Out'}
                               </button>
                            ) : (
-                              <div className="flex-1 flex items-center justify-between bg-blue-50 border border-blue-200 rounded-xl p-1.5">
+                              <div className="w-full flex items-center justify-between bg-blue-50/80 border border-blue-200 rounded-xl p-1.5 shadow-inner relative overflow-hidden">
+                                <div className="absolute inset-0 bg-gradient-to-r from-blue-100/50 to-transparent pointer-events-none"></div>
                                 <button 
                                   onClick={() => handleQuantityChange(room.type, false)}
-                                  className="w-10 h-10 flex items-center justify-center bg-white text-blue-600 rounded-lg shadow-sm border border-blue-100 hover:bg-blue-50 transition-colors"
+                                  className="relative z-10 w-12 h-10 flex items-center justify-center bg-white text-blue-600 rounded-lg shadow-sm border border-blue-100 hover:bg-blue-100 hover:text-blue-700 transition-colors"
                                 >
-                                  <i className="fas fa-minus"></i>
+                                  <i className="fas fa-minus text-sm"></i>
                                 </button>
-                                <span className="font-bold text-blue-700 text-base">
-                                  {quantity}
+                                <span className="font-bold text-blue-800 text-lg relative z-10 tracking-tight">
+                                  {quantity} <span className="text-[10px] text-blue-600/70 font-black uppercase tracking-wider ml-0.5">Units</span>
                                 </span>
                                 <button 
                                   onClick={() => handleQuantityChange(room.type, true)}
                                   disabled={quantity >= realTimeAvailable}
-                                  className="w-10 h-10 flex items-center justify-center bg-blue-500 text-white disabled:opacity-50 rounded-lg shadow-sm hover:bg-blue-600 transition-colors"
+                                  className="relative z-10 w-12 h-10 flex items-center justify-center bg-blue-600 text-white disabled:bg-blue-300 disabled:shadow-none rounded-xl shadow-sm hover:bg-blue-700 transition-colors"
                                 >
-                                  <i className="fas fa-plus"></i>
+                                  <i className="fas fa-plus text-sm"></i>
                                 </button>
                               </div>
                            )}
                            <button 
                              onClick={() => {
                                const slug = toRoomSlug(room.type);
-                               const quantity = Math.max(1, selectedRooms[room.type] || 1);
-                               const fallbackGuests = quantity * (room.capacityMin || 1);
+                               const qtyObj = Math.max(1, selectedRooms[room.type] || 1);
+                               const fallbackGuests = qtyObj * (room.capacityMin || 1);
                                const totalGuests = Math.max(
                                  fallbackGuests,
                                  Number(totalGuestsPerType[room.type] || fallbackGuests)
                                );
 
+                               // Save per-room draft for the detail page
                                const draft = {
                                  roomType: room.type,
-                                 quantity,
+                                 quantity: qtyObj,
                                  totalGuests,
                                  checkInDate: checkInDate ? checkInDate.toISOString() : null,
                                  numberOfNights,
                                  checkInHour,
                                  checkOutHour
                                };
-
                                sessionStorage.setItem('roomDetailDraft', JSON.stringify(draft));
+
+                               // Also save full multi-room booking progress so it can be restored
+                               const multiRoomState = {
+                                 selectedRooms,
+                                 totalGuestsPerType,
+                                 checkInDate: checkInDate ? checkInDate.toISOString() : null,
+                                 numberOfNights,
+                                 checkInHour,
+                                 checkOutHour,
+                                 specialRequest,
+                                 activeCategory
+                               };
+                               sessionStorage.setItem('roomsPageState', JSON.stringify(multiRoomState));
+
                                router.push(`/rooms/${encodeURIComponent(slug)}`);
                              }}
-                             className="w-12 h-12 shrink-0 flex items-center justify-center border border-gray-200 rounded-xl text-gray-400 hover:text-blue-500 hover:border-blue-200 transition-colors"
+                             className="w-full py-2.5 bg-gray-50 border border-gray-200 text-gray-600 hover:text-blue-600 hover:bg-blue-50 text-xs font-bold rounded-2xl transition-colors flex items-center justify-center gap-2 shadow-sm hover:shadow"
                            >
-                              <i className="fas fa-external-link-alt text-sm"></i>
+                              <span>View Details & Photos</span>
+                              <i className="fas fa-arrow-right text-[10px]"></i>
                            </button>
                         </div>
                       </div>
@@ -1006,33 +1070,49 @@ const handleTotalGuestsChange = (roomType, value) => {
                               const isFullyBlocked = isDateFullyBlockedByAdmin(day);
                               const isFullyBooked = isDateFullyBooked(day);
                               const isSelected = checkInDate && checkInDate.toDateString() === day.toDateString();
+                              const isCheckout = checkOutDate && checkOutDate.toDateString() === day.toDateString();
+                              const inRange = checkInDate && checkOutDate && day > checkInDate && day < checkOutDate;
 
                               let bg = 'bg-white border border-gray-100';
                               let text = 'text-gray-700';
-                              let stateClass = 'hover:border-blue-400 hover:text-blue-600 cursor-pointer';
+                              let stateClass = 'hover:border-blue-400 hover:text-blue-600 cursor-pointer rounded-[10px]';
                               if (isPast || isTooSoon) {
                                 bg = 'bg-gray-50 border-transparent';
                                 text = 'text-gray-300';
-                                stateClass = 'cursor-not-allowed';
+                                stateClass = 'cursor-not-allowed rounded-[10px]';
                               } else if (isFullyBlocked || isFullyBooked) {
                                 bg = 'bg-red-50 border-red-100';
                                 text = 'text-red-300';
-                                stateClass = 'cursor-not-allowed';
-                              } else if (isSelected) {
-                                bg = 'bg-blue-500 border-blue-500';
+                                stateClass = 'cursor-not-allowed rounded-[10px]';
+                              } else if (isSelected || isCheckout) {
+                                bg = 'bg-blue-600 border-blue-600';
                                 text = 'text-white';
-                                stateClass = 'shadow-md cursor-pointer ring-4 ring-blue-500/20';
+                                stateClass = 'shadow-md cursor-pointer ring-4 ring-blue-500/20 rounded-[10px] z-10 relative';
+                              } else if (inRange) {
+                                bg = 'bg-blue-50 border-blue-50';
+                                text = 'text-blue-700';
+                                stateClass = 'rounded-none border-y border-y-blue-200 shadow-sm cursor-pointer hover:bg-blue-100';
                               }
 
                               return (
-                                <button
-                                  key={index}
-                                  disabled={isPast || isTooSoon || isFullyBlocked || isFullyBooked}
-                                  onClick={() => handleDateSelect(day)}
-                                  className={`aspect-square rounded-[10px] flex items-center justify-center font-bold text-xs transition-all ${bg} ${text} ${stateClass}`}
-                                >
-                                  {day.getDate()}
-                                </button>
+                                <div key={index} className="relative">
+                                  {inRange && (
+                                    <div className="absolute inset-y-0 -left-1 -right-1 bg-blue-50 z-0 border-y border-blue-100"></div>
+                                  )}
+                                  {(isSelected && inRange && day.getDay() !== 6) && (
+                                    <div className="absolute inset-y-0 left-1/2 right-[-4px] bg-blue-50 z-0 border-y border-blue-100"></div>
+                                  )}
+                                  {(isCheckout && day.getDay() !== 0) && (
+                                    <div className="absolute inset-y-0 right-1/2 left-[-4px] bg-blue-50 z-0 border-y border-blue-100"></div>
+                                  )}
+                                  <button
+                                    disabled={isPast || isTooSoon || isFullyBlocked || isFullyBooked}
+                                    onClick={() => handleDateSelect(day)}
+                                    className={`relative aspect-square w-full flex items-center justify-center font-bold text-xs transition-all ${bg} ${text} ${stateClass} ${!isPast && !isTooSoon && !isFullyBlocked && !isFullyBooked && !isSelected && !isCheckout && !inRange ? 'hover:-translate-y-[1px]' : ''}`}
+                                  >
+                                    {day.getDate()}
+                                  </button>
+                                </div>
                               );
                             })}
                           </div>
@@ -1094,9 +1174,15 @@ const handleTotalGuestsChange = (roomType, value) => {
                               max={selectedRooms[room.type] * room.capacityMax}
                               value={totalGuestsPerType[room.type] || selectedRooms[room.type]}
                               onChange={(e) => handleTotalGuestsChange(room.type, e.target.value)}
-                              className="w-16 text-xs font-bold border border-gray-200 bg-white rounded-md pl-3 py-1 shadow-sm focus:outline-none focus:border-blue-400 focus:ring-2 ring-blue-100"
+                              className={`w-16 text-xs font-bold border bg-white rounded-md pl-3 py-1 shadow-sm focus:outline-none focus:ring-2 ${guestInputErrors[room.type] ? 'border-red-300 focus:border-red-400 ring-red-100 text-red-600' : 'border-gray-200 focus:border-blue-400 ring-blue-100'}`}
                            />
                         </div>
+                        {guestInputErrors[room.type] && (
+                           <div className="bg-red-50/80 border-t border-red-100 p-2 text-[10px] text-red-600 font-semibold tracking-tight leading-tight flex items-start gap-1 w-full rounded-b-2xl absolute bottom-0 left-0">
+                              <i className="fas fa-exclamation-circle mt-[0.1rem]"></i>
+                              <span>{guestInputErrors[room.type]}</span>
+                           </div>
+                        )}
                       </div>
                     ))
                   )}
@@ -1120,17 +1206,31 @@ const handleTotalGuestsChange = (roomType, value) => {
                    </div>
                 </div>
 
-                <button
-                   onClick={handleProceed}
-                   disabled={!checkInDate || Object.values(selectedRooms).every(q => q === 0) || dateSelectionError !== ''}
-                   className={`w-full py-4 font-bold rounded-xl transition-all duration-300 flex items-center justify-center gap-2 ${
-                     (checkInDate && Object.values(selectedRooms).some(q => q>0)) 
-                     ? 'bg-[#cbd5e1] text-gray-700 bg-gradient-to-r from-[#e2e8f0] to-[#cbd5e1] shadow-md hover:-translate-y-0.5 hover:text-gray-900' 
-                     : 'bg-[#F1F5F9] text-gray-400 cursor-not-allowed'
-                   }`}
-                >
-                   Checkout Reservation &rarr;
-                </button>
+                <div className="relative group mt-4">
+                  <button
+                     onClick={handleProceed}
+                     disabled={!checkInDate || Object.values(selectedRooms).every(q => q === 0) || dateSelectionError !== '' || Object.values(guestInputErrors).some(err => err !== '')}
+                     className={`w-full py-4 font-bold rounded-xl transition-all duration-300 flex items-center justify-center gap-2 ${
+                       (checkInDate && Object.values(selectedRooms).some(q => q>0) && !Object.values(guestInputErrors).some(err => err !== '')) 
+                       ? 'bg-blue-600 text-white shadow-[0_8px_20px_rgb(37,99,235,0.25)] hover:bg-blue-700 hover:-translate-y-0.5' 
+                       : 'bg-gray-100 text-gray-400 cursor-not-allowed border border-gray-200'
+                     }`}
+                  >
+                     Checkout &bull; ₱{getTotalPrice().toLocaleString()} &rarr;
+                  </button>
+                  {(!checkInDate || Object.values(selectedRooms).every(q => q === 0)) && (
+                    <div className="absolute left-1/2 -top-10 -translate-x-1/2 opacity-0 group-hover:opacity-100 transition-opacity bg-gray-800 text-white text-[10px] font-medium py-1.5 px-3 rounded-lg shadow-xl whitespace-nowrap pointer-events-none z-10 tooltip">
+                      Please select check-in dates and at least one room type.
+                      <div className="absolute top-full left-1/2 -translate-x-1/2 w-0 h-0 border-x-4 border-x-transparent border-t-4 border-t-gray-800"></div>
+                    </div>
+                  )}
+                  {Object.values(guestInputErrors).some(err => err !== '') && (checkInDate && Object.values(selectedRooms).some(q => q > 0)) && (
+                    <div className="absolute left-1/2 -top-10 -translate-x-1/2 opacity-0 group-hover:opacity-100 transition-opacity bg-red-600 text-white text-[10px] font-medium py-1.5 px-3 rounded-lg shadow-xl whitespace-nowrap pointer-events-none z-10 tooltip">
+                      Please fix guest capacity errors before checking out.
+                      <div className="absolute top-full left-1/2 -translate-x-1/2 w-0 h-0 border-x-4 border-x-transparent border-t-4 border-t-red-600"></div>
+                    </div>
+                  )}
+                </div>
 
                 <div className="mt-5 flex items-center justify-center gap-2 text-gray-400">
                    <i className="fas fa-lock text-[10px]"></i>

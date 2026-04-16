@@ -217,8 +217,62 @@ export default function MultiRoomBookingPage() {
     }
   };
 
+  const toStoragePayload = (data) => ({
+    ...data,
+    checkInDate: data?.checkIn instanceof Date ? data.checkIn.toISOString() : data?.checkInDate || null,
+    checkOutDate: data?.checkOut instanceof Date ? data.checkOut.toISOString() : data?.checkOutDate || null
+  });
+
+  const handleRemoveRoomType = (roomTypeToRemove) => {
+    if (!bookingData) return;
+
+    const nextRoomTypes = (bookingData.roomTypes || []).filter((roomType) => roomType.type !== roomTypeToRemove);
+    const nextSelectedRooms = { ...(bookingData.selectedRooms || {}) };
+    const nextTotalGuestsPerType = { ...(bookingData.totalGuestsPerType || {}) };
+
+    delete nextSelectedRooms[roomTypeToRemove];
+    delete nextTotalGuestsPerType[roomTypeToRemove];
+
+    const stayNights = bookingData.numberOfNights || 1;
+    const nextTotalPrice = nextRoomTypes.reduce(
+      (sum, roomType) => sum + (roomType.price || 0) * (roomType.quantity || 0) * stayNights,
+      0
+    );
+
+    const nextTotalGuests = nextRoomTypes.reduce(
+      (sum, roomType) => sum + (roomType.totalGuests || 0),
+      0
+    );
+
+    const nextBookingData = {
+      ...bookingData,
+      roomTypes: nextRoomTypes,
+      selectedRooms: nextSelectedRooms,
+      totalGuestsPerType: nextTotalGuestsPerType,
+      totalPrice: nextTotalPrice,
+      totalGuests: nextTotalGuests
+    };
+
+    setBookingData(nextBookingData);
+    setTotalPrice(nextTotalPrice);
+    setDownPaymentAmount(nextTotalPrice * 0.5);
+
+    const storagePayload = toStoragePayload(nextBookingData);
+    sessionStorage.setItem('multiRoomBooking', JSON.stringify(storagePayload));
+    sessionStorage.setItem('multiRoomBookingDraft', JSON.stringify(storagePayload));
+
+    if (nextRoomTypes.length === 0) {
+      router.push('/rooms/select-room-types');
+    }
+  };
+
   const handlePreviousStep = () => {
     if (step === 2) {
+      if (bookingData) {
+        const storagePayload = toStoragePayload(bookingData);
+        sessionStorage.setItem('multiRoomBooking', JSON.stringify(storagePayload));
+        sessionStorage.setItem('multiRoomBookingDraft', JSON.stringify(storagePayload));
+      }
       router.push('/rooms/select-room-types');
     } else {
       setStep(step - 1);
@@ -1066,9 +1120,19 @@ export default function MultiRoomBookingPage() {
                     </h4>
                     <div className="bg-white rounded-xl border border-amber-200 p-3">
                       {bookingData.roomTypes && bookingData.roomTypes.map((type, idx) => (
-                        <div key={`${type.type}-${idx}`} className="text-xs text-gray-600 mt-1">
-                          {type.quantity} × {type.type} • ₱{type.price.toLocaleString()}/night
-                          ({type.totalGuests || 1} total guest{(type.totalGuests || 1) !== 1 ? 's' : ''})
+                        <div key={`${type.type}-${idx}`} className="mt-1 flex items-start justify-between gap-2">
+                          <div className="text-xs text-gray-600">
+                            {type.quantity} × {type.type} • ₱{type.price.toLocaleString()}/night
+                            ({type.totalGuests || 1} total guest{(type.totalGuests || 1) !== 1 ? 's' : ''})
+                          </div>
+                          <button
+                            onClick={() => handleRemoveRoomType(type.type)}
+                            className="shrink-0 w-6 h-6 rounded-md border border-red-200 text-red-500 hover:bg-red-50 transition-colors"
+                            title={`Remove ${type.type}`}
+                            aria-label={`Remove ${type.type} from booking summary`}
+                          >
+                            <i className="fas fa-times text-[10px]"></i>
+                          </button>
                         </div>
                       ))}
                     </div>
