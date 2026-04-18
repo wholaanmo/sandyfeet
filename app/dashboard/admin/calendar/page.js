@@ -611,7 +611,7 @@ export default function AdminCalendar() {
   <label className="text-sm font-medium text-textPrimary whitespace-nowrap">
     Room Type:
   </label>
-<div className="relative" style={{ width: '180px' }}>
+<div className="relative" style={{ width: '145px' }}>
   <select
     value={selectedRoomId}
     onChange={(e) => {
@@ -677,7 +677,7 @@ export default function AdminCalendar() {
   {!selectedDate ? (
     <div className="text-center py-10 text-[#1E3A8A]/60">
       <i className="fas fa-calendar-day text-4xl mb-3 block text-[#4D8CF5]/70"></i>
-      <p>Select a date from the calendar to block</p>
+      <p>Select a date from the calendar</p>
       <p className="text-xs mt-2 text-[#1E3A8A]/40">
         Past dates and fully booked dates cannot be selected
       </p>
@@ -875,7 +875,6 @@ export default function AdminCalendar() {
       <div className="sticky top-0 bg-white/10 backdrop-blur-md border-b border-white/30 px-5 py-4 flex justify-between items-center z-10 flex-shrink-0">
         <div>
           <h2 className="text-lg font-bold text-[#1E3A8A] flex items-center gap-2 leading-tight">
-            <i className="fas fa-calendar-times"></i>
             Blocked Room Availability
           </h2>
           <p className="text-[#1E3A8A]/70 text-xs mt-1">
@@ -966,7 +965,7 @@ export default function AdminCalendar() {
                         }}
                         disabled={actionLoading}
                         title="Edit blocked entry"
-                        className="w-8 h-8 bg-[#4D8CF5] hover:bg-[#3B78E7] text-white rounded-lg text-xs transition-all duration-200 disabled:opacity-50 flex items-center justify-center"
+                        className="w-8 h-8 rounded-lg bg-[#7AAAF8]/10 text-[#1E3A8A] hover:bg-[#7AAAF8] hover:text-white transition-all duration-200 flex items-center justify-center"
                       >
                         <i className="fas fa-edit text-xs"></i>
                       </button>
@@ -976,7 +975,7 @@ export default function AdminCalendar() {
                         onClick={() => setRemoveConfirm(entry)}
                         disabled={actionLoading}
                         title="Remove blocked entry"
-                        className="w-8 h-8 bg-red-500 hover:bg-red-600 text-white rounded-lg text-xs transition-all duration-200 disabled:opacity-50 flex items-center justify-center"
+                        className="w-8 h-8 rounded-lg bg-red-500/10 text-red-600 hover:bg-red-600/80 hover:text-white transition-all duration-200 flex items-center justify-center disabled:opacity-50"
                       >
                         <i className="fas fa-trash-alt text-xs"></i>
                       </button>

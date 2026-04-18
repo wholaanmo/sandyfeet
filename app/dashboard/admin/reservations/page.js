@@ -1066,16 +1066,16 @@ const handleConfirmReservation = async () => {
   };
 
   return (
-    <div className="p-8 min-h-screen" style={{ backgroundColor: 'var(--color-blue-whites)' }}>
+    <div className="px-9 py-1 min-h-screen" style={{ backgroundColor: 'var(--color-blue-whites)' }}>
       {/* Header */}
-      <div className="mb-6">
-        <h1 className="text-3xl font-bold text-textPrimary font-playfair mb-1">
-          Reservations Management
-        </h1>
-        <p className="text-textSecondary">
-          Manage all room and day tour reservations
-        </p>
-      </div>
+<div className="mb-6 rounded-xl border border-[#7AAAF8]/20 bg-[#7AAAF8]/5 px-5 py-4 shadow-sm">
+  <h1 className="text-3xl font-bold text-[#1E3A8A] font-playfair tracking-tight">
+    Reservations Management
+  </h1>
+  <p className="text-[#4D6FA8] text-sm leading-relaxed mt-1">
+    Manage all room and day tour reservations
+  </p>
+</div>
 
       {/* Notification */}
       {notification.show && (
@@ -1241,7 +1241,7 @@ const handleConfirmReservation = async () => {
                             <div className="flex gap-1">
                               <button
                                 onClick={() => openSidebar(booking)}
-                                className="p-1.5 text-blue-600 hover:text-blue-700 hover:bg-blue-50 rounded-lg transition-all duration-200"
+                                className="w-8 h-8 rounded-lg bg-[#7AAAF8]/10 text-[#1E3A8A] hover:bg-[#7AAAF8] hover:text-white transition-all duration-200 flex items-center justify-center"
                                 title="View Details"
                               >
                                 <i className="fas fa-eye text-sm"></i>
@@ -1254,7 +1254,7 @@ const handleConfirmReservation = async () => {
                                     reason: booking.cancellationReason || 'No reason provided',
                                     sending: false 
                                   })}
-                                  className="p-1.5 text-orange-600 hover:text-orange-700 hover:bg-orange-50 rounded-lg transition-all duration-200"
+                                  className="w-8 h-8 rounded-lg bg-[#F59E0B]/10 text-[#C2410C] hover:bg-[#F59E0B] hover:text-white transition-all duration-200 flex items-center justify-center"
                                   title="View Cancellation Reason"
                                 >
                                   <i className="fas fa-comment-dots text-sm"></i>
@@ -1342,7 +1342,7 @@ const handleConfirmReservation = async () => {
                             <div className="flex gap-1">
                               <button
                                 onClick={() => openSidebar(tour)}
-                                className="p-1.5 text-blue-600 hover:text-blue-700 hover:bg-blue-50 rounded-lg transition-all duration-200"
+                                className="w-8 h-8 rounded-lg bg-[#7AAAF8]/10 text-[#1E3A8A] hover:bg-[#7AAAF8] hover:text-white transition-all duration-200 flex items-center justify-center"
                                 title="View Details"
                               >
                                 <i className="fas fa-eye text-sm"></i>
@@ -1355,7 +1355,7 @@ const handleConfirmReservation = async () => {
                                     reason: tour.cancellationReason || 'No reason provided',
                                     sending: false 
                                   })}
-                                  className="p-1.5 text-orange-600 hover:text-orange-700 hover:bg-orange-50 rounded-lg transition-all duration-200"
+                                  className="w-8 h-8 rounded-lg bg-[#F59E0B]/10 text-[#C2410C] hover:bg-[#F59E0B] hover:text-white transition-all duration-200 flex items-center justify-center"
                                   title="View Cancellation Reason"
                                 >
                                   <i className="fas fa-comment-dots text-sm"></i>
@@ -1378,248 +1378,250 @@ const handleConfirmReservation = async () => {
       )}
 
       {/* Right Sidebar Modal for Booking Details */}
-      {isSidebarOpen && sidebarBooking && (
-        <>
-          {/* Backdrop overlay */}
-          <div 
-            className="fixed inset-0 bg-black/50 z-50 transition-opacity duration-300"
-            onClick={closeSidebar}
-          />
-          
-          {/* Sidebar that slides in from right */}
-          <div className={`fixed right-0 top-0 h-full w-full max-w-md bg-white shadow-2xl z-50 transform transition-transform duration-300 ease-out flex flex-col ${isSidebarOpen ? 'translate-x-0' : 'translate-x-full'}`}>
-            {/* Sidebar Header */}
-            <div className="sticky top-0 bg-gradient-to-r from-ocean-mid to-ocean-light px-5 py-3 rounded-t-xl flex justify-between items-center z-10 flex-shrink-0">
-              <div>
-                <h2 className="text-base font-bold text-white">
-                  Booking Details - {sidebarBooking.bookingId}
-                </h2>
-                <p className="text-white/80 text-xs mt-0.5">
-                  {sidebarBooking.isMultiRoomGroup ? 'Multi-Room Booking' : (activeTab === 'rooms' ? 'Room Booking' : 'Day Tour Booking')}
-                </p>
-              </div>
-              <button
-                onClick={closeSidebar}
-                className="w-7 h-7 rounded-full bg-white/20 hover:bg-white/30 text-white transition-all duration-200 flex items-center justify-center"
-              >
-                <i className="fas fa-times text-sm"></i>
-              </button>
-            </div>
-            
-            {/* Scrollable Content - Same as original modal content */}
-            <div className="flex-1 overflow-y-auto p-5 space-y-4">
-              {/* Guest Information */}
-              <div className="bg-ocean-ice rounded-lg p-3">
-                <h3 className="text-xs font-semibold text-ocean-mid uppercase tracking-wide mb-2">Guest Information</h3>
-                <p className="text-sm font-medium text-textPrimary">
-                  {sidebarBooking.guestInfo?.firstName} {sidebarBooking.guestInfo?.lastName}
-                </p>
-                <p className="text-xs text-textSecondary">{sidebarBooking.guestInfo?.email}</p>
-                <p className="text-xs text-textSecondary">{sidebarBooking.guestInfo?.phone}</p>
-              </div>
+{/* Right Sidebar Modal for Booking Details */}
+{isSidebarOpen && sidebarBooking && (
+  <>
+    {/* Backdrop overlay */}
+    <div
+      className="fixed inset-0 bg-black/50 z-50 transition-opacity duration-300"
+      onClick={closeSidebar}
+    />
 
-              {/* Room/Tour Details */}
-              {activeTab === 'rooms' ? (
-                <>
-                  <div className="bg-ocean-ice rounded-lg p-3">
-                    <h3 className="text-xs font-semibold text-ocean-mid uppercase tracking-wide mb-2">Room Details</h3>
-                    
-                    {/* Multi-Room Detailed Display */}
-                    {sidebarBooking.isMultiRoomGroup && sidebarBooking.roomTypesArray && sidebarBooking.roomTypesArray.length > 0 ? (
-                      <div className="space-y-2">
-                        <div className="border-b border-ocean-light/20 pb-1 mb-1">
-                          <span className="text-xs font-semibold text-ocean-mid">Room Type Breakdown:</span>
-                        </div>
-                        {sidebarBooking.roomTypesArray.map((room, idx) => (
-                          <div key={idx} className="flex justify-between items-center text-sm">
-                            <span className="text-textSecondary">{room.quantity} × {room.type}</span>
-                            <span className="font-medium text-textPrimary">{room.guestsPerRoom} guest{room.guestsPerRoom !== 1 ? 's' : ''}</span>
-                          </div>
-                        ))}
-                        <div className="flex justify-between items-center text-sm pt-2 border-t border-ocean-light/20 mt-2">
-                          <span className="font-semibold text-textPrimary">Total Guests:</span>
-                          <span className="font-bold text-ocean-mid">{sidebarBooking.totalGuests}</span>
-                        </div>
-                      </div>
-                    ) : (
-                      <>
-                        <p className="text-sm">
-                          <span className="text-textSecondary">Room Type:</span>{' '}
-                          <span className="font-medium text-textPrimary">{sidebarBooking.roomType}</span>
-                        </p>
-                        <p className="text-sm mt-1">
-                          <span className="text-textSecondary">Number of Rooms:</span>{' '}
-                          <span className="font-medium text-textPrimary">{sidebarBooking.numberOfRooms || 1}</span>
-                        </p>
-                        <p className="text-sm mt-1">
-                          <span className="text-textSecondary">Number of Guests:</span>{' '}
-                          <span className="font-medium text-textPrimary">{sidebarBooking.guests || 1}</span>
-                        </p>
-                      </>
-                    )}
-                  </div>
+    {/* Sidebar that slides in from right */}
+    <div className={`fixed right-0 top-0 h-full w-full max-w-md bg-white/50 backdrop-blur-xl border-l border-white/30 shadow-2xl z-50 transform transition-transform duration-300 ease-out flex flex-col ${isSidebarOpen ? 'translate-x-0' : 'translate-x-full'}`}>
+      
+      {/* Sidebar Header - Copied from first modal */}
+      <div className="sticky top-0 bg-white/10 backdrop-blur-md border-b border-white/30 px-5 py-4 flex justify-between items-center z-10 flex-shrink-0">
+        <div>
+          <div className="flex items-center gap-3">
+            <h2 className="text-lg font-bold text-[#1E3A8A] leading-tight">
+              Booking Details: <br /> {sidebarBooking.bookingId}
+            </h2>
+          </div>
+          <p className="text-[#1E3A8A]/70 text-xs mt-1">
+            {sidebarBooking.isMultiRoomGroup 
+              ? 'Multi-Room Booking' 
+              : (activeTab === 'rooms' ? 'Room Booking' : 'Day Tour Booking')}
+          </p>
+        </div>
+        {/* Close button (X) - New Design */}
+        <button 
+          onClick={closeSidebar} 
+          className="w-9 h-9 flex items-center justify-center rounded-lg bg-white/60 backdrop-blur-md border border-[#4D8CF5]/20 text-[#1E3A8A] shadow-sm transition-all duration-200 hover:bg-[#4D8CF5]/80 hover:text-white hover:shadow-lg hover:-translate-y-0.5 active:translate-y-0 active:scale-95"
+        >
+          <i className="fas fa-times"></i>
+        </button>
+      </div>
 
-                  <div className="bg-ocean-ice rounded-lg p-3">
-                    <h3 className="text-xs font-semibold text-ocean-mid uppercase tracking-wide mb-2">Schedule</h3>
-                    <p className="text-sm">
-                      <span className="text-textSecondary">Check-in:</span>{' '}
-                      <span className="font-medium text-textPrimary">{formatDateWithTime(sidebarBooking.checkIn, 'check-in')}</span>
-                    </p>
-                    <p className="text-sm mt-1">
-                      <span className="text-textSecondary">Check-out:</span>{' '}
-                      <span className="font-medium text-textPrimary">{formatDateWithTime(sidebarBooking.checkOut, 'check-out')}</span>
-                    </p>
+      {/* Scrollable Content - Updated styling */}
+      <div className="flex-1 overflow-y-auto p-5 space-y-4">
+        {/* Guest Information */}
+        <div className="bg-white/70 backdrop-blur-md border border-[#4D8CF5]/10 rounded-xl p-3 shadow-sm">
+          <h3 className="text-xs font-semibold text-[#1E3A8A] uppercase tracking-wide mb-2">Guest Information</h3>
+          <p className="text-sm font-medium text-[#1E3A8A]">
+            {sidebarBooking.guestInfo?.firstName} {sidebarBooking.guestInfo?.lastName}
+          </p>
+          <p className="text-xs text-[#1E3A8A]/70">{sidebarBooking.guestInfo?.email}</p>
+          <p className="text-xs text-[#1E3A8A]/70">{sidebarBooking.guestInfo?.phone}</p>
+        </div>
+
+        {/* Room/Tour Details */}
+        {activeTab === 'rooms' ? (
+          <>
+            <div className="bg-white/70 backdrop-blur-md border border-[#4D8CF5]/10 rounded-xl p-3 shadow-sm">
+              <h3 className="text-xs font-semibold text-[#1E3A8A] uppercase tracking-wide mb-2">Room Details</h3>
+              {/* Multi-Room Detailed Display */}
+              {sidebarBooking.isMultiRoomGroup && sidebarBooking.roomTypesArray && sidebarBooking.roomTypesArray.length > 0 ? (
+                <div className="space-y-2">
+                  <div className="border-b border-[#4D8CF5]/20 pb-1 mb-1">
+                    <span className="text-xs font-semibold text-[#1E3A8A]">Room Type Breakdown:</span>
                   </div>
-                </>
+                  {sidebarBooking.roomTypesArray.map((room, idx) => (
+                    <div key={idx} className="flex justify-between items-center text-sm">
+                      <span className="text-[#1E3A8A]/70">{room.quantity} × {room.type}</span>
+                      <span className="font-medium text-[#1E3A8A]">{room.guestsPerRoom} guest{room.guestsPerRoom !== 1 ? 's' : ''}</span>
+                    </div>
+                  ))}
+                  <div className="flex justify-between items-center text-sm pt-2 border-t border-[#4D8CF5]/20 mt-2">
+                    <span className="font-semibold text-[#1E3A8A]">Total Guests:</span>
+                    <span className="font-bold text-[#1E3A8A]">{sidebarBooking.totalGuests}</span>
+                  </div>
+                </div>
               ) : (
                 <>
-                  <div className="bg-ocean-ice rounded-lg p-3">
-                    <h3 className="text-xs font-semibold text-ocean-mid uppercase tracking-wide mb-2">Tour Details</h3>
-                    <p className="text-sm">
-                      <span className="text-textSecondary">Tour Date:</span>{' '}
-                      <span className="font-medium text-textPrimary">{formatDateOnly(sidebarBooking.selectedDate)}</span>
-                    </p>
-                    <p className="text-sm mt-1">
-                      <span className="text-textSecondary">Guest Breakdown:</span>{' '}
-                      <span className="font-medium text-textPrimary">
-                        Senior: {sidebarBooking.seniors || 0} | Adult: {sidebarBooking.adults || 0} | Kid: {sidebarBooking.kids || 0}
-                      </span>
-                    </p>
-                    <p className="text-sm mt-1">
-                      <span className="text-textSecondary">Total Guests:</span>{' '}
-                      <span className="font-medium text-textPrimary">{getTotalGuests(sidebarBooking)}</span>
-                    </p>
-                  </div>
+                  <p className="text-sm">
+                    <span className="text-[#1E3A8A]/70">Room Type:</span>{' '}
+                    <span className="font-medium text-[#1E3A8A]">{sidebarBooking.roomType}</span>
+                  </p>
+                  <p className="text-sm mt-1">
+                    <span className="text-[#1E3A8A]/70">Number of Rooms:</span>{' '}
+                    <span className="font-medium text-[#1E3A8A]">{sidebarBooking.numberOfRooms || 1}</span>
+                  </p>
+                  <p className="text-sm mt-1">
+                    <span className="text-[#1E3A8A]/70">Number of Guests:</span>{' '}
+                    <span className="font-medium text-[#1E3A8A]">{sidebarBooking.guests || 1}</span>
+                  </p>
                 </>
               )}
-
-              {/* Payment Information */}
-              <div className="bg-ocean-ice rounded-lg p-3">
-                <h3 className="text-xs font-semibold text-ocean-mid uppercase tracking-wide mb-2">Payment Information</h3>
-                <p className="text-sm">
-                  <span className="text-textSecondary">Total Amount:</span>{' '}
-                  <span className="font-bold text-ocean-mid">₱{Number(sidebarBooking.totalPrice).toLocaleString()}</span>
-                </p>
-                <p className="text-sm mt-1">
-                  <span className="text-textSecondary">50% Down Payment:</span>{' '}
-                  <span className="font-bold text-amber-600">₱{calculateDownPayment(sidebarBooking.totalPrice).toLocaleString()}</span>
-                </p>
-                <p className="text-sm mt-1">
-                  <span className="text-textSecondary">Balance:</span>{' '}
-                  <span className={`font-bold ${sidebarBooking.status === 'confirmed' ? 'text-ocean-mid' : 'text-neutral'}`}>
-                    {calculateBalance(sidebarBooking)}
-                  </span>
-                </p>
-                <p className="text-sm mt-1">
-                  <span className="text-textSecondary">Status:</span>{' '}
-                  <span className={`px-2 py-0.5 rounded-full text-[10px] font-medium ${getStatusColor(sidebarBooking.status)}`}>
-                    {sidebarBooking.status?.charAt(0).toUpperCase() + sidebarBooking.status?.slice(1)}
-                  </span>
-                </p>
-              </div>
-
-              {/* Payment Proof Image - Clickable (for both rooms and day tour) */}
-              {(sidebarBooking.paymentProof || sidebarBooking.paymentProofUrl) && (
-                <div className="bg-ocean-ice rounded-lg p-3">
-                  <h3 className="text-xs font-semibold text-ocean-mid uppercase tracking-wide mb-2">Payment Proof</h3>
-                  <div 
-                    className="relative bg-ocean-pale/30 rounded-lg overflow-hidden cursor-pointer hover:opacity-90 transition-opacity duration-200"
-                    onClick={() => setImageZoomModal({ show: true, imageUrl: sidebarBooking.paymentProof || sidebarBooking.paymentProofUrl, title: 'Payment Proof' })}
-                  >
-                    <img
-                      src={sidebarBooking.paymentProof || sidebarBooking.paymentProofUrl}
-                      alt="Payment Proof"
-                      className="w-full h-auto max-h-[200px] object-contain"
-                      onError={(e) => {
-                        console.error('Error loading image:', e);
-                        e.target.style.display = 'none';
-                        e.target.parentElement.innerHTML = '<div class="p-4 text-center"><i class="fas fa-image text-3xl text-neutral mb-2 block"></i><p class="text-textSecondary">Error loading payment proof image</p></div>';
-                      }}
-                    />
-                    <div className="absolute inset-0 bg-black/0 hover:bg-black/20 transition-all duration-200 flex items-center justify-center">
-                      <i className="fas fa-search-plus text-white text-xl opacity-0 hover:opacity-100 transition-opacity duration-200"></i>
-                    </div>
-                  </div>
-                </div>
-              )}
-
-              {/* Valid ID - Clickable (for both rooms and day tour) */}
-              {(sidebarBooking.validIdImage || sidebarBooking.validIdUrl) && (
-                <div className="bg-ocean-ice rounded-lg p-3">
-                  <h3 className="text-xs font-semibold text-ocean-mid uppercase tracking-wide mb-2">Valid ID</h3>
-                  {sidebarBooking.validIdType && (
-                    <p className="text-xs text-textSecondary mb-2">ID Type: <span className="font-medium text-textPrimary">{sidebarBooking.validIdType}</span></p>
-                  )}
-                  <div 
-                    className="relative bg-ocean-pale/30 rounded-lg overflow-hidden cursor-pointer hover:opacity-90 transition-opacity duration-200"
-                    onClick={() => setImageZoomModal({ show: true, imageUrl: sidebarBooking.validIdImage || sidebarBooking.validIdUrl, title: `Valid ID - ${sidebarBooking.validIdType || 'ID'}` })}
-                  >
-                    <img
-                      src={sidebarBooking.validIdImage || sidebarBooking.validIdUrl}
-                      alt="Valid ID"
-                      className="w-full h-auto max-h-[150px] object-contain bg-white"
-                      onError={(e) => {
-                        console.error('Error loading valid ID image:', e);
-                        e.target.style.display = 'none';
-                        e.target.parentElement.innerHTML = '<div class="p-4 text-center"><i class="fas fa-id-card text-3xl text-neutral mb-2 block"></i><p class="text-textSecondary">Error loading valid ID image</p></div>';
-                      }}
-                    />
-                    <div className="absolute inset-0 bg-black/0 hover:bg-black/20 transition-all duration-200 flex items-center justify-center">
-                      <i className="fas fa-search-plus text-white text-xl opacity-0 hover:opacity-100 transition-opacity duration-200"></i>
-                    </div>
-                  </div>
-                </div>
-              )}
-
-              {/* Special Request */}
-              <div className="bg-amber-50 rounded-lg p-3 border border-amber-200">
-                <h3 className="text-xs font-semibold text-amber-700 uppercase tracking-wide mb-2">Special Request</h3>
-                {sidebarBooking.specialRequest ? (
-                  <p className="text-sm text-amber-800">{sidebarBooking.specialRequest}</p>
-                ) : (
-                  <p className="text-sm text-amber-600 italic">No special requests from guest</p>
-                )}
-              </div>
             </div>
-            
-            {/* Fixed Footer with Confirm and Cancel buttons */}
-            <div className="sticky bottom-0 bg-white border-t border-ocean-light/20 px-5 py-3 rounded-b-xl flex gap-2 justify-end flex-shrink-0">
-              <button
-                onClick={closeSidebar}
-                className="px-4 py-1.5 border border-ocean-light/20 rounded-lg text-textSecondary text-sm font-medium hover:bg-ocean-ice transition-all duration-300"
-              >
-                Close
-              </button>
-              {sidebarBooking.status === 'pending' && (
-                <>
-                  <button
-                    onClick={() => {
-                      closeSidebar();
-                      setConfirmModal({ show: true, booking: sidebarBooking, type: activeTab === 'rooms' ? 'room' : 'daytour', note: '' });
-                    }}
-                    disabled={actionLoading[sidebarBooking.id]}
-                    className="px-4 py-1.5 bg-gradient-to-r from-green-500 to-green-600 rounded-lg text-white text-sm font-medium hover:shadow-lg transition-all duration-300 flex items-center gap-1 disabled:opacity-50"
-                  >
-                    <i className="fas fa-check text-xs"></i>
-                    Confirm
-                  </button>
-                  <button
-                    onClick={() => {
-                      closeSidebar();
-                      setCancelModal({ show: true, booking: sidebarBooking, reason: '' });
-                    }}
-                    disabled={actionLoading[sidebarBooking.id]}
-                    className="px-4 py-1.5 bg-gradient-to-r from-red-500 to-red-600 rounded-lg text-white text-sm font-medium hover:shadow-lg transition-all duration-300 flex items-center gap-1 disabled:opacity-50"
-                  >
-                    <i className="fas fa-times text-xs"></i>
-                    Cancel
-                  </button>
-                </>
-              )}
+
+            <div className="bg-white/70 backdrop-blur-md border border-[#4D8CF5]/10 rounded-xl p-3 shadow-sm">
+              <h3 className="text-xs font-semibold text-[#1E3A8A] uppercase tracking-wide mb-2">Schedule</h3>
+              <p className="text-sm">
+                <span className="text-[#1E3A8A]/70">Check-in:</span>{' '}
+                <span className="font-medium text-[#1E3A8A]">{formatDateWithTime(sidebarBooking.checkIn, 'check-in')}</span>
+              </p>
+              <p className="text-sm mt-1">
+                <span className="text-[#1E3A8A]/70">Check-out:</span>{' '}
+                <span className="font-medium text-[#1E3A8A]">{formatDateWithTime(sidebarBooking.checkOut, 'check-out')}</span>
+              </p>
+            </div>
+          </>
+        ) : (
+          <>
+            <div className="bg-white/70 backdrop-blur-md border border-[#4D8CF5]/10 rounded-xl p-3 shadow-sm">
+              <h3 className="text-xs font-semibold text-[#1E3A8A] uppercase tracking-wide mb-2">Tour Details</h3>
+              <p className="text-sm">
+                <span className="text-[#1E3A8A]/70">Tour Date:</span>{' '}
+                <span className="font-medium text-[#1E3A8A]">{formatDateOnly(sidebarBooking.selectedDate)}</span>
+              </p>
+              <p className="text-sm mt-1">
+                <span className="text-[#1E3A8A]/70">Guest Breakdown:</span>{' '}
+                <span className="font-medium text-[#1E3A8A]"> Senior: {sidebarBooking.seniors || 0} | Adult: {sidebarBooking.adults || 0} | Kid: {sidebarBooking.kids || 0} </span>
+              </p>
+              <p className="text-sm mt-1">
+                <span className="text-[#1E3A8A]/70">Total Guests:</span>{' '}
+                <span className="font-medium text-[#1E3A8A]">{getTotalGuests(sidebarBooking)}</span>
+              </p>
+            </div>
+          </>
+        )}
+
+        {/* Payment Information */}
+        <div className="bg-white/70 backdrop-blur-md border border-[#4D8CF5]/10 rounded-xl p-3 shadow-sm">
+          <h3 className="text-xs font-semibold text-[#1E3A8A] uppercase tracking-wide mb-2">Payment Information</h3>
+          <p className="text-sm">
+            <span className="text-[#1E3A8A]/70">Total Amount:</span>{' '}
+            <span className="font-bold text-[#1E3A8A]">₱{Number(sidebarBooking.totalPrice).toLocaleString()}</span>
+          </p>
+          <p className="text-sm mt-1">
+            <span className="text-[#1E3A8A]/70">50% Down Payment:</span>{' '}
+            <span className="font-bold text-amber-600">₱{calculateDownPayment(sidebarBooking.totalPrice).toLocaleString()}</span>
+          </p>
+          <p className="text-sm mt-1">
+            <span className="text-[#1E3A8A]/70">Balance:</span>{' '}
+            <span className={`font-bold ${sidebarBooking.status === 'confirmed' ? 'text-[#1E3A8A]' : 'text-neutral'}`}>
+              {calculateBalance(sidebarBooking)}
+            </span>
+          </p>
+          <p className="text-sm mt-1">
+            <span className="text-[#1E3A8A]/70">Status:</span>{' '}
+            <span className={`px-2 py-0.5 rounded-full text-[10px] font-medium ${getStatusColor(sidebarBooking.status)}`}>
+              {sidebarBooking.status?.charAt(0).toUpperCase() + sidebarBooking.status?.slice(1)}
+            </span>
+          </p>
+        </div>
+
+        {/* Payment Proof Image - Clickable */}
+        {(sidebarBooking.paymentProof || sidebarBooking.paymentProofUrl) && (
+          <div className="bg-white/70 backdrop-blur-md border border-[#4D8CF5]/10 rounded-xl p-3 shadow-sm">
+            <h3 className="text-xs font-semibold text-[#1E3A8A] uppercase tracking-wide mb-2">Payment Proof</h3>
+            <div 
+              className="relative bg-white/40 rounded-lg overflow-hidden cursor-pointer hover:opacity-90 transition-opacity duration-200"
+              onClick={() => setImageZoomModal({ show: true, imageUrl: sidebarBooking.paymentProof || sidebarBooking.paymentProofUrl, title: 'Payment Proof' })}
+            >
+              <img 
+                src={sidebarBooking.paymentProof || sidebarBooking.paymentProofUrl} 
+                alt="Payment Proof" 
+                className="w-full h-auto max-h-[200px] object-contain"
+                onError={(e) => {
+                  console.error('Error loading image:', e);
+                  e.target.style.display = 'none';
+                  e.target.parentElement.innerHTML = '<div class="p-4 text-center"><i class="fas fa-image text-3xl text-neutral mb-2 block"></i><p class="text-[#1E3A8A]/70">Error loading payment proof image</p></div>';
+                }} 
+              />
+              <div className="absolute inset-0 bg-black/0 hover:bg-black/20 transition-all duration-200 flex items-center justify-center">
+                <i className="fas fa-search-plus text-white text-xl opacity-0 hover:opacity-100 transition-opacity duration-200"></i>
+              </div>
             </div>
           </div>
-        </>
-      )}
+        )}
+
+        {/* Valid ID - Clickable */}
+        {(sidebarBooking.validIdImage || sidebarBooking.validIdUrl) && (
+          <div className="bg-white/70 backdrop-blur-md border border-[#4D8CF5]/10 rounded-xl p-3 shadow-sm">
+            <h3 className="text-xs font-semibold text-[#1E3A8A] uppercase tracking-wide mb-2">Valid ID</h3>
+            {sidebarBooking.validIdType && (
+              <p className="text-xs text-[#1E3A8A]/70 mb-2">ID Type: <span className="font-medium text-[#1E3A8A]">{sidebarBooking.validIdType}</span></p>
+            )}
+            <div 
+              className="relative bg-white/40 rounded-lg overflow-hidden cursor-pointer hover:opacity-90 transition-opacity duration-200"
+              onClick={() => setImageZoomModal({ show: true, imageUrl: sidebarBooking.validIdImage || sidebarBooking.validIdUrl, title: `Valid ID - ${sidebarBooking.validIdType || 'ID'}` })}
+            >
+              <img 
+                src={sidebarBooking.validIdImage || sidebarBooking.validIdUrl} 
+                alt="Valid ID" 
+                className="w-full h-auto max-h-[150px] object-contain bg-white/40"
+                onError={(e) => {
+                  console.error('Error loading valid ID image:', e);
+                  e.target.style.display = 'none';
+                  e.target.parentElement.innerHTML = '<div class="p-4 text-center"><i class="fas fa-id-card text-3xl text-neutral mb-2 block"></i><p class="text-[#1E3A8A]/70">Error loading valid ID image</p></div>';
+                }} 
+              />
+              <div className="absolute inset-0 bg-black/0 hover:bg-black/20 transition-all duration-200 flex items-center justify-center">
+                <i className="fas fa-search-plus text-white text-xl opacity-0 hover:opacity-100 transition-opacity duration-200"></i>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Special Request */}
+        <div className="bg-amber-50/70 backdrop-blur-md border border-amber-200 rounded-xl p-3 shadow-sm">
+          <h3 className="text-xs font-semibold text-amber-700 uppercase tracking-wide mb-2">Special Request</h3>
+          {sidebarBooking.specialRequest ? (
+            <p className="text-sm text-amber-800">{sidebarBooking.specialRequest}</p>
+          ) : (
+            <p className="text-sm text-amber-600 italic">No special requests from guest</p>
+          )}
+        </div>
+      </div>
+
+      {/* Fixed Footer with Confirm and Cancel buttons - Updated styling */}
+      <div className="sticky bottom-0 bg-white/10 backdrop-blur-md border-t border-white/30 px-5 py-3 rounded-b-xl flex gap-2 justify-end flex-shrink-0">
+        <button 
+          onClick={closeSidebar} 
+          className="px-4 py-1.5 border-2 border-[#4D8CF5]/20 rounded-lg text-[#1E3A8A] text-sm font-medium hover:bg-white/40 transition-all duration-300"
+        >
+          Close
+        </button>
+        {sidebarBooking.status === 'pending' && (
+          <>
+            <button 
+              onClick={() => {
+                closeSidebar();
+                setConfirmModal({ show: true, booking: sidebarBooking, type: activeTab === 'rooms' ? 'room' : 'daytour', note: '' });
+              }} 
+              disabled={actionLoading[sidebarBooking.id]} 
+              className="px-4 py-1.5 rounded-lg bg-green-500/10 text-green-600 hover:bg-green-600/80 hover:text-white transition-all duration-200 flex items-center gap-1 disabled:opacity-50"
+            >
+              <i className="fas fa-check text-xs"></i> Confirm
+            </button>
+            <button 
+              onClick={() => {
+                closeSidebar();
+                setCancelModal({ show: true, booking: sidebarBooking, reason: '' });
+              }} 
+              disabled={actionLoading[sidebarBooking.id]} 
+              className="px-4 py-1.5 rounded-lg bg-red-500/10 text-red-600 hover:bg-red-600/80 hover:text-white transition-all duration-200 flex items-center gap-1 disabled:opacity-50"
+            >
+              <i className="fas fa-times text-xs"></i> Cancel
+            </button>
+          </>
+        )}
+      </div>
+    </div>
+  </>
+)}
 
       {/* Original Payment Modal - Kept for backward compatibility but hidden via CSS when sidebar is open */}
       {showPaymentModal && selectedBooking && !isSidebarOpen && (

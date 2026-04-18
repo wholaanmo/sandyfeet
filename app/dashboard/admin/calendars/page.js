@@ -9,16 +9,16 @@ export default function CombinedCalendars() {
   const [activeTab, setActiveTab] = useState('room');
 
   return (
-    <div className="relative">
+    <div className="px-9 py-1 min-h-screen" style={{ backgroundColor: 'var(--color-blue-whites)' }}>
       {/* Header Section */}
-      <div className="mb-6">
-        <h1 className="text-3xl font-bold text-textPrimary font-playfair mb-1">
-          Calendar Management
-        </h1>
-        <p className="text-textSecondary">
-          Manage availability for both day tours and rooms
-        </p>
-      </div>
+<div className="mb-6 rounded-xl border border-[#7AAAF8]/20 bg-[#7AAAF8]/5 px-5 py-4 shadow-sm">
+  <h1 className="text-3xl font-bold text-[#1E3A8A] font-playfair tracking-tight">
+    Calendar Management
+  </h1>
+  <p className="text-[#4D6FA8] text-sm leading-relaxed mt-1">
+    Manage availability for both day tours and rooms
+  </p>
+</div>
 
       {/* Tab Navigation - Sliding Design */}
 <div className="relative flex items-center mb-6 border-b border-[#4D8CF5]/20">

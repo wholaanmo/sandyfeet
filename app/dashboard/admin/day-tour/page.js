@@ -807,16 +807,16 @@ if (!activeToursSnapshot.empty) {
   };
   
   return (
-    <div className="p-8 min-h-screen" style={{ backgroundColor: 'var(--color-blue-whites)' }}>
+    <div className="px-9 py-1 min-h-screen" style={{ backgroundColor: 'var(--color-blue-whites)' }}>
       {/* Header */}
-      <div className="mb-8">
-        <h1 className="text-3xl font-bold text-textPrimary font-playfair mb-2">
-          Day Tour & Activities Management
-        </h1>
-        <p className="text-textSecondary">
-          Manage your day tour package and adventure activities
-        </p>
-      </div>
+<div className="mb-8 rounded-xl border border-[#7AAAF8]/20 bg-[#7AAAF8]/5 px-5 py-4 shadow-sm">
+  <h1 className="text-3xl font-bold text-[#1E3A8A] font-playfair tracking-tight">
+    Day Tour & Activities Management
+  </h1>
+  <p className="text-[#4D6FA8] text-sm leading-relaxed mt-1">
+    Manage your day tour package and adventure activities
+  </p>
+</div>
       
       {/* Tabs */}
 <div className="relative flex items-center mb-8 border-b border-[#4D8CF5]/20">
@@ -885,76 +885,96 @@ if (!activeToursSnapshot.empty) {
             </div>
           ) : !dayTour ? (
             /* No Day Tour Created - Show Creation Card */
-            <div className="max-w-3xl mx-auto">
-              <div className="bg-white rounded-2xl shadow-md border border-ocean-light/10 overflow-hidden">
-                <div className="bg-gradient-to-r from-ocean-mid to-ocean-light px-6 py-8 text-center">
-                  <div className="w-20 h-20 mx-auto mb-4 bg-white/20 rounded-full flex items-center justify-center">
-                    <i className="fas fa-umbrella-beach text-4xl text-white"></i>
-                  </div>
-                  <h2 className="text-2xl font-bold text-white mb-2">No Day Tour Created Yet</h2>
-                  <p className="text-ocean-pale">Get started by creating your first day tour package</p>
-                </div>
-                <div className="p-8 text-center">
-                  <p className="text-textSecondary mb-6">
-                    Create a day tour package that guests can book. You can only have one active day tour at a time.
-                  </p>
-                  <button
-                    onClick={openAddTourModal}
-                    className="inline-flex items-center gap-2 px-6 py-3 bg-gradient-to-r from-ocean-mid to-ocean-light text-white rounded-xl font-medium shadow-lg hover:shadow-xl hover:-translate-y-0.5 transition-all duration-300"
-                  >
-                    <i className="fas fa-plus text-sm"></i>
-                    Create Day Tour
-                  </button>
-                </div>
-              </div>
-            </div>
+        <div className="max-w-3xl mx-auto">
+  <div className="bg-white rounded-2xl shadow-lg border-2 border-[#4D8CF5]/15 overflow-hidden">
+    
+    {/* Header Section */}
+    <div className="bg-gradient-to-r from-[#4D8CF5]/10 to-[#93C5FD]/20 px-6 py-10 text-center">
+      <div className="w-20 h-20 mx-auto mb-4 bg-[#4D8CF5]/10 rounded-full flex items-center justify-center border border-[#4D8CF5]/20">
+        <i className="fas fa-umbrella-beach text-4xl text-[#4D8CF5]"></i>
+      </div>
+
+      <h2 className="text-2xl font-bold text-[#1E3A8A] mb-2">
+        No Day Tour Created Yet
+      </h2>
+
+      <p className="text-[#1E3A8A]/70">
+        Get started by creating your first day tour package
+      </p>
+    </div>
+
+    {/* Body Section */}
+    <div className="p-8 text-center bg-white/5">
+      <p className="text-[#1E3A8A]/70 mb-6">
+        Create a day tour package that guests can book. You can only have one active day tour at a time.
+      </p>
+
+      <button
+        onClick={openAddTourModal}
+       className="inline-flex items-center gap-2 px-6 py-3 rounded-xl font-medium border border-[#7AAAF8]/30 bg-white/70 backdrop-blur-md text-[#1E3A8A] shadow-sm hover:bg-[#7AAAF8] hover:text-white hover:border-[#7AAAF8] hover:shadow-md hover:-translate-y-0.5 transition-all duration-200"
+      >
+        <i className="fas fa-plus text-sm"></i>
+        Create Day Tour
+      </button>
+    </div>
+  </div>
+</div>
           ) : (
             /* Day Tour Exists - Show Management Card */
             <div className="max-w-4xl mx-auto">
               <div className="bg-white rounded-2xl shadow-md border border-ocean-light/10 overflow-hidden">
-                {/* Tour Header with Status */}
-                <div className="flex justify-between items-start p-6 border-b border-ocean-light/10 bg-gradient-to-r from-ocean-ice/50 to-white">
-                  <div>
-                    <div className="flex items-center gap-3 mb-2">
-                      <h2 className="text-xl font-bold text-textPrimary font-playfair">Day Tour</h2>
-                      <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${getAvailabilityStyle(dayTour.availability)}`}>
-                        {getAvailabilityLabel(dayTour.availability)}
-                      </span>
-                    </div>
-                    {dayTour.maxCapacity && (
-                      <p className="text-textSecondary text-xs flex items-center gap-1">
-                        <i className="fas fa-users text-ocean-light text-xs"></i>
-                        Maximum Capacity: {dayTour.maxCapacity} guests
-                      </p>
-                    )}
-                  </div>
-                  <div className="flex gap-2">
-                    <button
-                      onClick={() => {
-                        setSelectedTour(dayTour);
-                        setShowTourDetailsModal(true);
-                      }}
-                      className="p-1.5 rounded-lg border border-ocean-light/20 bg-white text-ocean-mid hover:bg-ocean-mid hover:text-white transition-all duration-200"
-                      title="View Details"
-                    >
-                      <i className="fas fa-eye text-sm"></i>
-                    </button>
-                    <button
-                      onClick={() => handleEditTour(dayTour)}
-                      className="p-1.5 rounded-lg border border-ocean-light/20 bg-white text-ocean-mid hover:bg-ocean-mid hover:text-white transition-all duration-200"
-                      title="Edit Tour"
-                    >
-                      <i className="fas fa-edit text-sm"></i>
-                    </button>
-                    <button
-                      onClick={() => setConfirmArchiveModal({ show: true, tour: dayTour })}
-                      className="p-1.5 rounded-lg border border-amber-200 bg-white text-amber-600 hover:bg-amber-600 hover:text-white transition-all duration-200"
-                      title="Archive Tour"
-                    >
-                      <i className="fas fa-archive text-sm"></i>
-                    </button>
-                  </div>
-                </div>
+{/* Tour Header with Status */}
+<div className="flex justify-between items-start p-6 border-b border-[#4D8CF5]/20 bg-[#4D8CF5]/10">
+  <div>
+    <div className="flex items-center gap-3 mb-2">
+      <h2 className="text-xl font-bold text-[#1E3A8A] font-playfair">
+        Day Tour
+      </h2>
+
+      <span
+        className={`px-2 py-0.5 rounded-full text-xs font-medium ${getAvailabilityStyle(dayTour.availability)}`}
+      >
+        {getAvailabilityLabel(dayTour.availability)}
+      </span>
+    </div>
+
+    {dayTour.maxCapacity && (
+      <p className="text-[#1E3A8A]/70 text-xs flex items-center gap-1">
+        <i className="fas fa-users text-[#1E3A8A]/60 text-xs"></i>
+        Maximum Capacity: {dayTour.maxCapacity} guests
+      </p>
+    )}
+  </div>
+
+  <div className="flex gap-2">
+    <button
+      onClick={() => {
+        setSelectedTour(dayTour);
+        setShowTourDetailsModal(true);
+      }}
+      className="p-1.5 rounded-lg bg-[#4D8CF5]/10 text-[#1E3A8A] border border-[#4D8CF5]/20 hover:bg-[#4D8CF5] hover:text-white transition-all duration-200"
+      title="View Details"
+    >
+      <i className="fas fa-eye text-sm"></i>
+    </button>
+
+    <button
+      onClick={() => handleEditTour(dayTour)}
+      className="p-1.5 rounded-lg bg-[#93C5FD]/10 text-[#1E3A8A] border border-[#93C5FD]/15 hover:bg-[#4D8CF5] hover:text-white transition-all duration-200"
+      title="Edit Tour"
+    >
+      <i className="fas fa-edit text-sm"></i>
+    </button>
+
+    <button
+      onClick={() => setConfirmArchiveModal({ show: true, tour: dayTour })}
+      className="p-1.5 rounded-lg bg-[#F59E0B]/10 text-[#C2410C] border border-[#F59E0B]/20 hover:bg-[#F59E0B] hover:text-white transition-all duration-200"
+      title="Archive Tour"
+    >
+      <i className="fas fa-archive text-sm"></i>
+    </button>
+  </div>
+</div>
                 
                 {/* Tour Content */}
                 <div className="p-5">
@@ -1045,15 +1065,15 @@ if (!activeToursSnapshot.empty) {
       {activeTab === 'activities' && (
         <>
           {/* Add Activity Button */}
-          <div className="mb-6 flex justify-end">
-            <button
-              onClick={openAddActivityModal}
-              className="flex items-center gap-2 px-5 py-2.5 bg-gradient-to-r from-ocean-mid to-ocean-light text-white rounded-xl font-medium shadow-lg hover:shadow-xl hover:-translate-y-0.5 transition-all duration-300"
-            >
-              <i className="fas fa-plus text-sm"></i>
-              Add New Activity
-            </button>
-          </div>
+<div className="mb-6 flex justify-end">
+  <button
+    onClick={openAddActivityModal}
+    className="flex items-center gap-2 px-5 py-2.5 rounded-xl font-medium border border-[#7AAAF8]/30 bg-white/70 backdrop-blur-md text-[#1E3A8A] shadow-sm hover:bg-[#7AAAF8] hover:text-white hover:border-[#7AAAF8] hover:shadow-md hover:-translate-y-0.5 transition-all duration-200"
+  >
+    <i className="fas fa-plus text-sm"></i>
+    Add New Activity
+  </button>
+</div>
           
           {/* Activities Grid */}
           {loading ? (
@@ -1067,7 +1087,7 @@ if (!activeToursSnapshot.empty) {
               <p className="text-textSecondary mb-4">Add activities like ATV, Banana Boat, Jet Ski, etc.</p>
               <button
                 onClick={openAddActivityModal}
-                className="inline-flex items-center gap-2 px-5 py-2.5 bg-gradient-to-r from-ocean-mid to-ocean-light text-white rounded-xl font-medium hover:shadow-lg transition-all duration-300"
+                className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl font-medium border border-[#7AAAF8]/30 bg-white/70 backdrop-blur-md text-[#1E3A8A] shadow-sm hover:bg-[#7AAAF8] hover:text-white hover:border-[#7AAAF8] hover:shadow-md hover:-translate-y-0.5 transition-all duration-200"
               >
                 <i className="fas fa-plus text-sm"></i>
                 Add First Activity
@@ -1076,7 +1096,7 @@ if (!activeToursSnapshot.empty) {
           ) : (
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
               {activities.map((activity) => (
-                <div key={activity.id} className="bg-white rounded-2xl shadow-md border border-ocean-light/10 overflow-hidden hover:shadow-lg transition-all duration-300">
+                <div key={activity.id} className="bg-white rounded-2xl shadow-md border-2 border-[#4D8CF5]/40 overflow-hidden hover:shadow-lg transition-all duration-300">
                   {/* Activity Image */}
                   <div className="relative h-48 bg-gradient-to-br from-ocean-pale to-ocean-ice overflow-hidden">
                     {activity.images && activity.images[0] ? (
@@ -1094,44 +1114,51 @@ if (!activeToursSnapshot.empty) {
                   </div>
                   
                   {/* Activity Details */}
-                  <div className="p-5">
-                    <h3 className="text-lg font-bold text-textPrimary mb-2">{activity.name}</h3>
-                    <p className="text-2xl font-bold text-ocean-mid mb-2">
-                      ₱{activity.priceValue?.toLocaleString()}
-                      <span className="text-sm font-normal text-textSecondary">
-                        {activity.priceType === 'perHour' && '/hour'}
-                        {activity.priceType === 'per30Mins' && '/30 minutes'}
-                        {activity.priceType === 'per2Hrs' && '/2 hours'}
-                        {activity.priceType === 'per1Hr30Mins' && '/1.5 hours'}
-                      </span>
-                    </p>
-                    <p className="text-sm text-textSecondary line-clamp-2 mb-4">
-                      {activity.description}
-                    </p>
-                    <div className="flex gap-2">
-                      <button
-                        onClick={() => {
-                          setSelectedActivity(activity);
-                          setShowActivityDetailsModal(true);
-                        }}
-                        className="flex-1 px-3 py-2 border border-ocean-light/30 text-ocean-mid rounded-lg text-sm font-medium hover:bg-ocean-mid hover:text-white transition-all duration-200"
-                      >
-                        View Details
-                      </button>
-                      <button
-                        onClick={() => handleEditActivity(activity)}
-                        className="px-3 py-2 border border-ocean-light/30 text-ocean-mid rounded-lg hover:bg-ocean-mid hover:text-white transition-all duration-200"
-                      >
-                        <i className="fas fa-edit"></i>
-                      </button>
-                      <button
-                        onClick={() => setConfirmArchiveActivityModal({ show: true, activity })}
-                        className="px-3 py-2 border border-amber-200 text-amber-600 rounded-lg hover:bg-amber-600 hover:text-white transition-all duration-200"
-                      >
-                        <i className="fas fa-archive"></i>
-                      </button>
-                    </div>
-                  </div>
+<div className="p-5">
+  <h3 className="text-lg font-bold text-[#1E3A8A] mb-2">
+    {activity.name}
+  </h3>
+
+  <p className="text-2xl font-bold text-[#4D8CF5] mb-2">
+    ₱{activity.priceValue?.toLocaleString()}
+    <span className="text-sm font-normal text-[#1E3A8A]/70">
+      {activity.priceType === 'perHour' && '/hour'}
+      {activity.priceType === 'per30Mins' && '/30 minutes'}
+      {activity.priceType === 'per2Hrs' && '/2 hours'}
+      {activity.priceType === 'per1Hr30Mins' && '/1.5 hours'}
+    </span>
+  </p>
+
+  <p className="text-sm text-[#1E3A8A]/70 line-clamp-2 mb-4">
+    {activity.description}
+  </p>
+
+  <div className="flex gap-2">
+    <button
+      onClick={() => {
+        setSelectedActivity(activity);
+        setShowActivityDetailsModal(true);
+      }}
+      className="w-10 h-10 ml-auto rounded-lg bg-[#4D8CF5]/10 text-[#1E3A8A] border border-[#4D8CF5]/20 hover:bg-[#4D8CF5] hover:text-white transition-all duration-200 flex items-center justify-center"
+    >
+      <i className="fas fa-eye"></i>
+    </button>
+
+    <button
+      onClick={() => handleEditActivity(activity)}
+      className="px-3 py-2 rounded-lg bg-[#93C5FD]/10 text-[#1E3A8A] border border-[#93C5FD]/15 hover:bg-[#4D8CF5] hover:text-white transition-all duration-200"
+    >
+      <i className="fas fa-edit"></i>
+    </button>
+
+    <button
+      onClick={() => setConfirmArchiveActivityModal({ show: true, activity })}
+      className="px-3 py-2 rounded-lg bg-[#F59E0B]/10 text-[#C2410C] border border-[#F59E0B]/20 hover:bg-[#F59E0B] hover:text-white transition-all duration-200"
+    >
+      <i className="fas fa-archive"></i>
+    </button>
+  </div>
+</div>
                 </div>
               ))}
             </div>

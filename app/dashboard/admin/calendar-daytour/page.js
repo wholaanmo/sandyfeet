@@ -324,7 +324,7 @@ export default function AdminDayTourCalendar() {
 
   if (!dayTour) {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-ocean-ice to-blue-white flex items-center justify-center">
+      <div className="min-h-screen flex items-center justify-center">
         <div className="text-center">
           <i className="fas fa-umbrella-beach text-5xl text-ocean-light/40 mb-4"></i>
           <h2 className="text-2xl font-bold text-textPrimary mb-2">Day Tour Not Configured</h2>
@@ -715,7 +715,7 @@ export default function AdminDayTourCalendar() {
                       }}
                       disabled={actionLoading}
                       title="Edit entry"
-                      className="w-8 h-8 bg-[#4D8CF5] hover:bg-[#3B78E7] text-white rounded-lg text-xs transition-all duration-200 disabled:opacity-50 flex items-center justify-center"
+                      className="w-8 h-8 rounded-lg bg-[#7AAAF8]/10 text-[#1E3A8A] hover:bg-[#7AAAF8] hover:text-white transition-all duration-200 flex items-center justify-center"
                     >
                       <i className="fas fa-edit text-xs"></i>
                     </button>
@@ -725,7 +725,7 @@ export default function AdminDayTourCalendar() {
                       onClick={() => setRemoveConfirm(item)}
                       disabled={actionLoading}
                       title="Remove entry"
-                      className="w-8 h-8 bg-red-500 hover:bg-red-600 text-white rounded-lg text-xs transition-all duration-200 disabled:opacity-50 flex items-center justify-center"
+                      className="w-8 h-8 rounded-lg bg-red-500/10 text-red-600 hover:bg-red-600/80 hover:text-white transition-all duration-200 flex items-center justify-center disabled:opacity-50"
                     >
                       <i className="fas fa-trash-alt text-xs"></i>
                     </button>
