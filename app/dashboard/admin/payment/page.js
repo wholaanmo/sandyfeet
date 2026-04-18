@@ -1,7 +1,7 @@
 // app/dashboard/admin/payment/page.js
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import { db } from '../../../../lib/firebase';
 import { doc, getDoc, setDoc, updateDoc, onSnapshot, collection, query, orderBy, where, addDoc, deleteDoc, getDocs } from 'firebase/firestore';
 import { uploadImage } from '../../../../lib/cloudinary';
@@ -23,6 +23,7 @@ export default function AdminPaymentPage() {
   const [editingBank, setEditingBank] = useState(null);
   const [showArchiveModal, setShowArchiveModal] = useState(false);
   const [bankToArchive, setBankToArchive] = useState(null);
+  const [activeMainTab, setActiveMainTab] = useState('paymentSettings');
   const [activeRequestsTab, setActiveRequestsTab] = useState('room');
   const [tempBankDetails, setTempBankDetails] = useState({
     bankName: '',
@@ -44,6 +45,71 @@ export default function AdminPaymentPage() {
   const [bankQRFile, setBankQRFile] = useState(null);
   const [bankQRPreview, setBankQRPreview] = useState('');
   const [bankQRUrl, setBankQRUrl] = useState('');
+
+  // Tab slider refs
+  const mainTabsContainerRef = useRef(null);
+  const mainSliderRef = useRef(null);
+  const mainButtonRefs = useRef({});
+  
+  const requestsTabsContainerRef = useRef(null);
+  const requestsSliderRef = useRef(null);
+  const requestsButtonRefs = useRef({});
+
+  // Update slider for main tabs
+  const updateMainSlider = useCallback(() => {
+    const activeButton = mainButtonRefs.current[activeMainTab];
+    const container = mainTabsContainerRef.current;
+    const slider = mainSliderRef.current;
+    if (activeButton && container && slider) {
+      const buttonRect = activeButton.getBoundingClientRect();
+      const containerRect = container.getBoundingClientRect();
+      const left = buttonRect.left - containerRect.left;
+      const width = buttonRect.width;
+      slider.style.transform = `translateX(${left}px)`;
+      slider.style.width = `${width}px`;
+    }
+  }, [activeMainTab]);
+
+  // Update slider for requests tabs
+  const updateRequestsSlider = useCallback(() => {
+    const activeButton = requestsButtonRefs.current[activeRequestsTab];
+    const container = requestsTabsContainerRef.current;
+    const slider = requestsSliderRef.current;
+    if (activeButton && container && slider) {
+      const buttonRect = activeButton.getBoundingClientRect();
+      const containerRect = container.getBoundingClientRect();
+      const left = buttonRect.left - containerRect.left;
+      const width = buttonRect.width;
+      slider.style.transform = `translateX(${left}px)`;
+      slider.style.width = `${width}px`;
+    }
+  }, [activeRequestsTab]);
+
+  useEffect(() => {
+    updateMainSlider();
+    const resizeObserver = new ResizeObserver(() => updateMainSlider());
+    if (mainTabsContainerRef.current) {
+      resizeObserver.observe(mainTabsContainerRef.current);
+    }
+    window.addEventListener('resize', updateMainSlider);
+    return () => {
+      resizeObserver.disconnect();
+      window.removeEventListener('resize', updateMainSlider);
+    };
+  }, [updateMainSlider]);
+
+  useEffect(() => {
+    updateRequestsSlider();
+    const resizeObserver = new ResizeObserver(() => updateRequestsSlider());
+    if (requestsTabsContainerRef.current) {
+      resizeObserver.observe(requestsTabsContainerRef.current);
+    }
+    window.addEventListener('resize', updateRequestsSlider);
+    return () => {
+      resizeObserver.disconnect();
+      window.removeEventListener('resize', updateRequestsSlider);
+    };
+  }, [updateRequestsSlider]);
 
   // Fetch payment settings
  useEffect(() => {
@@ -699,7 +765,7 @@ const handleArchiveBankAccount = async () => {
 
   if (loading) {
     return (
-      <div className="p-8 min-h-screen" style={{ backgroundColor: 'var(--color-blue-white)' }}>
+      <div className="p-8 min-h-screen" style={{ backgroundColor: 'var(--color-blue-whites)' }}>
         <div className="flex justify-center items-center h-64">
           <i className="fas fa-spinner fa-spin text-3xl text-ocean-light"></i>
         </div>
@@ -708,16 +774,16 @@ const handleArchiveBankAccount = async () => {
   }
 
   return (
-    <div className="p-8 min-h-screen" style={{ backgroundColor: 'var(--color-blue-white)' }}>
+    <div className="px-9 py-1 min-h-screen" style={{ backgroundColor: 'var(--color-blue-whites)' }}>
       {/* Header */}
-      <div className="mb-8">
-        <h1 className="text-3xl font-bold text-textPrimary font-playfair mb-2">
-          Payment Settings
-        </h1>
-        <p className="text-textSecondary">
-          Manage GCash QR code and bank account details for guest payments
-        </p>
-      </div>
+<div className="mb-8 rounded-xl border border-[#7AAAF8]/20 bg-[#7AAAF8]/5 px-5 py-4 shadow-sm">
+  <h1 className="text-3xl font-bold text-[#1E3A8A] font-playfair tracking-tight">
+    Payment Settings
+  </h1>
+  <p className="text-[#4D6FA8] text-sm leading-relaxed mt-1">
+    Manage GCash QR code, bank account details, and provide bank transfer information for guest payment requests.
+  </p>
+</div>
 
       {/* Notification */}
       {notification.show && (
@@ -729,417 +795,551 @@ const handleArchiveBankAccount = async () => {
         </div>
       )}
 
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-        {/* GCash Settings */}
-        <div className="bg-white rounded-2xl shadow-md border border-ocean-light/10 overflow-hidden">
-          <div className="bg-ocean-light/20 px-6 py-4 flex justify-between items-center">
-            <h2 className="text-xl font-bold text-textPrimary flex items-center gap-2">
-              <i className="fas fa-wallet"></i>
-              GCash QR Code
-            </h2>
-{gcashQRCode && (
-  <div className="flex gap-2">
-    <button
-      onClick={() => setShowEditQRModal(true)}
-      className="px-3 py-1.5 bg-white text-ocean-mid rounded-lg text-sm font-medium hover:bg-ocean-ice transition-all duration-200"
-      title="Edit QR Code"
-    >
-      <i className="fas fa-edit mr-1"></i> Edit
-    </button>
-    <button
-      onClick={() => setShowArchiveQRModal(true)}
-      className="px-3 py-1.5 bg-white text-amber-600 rounded-lg text-sm font-medium hover:bg-amber-50 transition-all duration-200"
-      title="Archive QR Code"
-    >
-      <i className="fas fa-archive mr-1"></i> Archive
-    </button>
-  </div>
-)}
+      {/* Main Tabs - Copied from day-tour/page.js */}
+      <div className="relative flex items-center mb-8 border-b border-[#4D8CF5]/20">
+        <div className="relative flex w-full" ref={mainTabsContainerRef}>
+          {/* Sliding background */}
+          <div
+            ref={mainSliderRef}
+            className="absolute top-1 bottom-1 w-1/2 rounded-lg bg-[#4D8CF5]/10 transition-all duration-300 ease-in-out shadow-sm"
+          />
+
+          {/* Payment Settings Tab */}
+          <div className="flex-1 flex justify-center">
+            <button
+              ref={(el) => { mainButtonRefs.current['paymentSettings'] = el; }}
+              onClick={() => setActiveMainTab('paymentSettings')}
+              className={`relative z-10 w-full px-6 py-3 font-medium transition-all duration-200 text-center flex items-center justify-center gap-2 ${
+                activeMainTab === 'paymentSettings'
+                  ? 'text-[#1E3A8A]'
+                  : 'text-[#1E3A8A]/60 hover:text-[#4D8CF5]'
+              }`}
+            >
+              <i className="fas fa-credit-card"></i>
+              Payment Settings
+            </button>
           </div>
-          
-          <div className="p-6">
-            <div className="mb-6">
-              
-              {gcashQRCode ? (
-                <div className="relative inline-block">
-                  <div className="w-48 h-48 bg-white rounded-xl border border-ocean-light/20 overflow-hidden relative">
-                    <Image
-                      src={gcashQRCode}
-                      alt="GCash QR Code"
-                      fill
-                      className="object-contain"
-                    />
+
+          {/* Bank Transfer Requests Tab */}
+          <div className="flex-1 flex justify-center">
+            <button
+              ref={(el) => { mainButtonRefs.current['bankTransferRequests'] = el; }}
+              onClick={() => setActiveMainTab('bankTransferRequests')}
+              className={`relative z-10 w-full px-6 py-3 font-medium transition-all duration-200 text-center flex items-center justify-center gap-2 ${
+                activeMainTab === 'bankTransferRequests'
+                  ? 'text-[#1E3A8A]'
+                  : 'text-[#1E3A8A]/60 hover:text-[#4D8CF5]'
+              }`}
+            >
+              <i className="fas fa-exchange-alt"></i>
+              Bank Transfer Requests
+              {(unreadRoomCount > 0 || unreadDayTourCount > 0) && (
+                <span className="ml-2 bg-red-500 text-white text-xs px-2 py-0.5 rounded-full">
+                  {unreadRoomCount + unreadDayTourCount}
+                </span>
+              )}
+            </button>
+          </div>
+        </div>
+      </div>
+
+      {/* Payment Settings Tab Content */}
+      {activeMainTab === 'paymentSettings' && (
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+          {/* GCash Settings */}
+          <div className="bg-white rounded-2xl shadow-md border border-[#4D8CF5]/10 overflow-hidden">
+            {/* Header */}
+            <div className="bg-[#4D8CF5]/10 px-6 py-4 border-b border-[#4D8CF5]/20 flex justify-between items-center">
+              <h2 className="text-xl font-bold text-[#1E3A8A] flex items-center gap-2">
+                <i className="fas fa-wallet"></i>
+                GCash QR Code
+              </h2>
+              {gcashQRCode && (
+                <div className="flex gap-2">
+                  <button
+                    onClick={() => setShowEditQRModal(true)}
+                    className="px-4 py-2 rounded-lg border border-[#7AAAF8]/30 bg-white/70 backdrop-blur-md text-[#1E3A8A] shadow-sm hover:bg-[#7AAAF8] hover:text-white hover:border-[#7AAAF8] hover:shadow-md hover:-translate-y-0.5 transition-all duration-200 text-sm font-medium flex items-center justify-center"
+                    title="Edit QR Code"
+                  >
+                    <i className="fas fa-edit"></i>
+                  </button>
+                  <button
+                    onClick={() => setShowArchiveQRModal(true)}
+                    className="px-4 py-2 rounded-lg border border-[#F59E0B]/20 bg-white/70 text-[#C2410C] shadow-sm hover:bg-[#F59E0B] hover:text-white hover:shadow-md hover:-translate-y-0.5 transition-all duration-200 flex items-center justify-center disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:bg-white/70 disabled:hover:text-[#C2410C]"
+                    title="Archive QR Code"
+                  >
+                    <i className="fas fa-archive"></i>
+                  </button>
+                </div>
+              )}
+            </div>
+            
+            <div className="p-6">
+              <div className="mb-6">
+                {gcashQRCode ? (
+                  <div className="relative inline-block">
+                    <div className="w-48 h-48 bg-white rounded-xl border border-ocean-light/20 overflow-hidden relative">
+                      <Image
+                        src={gcashQRCode}
+                        alt="GCash QR Code"
+                        fill
+                        className="object-contain"
+                      />
+                    </div>
                   </div>
+                ) : (
+                  <div className="border-2 border-dashed border-ocean-light/20 rounded-xl p-8 text-center hover:border-ocean-light transition-colors">
+                    <input
+                      type="file"
+                      accept="image/*"
+                      onChange={handleGCashQRUpload}
+                      disabled={uploadingQR}
+                      className="hidden"
+                      id="gcash-qr-upload"
+                    />
+                    <label
+                      htmlFor="gcash-qr-upload"
+                      className="cursor-pointer flex flex-col items-center gap-3"
+                    >
+                      <i className={`fas ${uploadingQR ? 'fa-spinner fa-spin' : 'fa-qrcode'} text-5xl text-ocean-light`}></i>
+                      <span className="text-sm text-textSecondary">
+                        {uploadingQR ? 'Uploading...' : 'Click to upload GCash QR code'}
+                      </span>
+                      <span className="text-xs text-neutral">PNG, JPG up to 5MB</span>
+                    </label>
+                  </div>
+                )}
+              </div>
+            </div>
+          </div>
+
+          {/* Bank Account Settings */}
+          <div className="bg-white rounded-2xl shadow-md border border-[#4D8CF5]/10 overflow-hidden">
+            {/* Header */}
+            <div className="bg-[#4D8CF5]/10 px-6 py-4 border-b border-[#4D8CF5]/20 flex justify-between items-center">
+              <h2 className="text-xl font-bold text-[#1E3A8A] flex items-center gap-2">
+                <i className="fas fa-university"></i>
+                Bank Accounts
+              </h2>
+              <button
+                onClick={() => {
+                  setEditingBank(null);
+                  setOriginalBankDetails(null);
+                  setTempBankDetails({ bankName: '', accountName: '', accountNumber: '' });
+                  setBankQRFile(null);
+                  setBankQRPreview('');
+                  setBankQRUrl('');
+                  setHasBankChanges(false);
+                  setShowAddBankModal(true);
+                }}
+                className="px-4 py-2 rounded-lg border border-[#7AAAF8]/30 bg-white/70 backdrop-blur-md text-[#1E3A8A] shadow-sm hover:bg-[#7AAAF8] hover:text-white hover:border-[#7AAAF8] hover:shadow-md hover:-translate-y-0.5 transition-all duration-200 text-sm font-medium flex items-center justify-center"
+              >
+                <i className="fas fa-plus mr-1"></i> Add Account
+              </button>
+            </div>
+            
+            <div className="p-6">
+              {activeBankAccounts.length === 0 ? (
+                <div className="text-center py-8">
+                  <i className="fas fa-university text-4xl text-ocean-light/30 mb-2"></i>
+                  <p className="text-textSecondary">No bank accounts added yet</p>
+                  <button
+                    onClick={() => {
+                      setEditingBank(null);
+                      setOriginalBankDetails(null);
+                      setTempBankDetails({ bankName: '', accountName: '', accountNumber: '' });
+                      setBankQRFile(null);
+                      setBankQRPreview('');
+                      setBankQRUrl('');
+                      setHasBankChanges(false);
+                      setShowAddBankModal(true);
+                    }}
+                    className="mt-3 text-sm text-ocean-mid hover:underline"
+                  >
+                    Add your first bank account
+                  </button>
                 </div>
               ) : (
-                <div className="border-2 border-dashed border-ocean-light/20 rounded-xl p-8 text-center hover:border-ocean-light transition-colors">
-                  <input
-                    type="file"
-                    accept="image/*"
-                    onChange={handleGCashQRUpload}
-                    disabled={uploadingQR}
-                    className="hidden"
-                    id="gcash-qr-upload"
-                  />
-                  <label
-                    htmlFor="gcash-qr-upload"
-                    className="cursor-pointer flex flex-col items-center gap-3"
-                  >
-                    <i className={`fas ${uploadingQR ? 'fa-spinner fa-spin' : 'fa-qrcode'} text-5xl text-ocean-light`}></i>
-                    <span className="text-sm text-textSecondary">
-                      {uploadingQR ? 'Uploading...' : 'Click to upload GCash QR code'}
-                    </span>
-                    <span className="text-xs text-neutral">PNG, JPG up to 5MB</span>
-                  </label>
+                <div className="space-y-3">
+                  {activeBankAccounts.map((account) => (
+                    <div key={account.id} className="border border-ocean-light/20 rounded-lg p-4 hover:shadow-md transition-all duration-200">
+                      <div className="flex justify-between items-start">
+                        <div className="flex-1">
+                          <p className="font-semibold text-textPrimary">{account.bankName}</p>
+                          <p className="text-sm text-textSecondary mt-1">{account.accountName}</p>
+                          {account.accountNumber ? (
+                            <p className="text-sm text-textSecondary">{account.accountNumber}</p>
+                          ) : account.qrCodeUrl ? (
+                            <div className="mt-1 flex items-center gap-2">
+                              <i className="fas fa-qrcode text-ocean-mid text-sm"></i>
+                              <span className="text-sm text-textSecondary">QR Code provided</span>
+                            </div>
+                          ) : null}
+                        </div>
+                        <div className="flex gap-2">
+                          <button
+                            onClick={() => openEditBankModal(account)}
+                            className="p-2 rounded-lg bg-[#93C5FD]/10 text-[#1E3A8A] border border-[#93C5FD]/15 hover:bg-[#93C5FD]/60 hover:text-white transition-all duration-200"
+                            title="Edit"
+                          >
+                            <i className="fas fa-edit"></i>
+                          </button>
+                          <button
+                            onClick={() => openArchiveModal(account)}
+                            className="p-2 rounded-lg bg-[#F59E0B]/10 text-[#C2410C] border border-[#F59E0B]/20 hover:bg-[#F59E0B] hover:text-white transition-all duration-200"
+                            title="Archive"
+                          >
+                            <i className="fas fa-archive"></i>
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+                  ))}
                 </div>
               )}
             </div>
           </div>
         </div>
+      )}
 
-        {/* Bank Account Settings */}
+      {/* Bank Transfer Requests Tab Content */}
+      {activeMainTab === 'bankTransferRequests' && (
         <div className="bg-white rounded-2xl shadow-md border border-ocean-light/10 overflow-hidden">
-          <div className="bg-ocean-light/20 px-6 py-4 flex justify-between items-center">
-            <h2 className="text-xl font-bold text-textPrimary flex items-center gap-2">
-              <i className="fas fa-university"></i>
-                Bank Accounts
-            </h2>
-            <button
-              onClick={() => {
-                setEditingBank(null);
-                setOriginalBankDetails(null);
-                setTempBankDetails({ bankName: '', accountName: '', accountNumber: '' });
-                setBankQRFile(null);
-                setBankQRPreview('');
-                setBankQRUrl('');
-                setHasBankChanges(false);
-                setShowAddBankModal(true);
-              }}
-              className="px-3 py-1.5 bg-white text-ocean-mid rounded-lg text-sm font-medium hover:bg-ocean-ice transition-all duration-200"
-            >
-              <i className="fas fa-plus mr-1"></i> Add Account
-            </button>
+          {/* Tabs for Room vs Day Tour - IMPROVED ACTIVE STATE */}
+          <div className="relative flex items-center border-b border-[#4D8CF5]/20 px-6">
+            <div className="relative flex gap-8" ref={requestsTabsContainerRef}>
+              {/* Sliding background */}
+              <div
+                ref={requestsSliderRef}
+                className="absolute bottom-0 left-0 h-0.5 bg-[#1E3A8A] transition-all duration-300 ease-in-out"
+              />
+
+              {/* Room Bookings Tab */}
+              <button
+                ref={(el) => { requestsButtonRefs.current['room'] = el; }}
+                onClick={() => handleTabChange('room')}
+                className={`relative z-10 px-2 py-3 font-medium transition-all duration-200 text-center flex items-center gap-2 ${
+                  activeRequestsTab === 'room'
+                    ? 'text-[#1E3A8A]'
+                    : 'text-[#1E3A8A]/60 hover:text-[#4D8CF5]'
+                }`}
+              >
+                <i className="fas fa-bed text-sm"></i>
+                <span>Room Bookings</span>
+                {unreadRoomCount > 0 && (
+                  <span className="ml-1 bg-red-500 text-white text-xs px-1.5 py-0.5 rounded-full">
+                    {unreadRoomCount}
+                  </span>
+                )}
+              </button>
+
+              {/* Day Tour Bookings Tab */}
+              <button
+                ref={(el) => { requestsButtonRefs.current['daytour'] = el; }}
+                onClick={() => handleTabChange('daytour')}
+                className={`relative z-10 px-2 py-3 font-medium transition-all duration-200 text-center flex items-center gap-2 ${
+                  activeRequestsTab === 'daytour'
+                    ? 'text-[#1E3A8A]'
+                    : 'text-[#1E3A8A]/60 hover:text-[#4D8CF5]'
+                }`}
+              >
+                <i className="fas fa-sun text-sm"></i>
+                <span>Day Tour Bookings</span>
+                {unreadDayTourCount > 0 && (
+                  <span className="ml-1 bg-red-500 text-white text-xs px-1.5 py-0.5 rounded-full">
+                    {unreadDayTourCount}
+                  </span>
+                )}
+              </button>
+            </div>
+          </div>
+
+          <div className="px-6 pt-4 pb-2">
+            <div className="relative max-w-md">
+              <i className="fas fa-search absolute left-3 top-1/2 -translate-y-1/2 text-neutral text-sm"></i>
+              <input
+                type="text"
+                value={requestsSearchTerm}
+                onChange={(e) => setRequestsSearchTerm(e.target.value)}
+                placeholder="Search by name, email, bank account, or date"
+                className="w-full pl-9 pr-3 py-2.5 border border-ocean-light/20 rounded-xl text-sm focus:outline-none focus:border-ocean-light bg-white"
+              />
+            </div>
           </div>
           
-          <div className="p-6">
-            {activeBankAccounts.length === 0 ? (
-              <div className="text-center py-8">
-                <i className="fas fa-university text-4xl text-ocean-light/30 mb-2"></i>
-                <p className="text-textSecondary">No bank accounts added yet</p>
-                <button
-                  onClick={() => {
-                    setEditingBank(null);
-                    setOriginalBankDetails(null);
-                    setTempBankDetails({ bankName: '', accountName: '', accountNumber: '' });
-                    setBankQRFile(null);
-                    setBankQRPreview('');
-                    setBankQRUrl('');
-                    setHasBankChanges(false);
-                    setShowAddBankModal(true);
-                  }}
-                  className="mt-3 text-sm text-ocean-mid hover:underline"
-                >
-                  Add your first bank account
-                </button>
-              </div>
-            ) : (
-              <div className="space-y-3">
-                {activeBankAccounts.map((account) => (
-                  <div key={account.id} className="border border-ocean-light/20 rounded-lg p-4 hover:shadow-md transition-all duration-200">
-                    <div className="flex justify-between items-start">
-                      <div className="flex-1">
-                        <p className="font-semibold text-textPrimary">{account.bankName}</p>
-                        <p className="text-sm text-textSecondary mt-1">{account.accountName}</p>
-                        {account.accountNumber ? (
-                          <p className="text-sm text-textSecondary">{account.accountNumber}</p>
-                        ) : account.qrCodeUrl ? (
-                          <div className="mt-1 flex items-center gap-2">
-                            <i className="fas fa-qrcode text-ocean-mid text-sm"></i>
-                            <span className="text-sm text-textSecondary">QR Code provided</span>
-                          </div>
-                        ) : null}
-                      </div>
-                      <div className="flex gap-2">
-                        <button
-                          onClick={() => openEditBankModal(account)}
-                          className="p-2 text-ocean-mid hover:bg-ocean-ice rounded-lg transition-all duration-200"
-                          title="Edit"
-                        >
-                          <i className="fas fa-edit"></i>
-                        </button>
-                        <button
-                          onClick={() => openArchiveModal(account)}
-                          className="p-2 text-amber-600 hover:bg-amber-50 rounded-lg transition-all duration-200"
-                          title="Archive"
-                        >
-                          <i className="fas fa-archive"></i>
-                        </button>
-                      </div>
-                    </div>
+          <div className="p-6 pt-2">
+            {/* Room Bookings Requests - IMPROVED CARD DESIGN */}
+            {activeRequestsTab === 'room' && (
+              <>
+                {roomRequestsFiltered.length === 0 ? (
+                  <div className="text-center py-12">
+                    <i className="fas fa-check-circle text-5xl text-green-300 mb-3"></i>
+                    <p className="text-textSecondary">No bank transfer requests for room bookings</p>
                   </div>
-                ))}
-              </div>
-            )}
-          </div>
-        </div>
-      </div>
+                ) : (
+                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
+                    {roomRequestsFiltered.map((request) => {
+                      const isCompleted = request.status === 'completed';
+                      const isNew = !viewedRoomRequests.has(request.id);
+                      const cardBorderClass = isNew && !isCompleted 
+                        ? 'border-l-4 border-l-amber-400 border border-amber-200 bg-amber-50/20' 
+                        : 'border border-gray-200';
 
-      {/* Bank Transfer Requests Section with Tabs */}
-      <div className="mt-8 bg-white rounded-2xl shadow-md border border-ocean-light/10 overflow-hidden">
-        <div className="bg-ocean-light/20 px-6 py-4">
-          <h2 className="text-xl font-bold text-textPrimary flex items-center gap-2">
-            <i className="fas fa-clock"></i>
-            Bank Transfer Requests
-          </h2>
-        </div>
-        
-        {/* Tabs for Room vs Day Tour */}
-        <div className="flex border-b border-ocean-light/20 px-6 pt-4">
-          <button
-            onClick={() => handleTabChange('room')}
-            className={`px-4 py-2 font-medium transition-all duration-200 ${
-              activeRequestsTab === 'room'
-                ? 'text-ocean-mid border-b-2 border-ocean-mid'
-                : 'text-textSecondary hover:text-ocean-mid'
-            }`}
-          >
-            <i className="fas fa-bed mr-2"></i>
-            Room Bookings
-            {unreadRoomCount > 0 && (
-              <span className="ml-2 bg-red-500 text-white text-xs px-2 py-0.5 rounded-full">
-                {unreadRoomCount}
-              </span>
-            )}
-          </button>
-          <button
-            onClick={() => handleTabChange('daytour')}
-            className={`px-4 py-2 font-medium transition-all duration-200 ${
-              activeRequestsTab === 'daytour'
-                ? 'text-ocean-mid border-b-2 border-ocean-mid'
-                : 'text-textSecondary hover:text-ocean-mid'
-            }`}
-          >
-            <i className="fas fa-sun mr-2"></i>
-            Day Tour Bookings
-            {unreadDayTourCount > 0 && (
-              <span className="ml-2 bg-red-500 text-white text-xs px-2 py-0.5 rounded-full">
-                {unreadDayTourCount}
-              </span>
-            )}
-          </button>
-        </div>
-
-        <div className="px-6 pt-4">
-          <div className="relative max-w-md">
-            <i className="fas fa-search absolute left-3 top-1/2 -translate-y-1/2 text-neutral text-sm"></i>
-            <input
-              type="text"
-              value={requestsSearchTerm}
-              onChange={(e) => setRequestsSearchTerm(e.target.value)}
-              placeholder="Search by name, email, bank account, or date"
-              className="w-full pl-9 pr-3 py-2.5 border border-ocean-light/20 rounded-xl text-sm focus:outline-none focus:border-ocean-light bg-white"
-            />
-          </div>
-        </div>
-        
-        <div className="p-6">
-          {/* Room Bookings Requests */}
-          {activeRequestsTab === 'room' && (
-            <>
-              {roomRequestsFiltered.length === 0 ? (
-                <div className="text-center py-12">
-                  <i className="fas fa-check-circle text-5xl text-green-300 mb-3"></i>
-                  <p className="text-textSecondary">No bank transfer requests for room bookings</p>
-                </div>
-              ) : (
-                <div className="space-y-4">
-                  {roomRequestsFiltered.map((request) => {
-                    const isCompleted = request.status === 'completed';
-                    const isNew = !viewedRoomRequests.has(request.id);
-                    const hasBorder = isNew && !isCompleted;
-
-                    return (
-                      <div key={request.id} className={`border rounded-xl p-4 hover:shadow-md transition-all duration-200 ${hasBorder ? 'border-amber-300 bg-amber-50/30' : 'border-ocean-light/20'}`}>
-                        <div className="flex justify-between items-start">
-                          <div className="flex-1">
-                            <div className="flex items-center gap-2 mb-2">
-                              <p className="font-semibold text-textPrimary">
-                                {request.guestName}
-                              </p>
-                              <span className="text-xs text-gray-400">
-                                {getTimeAgo(request.createdAt)}
-                              </span>
-                              {isCompleted && (
-                                <span className="text-xs bg-green-100 text-green-700 px-2 py-0.5 rounded-full">
-                                  Completed
-                                </span>
-                              )}
-                              {isNew && !isCompleted && (
-                                <span className="text-xs bg-amber-100 text-amber-700 px-2 py-0.5 rounded-full">
-                                  New
-                                </span>
-                              )}
-                            </div>
-                            <p className="text-sm text-textSecondary">{request.guestEmail}</p>
-                            <p className="text-sm text-textSecondary">{request.guestPhone}</p>
-                            <p className="text-sm font-medium text-ocean-mid mt-2">
-                              Room: {request.roomType}
-                            </p>
-                            <p className="text-sm text-textSecondary">
-                              Total Amount: ₱{request.totalPrice?.toLocaleString()}
-                            </p>
-                            <p className="text-sm font-semibold text-amber-600 mt-1">
-                              Down Payment Required (50%): ₱{request.downPayment?.toLocaleString()}
-                            </p>
-                           {request.requestedBank && (
-  <div className="mt-2 p-2 bg-ocean-ice rounded-lg">
-    <p className="text-xs font-semibold text-ocean-mid">Requested Bank:</p>
-    <p className="text-sm text-textPrimary">{request.requestedBank.bankName}</p>
-    <p className="text-xs text-textSecondary">{request.requestedBank.accountName}</p>
-    {request.requestedBank.qrCodeUrl ? (
-      <div className="mt-2">
-        <div className="w-24 h-24 bg-white rounded border border-ocean-light/20 overflow-hidden relative">
-          <img
-            src={request.requestedBank.qrCodeUrl}
-            alt="Bank QR Code"
-            className="object-contain w-full h-full"
-          />
-        </div>
-        <p className="text-xs text-textSecondary mt-1">QR Code</p>
-      </div>
-    ) : request.requestedBank.accountNumber && request.requestedBank.accountNumber !== 'QR Code Provided' ? (
-      <p className="text-xs text-textSecondary">Account: {request.requestedBank.accountNumber}</p>
-    ) : null}
-  </div>
-)}
-                            {isCompleted && request.providedBankDetails && (
-                              <div className="mt-2 text-xs text-green-600 bg-green-50 p-2 rounded">
-                                <i className="fas fa-check-circle mr-1"></i>
-                                Bank details provided: {request.providedBankDetails.bankName} - {request.providedBankDetails.accountName}
+                      return (
+                        <div key={request.id} className={`${cardBorderClass} rounded-xl bg-white shadow-sm hover:shadow-md transition-all duration-200 overflow-hidden flex flex-col`}>
+                          {/* Card Header */}
+                          <div className="px-4 py-3 border-b border-gray-100 bg-gray-50/30">
+                            <div className="flex items-center justify-between flex-wrap gap-1">
+                              <div className="flex items-center gap-2">
+                                <p className="font-semibold text-gray-800">
+                                  {request.guestName}
+                                </p>
+                                {isNew && !isCompleted && (
+                                  <span className="text-[10px] bg-amber-100 text-amber-700 px-1.5 py-0.5 rounded-full font-medium">
+                                    New
+                                  </span>
+                                )}
                               </div>
-                            )}
+                              <div className="flex items-center gap-1 text-xs text-gray-400">
+                                <span>{getTimeAgo(request.createdAt)}</span>
+                                <span className="text-gray-300">•</span>
+                                <span title={new Date(request.createdAt).toLocaleString()}>
+                                  {new Date(request.createdAt).toLocaleDateString()}
+                                </span>
+                              </div>
+                            </div>
                           </div>
-                          {!isCompleted ? (
-                            <button
-                              onClick={() => openConfirmationDialog(request)}
-                              className="px-4 py-2 bg-amber-500 text-white rounded-lg text-sm font-medium hover:bg-amber-600 transition-all duration-200"
-                            >
-                              Provide Bank Details
-                            </button>
-                          ) : (
-                            <div className="px-4 py-2 bg-green-100 text-green-700 rounded-lg text-sm font-medium flex items-center gap-1">
-                              <i className="fas fa-check-circle"></i>
-                              Already Provided
-                            </div>
-                          )}
-                        </div>
-                      </div>
-                    );
-                  })}
-                </div>
-              )}
-            </>
-          )}
 
-          {/* Day Tour Bookings Requests */}
-          {activeRequestsTab === 'daytour' && (
-            <>
-              {dayTourRequestsFiltered.length === 0 ? (
-                <div className="text-center py-12">
-                  <i className="fas fa-sun text-5xl text-amber-300 mb-3"></i>
-                  <p className="text-textSecondary">No bank transfer requests for day tour bookings</p>
-                </div>
-              ) : (
-                <div className="space-y-4">
-                  {dayTourRequestsFiltered.map((request) => {
-                    const isCompleted = request.status === 'completed';
-                    const isNew = !viewedDayTourRequests.has(request.id);
-                    const hasBorder = isNew && !isCompleted;
-
-                    return (
-                      <div key={request.id} className={`border rounded-xl p-4 hover:shadow-md transition-all duration-200 ${hasBorder ? 'border-amber-300 bg-amber-50/30' : 'border-ocean-light/20'}`}>
-                        <div className="flex justify-between items-start">
-                          <div className="flex-1">
-                            <div className="flex items-center gap-2 mb-2">
-                              <p className="font-semibold text-textPrimary">
-                                {request.guestName}
+                          {/* Card Body */}
+                          <div className="p-4 space-y-3 flex-1">
+                            {/* Contact Info */}
+                            <div className="space-y-1">
+                              <p className="text-sm text-gray-600 flex items-center gap-1">
+                                <i className="fas fa-envelope text-gray-400 text-xs w-4"></i>
+                                {request.guestEmail}
                               </p>
-                              <span className="text-xs text-gray-400">
-                                {getTimeAgo(request.createdAt)}
-                              </span>
-                              {isCompleted && (
-                                <span className="text-xs bg-green-100 text-green-700 px-2 py-0.5 rounded-full">
-                                  Completed
-                                </span>
-                              )}
-                              {isNew && !isCompleted && (
-                                <span className="text-xs bg-amber-100 text-amber-700 px-2 py-0.5 rounded-full">
-                                  New
-                                </span>
-                              )}
+                              <p className="text-sm text-gray-600 flex items-center gap-1">
+                                <i className="fas fa-phone text-gray-400 text-xs w-4"></i>
+                                {request.guestPhone}
+                              </p>
                             </div>
-                            <p className="text-sm text-textSecondary">{request.guestEmail}</p>
-                            <p className="text-sm text-textSecondary">{request.guestPhone}</p>
-                            <p className="text-sm text-textSecondary">
-                              Selected Date: {request.selectedDate}
-                            </p>
-                            <p className="text-sm text-textSecondary">
-                              Total Amount: ₱{request.totalAmount?.toLocaleString()}
-                            </p>
-                            <p className="text-sm font-semibold text-amber-600 mt-1">
-                              Down Payment Required (50%): ₱{request.downPaymentRequired?.toLocaleString()}
-                            </p>
+
+                            {/* Booking Details */}
+                            <div className="bg-gray-50 rounded-lg p-2 space-y-1">
+                              <p className="text-sm font-medium text-gray-700 flex justify-between">
+                                <span>Room:</span>
+                                <span className="font-normal">{request.roomType}</span>
+                              </p>
+                              <p className="text-sm text-gray-600 flex justify-between">
+                                <span>Total:</span>
+                                <span>₱{request.totalPrice?.toLocaleString()}</span>
+                              </p>
+                              <p className="text-sm font-semibold text-amber-600 flex justify-between">
+                                <span>Down Payment (50%):</span>
+                                <span>₱{request.downPayment?.toLocaleString()}</span>
+                              </p>
+                            </div>
+
+                            {/* Requested Bank Details - Clean & Organized */}
                             {request.requestedBank && (
-  <div className="mt-2 p-2 bg-ocean-ice rounded-lg">
-    <p className="text-xs font-semibold text-ocean-mid">Requested Bank:</p>
-    <p className="text-sm text-textPrimary">{request.requestedBank.bankName}</p>
-    <p className="text-xs text-textSecondary">{request.requestedBank.accountName}</p>
-    {request.requestedBank.qrCodeUrl ? (
-      <div className="mt-2">
-        <div className="w-24 h-24 bg-white rounded border border-ocean-light/20 overflow-hidden relative">
-          <img
-            src={request.requestedBank.qrCodeUrl}
-            alt="Bank QR Code"
-            className="object-contain w-full h-full"
-          />
-        </div>
-        <p className="text-xs text-textSecondary mt-1">QR Code</p>
-      </div>
-    ) : request.requestedBank.accountNumber && request.requestedBank.accountNumber !== 'QR Code Provided' ? (
-      <p className="text-xs text-textSecondary">Account: {request.requestedBank.accountNumber}</p>
-    ) : null}
-  </div>
-)}
+                              <div className="border-t border-gray-100 pt-2 mt-1">
+                                <p className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-2 flex items-center gap-1">
+                                  <i className="fas fa-university"></i>
+                                  Requested Bank
+                                </p>
+                                <div className="bg-blue-50/30 rounded-lg p-2 space-y-1">
+                                  <p className="text-sm font-medium text-gray-800">{request.requestedBank.bankName}</p>
+                                  <p className="text-xs text-gray-600">{request.requestedBank.accountName}</p>
+                                  {request.requestedBank.qrCodeUrl ? (
+                                    <div className="mt-2 flex flex-col items-start">
+                                      <div className="w-16 h-16 bg-white rounded border border-gray-200 overflow-hidden relative">
+                                        <img
+                                          src={request.requestedBank.qrCodeUrl}
+                                          alt="Bank QR Code"
+                                          className="object-contain w-full h-full"
+                                        />
+                                      </div>
+                                      <p className="text-[11px] text-gray-500 mt-1">QR Code</p>
+                                    </div>
+                                  ) : request.requestedBank.accountNumber && request.requestedBank.accountNumber !== 'QR Code Provided' ? (
+                                    <p className="text-xs text-gray-600 break-all">
+                                      <span className="font-medium">Account No.:</span> {request.requestedBank.accountNumber}
+                                    </p>
+                                  ) : null}
+                                </div>
+                              </div>
+                            )}
+
                             {isCompleted && request.providedBankDetails && (
-                              <div className="mt-2 text-xs text-green-600 bg-green-50 p-2 rounded">
-                                <i className="fas fa-check-circle mr-1"></i>
-                                Bank details provided: {request.providedBankDetails.bankName} - {request.providedBankDetails.accountName}
+                              <div className="mt-2 text-xs text-green-700 bg-green-50 p-2 rounded-lg flex items-start gap-2">
+                                <i className="fas fa-check-circle mt-0.5"></i>
+                                <span>Bank details sent: {request.providedBankDetails.bankName} - {request.providedBankDetails.accountName}</span>
                               </div>
                             )}
                           </div>
-                          {!isCompleted ? (
-                            <button
-                              onClick={() => openConfirmationDialog(request)}
-                              className="px-4 py-2 bg-amber-500 text-white rounded-lg text-sm font-medium hover:bg-amber-600 transition-all duration-200"
-                            >
-                              Provide Bank Details
-                            </button>
-                          ) : (
-                            <div className="px-4 py-2 bg-green-100 text-green-700 rounded-lg text-sm font-medium flex items-center gap-1">
-                              <i className="fas fa-check-circle"></i>
-                              Already Provided
-                            </div>
-                          )}
+
+                          {/* Card Footer */}
+                          <div className="px-4 py-3 bg-gray-50/50 border-t border-gray-100">
+                            {!isCompleted ? (
+                              <button
+                                onClick={() => openConfirmationDialog(request)}
+                                className="w-full py-2 bg-amber-500 hover:bg-amber-600 text-white rounded-lg text-sm font-medium transition-colors duration-200 flex items-center justify-center gap-2"
+                              >
+                                <i className="fas fa-paper-plane text-xs"></i>
+                                Provide Bank Details
+                              </button>
+                            ) : (
+                              <div className="w-full py-2 bg-green-100 text-green-700 rounded-lg text-sm font-medium flex items-center justify-center gap-2">
+                                <i className="fas fa-check-circle"></i>
+                                Already Provided
+                              </div>
+                            )}
+                          </div>
                         </div>
-                      </div>
-                    );
-                  })}
-                </div>
-              )}
-            </>
-          )}
+                      );
+                    })}
+                  </div>
+                )}
+              </>
+            )}
+
+            {/* Day Tour Bookings Requests - IMPROVED CARD DESIGN */}
+            {activeRequestsTab === 'daytour' && (
+              <>
+                {dayTourRequestsFiltered.length === 0 ? (
+                  <div className="text-center py-12">
+                    <i className="fas fa-sun text-5xl text-amber-300 mb-3"></i>
+                    <p className="text-textSecondary">No bank transfer requests for day tour bookings</p>
+                  </div>
+                ) : (
+                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
+                    {dayTourRequestsFiltered.map((request) => {
+                      const isCompleted = request.status === 'completed';
+                      const isNew = !viewedDayTourRequests.has(request.id);
+                      const cardBorderClass = isNew && !isCompleted 
+                        ? 'border-l-4 border-l-amber-400 border border-amber-200 bg-amber-50/20' 
+                        : 'border border-gray-200';
+
+                      return (
+                        <div key={request.id} className={`${cardBorderClass} rounded-xl bg-white shadow-sm hover:shadow-md transition-all duration-200 overflow-hidden flex flex-col`}>
+                          {/* Card Header */}
+                          <div className="px-4 py-3 border-b border-gray-100 bg-gray-50/30">
+                            <div className="flex items-center justify-between flex-wrap gap-1">
+                              <div className="flex items-center gap-2">
+                                <p className="font-semibold text-gray-800">
+                                  {request.guestName}
+                                </p>
+                                {isNew && !isCompleted && (
+                                  <span className="text-[10px] bg-amber-100 text-amber-700 px-1.5 py-0.5 rounded-full font-medium">
+                                    New
+                                  </span>
+                                )}
+                              </div>
+                              <div className="flex items-center gap-1 text-xs text-gray-400">
+                                <span>{getTimeAgo(request.createdAt)}</span>
+                                <span className="text-gray-300">•</span>
+                                <span title={new Date(request.createdAt).toLocaleString()}>
+                                  {new Date(request.createdAt).toLocaleDateString()}
+                                </span>
+                              </div>
+                            </div>
+                          </div>
+
+                          {/* Card Body */}
+                          <div className="p-4 space-y-3 flex-1">
+                            {/* Contact Info */}
+                            <div className="space-y-1">
+                              <p className="text-sm text-gray-600 flex items-center gap-1">
+                                <i className="fas fa-envelope text-gray-400 text-xs w-4"></i>
+                                {request.guestEmail}
+                              </p>
+                              <p className="text-sm text-gray-600 flex items-center gap-1">
+                                <i className="fas fa-phone text-gray-400 text-xs w-4"></i>
+                                {request.guestPhone}
+                              </p>
+                            </div>
+
+                            {/* Booking Details */}
+                            <div className="bg-gray-50 rounded-lg p-2 space-y-1">
+                              <p className="text-sm text-gray-600 flex justify-between">
+                                <span>Selected Date:</span>
+                                <span className="font-medium">{request.selectedDate}</span>
+                              </p>
+                              <p className="text-sm text-gray-600 flex justify-between">
+                                <span>Total:</span>
+                                <span>₱{request.totalAmount?.toLocaleString()}</span>
+                              </p>
+                              <p className="text-sm font-semibold text-amber-600 flex justify-between">
+                                <span>Down Payment (50%):</span>
+                                <span>₱{request.downPaymentRequired?.toLocaleString()}</span>
+                              </p>
+                            </div>
+
+                            {/* Requested Bank Details - Clean & Organized */}
+                            {request.requestedBank && (
+                              <div className="border-t border-gray-100 pt-2 mt-1">
+                                <p className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-2 flex items-center gap-1">
+                                  <i className="fas fa-university"></i>
+                                  Requested Bank
+                                </p>
+                                <div className="bg-blue-50/30 rounded-lg p-2 space-y-1">
+                                  <p className="text-sm font-medium text-gray-800">{request.requestedBank.bankName}</p>
+                                  <p className="text-xs text-gray-600">{request.requestedBank.accountName}</p>
+                                  {request.requestedBank.qrCodeUrl ? (
+                                    <div className="mt-2 flex flex-col items-start">
+                                      <div className="w-16 h-16 bg-white rounded border border-gray-200 overflow-hidden relative">
+                                        <img
+                                          src={request.requestedBank.qrCodeUrl}
+                                          alt="Bank QR Code"
+                                          className="object-contain w-full h-full"
+                                        />
+                                      </div>
+                                      <p className="text-[11px] text-gray-500 mt-1">QR Code</p>
+                                    </div>
+                                  ) : request.requestedBank.accountNumber && request.requestedBank.accountNumber !== 'QR Code Provided' ? (
+                                    <p className="text-xs text-gray-600 break-all">
+                                      <span className="font-medium">Account No.:</span> {request.requestedBank.accountNumber}
+                                    </p>
+                                  ) : null}
+                                </div>
+                              </div>
+                            )}
+
+                            {isCompleted && request.providedBankDetails && (
+                              <div className="mt-2 text-xs text-green-700 bg-green-50 p-2 rounded-lg flex items-start gap-2">
+                                <i className="fas fa-check-circle mt-0.5"></i>
+                                <span>Bank details sent: {request.providedBankDetails.bankName} - {request.providedBankDetails.accountName}</span>
+                              </div>
+                            )}
+                          </div>
+
+                          {/* Card Footer */}
+                          <div className="px-4 py-3 bg-gray-50/50 border-t border-gray-100">
+                            {!isCompleted ? (
+                              <button
+                                onClick={() => openConfirmationDialog(request)}
+                                className="w-full py-2 bg-amber-500 hover:bg-amber-600 text-white rounded-lg text-sm font-medium transition-colors duration-200 flex items-center justify-center gap-2"
+                              >
+                                <i className="fas fa-paper-plane text-xs"></i>
+                                Provide Bank Details
+                              </button>
+                            ) : (
+                              <div className="w-full py-2 bg-green-100 text-green-700 rounded-lg text-sm font-medium flex items-center justify-center gap-2">
+                                <i className="fas fa-check-circle"></i>
+                                Already Provided
+                              </div>
+                            )}
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+              </>
+            )}
+          </div>
         </div>
-      </div>
+      )}
 
       {/* Add/Edit Bank Account Modal */}
       {showAddBankModal && (
@@ -1307,24 +1507,24 @@ const handleArchiveBankAccount = async () => {
             </div>
             {/* Display the guest's requested bank details */}
             <div className="bg-ocean-ice rounded-lg p-3 mb-5">
-  <p className="text-xs font-semibold text-ocean-mid uppercase">Requested Bank</p>
-  <p className="text-sm font-semibold text-textPrimary mt-1">{selectedRequest.requestedBank?.bankName}</p>
-  <p className="text-sm text-textSecondary">{selectedRequest.requestedBank?.accountName}</p>
-  {selectedRequest.requestedBank?.qrCodeUrl ? (
-    <div className="mt-2">
-      <div className="w-32 h-32 bg-white rounded border border-ocean-light/20 overflow-hidden relative mx-auto">
-        <img
-          src={selectedRequest.requestedBank.qrCodeUrl}
-          alt="Bank QR Code"
-          className="object-contain w-full h-full"
-        />
-      </div>
-      <p className="text-xs text-center text-textSecondary mt-1">QR Code</p>
-    </div>
-  ) : selectedRequest.requestedBank?.accountNumber && selectedRequest.requestedBank.accountNumber !== 'QR Code Provided' ? (
-    <p className="text-sm text-textSecondary">{selectedRequest.requestedBank.accountNumber}</p>
-  ) : null}
-</div>
+              <p className="text-xs font-semibold text-ocean-mid uppercase">Requested Bank</p>
+              <p className="text-sm font-semibold text-textPrimary mt-1">{selectedRequest.requestedBank?.bankName}</p>
+              <p className="text-sm text-textSecondary">{selectedRequest.requestedBank?.accountName}</p>
+              {selectedRequest.requestedBank?.qrCodeUrl ? (
+                <div className="mt-2">
+                  <div className="w-32 h-32 bg-white rounded border border-ocean-light/20 overflow-hidden relative mx-auto">
+                    <img
+                      src={selectedRequest.requestedBank.qrCodeUrl}
+                      alt="Bank QR Code"
+                      className="object-contain w-full h-full"
+                    />
+                  </div>
+                  <p className="text-xs text-center text-textSecondary mt-1">QR Code</p>
+                </div>
+              ) : selectedRequest.requestedBank?.accountNumber && selectedRequest.requestedBank.accountNumber !== 'QR Code Provided' ? (
+                <p className="text-sm text-textSecondary">{selectedRequest.requestedBank.accountNumber}</p>
+              ) : null}
+            </div>
             <div className="flex gap-3 justify-center">
               <button
                 onClick={() => {

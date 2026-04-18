@@ -415,18 +415,18 @@ const handleDelete = async () => {
   };
   
   return (
-    <div className="p-8 min-h-screen"style={{ backgroundColor: 'var(--color-blue-white)' }} >
+    <div className="px-9 py-1 min-h-screen" style={{ backgroundColor: 'var(--color-blue-whites)' }}>
       {/* Header */}
-      <div className="flex justify-between items-center mb-6">
-        <div>
-          <h1 className="text-3xl font-bold text-textPrimary font-playfair mb-1">
-            Archive Management
-          </h1>
-          <p className="text-textSecondary">
-            Restore, or permanently delete archived items
-          </p>
-        </div>
-      </div>
+<div className="flex justify-between items-center mb-6">
+  <div className="w-full rounded-xl border border-[#7AAAF8]/20 bg-[#7AAAF8]/5 px-5 py-4 shadow-sm">
+    <h1 className="text-3xl font-bold text-[#1E3A8A] font-playfair tracking-tight mb-1">
+      Archive Management
+    </h1>
+    <p className="text-[#4D6FA8] text-sm leading-relaxed">
+      Restore or permanently delete archived items
+    </p>
+  </div>
+</div>
       
       {/* Notification */}
       {notification.show && (
@@ -440,82 +440,86 @@ const handleDelete = async () => {
       
 {/* Tabs with sliding underline */}
 <div
-  className="relative flex gap-2 mb-6 border-b border-ocean-light/20 overflow-x-auto"
+  className="relative flex gap-2 mb-6 border-b border-[#4D8CF5]/20 overflow-x-auto"
   ref={tabsContainerRef}
 >
-  {/* Sliding background (dynamic like your original system) */}
+  {/* Sliding background */}
   <div
     ref={sliderRef}
-    className="absolute top-1 bottom-1 rounded-md bg-ocean-pales/20 transition-all duration-300 ease-in-out shadow-md"
+    className="absolute top-1 bottom-1 rounded-lg bg-[#4D8CF5]/10 transition-all duration-300 ease-in-out shadow-sm"
     style={{
       transform: 'translateX(0px)',
       width: '0px',
     }}
   />
 
-  {/* Tabs */}
+  {/* Archived Rooms */}
   <button
     ref={(el) => (buttonRefs.current.rooms = el)}
     onClick={() => setActiveTab('rooms')}
-    className={`relative z-10 px-6 py-3 font-medium transition-all duration-200 whitespace-nowrap ${
+    className={`relative z-10 px-6 py-3 font-medium transition-all duration-200 whitespace-nowrap flex items-center gap-2 ${
       activeTab === 'rooms'
-        ? 'text-ocean-mid'
-        : 'text-textSecondary hover:text-ocean-mid'
+        ? 'text-[#1E3A8A]'
+        : 'text-[#1E3A8A]/60 hover:text-[#4D8CF5]'
     }`}
   >
-    <i className="fas fa-bed mr-2"></i>
+    <i className="fas fa-bed"></i>
     Archived Rooms
   </button>
 
+  {/* Archived Day Tours */}
   <button
     ref={(el) => (buttonRefs.current.daytours = el)}
     onClick={() => setActiveTab('daytours')}
-    className={`relative z-10 px-6 py-3 font-medium transition-all duration-200 whitespace-nowrap ${
+    className={`relative z-10 px-6 py-3 font-medium transition-all duration-200 whitespace-nowrap flex items-center gap-2 ${
       activeTab === 'daytours'
-        ? 'text-ocean-mid'
-        : 'text-textSecondary hover:text-ocean-mid'
+        ? 'text-[#1E3A8A]'
+        : 'text-[#1E3A8A]/60 hover:text-[#4D8CF5]'
     }`}
   >
-    <i className="fas fa-sun mr-2"></i>
+    <i className="fas fa-sun"></i>
     Archived Day Tours
   </button>
 
+  {/* Archived Activities */}
   <button
     ref={(el) => (buttonRefs.current.activities = el)}
     onClick={() => setActiveTab('activities')}
-    className={`relative z-10 px-6 py-3 font-medium transition-all duration-200 whitespace-nowrap ${
+    className={`relative z-10 px-6 py-3 font-medium transition-all duration-200 whitespace-nowrap flex items-center gap-2 ${
       activeTab === 'activities'
-        ? 'text-ocean-mid'
-        : 'text-textSecondary hover:text-ocean-mid'
+        ? 'text-[#1E3A8A]'
+        : 'text-[#1E3A8A]/60 hover:text-[#4D8CF5]'
     }`}
   >
-    <i className="fas fa-bicycle mr-2"></i>
+    <i className="fas fa-bicycle"></i>
     Archived Activities
   </button>
 
+  {/* Archived Bank Accounts */}
   <button
     ref={(el) => (buttonRefs.current.bankaccounts = el)}
     onClick={() => setActiveTab('bankaccounts')}
-    className={`relative z-10 px-6 py-3 font-medium transition-all duration-200 whitespace-nowrap ${
+    className={`relative z-10 px-6 py-3 font-medium transition-all duration-200 whitespace-nowrap flex items-center gap-2 ${
       activeTab === 'bankaccounts'
-        ? 'text-ocean-mid'
-        : 'text-textSecondary hover:text-ocean-mid'
+        ? 'text-[#1E3A8A]'
+        : 'text-[#1E3A8A]/60 hover:text-[#4D8CF5]'
     }`}
   >
-    <i className="fas fa-university mr-2"></i>
+    <i className="fas fa-university"></i>
     Archived Bank Accounts
   </button>
 
+  {/* Archived GCash QR */}
   <button
     ref={(el) => (buttonRefs.current.gcashqr = el)}
     onClick={() => setActiveTab('gcashqr')}
-    className={`relative z-10 px-6 py-3 font-medium transition-all duration-200 whitespace-nowrap ${
+    className={`relative z-10 px-6 py-3 font-medium transition-all duration-200 whitespace-nowrap flex items-center gap-2 ${
       activeTab === 'gcashqr'
-        ? 'text-ocean-mid'
-        : 'text-textSecondary hover:text-ocean-mid'
+        ? 'text-[#1E3A8A]'
+        : 'text-[#1E3A8A]/60 hover:text-[#4D8CF5]'
     }`}
   >
-    <i className="fas fa-wallet mr-2"></i>
+    <i className="fas fa-wallet"></i>
     Archived GCash QR
   </button>
 </div>
@@ -606,7 +610,7 @@ const handleDelete = async () => {
                         <div className="flex gap-2">
                           <button
                             onClick={() => setRestoreModal({ show: true, item: room, type: 'room' })}
-                            className="px-3 py-2 rounded-lg bg-green-500/10 text-green-600 hover:bg-green-600 hover:text-white transition-all duration-200 flex items-center gap-1"
+                            className="px-3 py-2 rounded-lg bg-green-500/10 text-green-600 hover:bg-green-600/80 hover:text-white transition-all duration-200 flex items-center gap-1"
                             title="Restore"
                           >
                             <i className="fas fa-trash-restore"></i>
@@ -614,7 +618,7 @@ const handleDelete = async () => {
                           </button>
                           <button
                             onClick={() => setDeleteModal({ show: true, item: room, type: 'room' })}
-                            className="px-3 py-2 rounded-lg bg-red-500/10 text-red-600 hover:bg-red-600 hover:text-white transition-all duration-200 flex items-center gap-1"
+                            className="px-3 py-2 rounded-lg bg-red-500/10 text-red-600 hover:bg-red-600/80 hover:text-white transition-all duration-200 flex items-center gap-1"
                             title="Permanently Delete"
                           >
                             <i className="fas fa-trash-alt"></i>
@@ -693,7 +697,7 @@ const handleDelete = async () => {
                   <div className="flex gap-2">
                     <button
                       onClick={() => setRestoreModal({ show: true, item: tour, type: 'daytour' })}
-                      className="px-3 py-2 rounded-lg bg-green-500/10 text-green-600 hover:bg-green-600 hover:text-white transition-all duration-200 flex items-center gap-1"
+                      className="px-3 py-2 rounded-lg bg-green-500/10 text-green-600 hover:bg-green-600/80 hover:text-white transition-all duration-200 flex items-center gap-1"
                       title="Restore"
                     >
                       <i className="fas fa-trash-restore"></i>
@@ -701,7 +705,7 @@ const handleDelete = async () => {
                     </button>
                     <button
                       onClick={() => setDeleteModal({ show: true, item: tour, type: 'daytour' })}
-                      className="px-3 py-2 rounded-lg bg-red-500/10 text-red-600 hover:bg-red-600 hover:text-white transition-all duration-200 flex items-center gap-1"
+                      className="px-3 py-2 rounded-lg bg-red-500/10 text-red-600 hover:bg-red-600/80 hover:text-white transition-all duration-200 flex items-center gap-1"
                       title="Permanently Delete"
                     >
                       <i className="fas fa-trash-alt"></i>
@@ -781,7 +785,7 @@ const handleDelete = async () => {
                     <div className="flex gap-2">
                       <button
                         onClick={() => setRestoreModal({ show: true, item: activity, type: 'activity' })}
-                        className="px-3 py-2 rounded-lg bg-green-500/10 text-green-600 hover:bg-green-600 hover:text-white transition-all duration-200 flex items-center gap-1"
+                        className="px-3 py-2 rounded-lg bg-green-500/10 text-green-600 hover:bg-green-600/80 hover:text-white transition-all duration-200 flex items-center gap-1"
                         title="Restore"
                       >
                         <i className="fas fa-trash-restore"></i>
@@ -789,7 +793,7 @@ const handleDelete = async () => {
                       </button>
                       <button
                         onClick={() => setDeleteModal({ show: true, item: activity, type: 'activity' })}
-                        className="px-3 py-2 rounded-lg bg-red-500/10 text-red-600 hover:bg-red-600 hover:text-white transition-all duration-200 flex items-center gap-1"
+                        className="px-3 py-2 rounded-lg bg-red-500/10 text-red-600 hover:bg-red-600/80 hover:text-white transition-all duration-200 flex items-center gap-1"
                         title="Permanently Delete"
                       >
                         <i className="fas fa-trash-alt"></i>
@@ -845,7 +849,7 @@ const handleDelete = async () => {
                         <div className="flex gap-2">
                           <button
                             onClick={() => setRestoreModal({ show: true, item: account, type: 'bankaccount' })}
-                            className="px-3 py-2 rounded-lg bg-green-500/10 text-green-600 hover:bg-green-600 hover:text-white transition-all duration-200 flex items-center gap-1"
+                            className="px-3 py-2 rounded-lg bg-green-500/10 text-green-600 hover:bg-green-600/80 hover:text-white transition-all duration-200 flex items-center gap-1"
                             title="Restore"
                           >
                             <i className="fas fa-trash-restore"></i>
@@ -853,7 +857,7 @@ const handleDelete = async () => {
                           </button>
                           <button
                             onClick={() => setDeleteModal({ show: true, item: account, type: 'bankaccount' })}
-                            className="px-3 py-2 rounded-lg bg-red-500/10 text-red-600 hover:bg-red-600 hover:text-white transition-all duration-200 flex items-center gap-1"
+                            className="px-3 py-2 rounded-lg bg-red-500/10 text-red-600 hover:bg-red-600/80 hover:text-white transition-all duration-200 flex items-center gap-1"
                             title="Permanently Delete"
                           >
                             <i className="fas fa-trash-alt"></i>
@@ -911,7 +915,7 @@ const handleDelete = async () => {
                   <div className="flex gap-2">
                     <button
                       onClick={() => setRestoreModal({ show: true, item: qr, type: 'gcashqr' })}
-                      className="px-3 py-2 rounded-lg bg-green-500/10 text-green-600 hover:bg-green-600 hover:text-white transition-all duration-200 flex items-center gap-1"
+                      className="px-3 py-2 rounded-lg bg-green-500/10 text-green-600 hover:bg-green-600/80 hover:text-white transition-all duration-200 flex items-center gap-1"
                       title="Restore"
                     >
                       <i className="fas fa-trash-restore"></i>
@@ -919,7 +923,7 @@ const handleDelete = async () => {
                     </button>
                     <button
                       onClick={() => setDeleteModal({ show: true, item: qr, type: 'gcashqr' })}
-                      className="px-3 py-2 rounded-lg bg-red-500/10 text-red-600 hover:bg-red-600 hover:text-white transition-all duration-200 flex items-center gap-1"
+                      className="px-3 py-2 rounded-lg bg-red-500/10 text-red-600 hover:bg-red-600/80 hover:text-white transition-all duration-200 flex items-center gap-1"
                       title="Permanently Delete"
                     >
                       <i className="fas fa-trash-alt"></i>

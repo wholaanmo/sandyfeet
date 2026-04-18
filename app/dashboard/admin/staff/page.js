@@ -522,26 +522,26 @@ const handleResendVerification = async () => {
   };
 
   return (
-    <div className="p-8 min-h-screen"style={{ backgroundColor: 'var(--color-blue-white)' }} >
+    <div className="px-9 py-1 min-h-screen" style={{ backgroundColor: 'var(--color-blue-whites)' }}>
       {/* Header */}
-      <div className="flex justify-between items-center mb-8">
-        <div>
-          <h1 className="text-3xl font-bold text-textPrimary font-playfair mb-1">
-            Staff Management
-          </h1>
-          <p className="text-textSecondary">
-            Manage staff accounts, roles, and status
-          </p>
-        </div>
-        
-        <button
-          onClick={openAddModal}
-          className="flex items-center gap-2 px-5 py-2.5 bg-gradient-to-r from-ocean-mid to-ocean-light text-white rounded-xl font-medium shadow-lg hover:shadow-xl hover:-translate-y-0.5 transition-all duration-300"
-        >
-          <i className="fas fa-plus text-sm"></i>
-          Add New Staff
-        </button>
-      </div>
+<div className="flex justify-between items-center mb-8 rounded-xl border border-[#7AAAF8]/20 bg-[#7AAAF8]/5 px-5 py-4 shadow-sm">
+  <div>
+    <h1 className="text-3xl font-bold text-[#1E3A8A] font-playfair tracking-tight mb-1">
+      Staff Management
+    </h1>
+    <p className="text-[#4D6FA8] text-sm leading-relaxed">
+      Manage staff accounts, roles, and status
+    </p>
+  </div>
+
+<button
+  onClick={openAddModal}
+  className="flex items-center gap-2 px-5 py-2.5 rounded-xl font-medium border border-[#7AAAF8]/30 bg-white/70 backdrop-blur-md text-[#1E3A8A] shadow-sm hover:bg-[#7AAAF8] hover:text-white hover:border-[#7AAAF8] hover:shadow-md hover:-translate-y-0.5 transition-all duration-200"
+>
+  <i className="fas fa-plus text-sm"></i>
+  Add New Staff
+</button>
+</div>
 
       {/* Notification - Lower position to avoid navbar overlap */}
       {notification.show && (
@@ -676,7 +676,7 @@ const handleResendVerification = async () => {
 )}
                           <button
                             onClick={() => handleToggleStatus(member)}
-                            className="p-2 rounded-lg border border-ocean-light/20 bg-white text-textSecondary hover:bg-ocean-light hover:text-white hover:border-ocean-light transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:bg-white disabled:hover:text-textSecondary"
+                            className="p-2 rounded-lg bg-[#F59E0B]/10 text-[#C2410C] border border-[#F59E0B]/20 hover:bg-[#F59E0B] hover:text-white transition-all duration-200 flex items-center justify-center disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:bg-[#F59E0B]/10 disabled:hover:text-[#C2410C]"
                             title={member.status === 'active' ? 'Deactivate' : 'Activate'}
                             disabled={isToggleDisabled}
                           >
@@ -686,7 +686,7 @@ const handleResendVerification = async () => {
                           {member.role === 'staff' && member.status !== 'pending_verification' ? (
                             <button
                               onClick={() => handlePromoteToAdmin(member)}
-                              className="p-2 rounded-lg border border-ocean-light/20 bg-white text-ocean-light hover:bg-ocean-light hover:text-white hover:border-ocean-light transition-all duration-200"
+                              className="p-2 rounded-lg bg-green-500/10 text-green-700 border border-green-500/15 hover:bg-green-500/60 hover:text-white transition-all duration-200"
                               title="Promote to Admin"
                             >
                               <i className="fas fa-arrow-up"></i>
@@ -694,7 +694,7 @@ const handleResendVerification = async () => {
                           ) : member.role === 'admin' && (
                             <button
                               onClick={() => handleDemoteToStaff(member)}
-                              className="p-2 rounded-lg border border-ocean-light/20 bg-white text-ocean-deep hover:bg-ocean-deep hover:text-white hover:border-ocean-deep transition-all duration-200"
+                              className="p-2 rounded-lg bg-green-500/10 text-green-700 border border-green-500/15 hover:bg-green-500/60 hover:text-white transition-all duration-200"
                               title="Demote to Staff"
                             >
                               <i className="fas fa-arrow-down"></i>
@@ -703,7 +703,7 @@ const handleResendVerification = async () => {
 
                           <button
                             onClick={() => handleViewStaff(member)}
-                            className="p-2 rounded-lg border border-ocean-light/20 bg-white text-ocean-mid hover:bg-ocean-mid hover:text-white hover:border-ocean-mid transition-all duration-200"
+                            className="p-2 rounded-lg bg-[#7AAAF8]/10 text-[#1E3A8A] border border-[#7AAAF8]/20 hover:bg-[#7AAAF8] hover:text-white transition-all duration-200 flex items-center justify-center"
                             title="View/Edit Staff Information"
                           >
                             <i className="fas fa-eye"></i>
@@ -1034,37 +1034,75 @@ const handleResendVerification = async () => {
       )}
 
       {/* Confirmation Modal */}
-      {confirmationModal.show && (
-        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-[60] p-4">
-          <div className="bg-white rounded-2xl w-full max-w-sm p-6 shadow-2xl animate-scaleIn">
-            <div className="text-center mb-5">
-              <div className="w-14 h-14 mx-auto mb-3 rounded-full bg-amber-100 flex items-center justify-center">
-                <i className="fas fa-exclamation-triangle text-amber-500 text-2xl"></i>
-              </div>
-              <h3 className="text-lg font-bold text-textPrimary mb-2">{confirmationModal.title}</h3>
-              <p className="text-textSecondary text-sm">{confirmationModal.message}</p>
-            </div>
-            <div className="flex gap-3 justify-center">
-              <button
-                onClick={() => setConfirmationModal({ show: false, action: '', staffMember: null, title: '', message: '' })}
-                className="px-5 py-2 border border-ocean-light/20 rounded-xl text-textSecondary text-sm font-medium hover:bg-ocean-ice transition-all duration-300"
-              >
-                Cancel
-              </button>
-              <button
-                onClick={() => {
-                  if (confirmationModal.action === 'toggleStatus') confirmToggleStatus();
-                  else if (confirmationModal.action === 'promote') confirmPromoteToAdmin();
-                  else if (confirmationModal.action === 'demote') confirmDemoteToStaff();
-                }}
-                className="px-5 py-2 bg-gradient-to-r from-amber-500 to-amber-600 rounded-xl text-white text-sm font-medium hover:shadow-lg hover:-translate-y-0.5 transition-all duration-300"
-              >
-                Confirm
-              </button>
-            </div>
-          </div>
+{confirmationModal.show && (
+  <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-[60] p-4">
+    <div className="bg-white rounded-2xl w-full max-w-sm p-6 shadow-2xl animate-scaleIn">
+      <div className="text-center mb-5">
+        <div
+  className={`w-14 h-14 mx-auto mb-3 rounded-full flex items-center justify-center ${
+    confirmationModal.action === 'promote' || confirmationModal.action === 'demote'
+      ? 'bg-green-100'
+      : confirmationModal.action === 'toggleStatus'
+        ? 'className="w-14 h-14 mx-auto mb-3 rounded-full bg-amber-100 flex items-center justify-center'
+        : ''
+  }`}
+>
+          <i
+  className={`fas fa-exclamation-triangle text-2xl ${
+    confirmationModal.action === 'promote' || confirmationModal.action === 'demote'
+      ? 'text-green-500'
+      : confirmationModal.action === 'toggleStatus'
+        ? 'text-amber-500'
+        : ''
+  }`}
+/>
         </div>
-      )}
+
+        <h3 className="text-lg font-bold text-textPrimary mb-2">
+          {confirmationModal.title}
+        </h3>
+
+        <p className="text-textSecondary text-sm">
+          {confirmationModal.message}
+        </p>
+      </div>
+
+      <div className="flex gap-3 justify-center">
+        <button
+          onClick={() =>
+            setConfirmationModal({
+              show: false,
+              action: '',
+              staffMember: null,
+              title: '',
+              message: ''
+            })
+          }
+          className="px-5 py-2 border border-ocean-light/20 rounded-xl text-textSecondary text-sm font-medium hover:bg-ocean-ice transition-all duration-300"
+        >
+          Cancel
+        </button>
+
+        <button
+          onClick={() => {
+            if (confirmationModal.action === 'toggleStatus') confirmToggleStatus();
+            else if (confirmationModal.action === 'promote') confirmPromoteToAdmin();
+            else if (confirmationModal.action === 'demote') confirmDemoteToStaff();
+          }}
+          className={`px-5 py-2 rounded-xl text-white text-sm font-medium hover:shadow-lg hover:-translate-y-0.5 transition-all duration-300 ${
+  confirmationModal.action === 'promote' || confirmationModal.action === 'demote'
+    ? 'bg-gradient-to-r from-green-500 to-green-600'
+    : confirmationModal.action === 'toggleStatus'
+      ? 'className="px-5 py-2 bg-gradient-to-r from-amber-500 to-amber-600 rounded-xl text-white text-sm font-medium hover:shadow-lg hover:-translate-y-0.5 transition-all duration-300'
+      : ''
+}`}
+        >
+          Confirm
+        </button>
+      </div>
+    </div>
+  </div>
+)}
 
       <style jsx>{`
         @keyframes slideInRight {

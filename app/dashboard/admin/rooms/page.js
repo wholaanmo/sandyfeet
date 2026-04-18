@@ -604,26 +604,26 @@ export default function AdminRooms() {
   const totalMaintenanceRooms = rooms.reduce((sum, room) => sum + (room.maintenanceRooms || 0), 0);
   
   return (
-    <div className="p-8 min-h-screen" style={{ backgroundColor: 'var(--color-blue-white)' }}>
+    <div className="px-9 py-1 min-h-screen" style={{ backgroundColor: 'var(--color-blue-whites)' }}>
       {/* Header */}
-      <div className="flex justify-between items-center mb-6">
-        <div>
-          <h1 className="text-3xl font-bold text-textPrimary font-playfair mb-1">
-            Room Management
-          </h1>
-          <p className="text-textSecondary">
-            Manage your resort rooms, pricing, and availability
-          </p>
-        </div>
-        
-        <button
-          onClick={openAddModal}
-          className="flex items-center gap-2 px-5 py-2.5 bg-gradient-to-r from-ocean-mid to-ocean-light text-white rounded-xl font-medium shadow-lg hover:shadow-xl hover:-translate-y-0.5 transition-all duration-300"
-        >
-          <i className="fas fa-plus text-sm"></i>
-          Add New Room
-        </button>
-      </div>
+<div className="flex justify-between items-center mb-6 rounded-xl border border-[#7AAAF8]/20 bg-[#7AAAF8]/5 px-5 py-4 shadow-sm">
+  <div>
+    <h1 className="text-3xl font-bold text-[#1E3A8A] font-playfair tracking-tight mb-1">
+      Room Management
+    </h1>
+    <p className="text-[#4D6FA8] text-sm leading-relaxed">
+      Manage your resort rooms, pricing, and availability
+    </p>
+  </div>
+
+<button
+  onClick={openAddModal}
+  className="flex items-center gap-2 px-5 py-2.5 rounded-xl font-medium border border-[#7AAAF8]/30 bg-white/70 backdrop-blur-md text-[#1E3A8A] shadow-sm hover:bg-[#7AAAF8] hover:text-white hover:border-[#7AAAF8] hover:shadow-md hover:-translate-y-0.5 transition-all duration-200"
+>
+  <i className="fas fa-plus text-sm"></i>
+  Add New Room
+</button>
+</div>
       
       {/* Statistics Cards */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-6">
@@ -754,20 +754,20 @@ export default function AdminRooms() {
                         <div className="flex gap-2">
                           <button
                             onClick={() => handleViewRoom(room)}
-                            className="p-2 rounded-lg border border-ocean-light/20 bg-white text-ocean-mid hover:bg-ocean-mid hover:text-white hover:border-ocean-mid transition-all duration-200"
+                            className="p-2 rounded-lg bg-[#7AAAF8]/10 text-[#1E3A8A] border border-[#7AAAF8]/20 hover:bg-[#4D8CF5]/80 hover:text-white transition-all duration-200 flex items-center disabled:opacity-50"
                             title="View Details"
                           >
                             <i className="fas fa-eye"></i>
                           </button>
                           <button
                             onClick={() => handleEditRoom(room)}
-                            className="p-2 rounded-lg border border-ocean-light/20 bg-white text-ocean-mid hover:bg-ocean-mid hover:text-white hover:border-ocean-mid transition-all duration-200"
+                            className="p-2 rounded-lg bg-[#93C5FD]/10 text-[#1E3A8A] border border-[#93C5FD]/20 hover:bg-[#93C5FD]/80 hover:text-white transition-all duration-200 flex items-center disabled:opacity-50"
                           >
                             <i className="fas fa-edit"></i>
                           </button>
                           <button
                             onClick={() => setConfirmArchiveModal({ show: true, room })}
-                            className="p-2 rounded-lg border border-amber-200 bg-white text-amber-600 hover:bg-amber-600 hover:text-white hover:border-amber-600 transition-all duration-200"
+                            className="p-2 rounded-lg bg-[#F59E0B]/10 text-[#C2410C] border border-[#F59E0B]/20 hover:bg-[#F59E0B] hover:text-white hover:border-[#F59E0B] transition-all duration-200"
                             title="Archive Room"
                           >
                             <i className="fas fa-archive"></i>

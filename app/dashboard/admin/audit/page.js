@@ -162,7 +162,7 @@ export default function AuditLogs() {
   };
 
   return (
-    <div className="p-8 min-h-screen"style={{ backgroundColor: 'var(--color-blue-white)' }} >
+    <div className="px-9 py-1 min-h-screen" style={{ backgroundColor: 'var(--color-blue-whites)' }}>
       {/* Notification */}
       {notification.show && (
         <div className={`fixed top-20 right-5 z-50 px-5 py-3 rounded-xl shadow-lg flex items-center gap-3 animate-slideInRight ${
@@ -174,14 +174,14 @@ export default function AuditLogs() {
       )}
 
       {/* Header */}
-      <div className="mb-8">
-        <h1 className="text-3xl font-bold text-textPrimary font-playfair mb-1">
-          Audit Logs
-        </h1>
-        <p className="text-textSecondary">
-          Track all administrative actions across the system
-        </p>
-      </div>
+<div className="mb-8 rounded-xl border border-[#7AAAF8]/20 bg-[#7AAAF8]/5 px-5 py-4 shadow-sm">
+  <h1 className="text-3xl font-bold text-[#1E3A8A] font-playfair tracking-tight">
+    Audit Logs
+  </h1>
+  <p className="text-[#4D6FA8] text-sm leading-relaxed mt-1">
+    Track all administrative actions across the system
+  </p>
+</div>
 
       {/* Search + Date Filter */}
       <div className="mb-6 grid grid-cols-1 md:grid-cols-3 gap-3">
