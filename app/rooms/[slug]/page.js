@@ -466,6 +466,26 @@ export default function RoomDetailsPage({ params }) {
     const totalGuests = normalizedGuests;
     const totalPrice = (roomData.price || 0) * roomQuantity * numberOfNights;
 
+    if (roomQuantity === 1) {
+      sessionStorage.removeItem('multiRoomBooking');
+      sessionStorage.removeItem('multiRoomBookingDraft');
+
+      const singleRoomParams = new URLSearchParams({
+        roomId: roomData.id,
+        roomType: roomData.type,
+        price: String(roomData.price || 0),
+        maxCapacity: String(roomData.capacityMax || 1),
+        totalRooms: String(roomData.totalRooms || 1),
+        checkIn: checkIn.toISOString(),
+        checkOut: checkOut.toISOString(),
+        nights: String(numberOfNights),
+        numberOfRooms: '1'
+      });
+
+      router.push(`/rooms/booking?${singleRoomParams.toString()}`);
+      return;
+    }
+
     const bookingData = {
       selectedRooms: { [roomData.type]: roomQuantity },
       totalGuestsPerType: { [roomData.type]: totalGuests },
@@ -800,7 +820,7 @@ export default function RoomDetailsPage({ params }) {
                         <button
                           type="button"
                           onClick={() => setCalendarOpen(false)}
-                          className="w-full py-2 bg-gray-900 text-white rounded-xl text-xs font-bold hover:bg-black transition-all shadow-lg shadow-gray-900/20"
+                          className="w-full py-2 bg-blue-600 text-white rounded-xl text-xs font-bold hover:bg-blue-700 transition-all shadow-lg shadow-blue-500/20"
                         >
                           Confirm Dates
                         </button>

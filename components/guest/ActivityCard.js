@@ -64,7 +64,7 @@ export default function ActivityCard({ activity }) {
 
   return (
     <>
-      <div className="bg-white rounded-2xl shadow-md overflow-hidden hover:shadow-xl transition-all duration-300 group flex flex-col sm:flex-row">
+      <div className="group overflow-hidden rounded-2xl border border-ocean-light/15 bg-white shadow-[0_10px_24px_rgb(0,0,0,0.06)] transition-all duration-300 hover:-translate-y-1 hover:shadow-[0_16px_34px_rgb(0,0,0,0.1)] flex flex-col sm:flex-row">
         {/* Activity Image - Left side (30-35% width) */}
         <div 
           className="relative sm:w-[35%] md:w-[30%] h-48 sm:h-auto min-h-[180px] bg-gradient-to-br from-ocean-pale to-ocean-ice overflow-hidden cursor-pointer"
@@ -75,7 +75,7 @@ export default function ActivityCard({ activity }) {
               src={activity.images[0]}
               alt={activity.name}
               fill
-              className="object-cover group-hover:scale-105 transition-transform duration-500"
+              className="object-cover transition-transform duration-500 group-hover:scale-[1.04]"
               onError={() => setImageError(true)}
             />
           ) : (
@@ -83,26 +83,36 @@ export default function ActivityCard({ activity }) {
               <i className="fas fa-bicycle text-5xl text-ocean-light/30"></i>
             </div>
           )}
+
+          <div className="pointer-events-none absolute inset-x-0 bottom-0 h-16 bg-gradient-to-t from-black/35 to-transparent" />
+          <div className="absolute left-3 top-3 rounded-full bg-white/90 px-2.5 py-1 text-[11px] font-semibold text-ocean-mid backdrop-blur-sm">
+            Activity
+          </div>
         </div>
         
         {/* Activity Details - Right side (65-70% width) */}
         <div className="flex-1 p-5 flex flex-col">
-          <h3 className="text-xl font-bold text-textPrimary mb-2 line-clamp-1">{activity.name}</h3>
+          <div className="mb-3 flex items-start justify-between gap-3">
+            <div>
+              <h3 className="font-playfair text-xl font-bold text-textPrimary line-clamp-1">{activity.name}</h3>
+              <p className="mt-0.5 text-xs uppercase tracking-wider text-textSecondary">Outdoor experience</p>
+            </div>
+          </div>
           
-          <div className="mb-3">
+          <div className="mb-3 rounded-xl border border-ocean-light/10 bg-ocean-ice/45 px-3 py-2">
             <p className="text-2xl font-bold text-ocean-mid">
               ₱{activity.priceValue?.toLocaleString()}
               <span className="text-sm font-normal text-textSecondary ml-1">{priceDisplay.label}</span>
             </p>
           </div>
           
-          <p className="text-sm text-textSecondary line-clamp-2 mb-4 flex-1">
+          <p className="text-sm leading-relaxed text-textSecondary line-clamp-2 mb-4 flex-1">
             {activity.description}
           </p>
           
           <button
             onClick={openSidebar}
-            className="w-full sm:w-auto px-5 py-2.5 border border-ocean-light/30 text-ocean-mid rounded-xl font-medium hover:bg-ocean-mid hover:text-white hover:border-ocean-mid transition-all duration-300 text-center"
+            className="w-full sm:w-auto rounded-lg border border-ocean-mid/35 px-4 py-2 text-sm font-semibold text-ocean-mid transition-all duration-300 hover:border-ocean-mid hover:bg-ocean-mid hover:text-white text-center"
           >
             View Details
           </button>
@@ -120,14 +130,13 @@ export default function ActivityCard({ activity }) {
             onClick={closeSidebar}
           />
           
-          {/* Sidebar Modal - 50% transparent with backdrop blur */}
+          {/* Sidebar Modal - Slides from right */}
           <div 
-            className={`fixed top-0 right-0 h-full w-full max-w-md bg-black/50 backdrop-blur-lg shadow-2xl z-50 transform transition-transform duration-300 ease-out ${
+            className={`fixed top-0 right-0 h-full w-full max-w-md bg-white/95 backdrop-blur-md shadow-2xl z-50 transform transition-transform duration-300 ease-out ${
               isAnimating ? 'translate-x-0' : 'translate-x-full'
             }`}
           >
-            {/* Content Container with solid background for readability */}
-            <div className="flex flex-col h-full overflow-hidden bg-white/95">
+            <div className="flex flex-col h-full overflow-hidden">
               {/* Modal Header */}
               <div className="sticky top-0 bg-white/90 backdrop-blur-sm border-b border-gray-100 px-5 py-4 flex justify-between items-center z-10 flex-shrink-0">
                 <h2 className="text-lg font-bold text-textPrimary font-playfair truncate flex-1">

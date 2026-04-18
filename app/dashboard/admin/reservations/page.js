@@ -187,6 +187,11 @@ export default function AdminReservations() {
     // Process multi-room groups to create consolidated display
     const consolidatedGroups = [];
     for (const [parentId, group] of multiRoomGroups) {
+      if (group.bookings.length <= 1) {
+        singleBookings.push(group.bookings[0]);
+        continue;
+      }
+
       // Get unique room types and aggregate quantities
       const roomTypeMap = new Map();
       let totalRooms = 0;

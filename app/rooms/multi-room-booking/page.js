@@ -346,6 +346,11 @@ export default function MultiRoomBookingPage() {
       setModalNotification({ message: 'Please select a bank account first', type: 'error' });
       return;
     }
+
+    const totalSelectedRooms = Object.values(bookingData.selectedRooms || {}).reduce((a, b) => a + b, 0);
+    const isMultiRoomRequest = totalSelectedRooms > 1;
+    const fallbackRoomType = bookingData.roomTypes?.[0]?.type || 'Room';
+    const fallbackRoomId = bookingData.roomTypes?.[0]?.roomIds?.[0] || bookingData.roomTypes?.[0]?.id || 'multiple';
     
     setNotifyingResort(true);
     try {
@@ -361,13 +366,15 @@ export default function MultiRoomBookingPage() {
         guestName: `${bookingData.firstName} ${bookingData.lastName}`,
         guestEmail: bookingData.email,
         guestPhone: bookingData.phone,
-        roomType: bookingData.roomTypes?.map(t => `${t.quantity} × ${t.type}`).join(', ') || 'Multiple Rooms',
-        roomId: 'multiple',
+        roomType: isMultiRoomRequest
+          ? (bookingData.roomTypes?.map(t => `${t.quantity} x ${t.type}`).join(', ') || 'Multiple Rooms')
+          : fallbackRoomType,
+        roomId: isMultiRoomRequest ? 'multiple' : fallbackRoomId,
         bookingId: generatedBookingId,
         checkIn: bookingData.checkIn,
         checkOut: bookingData.checkOut,
         nights: bookingData.nights || 1,
-        numberOfRooms: Object.values(bookingData.selectedRooms).reduce((a, b) => a + b, 0),
+        numberOfRooms: totalSelectedRooms || 1,
         totalPrice: totalPrice,
         downPayment: downPaymentAmount,
         specialRequest: bookingData.specialRequest,
@@ -380,7 +387,7 @@ export default function MultiRoomBookingPage() {
         status: 'pending',
         createdAt: new Date().toISOString(),
         read: false,
-        isMultiRoom: true
+        isMultiRoom: isMultiRoomRequest
       });
       
       setBankRequestId(docRef.id);
@@ -418,22 +425,21 @@ export default function MultiRoomBookingPage() {
         guestsPerRoom[roomType.type] = Math.ceil(totalGuestsForType / roomType.quantity);
       }
 
-      // Create individual bookings for each room
-      for (let i = 0; i < allRoomIds.length; i++) {
-        const roomId = allRoomIds[i];
-        const roomTypeObj = bookingData.roomTypes.find(t => t.roomIds.includes(roomId));
-        const guestsPerRoomValue = guestsPerRoom[roomTypeObj.type];
-        
+      if (allRoomIds.length <= 1) {
+        const roomTypeObj = bookingData.roomTypes?.[0];
+        const singleRoomId = allRoomIds[0] || roomTypeObj?.roomIds?.[0];
+        const guestsPerRoomValue = roomTypeObj ? (guestsPerRoom[roomTypeObj.type] || 1) : 1;
+
         const booking = {
-          bookingId: `${bookingId}-${i + 1}`,
-          roomId: roomId,
-          roomType: roomTypeObj.type,
-          price: roomTypeObj.price,
+          bookingId,
+          roomId: singleRoomId,
+          roomType: roomTypeObj?.type || 'Room',
+          price: roomTypeObj?.price || 0,
           nights: 1,
           guests: guestsPerRoomValue,
-          totalPrice: roomTypeObj.price,
-          downPayment: roomTypeObj.price * 0.5,
-          remainingBalance: roomTypeObj.price * 0.5,
+          totalPrice: roomTypeObj?.price || 0,
+          downPayment: (roomTypeObj?.price || 0) * 0.5,
+          remainingBalance: (roomTypeObj?.price || 0) * 0.5,
           checkIn: bookingData.checkIn,
           checkOut: bookingData.checkOut,
           guestInfo: {
@@ -451,17 +457,60 @@ export default function MultiRoomBookingPage() {
           updatedAt: serverTimestamp(),
           type: 'room',
           numberOfRooms: 1,
-          specialRequest: bookingData.specialRequest || null,
-          parentBookingId: bookingId,
-          isMultiRoomBooking: true
+          specialRequest: bookingData.specialRequest || null
         };
-        
-        // Add bank details if provided
+
         if (bankDetailsProvided) {
           booking.bankDetailsProvided = bankDetailsProvided;
         }
-        
+
         await addDoc(collection(db, 'bookings'), booking);
+      } else {
+        // Create individual bookings for each room
+        for (let i = 0; i < allRoomIds.length; i++) {
+          const roomId = allRoomIds[i];
+          const roomTypeObj = bookingData.roomTypes.find(t => t.roomIds.includes(roomId));
+          const guestsPerRoomValue = guestsPerRoom[roomTypeObj.type];
+
+          const booking = {
+            bookingId: `${bookingId}-${i + 1}`,
+            roomId: roomId,
+            roomType: roomTypeObj.type,
+            price: roomTypeObj.price,
+            nights: 1,
+            guests: guestsPerRoomValue,
+            totalPrice: roomTypeObj.price,
+            downPayment: roomTypeObj.price * 0.5,
+            remainingBalance: roomTypeObj.price * 0.5,
+            checkIn: bookingData.checkIn,
+            checkOut: bookingData.checkOut,
+            guestInfo: {
+              firstName: bookingData.firstName,
+              lastName: bookingData.lastName,
+              email: bookingData.email,
+              phone: bookingData.phone
+            },
+            status: 'pending',
+            paymentMethod: paymentMethod,
+            paymentProofUrl: bookingData.paymentProofUrl,
+            validIdType: bookingData.validIdType || null,
+            validIdUrl: bookingData.validIdUrl || null,
+            createdAt: serverTimestamp(),
+            updatedAt: serverTimestamp(),
+            type: 'room',
+            numberOfRooms: 1,
+            specialRequest: bookingData.specialRequest || null,
+            parentBookingId: bookingId,
+            isMultiRoomBooking: true
+          };
+
+          // Add bank details if provided
+          if (bankDetailsProvided) {
+            booking.bankDetailsProvided = bankDetailsProvided;
+          }
+
+          await addDoc(collection(db, 'bookings'), booking);
+        }
       }
       
       setStep(4);

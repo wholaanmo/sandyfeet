@@ -923,11 +923,11 @@ const handleTotalGuestsChange = (roomType, value) => {
             </div>
           </div>
 
-          <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
+          <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
             
             {/* LEFT: Room Cards Grid */}
-            <div className="lg:col-span-8">
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <div className="lg:col-span-9">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 {filteredRoomTypes.map((room) => {
                   const quantity = selectedRooms[room.type] || 0;
                   const realTimeAvailable = checkInDate 
@@ -935,65 +935,65 @@ const handleTotalGuestsChange = (roomType, value) => {
                     : room.availableRooms;
 
                   return (
-                    <div key={room.type} className="bg-white rounded-[1.5rem] border border-gray-100 shadow-sm overflow-hidden flex flex-col transition-all hover:shadow-md h-full">
+                    <div key={room.type} className="bg-white rounded-[1.25rem] border border-gray-100 shadow-sm overflow-hidden flex flex-col transition-all hover:shadow-md h-full">
                       
-                      <div className="relative h-56 w-full shrink-0">
+                      <div className="relative h-44 w-full shrink-0">
                         <img 
                           src={room.images?.[0] || 'https://via.placeholder.com/400x300?text=Room'} 
                           alt={room.type}
                           className="w-full h-full object-cover"
                         />
                         <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/20 to-transparent"></div>
-                        <div className="absolute bottom-4 left-4 z-10 w-full pr-14">
-                          <p className="text-white/90 text-[10px] font-bold uppercase tracking-widest mb-1">
+                        <div className="absolute bottom-3 left-3 z-10 w-full pr-12">
+                          <p className="text-white/90 text-[9px] font-bold uppercase tracking-widest mb-1">
                             Good for {room.capacityMin === room.capacityMax ? room.capacityMax : `${room.capacityMin} to ${room.capacityMax}`} persons
                           </p>
-                          <h3 className="text-white text-2xl font-playfair font-bold truncate leading-tight pb-1">{room.type}</h3>
+                          <h3 className="text-white text-xl font-playfair font-bold truncate leading-tight pb-1">{room.type}</h3>
                         </div>
-                        <div className="absolute top-4 right-4 z-10 w-8 h-8 border-[1.5px] border-white/50 rounded-full flex items-center justify-center">
-                          <div className="w-4 h-4 bg-white/20 rounded-full"></div>
+                        <div className="absolute top-3 right-3 z-10 w-7 h-7 border-[1.5px] border-white/50 rounded-full flex items-center justify-center">
+                          <div className="w-3.5 h-3.5 bg-white/20 rounded-full"></div>
                         </div>
                       </div>
 
-                      <div className="p-5 flex-1 flex flex-col justify-between">
+                      <div className="p-4 flex-1 flex flex-col justify-between">
                         <div>
-                          <div className="flex justify-between items-baseline mb-4">
-                            <p className="text-xl font-bold tracking-tight text-blue-600">
+                          <div className="flex justify-between items-baseline mb-3">
+                            <p className="text-lg font-bold tracking-tight text-blue-600">
                               PHP {room.price.toLocaleString()}
                             </p>
                             <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">Per Night</p>
                           </div>
                           
-                          <div className="flex flex-wrap gap-2 mb-6">
-                            <span className="px-3 py-1.5 bg-gray-50 border border-gray-100 text-[11px] font-medium text-gray-600 rounded-lg">Airconditioned</span>
-                            <span className="px-3 py-1.5 bg-gray-50 border border-gray-100 text-[11px] font-medium text-gray-600 rounded-lg">Common bathroom</span>
+                          <div className="flex flex-wrap gap-2 mb-4">
+                            <span className="px-2.5 py-1 bg-gray-50 border border-gray-100 text-[10px] font-medium text-gray-600 rounded-lg">Airconditioned</span>
+                            <span className="px-2.5 py-1 bg-gray-50 border border-gray-100 text-[10px] font-medium text-gray-600 rounded-lg">Common bathroom</span>
                           </div>
                         </div>
 
-                        <div className="flex items-center gap-3">
+                        <div className="flex items-center gap-2">
                            {quantity === 0 ? (
                               <button 
                                 onClick={() => handleQuantityChange(room.type, true)}
                                 disabled={realTimeAvailable <= 0}
-                                className="flex-1 py-3 bg-blue-500 hover:bg-blue-600 disabled:opacity-50 disabled:bg-gray-300 text-white text-sm font-semibold rounded-xl transition-colors flex items-center justify-center"
+                                className="flex-1 py-2.5 bg-blue-500 hover:bg-blue-600 disabled:opacity-50 disabled:bg-gray-300 text-white text-sm font-semibold rounded-xl transition-colors flex items-center justify-center"
                               >
                                 {realTimeAvailable > 0 ? 'Select Room' : 'Sold Out'}
                               </button>
                            ) : (
-                              <div className="flex-1 flex items-center justify-between bg-blue-50 border border-blue-200 rounded-xl p-1.5">
+                              <div className="flex-1 flex items-center justify-between bg-blue-50 border border-blue-200 rounded-xl p-1">
                                 <button 
                                   onClick={() => handleQuantityChange(room.type, false)}
-                                  className="w-10 h-10 flex items-center justify-center bg-white text-blue-600 rounded-lg shadow-sm border border-blue-100 hover:bg-blue-50 transition-colors"
+                                  className="w-9 h-9 flex items-center justify-center bg-white text-blue-600 rounded-lg shadow-sm border border-blue-100 hover:bg-blue-50 transition-colors"
                                 >
                                   <i className="fas fa-minus"></i>
                                 </button>
-                                <span className="font-bold text-blue-700 text-base">
+                                <span className="font-bold text-blue-700 text-sm">
                                   {quantity}
                                 </span>
                                 <button 
                                   onClick={() => handleQuantityChange(room.type, true)}
                                   disabled={quantity >= realTimeAvailable}
-                                  className="w-10 h-10 flex items-center justify-center bg-blue-500 text-white disabled:opacity-50 rounded-lg shadow-sm hover:bg-blue-600 transition-colors"
+                                  className="w-9 h-9 flex items-center justify-center bg-blue-500 text-white disabled:opacity-50 rounded-lg shadow-sm hover:bg-blue-600 transition-colors"
                                 >
                                   <i className="fas fa-plus"></i>
                                 </button>
@@ -1001,7 +1001,7 @@ const handleTotalGuestsChange = (roomType, value) => {
                            )}
                           <button
                             onClick={() => router.push(`/rooms/${room.id}`)}
-                            className="w-12 h-12 shrink-0 flex items-center justify-center border border-gray-200 rounded-xl text-gray-400 hover:text-blue-500 hover:border-blue-200 transition-colors"
+                            className="w-10 h-10 shrink-0 flex items-center justify-center border border-gray-200 rounded-xl text-gray-400 hover:text-blue-500 hover:border-blue-200 transition-colors"
                             aria-label={`View ${room.type} details`}
                             title={`View ${room.type} details`}
                           >
@@ -1016,30 +1016,26 @@ const handleTotalGuestsChange = (roomType, value) => {
             </div>
 
             {/* RIGHT: Booking Receipt & Dates (lg:col-span-4) */}
-            <div className="lg:col-span-4 lg:sticky lg:top-24">
-              <div className="bg-white rounded-[2rem] border border-gray-100 shadow-[0_12px_40px_rgb(0,0,0,0.06)] p-6">
+            <div className="lg:col-span-3 lg:sticky lg:top-24">
+              <div className="bg-white rounded-[1.5rem] border border-gray-100 shadow-[0_12px_32px_rgb(0,0,0,0.06)] p-4">
                 
-                <div className="flex justify-between items-center mb-6">
+                <div className="flex justify-between items-center mb-4">
                   <div>
-                    <h2 className="text-xl font-playfair font-bold text-gray-900">Booking Receipt</h2>
-                    <div className="flex items-center gap-1.5 mt-1">
-                      <span className="w-1.5 h-1.5 bg-orange-400 rounded-full animate-pulse"></span>
-                      <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">Live Summary</p>
-                    </div>
+                    <h2 className="text-lg font-playfair font-bold text-gray-900">Booking Receipt</h2>
                   </div>
-                  <div className="w-10 h-10 bg-gray-50 border border-gray-100 rounded-full flex items-center justify-center text-gray-400">
+                  <div className="w-9 h-9 bg-gray-50 border border-gray-100 rounded-full flex items-center justify-center text-gray-400">
                     <i className="fas fa-shopping-cart text-sm"></i>
                   </div>
                 </div>
 
-                 <div className="mb-4 p-4 bg-gray-50/50 rounded-[1.5rem] border border-gray-100">
+                 <div className="mb-3 p-3 bg-gray-50/50 rounded-[1.25rem] border border-gray-100">
                     <h3 className="text-xs font-semibold text-gray-800 mb-3 uppercase tracking-wider">Stay Schedule</h3>
                     
                     {/* Wrap trigger and popover in a relative container so it pops right below the button */}
                     <div className="relative mb-3">
                       <div 
                         ref={calendarTriggerRef}
-                        className="flex items-center justify-between text-sm font-semibold text-gray-700 bg-white p-3.5 rounded-xl border border-gray-200 cursor-pointer hover:border-blue-400 transition-colors shadow-sm" 
+                        className="flex items-center justify-between text-xs font-semibold text-gray-700 bg-white p-3 rounded-xl border border-gray-200 cursor-pointer hover:border-blue-400 transition-colors shadow-sm" 
                         onClick={() => setIsModalOpen(true)}
                       >
                          {checkInDate ? (
@@ -1147,35 +1143,35 @@ const handleTotalGuestsChange = (roomType, value) => {
                       </div>
                       )}
                     </div>
-                    <div className="text-[11px] font-semibold text-gray-600 bg-white p-3 rounded-xl border border-gray-200">
+                    <div className="text-[10px] font-semibold text-gray-600 bg-white p-2.5 rounded-xl border border-gray-200">
                       Fixed schedule: Check-in {checkInDisplay}, Check-out {checkOutDisplay}
                     </div>
                  </div>
 
-                <div className="space-y-3 mb-6">
+                <div className="space-y-2.5 mb-4">
                   {Object.values(selectedRooms).every(q => q === 0) ? (
-                    <div className="py-12 px-4 border-2 border-dashed border-gray-200 rounded-[1.5rem] text-center bg-gray-50/50">
-                      <div className="w-12 h-12 mx-auto bg-white rounded-full flex items-center justify-center text-gray-300 mb-4 shadow-sm border border-gray-100">
+                    <div className="py-8 px-3 border-2 border-dashed border-gray-200 rounded-[1.25rem] text-center bg-gray-50/50">
+                      <div className="w-10 h-10 mx-auto bg-white rounded-full flex items-center justify-center text-gray-300 mb-3 shadow-sm border border-gray-100">
                          <h2 className="text-gray-300 font-bold text-lg">$</h2>
                       </div>
-                      <p className="text-xs text-gray-400 font-medium max-w-[200px] mx-auto leading-relaxed">No rooms added yet. Click "Select Room" to build your stay.</p>
+                      <p className="text-[11px] text-gray-400 font-medium max-w-[180px] mx-auto leading-relaxed">No rooms added yet. Click "Select Room" to build your stay.</p>
                     </div>
                   ) : (
                     availableRoomTypes.filter(r => selectedRooms[r.type] > 0).map(room => (
-                      <div key={room.type} className="p-3.5 bg-white border border-gray-100 shadow-sm rounded-2xl relative overflow-hidden">
+                      <div key={room.type} className="p-3 bg-white border border-gray-100 shadow-sm rounded-xl relative overflow-hidden">
                         <div className="absolute top-0 left-0 w-1 h-full bg-blue-400"></div>
                         <div className="flex justify-between items-start mb-2 pl-2">
                            <div>
-                              <p className="text-sm font-bold text-gray-800 truncate max-w-[120px]">{room.type}</p>
+                              <p className="text-xs font-bold text-gray-800 truncate max-w-[110px]">{room.type}</p>
                               <p className="text-[10px] text-blue-500 font-extrabold uppercase tracking-widest mt-1">{selectedRooms[room.type]} unit{selectedRooms[room.type] > 1 ? 's' : ''}</p>
                            </div>
                            <div className="flex items-center gap-2">
-                             <p className="text-sm font-bold text-gray-800">
+                             <p className="text-xs font-bold text-gray-800">
                                ₱{(room.price * selectedRooms[room.type] * numberOfNights).toLocaleString()}
                              </p>
                              <button
                                onClick={() => handleRemoveFromReceipt(room.type)}
-                               className="w-7 h-7 rounded-md border border-red-200 text-red-500 hover:bg-red-50 transition-colors"
+                               className="w-6 h-6 rounded-md border border-red-200 text-red-500 hover:bg-red-50 transition-colors"
                                title={`Remove ${room.type}`}
                                aria-label={`Remove ${room.type} from receipt`}
                              >
@@ -1183,7 +1179,7 @@ const handleTotalGuestsChange = (roomType, value) => {
                              </button>
                            </div>
                         </div>
-                        <div className="flex items-center justify-between bg-gray-50/80 rounded-xl p-2 mt-3 ml-2">
+                        <div className="flex items-center justify-between bg-gray-50/80 rounded-xl p-2 mt-2.5 ml-2">
                            <span className="text-[10px] uppercase font-bold text-gray-500">Total Guests:</span>
                            <input 
                               type="number" 
@@ -1191,7 +1187,7 @@ const handleTotalGuestsChange = (roomType, value) => {
                               max={selectedRooms[room.type] * room.capacityMax}
                               value={totalGuestsPerType[room.type] || selectedRooms[room.type]}
                               onChange={(e) => handleTotalGuestsChange(room.type, e.target.value)}
-                              className="w-16 text-xs font-bold border border-gray-200 bg-white rounded-md pl-3 py-1 shadow-sm focus:outline-none focus:border-blue-400 focus:ring-2 ring-blue-100"
+                              className="w-14 text-xs font-bold border border-gray-200 bg-white rounded-md pl-2.5 py-1 shadow-sm focus:outline-none focus:border-blue-400 focus:ring-2 ring-blue-100"
                            />
                         </div>
                       </div>
@@ -1199,7 +1195,7 @@ const handleTotalGuestsChange = (roomType, value) => {
                   )}
                 </div>
 
-                <div className="bg-[#F8FCFF] border border-blue-100/50 rounded-2xl p-4 mb-6 relative overflow-hidden">
+                <div className="bg-[#F8FCFF] border border-blue-100/50 rounded-xl p-3 mb-4 relative overflow-hidden">
                    <div className="absolute inset-0 bg-blue-500/5 mix-blend-multiply"></div>
                    <div className="flex justify-between items-center mb-1 relative z-10">
                       <p className="text-[10px] font-bold text-blue-800/60 uppercase tracking-widest">Nightly Total</p>
@@ -1207,20 +1203,20 @@ const handleTotalGuestsChange = (roomType, value) => {
                          {Object.values(selectedRooms).reduce((a,b)=>a+b, 0)} Suites Chosen
                       </p>
                    </div>
-                   <div className="flex items-center gap-1.5 mb-2 text-blue-500 text-lg relative z-10">
+                   <div className="flex items-center gap-1.5 mb-2 text-blue-500 text-base relative z-10">
                       <i className="fas fa-bed text-blue-500/30"></i>
                       <i className="fas fa-bed"></i>
                    </div>
                    <div className="flex justify-between items-center pt-3 mt-3 border-t border-blue-200/50 relative z-10">
-                      <p className="text-gray-800 font-bold text-sm">Est. Total</p>
-                      <p className="text-2xl font-bold text-gray-900 tracking-tight">₱{getTotalPrice().toLocaleString()}</p>
+                     <p className="text-gray-800 font-bold text-xs">Est. Total</p>
+                     <p className="text-xl font-bold text-gray-900 tracking-tight">₱{getTotalPrice().toLocaleString()}</p>
                    </div>
                 </div>
 
                 <button
                    onClick={handleProceed}
                    disabled={!checkInDate || Object.values(selectedRooms).every(q => q === 0) || dateSelectionError !== ''}
-                   className={`w-full py-4 font-bold rounded-xl transition-all duration-300 flex items-center justify-center gap-2 ${
+                   className={`w-full py-3.5 text-sm font-bold rounded-xl transition-all duration-300 flex items-center justify-center gap-2 ${
                      (checkInDate && Object.values(selectedRooms).some(q => q>0)) 
                      ? 'bg-[#cbd5e1] text-gray-700 bg-gradient-to-r from-[#e2e8f0] to-[#cbd5e1] shadow-md hover:-translate-y-0.5 hover:text-gray-900' 
                      : 'bg-[#F1F5F9] text-gray-400 cursor-not-allowed'
