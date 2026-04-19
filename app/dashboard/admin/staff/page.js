@@ -214,7 +214,8 @@ export default function StaffManagement() {
     
     // Send verification email using Nodemailer with role
     const verificationLink = `${process.env.NEXT_PUBLIC_BASE_URL || window.location.origin}/verify-staff?token=${verificationToken}&email=${encodeURIComponent(formData.email)}`;
-    await sendStaffVerificationEmail(formData.email, formData.name, verificationLink, formData.role);
+    const emailResult = await sendStaffVerificationEmail(formData.email, formData.name, verificationLink, formData.role);
+    const emailSent = Boolean(emailResult?.success);
     
     // Add audit log
     await logAdminAction({
@@ -223,7 +224,12 @@ export default function StaffManagement() {
       details: `Added new staff member: ${formData.name} (${formData.email}) with role: ${formData.role}`
     });
     
-    showNotification(`Staff account created successfully! Verification email sent. Link expires in 15 minutes.`);
+    showNotification(
+      emailSent
+        ? 'Staff account created successfully! Verification email sent. Link expires in 15 minutes.'
+        : 'Staff account created, but verification email failed to send. Please use Resend Verification Email.',
+      emailSent ? 'success' : 'error'
+    );
     resetForm();
     
     setTimeout(() => {
@@ -261,7 +267,10 @@ const handleResendVerification = async () => {
     
     // Send new verification email
     const verificationLink = `${process.env.NEXT_PUBLIC_BASE_URL || window.location.origin}/api/auth/verify-staff?token=${verificationToken}&email=${encodeURIComponent(resendModal.email)}`;
-    await sendStaffVerificationEmail(resendModal.email, resendModal.name || 'Staff Member', verificationLink);
+    const emailResult = await sendStaffVerificationEmail(resendModal.email, resendModal.name || 'Staff Member', verificationLink);
+    if (!emailResult?.success) {
+      throw new Error(emailResult?.error || 'Failed to send verification email');
+    }
     
     // Add audit log
     await logAdminAction({

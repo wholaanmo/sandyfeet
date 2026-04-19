@@ -1,14 +1,14 @@
 // app/rooms/calendar/page.js
 'use client';
 
-import { useState, useEffect } from 'react';
+import { Suspense, useState, useEffect } from 'react';
 import { useSearchParams, useRouter } from 'next/navigation';
 import GuestLayout from '@/app/guest/layout';
 import { db } from '@/lib/firebase';
 import { collection, query, where, doc, onSnapshot } from 'firebase/firestore';
 import Image from 'next/image';
 
-export default function RoomCalendar() {
+function RoomCalendarContent() {
   const searchParams = useSearchParams();
   const router = useRouter();
   const roomId = searchParams.get('roomId');
@@ -783,5 +783,21 @@ export default function RoomCalendar() {
         </div>
       </div>
     </GuestLayout>
+  );
+}
+
+export default function RoomCalendar() {
+  return (
+    <Suspense
+      fallback={
+        <GuestLayout>
+          <div className="min-h-screen bg-gradient-to-br from-ocean-ice to-blue-white flex items-center justify-center">
+            <i className="fas fa-spinner fa-spin text-3xl text-ocean-light"></i>
+          </div>
+        </GuestLayout>
+      }
+    >
+      <RoomCalendarContent />
+    </Suspense>
   );
 }

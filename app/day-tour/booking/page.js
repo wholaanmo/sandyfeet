@@ -1,14 +1,14 @@
 // app/day-tour/booking/page.js
 'use client';
 
-import { useState, useEffect } from 'react';
+import { Suspense, useState, useEffect } from 'react';
 import { useSearchParams, useRouter } from 'next/navigation';
 import GuestLayout from '@/app/guest/layout';
 import { db } from '@/lib/firebase';
 import { collection, query, where, getDocs, addDoc, doc, getDoc, serverTimestamp, onSnapshot } from 'firebase/firestore';
 import { uploadImage } from '@/lib/cloudinary';
 
-export default function DayTourBooking() {
+function DayTourBookingContent() {
   const searchParams = useSearchParams();
   const router = useRouter();
   const dateParam = searchParams.get('date');
@@ -1438,5 +1438,21 @@ const handleNotifyResort = async () => {
       </div>
     )}
   </GuestLayout>
+  );
+}
+
+export default function DayTourBookingPage() {
+  return (
+    <Suspense
+      fallback={
+        <GuestLayout>
+          <div className="min-h-screen bg-gradient-to-br from-ocean-ice to-blue-white flex items-center justify-center">
+            <i className="fas fa-spinner fa-spin text-3xl text-ocean-light"></i>
+          </div>
+        </GuestLayout>
+      }
+    >
+      <DayTourBookingContent />
+    </Suspense>
   );
 }

@@ -1,11 +1,33 @@
 // app/api/send-email/route.js
 import { NextResponse } from 'next/server';
+import nodemailer from 'nodemailer';
 
-let nodemailer;
-try {
-  nodemailer = require('nodemailer');
-} catch (error) {
-  console.warn('Nodemailer not installed. Email functionality will be disabled.');
+export const runtime = 'nodejs';
+
+function getTransportConfig() {
+  const host = process.env.SMTP_HOST;
+  const port = process.env.SMTP_PORT ? Number(process.env.SMTP_PORT) : undefined;
+  const user = process.env.SMTP_USER || process.env.EMAIL_USER;
+  const pass = process.env.SMTP_PASS || process.env.EMAIL_PASS;
+  const secure = process.env.SMTP_SECURE === 'true' || port === 465;
+
+  if (!user || !pass) {
+    return null;
+  }
+
+  if (host && port) {
+    return {
+      host,
+      port,
+      secure,
+      auth: { user, pass }
+    };
+  }
+
+  return {
+    service: 'gmail',
+    auth: { user, pass }
+  };
 }
 
 export async function POST(request) {
@@ -18,58 +40,32 @@ export async function POST(request) {
         { status: 400 }
       );
     }
-    
-    // Check if email is configured
-    if (!process.env.EMAIL_USER || !process.env.EMAIL_PASS) {
-      console.warn('Email credentials not configured. Email not sent.');
-      console.log(`Would have sent email to: ${to}`);
-      console.log(`Subject: ${subject}`);
+
+    const transportConfig = getTransportConfig();
+    if (!transportConfig) {
+      console.error('Email service not configured. Set SMTP_* or EMAIL_* environment variables.');
       return NextResponse.json(
-        { 
-          success: false, 
-          error: 'Email service not configured',
-          development: true,
-          message: 'Email would be sent in production with proper configuration'
+        {
+          success: false,
+          error: 'Email service is not configured. Please set SMTP_* or EMAIL_* environment variables.'
         },
-        { status: 200 }
+        { status: 503 }
       );
     }
-    
-    // Check if nodemailer is available
-    if (!nodemailer) {
-      console.warn('Nodemailer not installed. Please run: npm install nodemailer');
-      return NextResponse.json(
-        { 
-          success: false, 
-          error: 'Email service not available',
-          message: 'Please install nodemailer: npm install nodemailer'
-        },
-        { status: 200 }
-      );
-    }
-    
-    // Configure email transporter
-    const transporter = nodemailer.createTransport({
-      service: 'gmail', // or use your SMTP settings
-      auth: {
-        user: process.env.EMAIL_USER,
-        pass: process.env.EMAIL_PASS,
-      },
-    });
-    
-    // Verify connection configuration
+
+    const transporter = nodemailer.createTransport(transportConfig);
     await transporter.verify();
-    
-    // Send email
+
+    const senderAddress = process.env.EMAIL_FROM || process.env.SMTP_FROM || transportConfig.auth.user;
     const info = await transporter.sendMail({
-      from: `"Resort Management" <${process.env.EMAIL_USER}>`,
+      from: `"Sandy Feet Resort" <${senderAddress}>`,
       to: to,
       subject: subject,
       html: html,
     });
-    
+
     console.log('Email sent:', info.messageId);
-    
+
     return NextResponse.json(
       { success: true, messageId: info.messageId },
       { status: 200 }
@@ -77,7 +73,7 @@ export async function POST(request) {
   } catch (error) {
     console.error('Error sending email:', error);
     return NextResponse.json(
-      { error: 'Failed to send email: ' + error.message },
+      { success: false, error: 'Failed to send email: ' + error.message },
       { status: 500 }
     );
   }

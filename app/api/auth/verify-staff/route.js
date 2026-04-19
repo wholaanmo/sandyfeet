@@ -5,9 +5,10 @@ export async function GET(request) {
   const { searchParams } = new URL(request.url);
   const token = searchParams.get('token');
   const email = searchParams.get('email');
+  const baseUrl = request.nextUrl?.origin || process.env.NEXT_PUBLIC_BASE_URL || 'http://localhost:3000';
   
   // Redirect to the verification page with parameters
-  const redirectUrl = `${process.env.NEXT_PUBLIC_BASE_URL || 'http://localhost:3000'}/verify-staff?token=${token}&email=${email}`;
+  const redirectUrl = `${baseUrl}/verify-staff?token=${encodeURIComponent(token || '')}&email=${encodeURIComponent(email || '')}`;
   
   return NextResponse.redirect(redirectUrl);
 }

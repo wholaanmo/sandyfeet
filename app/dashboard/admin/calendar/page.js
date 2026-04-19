@@ -14,6 +14,7 @@ export default function AdminCalendar() {
   const [currentDate, setCurrentDate] = useState(new Date());
   const [selectedDate, setSelectedDate] = useState(null);
   const [bookedDates, setBookedDates] = useState({});
+  const [exclusiveResortDates, setExclusiveResortDates] = useState({});
   const [blockedSlots, setBlockedSlots] = useState({});
   const [loading, setLoading] = useState(true);
   const [notification, setNotification] = useState({ show: false, message: '', type: '' });
@@ -67,6 +68,7 @@ export default function AdminCalendar() {
     );
     const unsubscribe = onSnapshot(q, (snapshot) => {
       const booked = {};
+      const exclusiveDates = {};
       snapshot.forEach(docSnap => {
         const booking = docSnap.data();
         const checkIn = toJsDate(booking.checkIn);
@@ -85,11 +87,21 @@ export default function AdminCalendar() {
           for (let h = startHour; h < endHour; h++) {
             booked[dateKey].times[`${h}:00`] += numberOfRooms;
           }
+
+          // Flag dates affected by exclusive whole-resort bookings for visual context.
+          if (booking.isExclusiveResortBooking) {
+            const overlapsCheckInWindow = Math.max(startHour, 14) < endHour;
+            if (overlapsCheckInWindow) {
+              exclusiveDates[toLocalDateKey(current)] = true;
+            }
+          }
+
           current.setDate(current.getDate() + 1);
           current.setHours(0, 0, 0, 0);
         }
       });
       setBookedDates(booked);
+      setExclusiveResortDates(exclusiveDates);
       setLoading(false);
     });
     return () => unsubscribe();
@@ -299,6 +311,11 @@ export default function AdminCalendar() {
       maxUsed = Math.max(maxUsed, bookedCount + blockedCount);
     }
     return Math.max(0, totalRoomUnits - maxUsed);
+  };
+
+  const hasExclusiveResortBookingOnDate = (date) => {
+    if (!date) return false;
+    return Boolean(exclusiveResortDates[toLocalDateKey(date)]);
   };
 
   const getDaysInMonth = (date) => {
@@ -528,6 +545,7 @@ export default function AdminCalendar() {
                 {days.map((day, idx) => {
                   if (!day) return <div key={idx} className="aspect-square"></div>;
                   const status = getDateStatus(day);
+                  const hasExclusive = hasExclusiveResortBookingOnDate(day);
                   let bgColor = 'bg-white';
                   let textColor = 'text-textPrimary';
                   let borderClass = 'border border-gray-200';
@@ -578,12 +596,17 @@ export default function AdminCalendar() {
                         status === 'fullyBooked' ||
                         status === 'fullyBlocked'
                       }
-                      title={titleText}
-                      className={`relative w-full pt-[100%] rounded-lg transition-all duration-200 ${bgColor} ${borderClass} ${cursorClass}`}
+                      title={hasExclusive ? `${titleText} • Includes Entire Resort booking` : titleText}
+                      className={`relative w-full pt-[100%] rounded-lg transition-all duration-200 ${bgColor} ${borderClass} ${cursorClass} ${hasExclusive ? 'ring-2 ring-amber-300' : ''}`}
                     >
                       <span className={`absolute inset-0 flex items-center justify-center text-sm font-medium ${textColor}`}>
                         {day.getDate()}
                       </span>
+                      {hasExclusive && (
+                        <span className="absolute top-1 right-1 px-1 py-0.5 rounded bg-amber-100 text-amber-700 text-[8px] font-bold leading-none border border-amber-200">
+                          ER
+                        </span>
+                      )}
                     </button>
                   );
                 })}
@@ -596,6 +619,7 @@ export default function AdminCalendar() {
                 </div>
                 <div className="flex items-center gap-1.5"><div className="w-3 h-3 bg-gray-100 border border-gray-200 rounded"></div><span>Past Dates</span></div>
                 <div className="flex items-center gap-1.5"><div className="w-3 h-3 bg-orange-100 border border-orange-200 rounded"></div><span>Unavailable</span></div>
+                <div className="flex items-center gap-1.5"><div className="w-3 h-3 bg-amber-100 border border-amber-200 rounded"></div><span>Entire Resort booking</span></div>
                 <div className="flex items-center gap-1.5"><div className="w-3 h-3 bg-ocean-mid rounded"></div><span>Selected</span></div>
               </div>
             </div>
@@ -710,6 +734,13 @@ export default function AdminCalendar() {
           </span>{" "}
           of {totalRoomUnits}
         </p>
+
+        {hasExclusiveResortBookingOnDate(selectedDate) && (
+          <p className="text-xs text-amber-700 mt-2 bg-amber-50 border border-amber-200 rounded-lg px-2 py-1 inline-flex items-center gap-1">
+            <i className="fas fa-star text-[10px]"></i>
+            Entire Resort booking is active on this date.
+          </p>
+        )}
       </div>
 
       {totalRoomUnits > 0 && (

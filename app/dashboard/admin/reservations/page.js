@@ -196,15 +196,11 @@ export default function AdminReservations() {
       const roomTypeMap = new Map();
       let totalRooms = 0;
       let totalPrice = 0;
-      let downPayment = 0;
-      let remainingBalance = 0;
       let totalGuests = 0;
       
       for (const booking of group.bookings) {
         totalRooms++;
         totalPrice += booking.totalPrice || 0;
-        downPayment += booking.downPayment || 0;
-        remainingBalance += booking.remainingBalance || 0;
         totalGuests += booking.guests || 1;
         
         if (!roomTypeMap.has(booking.roomType)) {
@@ -227,9 +223,20 @@ export default function AdminReservations() {
       }));
       
       // Build room types display string
-      const roomTypesDisplay = roomTypesArray
-        .map(item => `${item.quantity} × ${item.type} (${item.guestsPerRoom} guest${item.guestsPerRoom !== 1 ? 's' : ''})`)
-        .join(', ');
+      const exclusiveChildBooking = group.bookings.find((booking) => booking.isExclusiveResortBooking);
+      const isExclusiveResortBooking = Boolean(exclusiveChildBooking);
+      const exclusivePackagePrice = Number(exclusiveChildBooking?.exclusivePackagePrice || 0);
+      const roomTypesDisplay = isExclusiveResortBooking
+        ? 'Entire Resort Package (All Room Types)'
+        : roomTypesArray
+          .map(item => `${item.quantity} × ${item.type} (${item.guestsPerRoom} guest${item.guestsPerRoom !== 1 ? 's' : ''})`)
+          .join(', ');
+
+      const displayTotalPrice = isExclusiveResortBooking && exclusivePackagePrice > 0
+        ? exclusivePackagePrice
+        : totalPrice;
+      const displayDownPayment = displayTotalPrice * 0.5;
+      const displayRemainingBalance = displayTotalPrice - displayDownPayment;
       
       consolidatedGroups.push({
         id: parentId,
@@ -246,12 +253,14 @@ export default function AdminReservations() {
         createdAt: group.createdAt,
         type: 'room',
         isMultiRoomGroup: true,
+        isExclusiveResortBooking,
+        exclusivePackagePrice: isExclusiveResortBooking ? exclusivePackagePrice : null,
         roomTypesDisplay,
         roomTypesArray,
         totalRooms,
-        totalPrice,
-        downPayment,
-        remainingBalance,
+        totalPrice: displayTotalPrice,
+        downPayment: displayDownPayment,
+        remainingBalance: displayRemainingBalance,
         totalGuests,
         childBookings: group.bookings
       });
@@ -480,7 +489,6 @@ export default function AdminReservations() {
             refundProcessed: true,
             refundProcessedAt: new Date().toISOString(),
             balance: 0,
-            refundNotificationSent: true,
             updatedAt: new Date().toISOString()
           });
         }
@@ -491,17 +499,14 @@ export default function AdminReservations() {
           refundProcessed: true,
           refundProcessedAt: new Date().toISOString(),
           balance: 0,
-          refundNotificationSent: true,
           updatedAt: new Date().toISOString()
         });
       }
       
-      setNotificationSent(prev => ({ ...prev, [booking.id]: { refund: true, moveDate: prev[booking.id]?.moveDate || false } }));
-      
       const response = await fetch('/api/admin/send-refund-notification', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ bookingId: booking.id, type: 'room' })
+        body: JSON.stringify({ bookingId: booking.id, type: isRoomBooking ? 'room' : 'daytour' })
       });
       const data = await response.json();
 
@@ -515,6 +520,27 @@ export default function AdminReservations() {
           module: 'Room Reservations',
           details: `Sent refund notification for ${booking.isMultiRoomGroup ? 'multi-room' : 'room'} booking ${booking.bookingId} to ${booking.guestInfo?.firstName} ${booking.guestInfo?.lastName} (${booking.guestInfo?.email}). Refund amount: ₱${refundAmount.toLocaleString()} (50% of down payment). Balance updated to 0.`
         });
+
+        if (booking.isMultiRoomGroup && booking.childBookings) {
+          for (const childBooking of booking.childBookings) {
+            const bookingRef = doc(db, 'bookings', childBooking.id);
+            await updateDoc(bookingRef, {
+              refundNotificationSent: true,
+              refundNotificationSentAt: new Date().toISOString(),
+              updatedAt: new Date().toISOString()
+            });
+          }
+        } else {
+          const collectionName = isRoomBooking ? 'bookings' : 'dayTourBookings';
+          const bookingRef = doc(db, collectionName, booking.id);
+          await updateDoc(bookingRef, {
+            refundNotificationSent: true,
+            refundNotificationSentAt: new Date().toISOString(),
+            updatedAt: new Date().toISOString()
+          });
+        }
+
+        setNotificationSent(prev => ({ ...prev, [booking.id]: { refund: true, moveDate: prev[booking.id]?.moveDate || false } }));
         
         showNotification(`Refund notification sent and balance updated to 0.`, 'success');
       } else {
@@ -534,32 +560,10 @@ export default function AdminReservations() {
     try {
       const isRoomBooking = booking?.type === 'room';
       
-      if (booking.isMultiRoomGroup && booking.childBookings) {
-        // Update all child bookings
-        for (const childBooking of booking.childBookings) {
-          const bookingRef = doc(db, 'bookings', childBooking.id);
-          await updateDoc(bookingRef, {
-            moveDateNotificationSent: true,
-            moveDateNotificationSentAt: new Date().toISOString(),
-            updatedAt: new Date().toISOString()
-          });
-        }
-      } else {
-        const collectionName = isRoomBooking ? 'bookings' : 'dayTourBookings';
-        const bookingRef = doc(db, collectionName, booking.id);
-        await updateDoc(bookingRef, {
-          moveDateNotificationSent: true,
-          moveDateNotificationSentAt: new Date().toISOString(),
-          updatedAt: new Date().toISOString()
-        });
-      }
-      
-      setNotificationSent(prev => ({ ...prev, [booking.id]: { refund: prev[booking.id]?.refund || false, moveDate: true } }));
-      
       const response = await fetch('/api/admin/send-move-date-notification', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ bookingId: booking.id, type: 'room' })
+        body: JSON.stringify({ bookingId: booking.id, type: isRoomBooking ? 'room' : 'daytour' })
       });
       const data = await response.json();
 
@@ -569,6 +573,27 @@ export default function AdminReservations() {
           module: 'Reservations',
           details: `Sent move date notification for ${booking.isMultiRoomGroup ? 'multi-room' : 'room'} booking ${booking.bookingId} to ${booking.guestInfo?.firstName} ${booking.guestInfo?.lastName} (${booking.guestInfo?.email}).`
         });
+
+        if (booking.isMultiRoomGroup && booking.childBookings) {
+          for (const childBooking of booking.childBookings) {
+            const bookingRef = doc(db, 'bookings', childBooking.id);
+            await updateDoc(bookingRef, {
+              moveDateNotificationSent: true,
+              moveDateNotificationSentAt: new Date().toISOString(),
+              updatedAt: new Date().toISOString()
+            });
+          }
+        } else {
+          const collectionName = isRoomBooking ? 'bookings' : 'dayTourBookings';
+          const bookingRef = doc(db, collectionName, booking.id);
+          await updateDoc(bookingRef, {
+            moveDateNotificationSent: true,
+            moveDateNotificationSentAt: new Date().toISOString(),
+            updatedAt: new Date().toISOString()
+          });
+        }
+
+        setNotificationSent(prev => ({ ...prev, [booking.id]: { refund: prev[booking.id]?.refund || false, moveDate: true } }));
         
         showNotification(`Move date notification sent to ${booking.guestInfo?.email}`, 'success');
       } else {
@@ -714,8 +739,10 @@ const handleConfirmDayTourReservation = async () => {
     const emailResult = await sendDayTourConfirmationEmail(booking, confirmModal.note);
     if (emailResult.success) {
       console.log('Day tour confirmation email sent successfully');
+      showNotification(`Day tour booking ${booking.bookingId} has been confirmed. A confirmation email has been sent to the guest.`, 'success');
     } else {
       console.warn('Failed to send day tour confirmation email:', emailResult.error);
+      showNotification(`Day tour booking ${booking.bookingId} has been confirmed, but the confirmation email failed to send.`, 'error');
     }
 
     await logAdminAction({
@@ -724,7 +751,6 @@ const handleConfirmDayTourReservation = async () => {
       details: `Confirmed day tour booking ${booking.bookingId} for ${booking.guestInfo?.firstName} ${booking.guestInfo?.lastName}. Note: ${confirmModal.note || 'No note provided'}`
     });
 
-    showNotification(`Day tour booking ${booking.bookingId} has been confirmed. A confirmation email has been sent to the guest.`, 'success');
     setShowPaymentModal(false);
     setConfirmModal({ show: false, booking: null, type: '', note: '' });
   } catch (error) {
@@ -768,8 +794,10 @@ const handleConfirmDayTourReservation = async () => {
       const emailResult = await sendDayTourCancellationEmail(booking, reason, 'admin');
       if (emailResult.success) {
         console.log('Day tour cancellation email sent successfully');
+        showNotification(`Day tour booking ${booking.bookingId} has been cancelled. A cancellation email has been sent to the guest.`, 'success');
       } else {
         console.warn('Failed to send day tour cancellation email:', emailResult.error);
+        showNotification(`Day tour booking ${booking.bookingId} has been cancelled, but the cancellation email failed to send.`, 'error');
       }
 
       await logAdminAction({
@@ -778,7 +806,6 @@ const handleConfirmDayTourReservation = async () => {
         details: `Cancelled day tour booking ${booking.bookingId} for ${booking.guestInfo?.firstName} ${booking.guestInfo?.lastName}. Reason: ${reason}`
       });
 
-      showNotification(`Day tour booking ${booking.bookingId} has been cancelled. A cancellation email has been sent to the guest.`, 'success');
       setShowPaymentModal(false);
       setCancelModal({ show: false, booking: null, reason: '' });
     } catch (error) {
@@ -825,8 +852,10 @@ const handleConfirmReservation = async () => {
     const emailResult = await sendConfirmationEmail(booking, confirmModal.note);
     if (emailResult.success) {
       console.log('Confirmation email sent successfully');
+      showNotification(`Booking ${booking.bookingId} has been confirmed. A confirmation email has been sent to the guest.`, 'success');
     } else {
       console.warn('Failed to send confirmation email:', emailResult.error);
+      showNotification(`Booking ${booking.bookingId} has been confirmed, but the confirmation email failed to send.`, 'error');
     }
 
     await logAdminAction({
@@ -835,7 +864,6 @@ const handleConfirmReservation = async () => {
       details: `Confirmed ${booking.isMultiRoomGroup ? 'multi-room' : ''} booking ${booking.bookingId} for ${booking.guestInfo?.firstName} ${booking.guestInfo?.lastName}. Note: ${confirmModal.note || 'No note provided'}`
     });
 
-    showNotification(`Booking ${booking.bookingId} has been confirmed. A confirmation email has been sent to the guest.`, 'success');
     setShowPaymentModal(false);
     setConfirmModal({ show: false, booking: null, type: '', note: '' });
   } catch (error) {
@@ -892,8 +920,10 @@ const handleConfirmReservation = async () => {
       const emailResult = await sendCancellationEmail(booking, reason, 'admin');
       if (emailResult.success) {
         console.log('Cancellation email sent successfully');
+        showNotification(`Booking ${booking.bookingId} has been cancelled. A cancellation email has been sent to the guest.`, 'success');
       } else {
         console.warn('Failed to send cancellation email:', emailResult.error);
+        showNotification(`Booking ${booking.bookingId} has been cancelled, but the cancellation email failed to send.`, 'error');
       }
 
       await logAdminAction({
@@ -902,7 +932,6 @@ const handleConfirmReservation = async () => {
         details: `Cancelled ${booking.isMultiRoomGroup ? 'multi-room' : ''} booking ${booking.bookingId} for ${booking.guestInfo?.firstName} ${booking.guestInfo?.lastName}. Reason: ${reason}`
       });
 
-      showNotification(`Booking ${booking.bookingId} has been cancelled. A cancellation email has been sent to the guest.`, 'success');
       setShowPaymentModal(false);
       setCancelModal({ show: false, booking: null, reason: '' });
     } catch (error) {
@@ -1005,12 +1034,14 @@ const handleConfirmReservation = async () => {
   };
 
   const filteredBookings = groupedBookings.filter(booking => {
+    const normalizedSearch = searchTerm.toLowerCase();
     const matchesSearch = 
-      (booking.roomType?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-       booking.roomTypesDisplay?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-       booking.guestInfo?.firstName?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-       booking.guestInfo?.lastName?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-       booking.bookingId?.toLowerCase().includes(searchTerm.toLowerCase()));
+      (booking.roomType?.toLowerCase().includes(normalizedSearch) ||
+       booking.roomTypesDisplay?.toLowerCase().includes(normalizedSearch) ||
+       booking.guestInfo?.firstName?.toLowerCase().includes(normalizedSearch) ||
+       booking.guestInfo?.lastName?.toLowerCase().includes(normalizedSearch) ||
+       booking.bookingId?.toLowerCase().includes(normalizedSearch) ||
+       (booking.isExclusiveResortBooking && 'entire resort'.includes(normalizedSearch)));
     
     const matchesStatus = statusFilter === 'all' || booking.status === statusFilter;
     return matchesSearch && matchesStatus;
@@ -1209,7 +1240,9 @@ const handleConfirmReservation = async () => {
                         <tr key={booking.id} className="border-b border-ocean-light/10 hover:bg-ocean-ice/30 transition-colors">
                           <td className="px-3 py-2">
                             <span className="font-mono text-xs">{booking.bookingId}</span>
-                            {booking.isMultiRoomGroup && (
+                            {booking.isExclusiveResortBooking ? (
+                              <span className="ml-1 text-[10px] bg-amber-100 text-amber-700 px-1 py-0.5 rounded-full">Entire Resort</span>
+                            ) : booking.isMultiRoomGroup && (
                               <span className="ml-1 text-[10px] bg-blue-100 text-blue-700 px-1 py-0.5 rounded-full">Multi</span>
                             )}
                           </td>
@@ -1220,7 +1253,9 @@ const handleConfirmReservation = async () => {
                             <div className="text-[10px] text-neutral">{booking.guestInfo?.email}</div>
                           </td>
                           <td className="px-3 py-2">
-                            {booking.isMultiRoomGroup ? (
+                            {booking.isExclusiveResortBooking ? (
+                              <div className="text-xs text-amber-700 font-semibold">Entire Resort Package (All Room Types)</div>
+                            ) : booking.isMultiRoomGroup ? (
                               <div className="text-xs text-textPrimary max-w-[200px] truncate" title={booking.roomTypesDisplay}>
                                 {booking.roomTypesDisplay}
                               </div>
@@ -1404,8 +1439,10 @@ const handleConfirmReservation = async () => {
             </h2>
           </div>
           <p className="text-[#1E3A8A]/70 text-xs mt-1">
-            {sidebarBooking.isMultiRoomGroup 
-              ? 'Multi-Room Booking' 
+            {sidebarBooking.isExclusiveResortBooking
+              ? 'Entire Resort Booking'
+              : sidebarBooking.isMultiRoomGroup
+              ? 'Multi-Room Booking'
               : (activeTab === 'rooms' ? 'Room Booking' : 'Day Tour Booking')}
           </p>
         </div>
@@ -1435,6 +1472,11 @@ const handleConfirmReservation = async () => {
           <>
             <div className="bg-white/70 backdrop-blur-md border border-[#4D8CF5]/10 rounded-xl p-3 shadow-sm">
               <h3 className="text-xs font-semibold text-[#1E3A8A] uppercase tracking-wide mb-2">Room Details</h3>
+              {sidebarBooking.isExclusiveResortBooking && (
+                <p className="text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded-lg px-2 py-1 mb-2 font-semibold">
+                  Entire Resort Package: all room types are booked for this schedule.
+                </p>
+              )}
               {/* Multi-Room Detailed Display */}
               {sidebarBooking.isMultiRoomGroup && sidebarBooking.roomTypesArray && sidebarBooking.roomTypesArray.length > 0 ? (
                 <div className="space-y-2">
@@ -1661,6 +1703,11 @@ const handleConfirmReservation = async () => {
                 <>
                   <div className="bg-ocean-ice rounded-lg p-3">
                     <h3 className="text-xs font-semibold text-ocean-mid uppercase tracking-wide mb-2">Room Details</h3>
+                    {selectedBooking.isExclusiveResortBooking && (
+                      <p className="text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded-lg px-2 py-1 mb-2 font-semibold">
+                        Entire Resort Package: all room types are booked for this schedule.
+                      </p>
+                    )}
                     
                     {/* Multi-Room Detailed Display */}
                     {selectedBooking.isMultiRoomGroup && selectedBooking.roomTypesArray && selectedBooking.roomTypesArray.length > 0 ? (
@@ -1899,7 +1946,10 @@ const handleConfirmReservation = async () => {
                 </span>?<br />
                 <span className="text-xs mt-1 block">
                   Booking ID: {confirmModal.booking.bookingId}
-                  {confirmModal.type === 'room' && confirmModal.booking.isMultiRoomGroup && (
+                  {confirmModal.type === 'room' && confirmModal.booking.isExclusiveResortBooking && (
+                    <><br />Entire Resort Booking (All Room Types)</>
+                  )}
+                  {confirmModal.type === 'room' && confirmModal.booking.isMultiRoomGroup && !confirmModal.booking.isExclusiveResortBooking && (
                     <><br />Multi-Room Booking: {confirmModal.booking.roomTypesDisplay}</>
                   )}
                   {confirmModal.type === 'room' && !confirmModal.booking.isMultiRoomGroup && (

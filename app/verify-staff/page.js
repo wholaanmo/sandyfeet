@@ -1,14 +1,14 @@
 // app/verify-staff/page.js
 'use client';
 
-import { useEffect, useState } from 'react';
+import { Suspense, useEffect, useState } from 'react';
 import { useSearchParams, useRouter } from 'next/navigation';
 import { db } from '../../lib/firebase';
 import { collection, query, where, getDocs, updateDoc, doc } from 'firebase/firestore';
 import { sendStaffWelcomeEmail } from '../../lib/staffEmailService';
 import Link from 'next/link';
 
-export default function VerifyStaffPage() {
+function VerifyStaffPageContent() {
   const searchParams = useSearchParams();
   const router = useRouter();
   const [verifying, setVerifying] = useState(true);
@@ -88,11 +88,17 @@ export default function VerifyStaffPage() {
         });
         
         // Send welcome email with role
-        await sendStaffWelcomeEmail(userData.email, userData.name, userData.role);
+        const welcomeEmailResult = await sendStaffWelcomeEmail(userData.email, userData.name, userData.role);
+        const welcomeEmailFailed = !welcomeEmailResult?.success;
+        if (welcomeEmailFailed) {
+          console.warn('Staff welcome email failed:', welcomeEmailResult?.error || 'Unknown email error');
+        }
         
         setVerificationStatus({
           success: true,
-          message: 'Your email has been successfully verified! Your account is now active.',
+          message: welcomeEmailFailed
+            ? 'Your email has been successfully verified and your account is active. We could not send the welcome email right now.'
+            : 'Your email has been successfully verified! Your account is now active.',
           error: false
         });
         setVerifying(false);
@@ -170,5 +176,19 @@ export default function VerifyStaffPage() {
         </div>
       </div>
     </div>
+  );
+}
+
+export default function VerifyStaffPage() {
+  return (
+    <Suspense
+      fallback={
+        <div className="min-h-screen bg-gradient-to-br from-blue-white to-ocean-ice flex items-center justify-center p-4">
+          <i className="fas fa-spinner fa-spin text-3xl text-ocean-light"></i>
+        </div>
+      }
+    >
+      <VerifyStaffPageContent />
+    </Suspense>
   );
 }

@@ -1,7 +1,7 @@
 // app/rooms/booking/page.js
 'use client';
 
-import { useState, useEffect } from 'react';
+import { Suspense, useState, useEffect } from 'react';
 import { useSearchParams, useRouter } from 'next/navigation';
 import GuestLayout from '@/app/guest/layout';
 import { db } from '@/lib/firebase';
@@ -9,7 +9,7 @@ import { collection, addDoc, serverTimestamp, updateDoc, doc, getDoc, query, whe
 import Image from 'next/image';
 import { uploadImage } from '@/lib/cloudinary';
 
-export default function BookingPage() {
+function BookingPageContent() {
   const searchParams = useSearchParams();
   const router = useRouter();
   const roomId = searchParams.get('roomId');
@@ -1655,5 +1655,21 @@ export default function BookingPage() {
         }
       `}</style>
     </GuestLayout>
+  );
+}
+
+export default function BookingPage() {
+  return (
+    <Suspense
+      fallback={
+        <GuestLayout>
+          <div className="min-h-screen bg-gradient-to-br from-ocean-ice to-blue-white flex items-center justify-center">
+            <i className="fas fa-spinner fa-spin text-3xl text-ocean-light"></i>
+          </div>
+        </GuestLayout>
+      }
+    >
+      <BookingPageContent />
+    </Suspense>
   );
 }

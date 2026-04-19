@@ -510,7 +510,7 @@ export default function ReservationTrackerPage() {
         
         // Send cancellation email (using first child for email details)
         const firstChild = reservation.children[0];
-        await sendCancellationEmail({
+        const multiRoomEmailResult = await sendCancellationEmail({
           ...firstChild,
           totalPrice: reservation.totalPrice,
           bookingId: reservation.bookingId,
@@ -519,6 +519,9 @@ export default function ReservationTrackerPage() {
             .map(([type, data]) => `${data.quantity} × ${type} (${data.guestsPerRoom} guest${data.guestsPerRoom !== 1 ? 's' : ''})`)
             .join(', ')
         }, cancellationReason, 'guest');
+        if (!multiRoomEmailResult?.success) {
+          setError('Reservation cancelled, but cancellation email could not be sent right now. Please contact the resort if needed.');
+        }
         
       } else if (reservation.type === 'daytour') {
         const bookingRef = doc(db, 'dayTourBookings', reservation.id);
@@ -539,7 +542,10 @@ export default function ReservationTrackerPage() {
         });
         
         await addCancellationNotification(reservation, cancellationReason);
-        await sendDayTourCancellationEmail(reservation, cancellationReason, 'guest');
+        const dayTourEmailResult = await sendDayTourCancellationEmail(reservation, cancellationReason, 'guest');
+        if (!dayTourEmailResult?.success) {
+          setError('Reservation cancelled, but cancellation email could not be sent right now. Please contact the resort if needed.');
+        }
         
       } else {
         const bookingRef = doc(db, 'bookings', reservation.id);
@@ -560,7 +566,10 @@ export default function ReservationTrackerPage() {
         });
         
         await addCancellationNotification(reservation, cancellationReason);
-        await sendCancellationEmail(reservation, cancellationReason, 'guest');
+        const roomEmailResult = await sendCancellationEmail(reservation, cancellationReason, 'guest');
+        if (!roomEmailResult?.success) {
+          setError('Reservation cancelled, but cancellation email could not be sent right now. Please contact the resort if needed.');
+        }
       }
       
       setShowCancelModal(false);

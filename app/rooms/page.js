@@ -12,6 +12,8 @@ export default function RoomsPage() {
   const [availableRoomTypes, setAvailableRoomTypes] = useState([]);
   const [selectedRooms, setSelectedRooms] = useState({});
   const [totalGuestsPerType, setTotalGuestsPerType] = useState({});
+  const [adultsPerType, setAdultsPerType] = useState({});
+  const [kidsPerType, setKidsPerType] = useState({});
   const [guestInputErrors, setGuestInputErrors] = useState({});
   const [loading, setLoading] = useState(true);
   const [checkInDate, setCheckInDate] = useState(null);
@@ -30,6 +32,10 @@ export default function RoomsPage() {
   const [checkInHour, setCheckInHour] = useState(14);
   const [checkOutHour, setCheckOutHour] = useState(12);
   const [activeCategory, setActiveCategory] = useState('All Rooms');
+  const [isExclusiveResortBooking, setIsExclusiveResortBooking] = useState(false);
+  const [exclusiveAdults, setExclusiveAdults] = useState(1);
+  const [exclusiveKids, setExclusiveKids] = useState(0);
+  const [exclusiveGuestError, setExclusiveGuestError] = useState('');
   const calendarPopoverRef = useRef(null);
   const calendarTriggerRef = useRef(null);
 
@@ -54,6 +60,8 @@ export default function RoomsPage() {
   const checkInDisplay = formatHour(checkInHour);
   const checkOutDisplay = formatHour(checkOutHour);
   const nightlyHours = Math.max(1, 24 - checkInHour + checkOutHour);
+  const ROOMS_CHECKOUT_CACHE_KEY = 'roomsCheckoutDraft';
+  const EXCLUSIVE_RESORT_PRICE = 22500;
 
   const chunk = (arr, size) => {
     const out = [];
@@ -109,17 +117,26 @@ export default function RoomsPage() {
       // Initialize selectedRooms with default quantities
       const initialSelected = {};
       const initialTotalGuests = {};
+      const initialAdults = {};
+      const initialKids = {};
       types.forEach(type => {
+        const minGuests = Math.max(1, type.capacityMin || 1);
         initialSelected[type.type] = 0;
-        initialTotalGuests[type.type] = 1;
+        initialTotalGuests[type.type] = minGuests;
+        initialAdults[type.type] = minGuests;
+        initialKids[type.type] = 0;
       });
 
-      // Restore state from sessionStorage if returning from detail page
+      // Restore state from sessionStorage (detail-page return takes priority, then cached checkout draft).
       try {
-        const savedState = sessionStorage.getItem('roomsPageState');
+        const transientState = sessionStorage.getItem('roomsPageState');
+        const cachedState = sessionStorage.getItem(ROOMS_CHECKOUT_CACHE_KEY);
+        const savedState = transientState || cachedState;
         if (savedState) {
           const parsed = JSON.parse(savedState);
-          sessionStorage.removeItem('roomsPageState'); // consume once
+          if (transientState) {
+            sessionStorage.removeItem('roomsPageState');
+          }
 
           // Restore selected rooms
           if (parsed.selectedRooms) {
@@ -134,7 +151,26 @@ export default function RoomsPage() {
           if (parsed.totalGuestsPerType) {
             Object.keys(parsed.totalGuestsPerType).forEach(roomType => {
               if (roomType in initialTotalGuests) {
-                initialTotalGuests[roomType] = parsed.totalGuestsPerType[roomType];
+                const restoredGuests = Math.max(0, Number(parsed.totalGuestsPerType[roomType]) || 0);
+                initialTotalGuests[roomType] = restoredGuests;
+                initialAdults[roomType] = Math.max(1, restoredGuests);
+                initialKids[roomType] = 0;
+              }
+            });
+          }
+
+          // Restore adults and kids breakdown if available in saved payload.
+          if (parsed.adultsPerType) {
+            Object.keys(parsed.adultsPerType).forEach(roomType => {
+              if (roomType in initialAdults) {
+                initialAdults[roomType] = Math.max(1, Number(parsed.adultsPerType[roomType]) || 1);
+              }
+            });
+          }
+          if (parsed.kidsPerType) {
+            Object.keys(parsed.kidsPerType).forEach(roomType => {
+              if (roomType in initialKids) {
+                initialKids[roomType] = Math.max(0, Number(parsed.kidsPerType[roomType]) || 0);
               }
             });
           }
@@ -152,6 +188,15 @@ export default function RoomsPage() {
           if (parsed.checkOutHour) setCheckOutHour(parsed.checkOutHour);
           if (parsed.specialRequest) setSpecialRequest(parsed.specialRequest);
           if (parsed.activeCategory) setActiveCategory(parsed.activeCategory);
+          if (typeof parsed.isExclusiveResortBooking === 'boolean') {
+            setIsExclusiveResortBooking(parsed.isExclusiveResortBooking);
+          }
+          if (parsed.exclusiveAdults != null) {
+            setExclusiveAdults(Math.max(1, Number(parsed.exclusiveAdults) || 1));
+          }
+          if (parsed.exclusiveKids != null) {
+            setExclusiveKids(Math.max(0, Number(parsed.exclusiveKids) || 0));
+          }
         }
       } catch {
         // no-op on malformed data
@@ -159,6 +204,8 @@ export default function RoomsPage() {
 
       setSelectedRooms(initialSelected);
       setTotalGuestsPerType(initialTotalGuests);
+      setAdultsPerType(initialAdults);
+      setKidsPerType(initialKids);
       setLoading(false);
     }, (error) => {
       console.error('Error fetching rooms:', error);
@@ -228,6 +275,46 @@ export default function RoomsPage() {
       unsubscribes.forEach((u) => u());
     };
   }, [availableRoomTypes]);
+
+  // Persist checkout draft so accidental back/navigation keeps selected values.
+  useEffect(() => {
+    if (loading || availableRoomTypes.length === 0) return;
+
+    const draft = {
+      selectedRooms,
+      totalGuestsPerType,
+      adultsPerType,
+      kidsPerType,
+      checkInDate: checkInDate ? checkInDate.toISOString() : null,
+      numberOfNights,
+      checkInHour,
+      checkOutHour,
+      specialRequest,
+      activeCategory,
+      isExclusiveResortBooking,
+      exclusiveAdults,
+      exclusiveKids,
+      updatedAt: new Date().toISOString()
+    };
+
+    sessionStorage.setItem(ROOMS_CHECKOUT_CACHE_KEY, JSON.stringify(draft));
+  }, [
+    loading,
+    availableRoomTypes,
+    selectedRooms,
+    totalGuestsPerType,
+    adultsPerType,
+    kidsPerType,
+    checkInDate,
+    numberOfNights,
+    checkInHour,
+    checkOutHour,
+    specialRequest,
+    activeCategory,
+    isExclusiveResortBooking,
+    exclusiveAdults,
+    exclusiveKids
+  ]);
 
   // Fetch blocked slots
   useEffect(() => {
@@ -335,6 +422,68 @@ export default function RoomsPage() {
     return availability;
   };
 
+  const getTotalUnitsForRoomType = (roomTypeData) => {
+    if (!roomTypeData) return 0;
+
+    let totalUnits = 0;
+    for (const roomId of roomTypeData.roomIds || []) {
+      const roomDetail = roomDetailsMap[roomTypeData.type]?.[roomId];
+      const maxRooms = (roomDetail?.totalRooms || 1) - (roomDetail?.maintenanceRooms || 0);
+      totalUnits += Math.max(0, maxRooms);
+    }
+
+    if (totalUnits > 0) return totalUnits;
+    return Math.max(0, Number(roomTypeData.availableRooms || 0));
+  };
+
+  const getAvailableUnitsForRoomTypeOnDate = (date, roomTypeData) => {
+    if (!date || !roomTypeData) return 0;
+
+    let totalAvailableUnits = 0;
+    for (const roomId of roomTypeData.roomIds || []) {
+      const roomDetail = roomDetailsMap[roomTypeData.type]?.[roomId];
+      const maxRooms = (roomDetail?.totalRooms || 1) - (roomDetail?.maintenanceRooms || 0);
+      if (maxRooms <= 0) continue;
+
+      let availableForStay = maxRooms;
+
+      for (let dayOffset = 0; dayOffset < numberOfNights; dayOffset++) {
+        const currentDate = new Date(date);
+        currentDate.setDate(date.getDate() + dayOffset);
+        const dateStr = `${currentDate.getFullYear()}-${String(currentDate.getMonth() + 1).padStart(2, '0')}-${String(currentDate.getDate()).padStart(2, '0')}`;
+
+        for (let hour = checkInHour; hour < 24; hour++) {
+          const blockedUnits = blockedSlots[dateStr]?.[roomId]?.[hour] || 0;
+          const bookedCount = bookedDates[dateStr]?.[roomId]?.[hour] || 0;
+
+          const availableNow = Math.max(0, maxRooms - bookedCount - blockedUnits);
+          availableForStay = Math.min(availableForStay, availableNow);
+          if (availableForStay <= 0) break;
+        }
+
+        if (availableForStay <= 0) break;
+      }
+
+      totalAvailableUnits += availableForStay;
+    }
+
+    return totalAvailableUnits;
+  };
+
+  const isDateFullyAvailableForExclusive = (date) => {
+    if (!date || availableRoomTypes.length === 0) return false;
+
+    for (const roomTypeData of availableRoomTypes) {
+      const totalUnits = getTotalUnitsForRoomType(roomTypeData);
+      if (totalUnits <= 0) return false;
+
+      const availableUnits = getAvailableUnitsForRoomTypeOnDate(date, roomTypeData);
+      if (availableUnits < totalUnits) return false;
+    }
+
+    return true;
+  };
+
   // Update unit-level availability when date changes
   useEffect(() => {
     if (checkInDate) {
@@ -391,6 +540,51 @@ export default function RoomsPage() {
     
     setRoomAvailability(availability);
   }, [checkInDate, numberOfNights, availableRoomTypes, bookedDates, blockedSlots, roomDetailsMap, checkInHour]);
+
+  // Keep exclusive mode synced with room availability for the selected stay.
+  useEffect(() => {
+    if (!isExclusiveResortBooking || availableRoomTypes.length === 0) return;
+
+    if (!checkInDate || !isDateFullyAvailableForExclusive(checkInDate)) {
+      const clearedSelected = {};
+      const clearedAdults = {};
+      const clearedKids = {};
+      const clearedTotals = {};
+
+      for (const roomType of availableRoomTypes) {
+        const minGuests = Math.max(1, roomType.capacityMin || 1);
+        clearedSelected[roomType.type] = 0;
+        clearedAdults[roomType.type] = minGuests;
+        clearedKids[roomType.type] = 0;
+        clearedTotals[roomType.type] = minGuests;
+      }
+
+      setSelectedRooms(clearedSelected);
+      setAdultsPerType(clearedAdults);
+      setKidsPerType(clearedKids);
+      setTotalGuestsPerType(clearedTotals);
+      return;
+    }
+
+    const nextSelected = {};
+    const nextAdults = {};
+    const nextKids = {};
+    const nextTotals = {};
+
+    for (const roomType of availableRoomTypes) {
+      const qty = Math.max(0, getTotalUnitsForRoomType(roomType));
+      const minGuests = qty * (roomType.capacityMin || 1);
+      nextSelected[roomType.type] = qty;
+      nextAdults[roomType.type] = Math.max(1, minGuests);
+      nextKids[roomType.type] = 0;
+      nextTotals[roomType.type] = Math.max(1, minGuests);
+    }
+
+    setSelectedRooms(nextSelected);
+    setAdultsPerType(nextAdults);
+    setKidsPerType(nextKids);
+    setTotalGuestsPerType(nextTotals);
+  }, [isExclusiveResortBooking, checkInDate, availableRoomTypes, roomAvailability, numberOfNights, checkInHour, blockedSlots, bookedDates, roomDetailsMap]);
 
   // Check availability for selected rooms and dates
   useEffect(() => {
@@ -467,6 +661,7 @@ export default function RoomsPage() {
   }, [checkInDate, checkOutDate, numberOfNights, selectedRooms, availableRoomTypes, bookedDates, blockedSlots, roomDetailsMap, checkInHour]);
 
   const handleQuantityChange = (roomType, increment) => {
+    setIsExclusiveResortBooking(false);
     const typeData = availableRoomTypes.find(t => t.type === roomType);
     // Use unit-level availability for max available
     const maxAvailable = checkInDate 
@@ -492,66 +687,64 @@ export default function RoomsPage() {
     // Reset total guests to min if quantity becomes 0
     if (newQuantity === 0) {
       setTotalGuestsPerType(prev => ({ ...prev, [roomType]: 1 }));
+      setAdultsPerType(prev => ({ ...prev, [roomType]: 1 }));
+      setKidsPerType(prev => ({ ...prev, [roomType]: 0 }));
     } else {
-      // Ensure total guests is within max capacity (units × capacity per unit)
-      const currentTotalGuests = totalGuestsPerType[roomType] || 1;
+      // Keep adults/kids and total guests inside allowed bounds.
       const maxTotalGuests = newQuantity * (typeData?.capacityMax || 10);
       const minTotalGuests = newQuantity * (typeData?.capacityMin || 1);
-      if (currentTotalGuests > maxTotalGuests) {
-        setTotalGuestsPerType(prev => ({ ...prev, [roomType]: maxTotalGuests }));
-      }
-      if (currentTotalGuests < minTotalGuests) {
-        setTotalGuestsPerType(prev => ({ ...prev, [roomType]: minTotalGuests }));
-      }
+
+      const currentAdults = Number(adultsPerType[roomType] ?? minTotalGuests);
+      const currentKids = Number(kidsPerType[roomType] ?? 0);
+      const currentTotalGuests = currentAdults + currentKids;
+
+      const normalizedTotalGuests = Math.min(maxTotalGuests, Math.max(minTotalGuests, currentTotalGuests));
+      const normalizedAdults = Math.max(1, Math.min(normalizedTotalGuests, currentAdults));
+      const normalizedKids = Math.max(0, normalizedTotalGuests - normalizedAdults);
+
+      setAdultsPerType(prev => ({ ...prev, [roomType]: normalizedAdults }));
+      setKidsPerType(prev => ({ ...prev, [roomType]: normalizedKids }));
+      setTotalGuestsPerType(prev => ({ ...prev, [roomType]: normalizedTotalGuests }));
     }
   };
 
-const handleTotalGuestsChange = (roomType, value) => {
-  const quantity = selectedRooms[roomType] || 0;
-  if (quantity === 0) return;
-  
-  const typeData = availableRoomTypes.find(t => t.type === roomType);
-  const maxTotalGuests = quantity * (typeData?.capacityMax || 10);
-  const minTotalGuests = quantity * (typeData?.capacityMin || 1);
-  
-  let newTotalGuests = parseInt(value, 10);
-  
-  // Check for invalid / negative
-  if (isNaN(newTotalGuests) || newTotalGuests < 0) {
-    setGuestInputErrors(prev => ({ 
-      ...prev, 
-      [roomType]: 'Please enter a valid number (0 or positive)' 
-    }));
-    
-    // still allow input (important!)
-    setTotalGuestsPerType(prev => ({
-      ...prev,
-      [roomType]: value
-    }));
-    return;
-  }
-  
-  // Validate only (NO overriding)
-  if (newTotalGuests > maxTotalGuests) {
-    setGuestInputErrors(prev => ({ 
-      ...prev, 
-      [roomType]: `Maximum ${maxTotalGuests} guests allowed for ${quantity} unit${quantity !== 1 ? 's' : ''}` 
-    }));
-  } else if (newTotalGuests < minTotalGuests) {
-    setGuestInputErrors(prev => ({ 
-      ...prev, 
-      [roomType]: `Minimum ${minTotalGuests} guests required for ${quantity} unit${quantity !== 1 ? 's' : ''}` 
-    }));
-  } else {
-    setGuestInputErrors(prev => ({ ...prev, [roomType]: '' }));
-  }
-  
-  // ✅ ALWAYS set what user typed
-  setTotalGuestsPerType(prev => ({
-    ...prev,
-    [roomType]: newTotalGuests
-  }));
-};
+  const handleGuestCountChange = (roomType, guestType, value) => {
+    setIsExclusiveResortBooking(false);
+    const quantity = selectedRooms[roomType] || 0;
+    if (quantity === 0) return;
+
+    const typeData = availableRoomTypes.find((t) => t.type === roomType);
+    const maxTotalGuests = quantity * (typeData?.capacityMax || 10);
+    const minTotalGuests = quantity * (typeData?.capacityMin || 1);
+
+    const parsedValue = Number.parseInt(value, 10);
+    const normalizedInput = Number.isNaN(parsedValue) ? 0 : Math.max(0, parsedValue);
+
+    let nextAdults = Number(adultsPerType[roomType] ?? minTotalGuests);
+    let nextKids = Number(kidsPerType[roomType] ?? 0);
+
+    if (guestType === 'adults') {
+      nextAdults = normalizedInput;
+    } else {
+      nextKids = normalizedInput;
+    }
+
+    const nextTotalGuests = nextAdults + nextKids;
+    let errorMessage = '';
+
+    if (nextAdults < 1) {
+      errorMessage = 'At least 1 adult is required.';
+    } else if (nextTotalGuests > maxTotalGuests) {
+      errorMessage = `Maximum ${maxTotalGuests} guests allowed for ${quantity} unit${quantity !== 1 ? 's' : ''}`;
+    } else if (nextTotalGuests < minTotalGuests) {
+      errorMessage = `Minimum ${minTotalGuests} guests required for ${quantity} unit${quantity !== 1 ? 's' : ''}`;
+    }
+
+    setAdultsPerType((prev) => ({ ...prev, [roomType]: nextAdults }));
+    setKidsPerType((prev) => ({ ...prev, [roomType]: nextKids }));
+    setTotalGuestsPerType((prev) => ({ ...prev, [roomType]: nextTotalGuests }));
+    setGuestInputErrors((prev) => ({ ...prev, [roomType]: errorMessage }));
+  };
 
   const handleDateSelect = (date) => {
     const today = new Date();
@@ -579,6 +772,98 @@ const handleTotalGuestsChange = (roomType, value) => {
     setNumberOfNights(newNights);
   };
 
+  const canBookExclusiveResort = Boolean(checkInDate && isDateFullyAvailableForExclusive(checkInDate));
+
+  const applyExclusiveSelections = () => {
+    const nextSelected = {};
+    const nextAdults = {};
+    const nextKids = {};
+    const nextTotals = {};
+
+    for (const roomType of availableRoomTypes) {
+      const qty = Math.max(0, getTotalUnitsForRoomType(roomType));
+      const minGuests = qty * (roomType.capacityMin || 1);
+      nextSelected[roomType.type] = qty;
+      nextAdults[roomType.type] = Math.max(1, minGuests);
+      nextKids[roomType.type] = 0;
+      nextTotals[roomType.type] = Math.max(1, minGuests);
+    }
+
+    setSelectedRooms(nextSelected);
+    setAdultsPerType(nextAdults);
+    setKidsPerType(nextKids);
+    setTotalGuestsPerType(nextTotals);
+    setGuestInputErrors({});
+    setExclusiveGuestError('');
+
+    if ((Number(exclusiveAdults) || 0) < 1) {
+      setExclusiveAdults(1);
+    }
+    if ((Number(exclusiveKids) || 0) < 0) {
+      setExclusiveKids(0);
+    }
+  };
+
+  const handleSelectExclusiveResort = () => {
+    if (!checkInDate) {
+      setIsExclusiveResortBooking(true);
+      setActiveCategory('All Rooms');
+      setIsModalOpen(true);
+      setDateSelectionError('Exclusive mode is on. Select dates where the whole resort is fully available.');
+      return;
+    }
+
+    if (!canBookExclusiveResort) {
+      setIsExclusiveResortBooking(true);
+      setActiveCategory('All Rooms');
+      setDateSelectionError('Selected dates are not fully free. Choose dates where all units across all room types are available.');
+      return;
+    }
+
+    applyExclusiveSelections();
+    setIsExclusiveResortBooking(true);
+    setActiveCategory('All Rooms');
+    setDateSelectionError('');
+    setExclusiveGuestError('');
+  };
+
+  const handleClearExclusiveResort = () => {
+    setIsExclusiveResortBooking(false);
+    setDateSelectionError('');
+    setExclusiveGuestError('');
+  };
+
+  const handleRemoveFromReceipt = (roomType) => {
+    setIsExclusiveResortBooking(false);
+    const roomTypeDetails = availableRoomTypes.find((room) => room.type === roomType);
+    const minGuests = Math.max(1, Number(roomTypeDetails?.capacityMin || 1));
+
+    setSelectedRooms((prev) => ({
+      ...prev,
+      [roomType]: 0
+    }));
+
+    setAdultsPerType((prev) => ({
+      ...prev,
+      [roomType]: minGuests
+    }));
+
+    setKidsPerType((prev) => ({
+      ...prev,
+      [roomType]: 0
+    }));
+
+    setTotalGuestsPerType((prev) => ({
+      ...prev,
+      [roomType]: minGuests
+    }));
+
+    setGuestInputErrors((prev) => ({
+      ...prev,
+      [roomType]: ''
+    }));
+  };
+
   const getSelectedRoomsSummary = () => {
     const selected = Object.entries(selectedRooms).filter(([_, qty]) => qty > 0);
     if (selected.length === 0) return 'No rooms selected';
@@ -589,6 +874,12 @@ const handleTotalGuestsChange = (roomType, value) => {
   };
 
   const getTotalGuests = () => {
+    if (isExclusiveResortBooking) {
+      const adults = Math.max(0, Number(exclusiveAdults) || 0);
+      const kids = Math.max(0, Number(exclusiveKids) || 0);
+      return adults + kids;
+    }
+
     let total = 0;
     for (const [roomType, quantity] of Object.entries(selectedRooms)) {
       if (quantity > 0) {
@@ -610,6 +901,42 @@ const handleTotalGuestsChange = (roomType, value) => {
     return total;
   };
 
+  const getExclusiveMaxPax = () => {
+    return availableRoomTypes.reduce((sum, roomType) => {
+      const totalUnits = getTotalUnitsForRoomType(roomType);
+      const roomMaxCapacity = Number(roomType.capacityMax || roomType.capacityMin || 1);
+      return sum + (totalUnits * roomMaxCapacity);
+    }, 0);
+  };
+
+  const handleExclusiveGuestChange = (guestType, rawValue) => {
+    const parsedValue = Number.parseInt(rawValue, 10);
+    const safeValue = Number.isNaN(parsedValue) ? 0 : Math.max(0, parsedValue);
+
+    let nextAdults = Number(exclusiveAdults) || 1;
+    let nextKids = Number(exclusiveKids) || 0;
+
+    if (guestType === 'adults') {
+      nextAdults = safeValue;
+    } else {
+      nextKids = safeValue;
+    }
+
+    const nextTotal = nextAdults + nextKids;
+    const maxPax = getExclusiveMaxPax();
+    let errorMessage = '';
+
+    if (nextAdults < 1) {
+      errorMessage = 'At least 1 adult is required.';
+    } else if (maxPax > 0 && nextTotal > maxPax) {
+      errorMessage = `Maximum ${maxPax} guests can be accommodated for the whole resort package.`;
+    }
+
+    setExclusiveAdults(Math.max(0, nextAdults));
+    setExclusiveKids(Math.max(0, nextKids));
+    setExclusiveGuestError(errorMessage);
+  };
+
   const handleProceed = () => {
     if (!checkInDate) {
       setDateSelectionError('Please select check-in and check-out dates');
@@ -621,10 +948,32 @@ const handleTotalGuestsChange = (roomType, value) => {
       setDateSelectionError('Please select at least one room type');
       return;
     }
+
+    if (isExclusiveResortBooking) {
+      const adults = Math.max(0, Number(exclusiveAdults) || 0);
+      const kids = Math.max(0, Number(exclusiveKids) || 0);
+      const totalGuests = adults + kids;
+      const maxPax = getExclusiveMaxPax();
+
+      if (adults < 1) {
+        setExclusiveGuestError('At least 1 adult is required.');
+        return;
+      }
+
+      if (totalGuests < 1) {
+        setExclusiveGuestError('Please enter at least 1 guest.');
+        return;
+      }
+
+      if (maxPax > 0 && totalGuests > maxPax) {
+        setExclusiveGuestError(`Maximum ${maxPax} guests can be accommodated for the whole resort package.`);
+        return;
+      }
+    }
     
     // Check if there are any guest input errors
     const hasErrors = Object.values(guestInputErrors).some(error => error !== '');
-    if (hasErrors) {
+    if (!isExclusiveResortBooking && hasErrors) {
       setDateSelectionError('Please fix the guest count errors before proceeding');
       return;
     }
@@ -642,10 +991,16 @@ const handleTotalGuestsChange = (roomType, value) => {
     
     if (hasError) return;
 
+    const computedTotalPrice = isExclusiveResortBooking ? (EXCLUSIVE_RESORT_PRICE * numberOfNights) : getTotalPrice();
+
     // Store selected rooms and dates in session storage for the booking page
     const bookingData = {
       selectedRooms,
       totalGuestsPerType,
+      adultsPerType,
+      kidsPerType,
+      exclusiveAdults: isExclusiveResortBooking ? Math.max(0, Number(exclusiveAdults) || 0) : null,
+      exclusiveKids: isExclusiveResortBooking ? Math.max(0, Number(exclusiveKids) || 0) : null,
       checkInDate: checkInDate.toISOString(),
       checkOutDate: checkOutDate.toISOString(),
       checkInHour,
@@ -654,8 +1009,10 @@ const handleTotalGuestsChange = (roomType, value) => {
       checkOutDisplay,
       numberOfNights,
       specialRequest,
-      totalPrice: getTotalPrice(),
+      totalPrice: computedTotalPrice,
       totalGuests: getTotalGuests(),
+      isExclusiveResortBooking,
+      exclusivePackagePrice: isExclusiveResortBooking ? computedTotalPrice : null,
       roomTypes: availableRoomTypes.filter(t => selectedRooms[t.type] > 0).map(t => ({
         type: t.type,
         quantity: selectedRooms[t.type],
@@ -716,6 +1073,10 @@ const handleTotalGuestsChange = (roomType, value) => {
   // This function checks if a date is fully booked for ALL selected room types
   const isDateFullyBooked = (date) => {
     if (!date) return false;
+
+    if (isExclusiveResortBooking) {
+      return !isDateFullyAvailableForExclusive(date);
+    }
     
     const selectedTypes = Object.entries(selectedRooms).filter(([_, qty]) => qty > 0);
     // If no room types are selected, any date is technically selectable
@@ -833,6 +1194,13 @@ const handleTotalGuestsChange = (roomType, value) => {
         return room.type === activeCategory;
     });
 
+  const exclusiveTotalPrice = EXCLUSIVE_RESORT_PRICE * numberOfNights;
+  const checkoutTotal = isExclusiveResortBooking ? exclusiveTotalPrice : getTotalPrice();
+  const exclusiveMaxPax = getExclusiveMaxPax();
+  const exclusiveTotalPax = Math.max(0, Number(exclusiveAdults) || 0) + Math.max(0, Number(exclusiveKids) || 0);
+  const hasRoomGuestErrors = Object.values(guestInputErrors).some(err => err !== '');
+  const hasAnyGuestErrors = isExclusiveResortBooking ? Boolean(exclusiveGuestError) : hasRoomGuestErrors;
+
   return (
     <GuestLayout>
       <div className="min-h-screen bg-[#F8FCFF] pt-32 pb-14 font-sans">
@@ -892,8 +1260,16 @@ const handleTotalGuestsChange = (roomType, value) => {
                           </p>
                           <h3 className="text-white text-2xl font-playfair font-bold truncate leading-tight pb-1">{room.type}</h3>
                         </div>
-                        <div className="absolute top-4 right-4 z-10 w-8 h-8 border-[1.5px] border-white/50 rounded-full flex items-center justify-center">
-                          <div className="w-4 h-4 bg-white/20 rounded-full"></div>
+                        <div className="absolute top-4 right-4 z-10">
+                          <span className={`inline-flex items-center rounded-full px-2.5 py-1 text-[10px] font-bold uppercase tracking-wider backdrop-blur-sm ${
+                            realTimeAvailable > 0
+                              ? 'bg-emerald-100/90 text-emerald-700 border border-emerald-200'
+                              : 'bg-red-100/90 text-red-700 border border-red-200'
+                          }`}>
+                            {realTimeAvailable > 0
+                              ? `${realTimeAvailable} unit${realTimeAvailable > 1 ? 's' : ''} left`
+                              : 'Sold out'}
+                          </span>
                         </div>
                       </div>
 
@@ -905,6 +1281,9 @@ const handleTotalGuestsChange = (roomType, value) => {
                             </p>
                             <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">Per Night</p>
                           </div>
+                          <p className="text-[11px] font-semibold text-blue-600 mb-4">
+                            {realTimeAvailable} unit{realTimeAvailable !== 1 ? 's' : ''} available
+                          </p>
                           
                           <div className="flex flex-wrap gap-2 mb-6">
                             <span className="px-3 py-1.5 bg-gray-50 border border-gray-100 text-[11px] font-medium text-gray-600 rounded-full">Airconditioned</span>
@@ -1013,6 +1392,32 @@ const handleTotalGuestsChange = (roomType, value) => {
                   </div>
                 </div>
 
+                <div className="mb-4 rounded-2xl border border-blue-200 bg-blue-50/70 p-3">
+                  <div className="flex items-start justify-between gap-3">
+                    <div>
+                      <p className="text-[10px] font-bold uppercase tracking-widest text-blue-700">Exclusive Option</p>
+                      <p className="mt-1 text-sm font-semibold text-blue-900">Book Entire Resort</p>
+                      <p className="text-xs text-blue-700/80">₱{EXCLUSIVE_RESORT_PRICE.toLocaleString()} per night • Total: ₱{exclusiveTotalPrice.toLocaleString()}</p>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={isExclusiveResortBooking ? handleClearExclusiveResort : handleSelectExclusiveResort}
+                      className={`rounded-xl px-3 py-2 text-xs font-bold transition-colors ${
+                        isExclusiveResortBooking
+                          ? 'bg-emerald-600 text-white hover:bg-emerald-700'
+                          : 'bg-blue-600 text-white hover:bg-blue-700'
+                      }`}
+                    >
+                      {isExclusiveResortBooking ? 'Exclusive Selected' : 'Select Exclusive'}
+                    </button>
+                  </div>
+                  {!canBookExclusiveResort && !isExclusiveResortBooking && (
+                    <p className="mt-2 text-[11px] font-medium text-amber-700">
+                      Select stay dates first, then choose dates where all room units are fully available.
+                    </p>
+                  )}
+                </div>
+
                  <div className="mb-6 p-4 bg-gray-50/50 rounded-[1.5rem] border border-gray-100 relative">
                     <h3 className="text-xs font-semibold text-gray-800 mb-3 uppercase tracking-wider">Stay Schedule</h3>
                     <div 
@@ -1023,7 +1428,7 @@ const handleTotalGuestsChange = (roomType, value) => {
                        {checkInDate ? (
                          <span>{checkInDate.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })} &rarr; {checkOutDate ? checkOutDate.toLocaleDateString('en-US', { month: 'short', day: 'numeric' }) : '...'}</span>
                        ) : (
-                         <span className="text-gray-400">Choose Check-in Dates</span>
+                         <span className="text-gray-400">Select check-in date</span>
                        )}
                        <i className="fas fa-calendar-alt text-blue-500"></i>
                     </div>
@@ -1031,40 +1436,44 @@ const handleTotalGuestsChange = (roomType, value) => {
                       Fixed schedule: Check-in {checkInDisplay}, Check-out {checkOutDisplay}
                     </div>
 
+                    <div className="mt-3">
+                      <p className="text-[10px] font-bold text-gray-500 uppercase tracking-wider mb-1.5">Nights</p>
+                      <div className="flex items-center bg-white rounded-xl p-1 border border-gray-200 shadow-sm">
+                        <button onClick={() => handleNightsChange(false)} disabled={numberOfNights<=1} className="w-8 h-8 flex items-center justify-center rounded-lg text-gray-500 hover:bg-gray-50 disabled:opacity-30 transition-colors">
+                          <i className="fas fa-minus text-[10px]"></i>
+                        </button>
+                        <span className="font-bold text-sm flex-1 text-center text-gray-800">{numberOfNights}</span>
+                        <button onClick={() => handleNightsChange(true)} disabled={numberOfNights>=30} className="w-8 h-8 flex items-center justify-center rounded-lg text-gray-500 hover:bg-gray-50 disabled:opacity-30 transition-colors">
+                          <i className="fas fa-plus text-[10px]"></i>
+                        </button>
+                      </div>
+                    </div>
+
                     {isModalOpen && (
                       <div
                         ref={calendarPopoverRef}
-                        className="absolute right-0 top-[calc(100%+0.5rem)] z-40 bg-white w-[340px] max-w-[calc(100vw-2rem)] rounded-[2rem] shadow-2xl p-6 border border-gray-100"
+                        className="absolute left-0 top-[4.25rem] z-50 bg-white w-[290px] max-w-[calc(100vw-3rem)] rounded-2xl shadow-[0_16px_40px_rgb(0,0,0,0.14)] p-2.5 border border-gray-100 max-h-[58vh] overflow-hidden flex flex-col"
                       >
-                        <div className="flex justify-between items-center mb-6">
-                          <div>
-                            <h2 className="text-2xl font-bold font-playfair text-gray-900 leading-tight">Select<br/>Dates</h2>
-                            <p className="text-xs text-gray-500 font-medium mt-1">When are you arriving?</p>
-                          </div>
-                          <button onClick={() => setIsModalOpen(false)} className="w-10 h-10 flex items-center justify-center rounded-full bg-gray-50 text-gray-400 hover:bg-gray-100 hover:text-gray-600 transition-colors">
-                            <i className="fas fa-times text-sm"></i>
-                          </button>
-                        </div>
-
-                        <div className="overflow-y-auto max-h-[62vh] pb-3 scrollbar-hide">
-                          <div className="flex justify-between items-center mb-5 px-1">
-                            <button onClick={goToPreviousMonth} className="w-8 h-8 flex justify-center items-center text-gray-400 border border-gray-200 hover:text-blue-500 hover:border-blue-200 rounded-full transition-colors">
+                        <div className="overflow-y-auto pr-1">
+                          <div className="flex justify-between items-center mb-1.5 px-1">
+                            <button type="button" onClick={goToPreviousMonth} className="w-6 h-6 flex justify-center items-center text-gray-400 border border-gray-200 hover:text-blue-500 hover:border-blue-200 rounded-full transition-colors">
                               <i className="fas fa-chevron-left text-[10px]"></i>
                             </button>
-                            <h2 className="font-bold text-gray-800 text-sm tracking-wide">{monthNames[currentMonth.getMonth()]} {currentMonth.getFullYear()}</h2>
-                            <button onClick={goToNextMonth} className="w-8 h-8 flex justify-center items-center text-gray-400 border border-gray-200 hover:text-blue-500 hover:border-blue-200 rounded-full transition-colors">
+                            <h4 className="font-bold text-gray-800 text-[11px] tracking-wide">{monthNames[currentMonth.getMonth()]} {currentMonth.getFullYear()}</h4>
+                            <button type="button" onClick={goToNextMonth} className="w-6 h-6 flex justify-center items-center text-gray-400 border border-gray-200 hover:text-blue-500 hover:border-blue-200 rounded-full transition-colors">
                               <i className="fas fa-chevron-right text-[10px]"></i>
                             </button>
                           </div>
 
-                          <div className="grid grid-cols-7 gap-1 mb-2">
-                            {['Su', 'Mo', 'Tu', 'We', 'Th', 'Fr', 'Sa'].map(d => (
-                              <div key={d} className="text-center text-[10px] font-bold uppercase tracking-widest text-gray-400 py-1">{d}</div>
+                          <div className="grid grid-cols-7 gap-0.5 mb-1">
+                            {['Su', 'Mo', 'Tu', 'We', 'Th', 'Fr', 'Sa'].map((d) => (
+                              <div key={d} className="text-center text-[9px] font-bold uppercase tracking-widest text-gray-400 py-1">{d}</div>
                             ))}
                           </div>
-                          <div className="grid grid-cols-7 gap-x-1 gap-y-1.5">
+                          <div className="grid grid-cols-7 gap-0.5">
                             {days.map((day, index) => {
                               if (!day) return <div key={index}></div>;
+
                               const isPast = isDatePast(day);
                               const isTooSoon = isDateTooSoon(day);
                               const isFullyBlocked = isDateFullyBlockedByAdmin(day);
@@ -1072,72 +1481,43 @@ const handleTotalGuestsChange = (roomType, value) => {
                               const isSelected = checkInDate && checkInDate.toDateString() === day.toDateString();
                               const isCheckout = checkOutDate && checkOutDate.toDateString() === day.toDateString();
                               const inRange = checkInDate && checkOutDate && day > checkInDate && day < checkOutDate;
+                              const isDisabled = isPast || isTooSoon || isFullyBlocked || isFullyBooked;
 
                               let bg = 'bg-white border border-gray-100';
                               let text = 'text-gray-700';
-                              let stateClass = 'hover:border-blue-400 hover:text-blue-600 cursor-pointer rounded-[10px]';
-                              if (isPast || isTooSoon) {
+                              let stateClass = 'hover:border-blue-400 hover:text-blue-600 cursor-pointer rounded-xl';
+
+                              if (isDisabled) {
                                 bg = 'bg-gray-50 border-transparent';
-                                text = 'text-gray-300';
-                                stateClass = 'cursor-not-allowed rounded-[10px]';
-                              } else if (isFullyBlocked || isFullyBooked) {
-                                bg = 'bg-red-50 border-red-100';
-                                text = 'text-red-300';
-                                stateClass = 'cursor-not-allowed rounded-[10px]';
+                                text = (isFullyBlocked || isFullyBooked) ? 'text-red-300' : 'text-gray-300';
+                                stateClass = 'cursor-not-allowed rounded-xl';
                               } else if (isSelected || isCheckout) {
                                 bg = 'bg-blue-600 border-blue-600';
                                 text = 'text-white';
-                                stateClass = 'shadow-md cursor-pointer ring-4 ring-blue-500/20 rounded-[10px] z-10 relative';
+                                stateClass = 'shadow-md cursor-pointer ring-4 ring-blue-500/20 rounded-xl z-10 relative';
                               } else if (inRange) {
-                                bg = 'bg-blue-50 border-blue-50';
-                                text = 'text-blue-700';
-                                stateClass = 'rounded-none border-y border-y-blue-200 shadow-sm cursor-pointer hover:bg-blue-100';
+                                bg = 'bg-blue-50 border-blue-100';
+                                text = 'text-blue-700 font-bold';
+                                stateClass = 'cursor-pointer rounded-lg';
                               }
 
                               return (
-                                <div key={index} className="relative">
-                                  {inRange && (
-                                    <div className="absolute inset-y-0 -left-1 -right-1 bg-blue-50 z-0 border-y border-blue-100"></div>
-                                  )}
-                                  {(isSelected && inRange && day.getDay() !== 6) && (
-                                    <div className="absolute inset-y-0 left-1/2 right-[-4px] bg-blue-50 z-0 border-y border-blue-100"></div>
-                                  )}
-                                  {(isCheckout && day.getDay() !== 0) && (
-                                    <div className="absolute inset-y-0 right-1/2 left-[-4px] bg-blue-50 z-0 border-y border-blue-100"></div>
-                                  )}
-                                  <button
-                                    disabled={isPast || isTooSoon || isFullyBlocked || isFullyBooked}
-                                    onClick={() => handleDateSelect(day)}
-                                    className={`relative aspect-square w-full flex items-center justify-center font-bold text-xs transition-all ${bg} ${text} ${stateClass} ${!isPast && !isTooSoon && !isFullyBlocked && !isFullyBooked && !isSelected && !isCheckout && !inRange ? 'hover:-translate-y-[1px]' : ''}`}
-                                  >
-                                    {day.getDate()}
-                                  </button>
-                                </div>
+                                <button
+                                  key={index}
+                                  type="button"
+                                  disabled={isDisabled}
+                                  onClick={() => handleDateSelect(day)}
+                                  className={`h-9 flex items-center justify-center font-bold text-[10px] transition-all ${bg} ${text} ${stateClass}`}
+                                >
+                                  {day.getDate()}
+                                </button>
                               );
                             })}
                           </div>
-
-                          <div className="mt-8 bg-[#F8FCFF] border border-blue-100/50 p-4 rounded-2xl relative overflow-hidden">
-                            <div className="flex items-center justify-between relative z-10">
-                              <div>
-                                <h3 className="text-sm font-bold text-gray-800">Duration</h3>
-                                <p className="text-[10px] uppercase font-bold text-blue-500/70 tracking-widest mt-0.5">Nights</p>
-                              </div>
-                              <div className="flex items-center bg-white rounded-xl p-1 border border-gray-200 shadow-sm">
-                                <button onClick={() => handleNightsChange(false)} disabled={numberOfNights<=1} className="w-8 h-8 flex items-center justify-center rounded-lg text-gray-500 hover:bg-gray-50 disabled:opacity-30 transition-colors">
-                                  <i className="fas fa-minus text-[10px]"></i>
-                                </button>
-                                <span className="font-bold text-sm w-8 text-center text-gray-800">{numberOfNights}</span>
-                                <button onClick={() => handleNightsChange(true)} disabled={numberOfNights>=30} className="w-8 h-8 flex items-center justify-center rounded-lg text-gray-500 hover:bg-gray-50 disabled:opacity-30 transition-colors">
-                                  <i className="fas fa-plus text-[10px]"></i>
-                                </button>
-                              </div>
-                            </div>
-                          </div>
                         </div>
 
-                        <div className="mt-4 pt-4 border-t border-gray-100">
-                          <button onClick={() => setIsModalOpen(false)} className="w-full py-3.5 bg-gray-900 text-white rounded-xl text-sm font-bold hover:bg-black transition-colors shadow-lg shadow-gray-900/20">
+                        <div className="pt-1.5 mt-1.5 border-t border-gray-100 bg-white">
+                          <button type="button" onClick={() => setIsModalOpen(false)} className="w-full py-2 bg-blue-600 text-white rounded-xl text-xs font-bold hover:bg-blue-700 transition-all shadow-lg shadow-blue-500/20">
                             Confirm Dates
                           </button>
                         </div>
@@ -1146,7 +1526,52 @@ const handleTotalGuestsChange = (roomType, value) => {
                  </div>
 
                 <div className="space-y-3 mb-6">
-                  {Object.values(selectedRooms).every(q => q === 0) ? (
+                  {isExclusiveResortBooking ? (
+                    <div className="p-3.5 bg-white border border-gray-100 shadow-sm rounded-2xl relative overflow-hidden">
+                      <div className="absolute top-0 left-0 w-1 h-full bg-emerald-400"></div>
+                      <div className="pl-2">
+                        <p className="text-sm font-bold text-gray-800">Entire Resort Package</p>
+                        <p className="text-[10px] text-emerald-600 font-extrabold uppercase tracking-widest mt-1">
+                          Can entertain up to {exclusiveMaxPax} pax
+                        </p>
+                      </div>
+
+                      <div className="bg-gray-50/80 rounded-xl p-2 mt-3 ml-2">
+                        <div className="grid grid-cols-2 gap-2">
+                          <label className="flex flex-col gap-1">
+                            <span className="text-[10px] uppercase font-bold text-gray-500">Adults</span>
+                            <input
+                              type="number"
+                              min={1}
+                              value={exclusiveAdults}
+                              onChange={(e) => handleExclusiveGuestChange('adults', e.target.value)}
+                              className={`w-full text-xs font-bold border bg-white rounded-md pl-3 py-1 shadow-sm focus:outline-none focus:ring-2 ${exclusiveGuestError ? 'border-red-300 focus:border-red-400 ring-red-100 text-red-600' : 'border-gray-200 focus:border-blue-400 ring-blue-100'}`}
+                            />
+                          </label>
+                          <label className="flex flex-col gap-1">
+                            <span className="text-[10px] uppercase font-bold text-gray-500">Kids</span>
+                            <input
+                              type="number"
+                              min={0}
+                              value={exclusiveKids}
+                              onChange={(e) => handleExclusiveGuestChange('kids', e.target.value)}
+                              className={`w-full text-xs font-bold border bg-white rounded-md pl-3 py-1 shadow-sm focus:outline-none focus:ring-2 ${exclusiveGuestError ? 'border-red-300 focus:border-red-400 ring-red-100 text-red-600' : 'border-gray-200 focus:border-blue-400 ring-blue-100'}`}
+                            />
+                          </label>
+                        </div>
+                        <p className="text-[10px] font-semibold text-gray-500 mt-2">
+                          Total Pax: {exclusiveTotalPax}
+                        </p>
+                      </div>
+
+                      {exclusiveGuestError && (
+                        <div className="bg-red-50/80 border-t border-red-100 p-2 text-[10px] text-red-600 font-semibold tracking-tight leading-tight flex items-start gap-1 w-full rounded-b-2xl absolute bottom-0 left-0">
+                          <i className="fas fa-exclamation-circle mt-[0.1rem]"></i>
+                          <span>{exclusiveGuestError}</span>
+                        </div>
+                      )}
+                    </div>
+                  ) : Object.values(selectedRooms).every(q => q === 0) ? (
                     <div className="py-12 px-4 border-2 border-dashed border-gray-200 rounded-[1.5rem] text-center bg-gray-50/50">
                       <div className="w-12 h-12 mx-auto bg-white rounded-full flex items-center justify-center text-gray-300 mb-4 shadow-sm border border-gray-100">
                          <h2 className="text-gray-300 font-bold text-lg">$</h2>
@@ -1162,20 +1587,46 @@ const handleTotalGuestsChange = (roomType, value) => {
                               <p className="text-sm font-bold text-gray-800 truncate max-w-[120px]">{room.type}</p>
                               <p className="text-[10px] text-blue-500 font-extrabold uppercase tracking-widest mt-1">{selectedRooms[room.type]} unit{selectedRooms[room.type] > 1 ? 's' : ''}</p>
                            </div>
-                           <p className="text-sm font-bold text-gray-800">
-                             ₱{(room.price * selectedRooms[room.type] * numberOfNights).toLocaleString()}
-                           </p>
+                           <div className="flex items-start gap-2">
+                             <p className="text-sm font-bold text-gray-800 pt-0.5">
+                               ₱{(room.price * selectedRooms[room.type] * numberOfNights).toLocaleString()}
+                             </p>
+                             <button
+                               onClick={() => handleRemoveFromReceipt(room.type)}
+                               className="w-6 h-6 rounded-full bg-red-50 border border-red-100 text-red-500 hover:bg-red-100 hover:text-red-600 transition-colors flex items-center justify-center"
+                               aria-label={`Remove ${room.type} from receipt`}
+                               title="Remove room"
+                             >
+                               <i className="fas fa-times text-[10px]"></i>
+                             </button>
+                           </div>
                         </div>
-                        <div className="flex items-center justify-between bg-gray-50/80 rounded-xl p-2 mt-3 ml-2">
-                           <span className="text-[10px] uppercase font-bold text-gray-500">Total Guests:</span>
-                           <input 
-                              type="number" 
-                              min={selectedRooms[room.type] * room.capacityMin}
-                              max={selectedRooms[room.type] * room.capacityMax}
-                              value={totalGuestsPerType[room.type] || selectedRooms[room.type]}
-                              onChange={(e) => handleTotalGuestsChange(room.type, e.target.value)}
-                              className={`w-16 text-xs font-bold border bg-white rounded-md pl-3 py-1 shadow-sm focus:outline-none focus:ring-2 ${guestInputErrors[room.type] ? 'border-red-300 focus:border-red-400 ring-red-100 text-red-600' : 'border-gray-200 focus:border-blue-400 ring-blue-100'}`}
-                           />
+                        <div className="bg-gray-50/80 rounded-xl p-2 mt-3 ml-2">
+                           <div className="grid grid-cols-2 gap-2">
+                              <label className="flex flex-col gap-1">
+                                <span className="text-[10px] uppercase font-bold text-gray-500">Adults</span>
+                                <input
+                                  type="number"
+                                  min={1}
+                                  value={adultsPerType[room.type] ?? 1}
+                                  onChange={(e) => handleGuestCountChange(room.type, 'adults', e.target.value)}
+                                  className={`w-full text-xs font-bold border bg-white rounded-md pl-3 py-1 shadow-sm focus:outline-none focus:ring-2 ${guestInputErrors[room.type] ? 'border-red-300 focus:border-red-400 ring-red-100 text-red-600' : 'border-gray-200 focus:border-blue-400 ring-blue-100'}`}
+                                />
+                              </label>
+                              <label className="flex flex-col gap-1">
+                                <span className="text-[10px] uppercase font-bold text-gray-500">Kids</span>
+                                <input
+                                  type="number"
+                                  min={0}
+                                  value={kidsPerType[room.type] ?? 0}
+                                  onChange={(e) => handleGuestCountChange(room.type, 'kids', e.target.value)}
+                                  className={`w-full text-xs font-bold border bg-white rounded-md pl-3 py-1 shadow-sm focus:outline-none focus:ring-2 ${guestInputErrors[room.type] ? 'border-red-300 focus:border-red-400 ring-red-100 text-red-600' : 'border-gray-200 focus:border-blue-400 ring-blue-100'}`}
+                                />
+                              </label>
+                           </div>
+                           <p className="text-[10px] font-semibold text-gray-500 mt-2">
+                             Total Guests: {totalGuestsPerType[room.type] || 0}
+                           </p>
                         </div>
                         {guestInputErrors[room.type] && (
                            <div className="bg-red-50/80 border-t border-red-100 p-2 text-[10px] text-red-600 font-semibold tracking-tight leading-tight flex items-start gap-1 w-full rounded-b-2xl absolute bottom-0 left-0">
@@ -1192,9 +1643,15 @@ const handleTotalGuestsChange = (roomType, value) => {
                    <div className="absolute inset-0 bg-blue-500/5 mix-blend-multiply"></div>
                    <div className="flex justify-between items-center mb-1 relative z-10">
                       <p className="text-[10px] font-bold text-blue-800/60 uppercase tracking-widest">Nightly Total</p>
-                      <p className="text-[10px] font-bold text-blue-500 uppercase tracking-widest bg-white px-2 py-0.5 rounded-full shadow-sm">
-                         {Object.values(selectedRooms).reduce((a,b)=>a+b, 0)} Suites Chosen
+                     {isExclusiveResortBooking ? (
+                      <p className="text-[10px] font-bold text-emerald-700 uppercase tracking-widest bg-emerald-50 px-2 py-0.5 rounded-full border border-emerald-200 shadow-sm">
+                        Entire Resort • {exclusiveTotalPax} Pax
                       </p>
+                     ) : (
+                      <p className="text-[10px] font-bold text-blue-500 uppercase tracking-widest bg-white px-2 py-0.5 rounded-full shadow-sm">
+                        {Object.values(selectedRooms).reduce((a,b)=>a+b, 0)} Units Chosen
+                      </p>
+                     )}
                    </div>
                    <div className="flex items-center gap-1.5 mb-2 text-blue-500 text-lg relative z-10">
                       <i className="fas fa-bed text-blue-500/30"></i>
@@ -1202,21 +1659,21 @@ const handleTotalGuestsChange = (roomType, value) => {
                    </div>
                    <div className="flex justify-between items-center pt-3 mt-3 border-t border-blue-200/50 relative z-10">
                       <p className="text-gray-800 font-bold text-sm">Est. Total</p>
-                      <p className="text-2xl font-bold text-gray-900 tracking-tight">₱{getTotalPrice().toLocaleString()}</p>
+                     <p className="text-2xl font-bold text-gray-900 tracking-tight">₱{checkoutTotal.toLocaleString()}</p>
                    </div>
                 </div>
 
                 <div className="relative group mt-4">
                   <button
                      onClick={handleProceed}
-                     disabled={!checkInDate || Object.values(selectedRooms).every(q => q === 0) || dateSelectionError !== '' || Object.values(guestInputErrors).some(err => err !== '')}
+                     disabled={!checkInDate || Object.values(selectedRooms).every(q => q === 0) || dateSelectionError !== '' || hasAnyGuestErrors}
                      className={`w-full py-4 font-bold rounded-xl transition-all duration-300 flex items-center justify-center gap-2 ${
-                       (checkInDate && Object.values(selectedRooms).some(q => q>0) && !Object.values(guestInputErrors).some(err => err !== '')) 
+                       (checkInDate && Object.values(selectedRooms).some(q => q>0) && !hasAnyGuestErrors) 
                        ? 'bg-blue-600 text-white shadow-[0_8px_20px_rgb(37,99,235,0.25)] hover:bg-blue-700 hover:-translate-y-0.5' 
                        : 'bg-gray-100 text-gray-400 cursor-not-allowed border border-gray-200'
                      }`}
                   >
-                     Checkout &bull; ₱{getTotalPrice().toLocaleString()} &rarr;
+                    Checkout &bull; ₱{checkoutTotal.toLocaleString()} &rarr;
                   </button>
                   {(!checkInDate || Object.values(selectedRooms).every(q => q === 0)) && (
                     <div className="absolute left-1/2 -top-10 -translate-x-1/2 opacity-0 group-hover:opacity-100 transition-opacity bg-gray-800 text-white text-[10px] font-medium py-1.5 px-3 rounded-lg shadow-xl whitespace-nowrap pointer-events-none z-10 tooltip">
@@ -1224,9 +1681,9 @@ const handleTotalGuestsChange = (roomType, value) => {
                       <div className="absolute top-full left-1/2 -translate-x-1/2 w-0 h-0 border-x-4 border-x-transparent border-t-4 border-t-gray-800"></div>
                     </div>
                   )}
-                  {Object.values(guestInputErrors).some(err => err !== '') && (checkInDate && Object.values(selectedRooms).some(q => q > 0)) && (
+                  {hasAnyGuestErrors && (checkInDate && Object.values(selectedRooms).some(q => q > 0)) && (
                     <div className="absolute left-1/2 -top-10 -translate-x-1/2 opacity-0 group-hover:opacity-100 transition-opacity bg-red-600 text-white text-[10px] font-medium py-1.5 px-3 rounded-lg shadow-xl whitespace-nowrap pointer-events-none z-10 tooltip">
-                      Please fix guest capacity errors before checking out.
+                      Please fix guest count errors before checking out.
                       <div className="absolute top-full left-1/2 -translate-x-1/2 w-0 h-0 border-x-4 border-x-transparent border-t-4 border-t-red-600"></div>
                     </div>
                   )}

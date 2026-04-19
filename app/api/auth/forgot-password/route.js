@@ -5,8 +5,7 @@ import { collection, query, where, getDocs } from 'firebase/firestore';
 import { doc, setDoc } from 'firebase/firestore';
 import crypto from 'crypto';
 
-async function sendResetEmail(to, resetLink, name = '') {
-  const baseUrl = process.env.NEXT_PUBLIC_BASE_URL || 'http://localhost:3000';
+async function sendResetEmail(to, resetLink, name = '', baseUrl) {
   const emailContent = `
     <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; background-color: #f0f9ff; border-radius: 16px;">
       <div style="text-align: center; margin-bottom: 20px;">
@@ -23,13 +22,19 @@ async function sendResetEmail(to, resetLink, name = '') {
       </div>
     </div>
   `;
-  
+
   const response = await fetch(`${baseUrl}/api/send-email`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ to, subject: 'Reset Your Password - Sandy Feet Resort', html: emailContent })
   });
-  return response.ok;
+
+  const result = await response.json().catch(() => null);
+  if (!response.ok || result?.success === false) {
+    throw new Error(result?.error || 'Failed to send reset email');
+  }
+
+  return true;
 }
 
 export async function POST(request) {
@@ -72,9 +77,9 @@ export async function POST(request) {
     });
 
     // Send email
-    const baseUrl = process.env.NEXT_PUBLIC_BASE_URL || 'http://localhost:3000';
+    const baseUrl = request.nextUrl?.origin || process.env.NEXT_PUBLIC_BASE_URL || 'http://localhost:3000';
     const resetLink = `${baseUrl}/reset-password?token=${resetToken}&email=${encodeURIComponent(email)}`;
-    await sendResetEmail(email, resetLink, userData.name);
+    await sendResetEmail(email, resetLink, userData.name, baseUrl);
 
     return NextResponse.json({ message: 'Reset link sent to your email address.' });
   } catch (error) {
