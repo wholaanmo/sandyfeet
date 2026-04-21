@@ -773,7 +773,7 @@ export default function AdminRooms() {
                             <i className="fas fa-archive"></i>
                           </button>
                         </div>
-                      </td>
+                       </td>
                     </tr>
                   ))
                 )}
@@ -935,8 +935,8 @@ export default function AdminRooms() {
             setSelectedRoom(null);
           }
         }}>
-          <div className="bg-white rounded-2xl w-full max-w-2xl max-h-[90vh] overflow-auto p-6 shadow-2xl" onClick={(e) => e.stopPropagation()}>
-            <div className="flex justify-between items-center mb-5">
+          <div className="bg-white rounded-2xl w-full max-w-lg max-h-[90vh] overflow-auto p-5 shadow-2xl" onClick={(e) => e.stopPropagation()}>
+            <div className="flex justify-between items-center mb-4">
               <h2 className="text-xl font-bold text-textPrimary font-playfair">
                 {modalType === 'add' ? 'Add New Room' : 'Edit Room'}
               </h2>
@@ -952,23 +952,27 @@ export default function AdminRooms() {
             </div>
             
             <form onSubmit={modalType === 'add' ? handleAddRoom : handleUpdateRoom}>
-              {/* Room Type */}
-              <div className="mb-4">
-                <label className="block mb-1.5 text-sm font-medium text-textPrimary">Room Type *</label>
-                <input
-                  type="text"
+              {/* Room Type Dropdown */}
+              <div className="mb-3">
+                <label className="block mb-1 text-sm font-medium text-textPrimary">Room Type *</label>
+                <select
                   name="type"
                   value={formData.type}
                   onChange={handleInputChange}
-                  placeholder="e.g., Deluxe Suite, Family Cottage, etc."
-                  className={`w-full px-3 py-2.5 border ${formErrors.type ? 'border-red-500' : 'border-ocean-light/20'} rounded-xl text-sm focus:outline-none focus:border-ocean-light focus:ring-2 focus:ring-ocean-light/20`}
-                />
+                  className={`w-full px-3 py-2 border ${formErrors.type ? 'border-red-500' : 'border-ocean-light/20'} rounded-xl text-sm focus:outline-none focus:border-ocean-light focus:ring-2 focus:ring-ocean-light/20 bg-white`}
+                >
+                  <option value="">Select Room Type</option>
+                  <option value="Tent">Tent</option>
+                  <option value="Ground Floor Rooms">Ground Floor Rooms</option>
+                  <option value="Couple Room">Couple Room</option>
+                  <option value="Group Room">Group Room</option>
+                </select>
                 {formErrors.type && <p className="text-red-500 text-xs mt-1">{formErrors.type}</p>}
               </div>
 
               {/* Total Rooms Available */}
-              <div className="mb-4">
-                <label className="block mb-1.5 text-sm font-medium text-textPrimary">Total Rooms Available *</label>
+              <div className="mb-3">
+                <label className="block mb-1 text-sm font-medium text-textPrimary">Total Rooms Available *</label>
                 <input
                   type="number"
                   name="totalRooms"
@@ -976,14 +980,14 @@ export default function AdminRooms() {
                   onChange={handleInputChange}
                   placeholder="Number of rooms available"
                   min="0"
-                  className={`w-full px-3 py-2.5 border ${formErrors.totalRooms ? 'border-red-500' : 'border-ocean-light/20'} rounded-xl text-sm focus:outline-none focus:border-ocean-light focus:ring-2 focus:ring-ocean-light/20`}
+                  className={`w-full px-3 py-2 border ${formErrors.totalRooms ? 'border-red-500' : 'border-ocean-light/20'} rounded-xl text-sm focus:outline-none focus:border-ocean-light focus:ring-2 focus:ring-ocean-light/20`}
                 />
                 {formErrors.totalRooms && <p className="text-red-500 text-xs mt-1">{formErrors.totalRooms}</p>}
               </div>
 
               {/* Rooms Under Maintenance */}
-              <div className="mb-4">
-                <label className="block mb-1.5 text-sm font-medium text-textPrimary">Rooms Under Maintenance</label>
+              <div className="mb-3">
+                <label className="block mb-1 text-sm font-medium text-textPrimary">Rooms Under Maintenance</label>
                 <input
                   type="number"
                   name="maintenanceRooms"
@@ -991,18 +995,18 @@ export default function AdminRooms() {
                   onChange={handleInputChange}
                   placeholder="Number of rooms under maintenance"
                   min="0"
-                  className={`w-full px-3 py-2.5 border ${formErrors.maintenanceRooms ? 'border-red-500' : 'border-ocean-light/20'} rounded-xl text-sm focus:outline-none focus:border-ocean-light focus:ring-2 focus:ring-ocean-light/20`}
+                  className={`w-full px-3 py-2 border ${formErrors.maintenanceRooms ? 'border-red-500' : 'border-ocean-light/20'} rounded-xl text-sm focus:outline-none focus:border-ocean-light focus:ring-2 focus:ring-ocean-light/20`}
                 />
                 {formErrors.maintenanceRooms && <p className="text-red-500 text-xs mt-1">{formErrors.maintenanceRooms}</p>}
-                <p className="text-xs text-neutral mt-1">
+                <p className="text-xs text-neutral mt-0.5">
                   Available Rooms will be automatically calculated as: Total Rooms Available - Rooms Under Maintenance
                 </p>
               </div>
               
               {/* Capacity Fields */}
-              <div className="grid grid-cols-2 gap-4 mb-4">
+              <div className="grid grid-cols-2 gap-3 mb-3">
                 <div>
-                  <label className="block mb-1.5 text-sm font-medium text-textPrimary">Min Capacity (Guests) *</label>
+                  <label className="block mb-1 text-sm font-medium text-textPrimary">Min Capacity (Guests) *</label>
                   <input
                     type="number"
                     name="capacityMin"
@@ -1010,13 +1014,13 @@ export default function AdminRooms() {
                     onChange={handleInputChange}
                     placeholder="Minimum guests"
                     min="0"
-                    className={`w-full px-3 py-2.5 border ${formErrors.capacityMin ? 'border-red-500' : 'border-ocean-light/20'} rounded-xl text-sm focus:outline-none focus:border-ocean-light`}
+                    className={`w-full px-3 py-2 border ${formErrors.capacityMin ? 'border-red-500' : 'border-ocean-light/20'} rounded-xl text-sm focus:outline-none focus:border-ocean-light`}
                   />
                   {formErrors.capacityMin && <p className="text-red-500 text-xs mt-1">{formErrors.capacityMin}</p>}
                 </div>
                 
                 <div>
-                  <label className="block mb-1.5 text-sm font-medium text-textPrimary">Max Capacity (Guests) *</label>
+                  <label className="block mb-1 text-sm font-medium text-textPrimary">Max Capacity (Guests) *</label>
                   <input
                     type="number"
                     name="capacityMax"
@@ -1024,16 +1028,16 @@ export default function AdminRooms() {
                     onChange={handleInputChange}
                     placeholder="Maximum guests"
                     min="0"
-                    className={`w-full px-3 py-2.5 border ${formErrors.capacityMax ? 'border-red-500' : 'border-ocean-light/20'} rounded-xl text-sm focus:outline-none focus:border-ocean-light`}
+                    className={`w-full px-3 py-2 border ${formErrors.capacityMax ? 'border-red-500' : 'border-ocean-light/20'} rounded-xl text-sm focus:outline-none focus:border-ocean-light`}
                   />
                   {formErrors.capacityMax && <p className="text-red-500 text-xs mt-1">{formErrors.capacityMax}</p>}
                 </div>
               </div>
               
               {/* Price and Availability */}
-              <div className="grid grid-cols-2 gap-4 mb-4">
+              <div className="grid grid-cols-2 gap-3 mb-3">
                 <div>
-                  <label className="block mb-1.5 text-sm font-medium text-textPrimary">Price (₱) *</label>
+                  <label className="block mb-1 text-sm font-medium text-textPrimary">Price (₱) *</label>
                   <input
                     type="number"
                     name="price"
@@ -1042,54 +1046,63 @@ export default function AdminRooms() {
                     placeholder="Price per night"
                     min="0"
                     step="0.01"
-                    className={`w-full px-3 py-2.5 border ${formErrors.price ? 'border-red-500' : 'border-ocean-light/20'} rounded-xl text-sm focus:outline-none focus:border-ocean-light`}
+                    className={`w-full px-3 py-2 border ${formErrors.price ? 'border-red-500' : 'border-ocean-light/20'} rounded-xl text-sm focus:outline-none focus:border-ocean-light`}
                   />
                   {formErrors.price && <p className="text-red-500 text-xs mt-1">{formErrors.price}</p>}
                 </div>
                 
                 <div>
-                  <label className="block mb-1.5 text-sm font-medium text-textPrimary">Availability *</label>
+                  <label className="block mb-1 text-sm font-medium text-textPrimary">Availability *</label>
                   <select
                     name="availability"
                     value={formData.availability}
                     onChange={handleInputChange}
-                    className="w-full px-3 py-2.5 border border-ocean-light/20 rounded-xl text-sm focus:outline-none focus:border-ocean-light bg-white"
+                    className="w-full px-3 py-2 border border-ocean-light/20 rounded-xl text-sm focus:outline-none focus:border-ocean-light bg-white"
                   >
                     {availabilityStatuses.map(status => (
                       <option key={status.value} value={status.value}>{status.label}</option>
                     ))}
                   </select>
                   {manualOverride && (
-                    <p className="text-xs text-amber-600 mt-1">
+                    <p className="text-xs text-amber-600 mt-0.5">
                       Manual override active. Status won't auto-update based on room counts.
                     </p>
                   )}
                 </div>
               </div>
               
-              {/* Inclusions */}
-              <div className="mb-4">
-                <label className="block mb-1.5 text-sm font-medium text-textPrimary">Inclusions</label>
-                <div className="flex gap-2 mb-2">
-                  <input
-                    type="text"
-                    value={inclusionInput}
-                    onChange={(e) => setInclusionInput(e.target.value)}
-                    placeholder="e.g., Free Breakfast, Wi-Fi, AC"
-                    className="flex-1 px-3 py-2.5 border border-ocean-light/20 rounded-xl text-sm focus:outline-none focus:border-ocean-light"
-                    onKeyPress={(e) => e.key === 'Enter' && (e.preventDefault(), handleInclusionAdd())}
-                  />
-                  <button
-                    type="button"
-                    onClick={handleInclusionAdd}
-                    className="px-4 py-2.5 bg-ocean-light/10 text-ocean-light rounded-xl hover:bg-ocean-light hover:text-white transition-all"
-                  >
-                    <i className="fas fa-plus"></i>
-                  </button>
-                </div>
-                <div className="flex flex-wrap gap-2">
+              {/* Inclusions Dropdown */}
+              <div className="mb-3">
+                <label className="block mb-1 text-sm font-medium text-textPrimary">Inclusions</label>
+                <select
+                  value=""
+                  onChange={(e) => {
+                    const value = e.target.value;
+                    if (value && !formData.inclusions.includes(value)) {
+                      setFormData(prev => ({
+                        ...prev,
+                        inclusions: [...prev.inclusions, value]
+                      }));
+                    }
+                    e.target.value = '';
+                  }}
+                  className="w-full px-3 py-2 border border-ocean-light/20 rounded-xl text-sm focus:outline-none focus:border-ocean-light bg-white"
+                >
+                  <option value="">Select an inclusion to add</option>
+                  <option value="Access to Pool">Access to Pool</option>
+                  <option value="Access to Pool">Wi-Fi</option>
+                  <option value="Free Use of Kitchenwares & Stove">Free Use of Kitchenwares & Stove</option>
+                  <option value="Free Use of Grill with Charcoal">Free Use of Grill with Charcoal</option>
+                  <option value="Free Drinking (Mineral) Water">Free Drinking (Mineral) Water</option>
+                  <option value="Free Bonfire at Night">Free Bonfire at Night</option>
+                  <option value="Free Parking">Free Parking</option>
+                  <option value="Air-Conditioned">Air-Conditioned</option>
+                  <option value="Fan Room">Fan Room</option>
+                  <option value="Common Bathroom">Common Bathroom</option>
+                </select>
+                <div className="flex flex-wrap gap-1.5 mt-2">
                   {formData.inclusions.map((inclusion, idx) => (
-                    <span key={idx} className="inline-flex items-center gap-1 px-2 py-1 bg-ocean-ice text-ocean-mid rounded-full text-sm">
+                    <span key={idx} className="inline-flex items-center gap-1 px-2 py-1 bg-ocean-ice text-ocean-mid rounded-full text-xs">
                       {inclusion}
                       <button
                         type="button"
@@ -1104,23 +1117,23 @@ export default function AdminRooms() {
               </div>
               
               {/* Description */}
-              <div className="mb-4">
-                <label className="block mb-1.5 text-sm font-medium text-textPrimary">Description *</label>
+              <div className="mb-3">
+                <label className="block mb-1 text-sm font-medium text-textPrimary">Description *</label>
                 <textarea
                   name="description"
                   value={formData.description}
                   onChange={handleInputChange}
-                  rows="4"
+                  rows="3"
                   placeholder="Describe the room features, amenities, and highlights..."
-                  className={`w-full px-3 py-2.5 border ${formErrors.description ? 'border-red-500' : 'border-ocean-light/20'} rounded-xl text-sm focus:outline-none focus:border-ocean-light`}
+                  className={`w-full px-3 py-2 border ${formErrors.description ? 'border-red-500' : 'border-ocean-light/20'} rounded-xl text-sm focus:outline-none focus:border-ocean-light`}
                 />
                 {formErrors.description && <p className="text-red-500 text-xs mt-1">{formErrors.description}</p>}
               </div>
               
               {/* Images Upload */}
-              <div className="mb-5">
-                <label className="block mb-1.5 text-sm font-medium text-textPrimary">Room Images</label>
-                <div className="border-2 border-dashed border-ocean-light/20 rounded-xl p-4 text-center hover:border-ocean-light transition-colors">
+              <div className="mb-4">
+                <label className="block mb-1 text-sm font-medium text-textPrimary">Room Images</label>
+                <div className="border-2 border-dashed border-ocean-light/20 rounded-xl p-3 text-center hover:border-ocean-light transition-colors">
                   <input
                     type="file"
                     accept="image/*"
@@ -1132,10 +1145,10 @@ export default function AdminRooms() {
                   />
                   <label
                     htmlFor="image-upload"
-                    className="cursor-pointer flex flex-col items-center gap-2"
+                    className="cursor-pointer flex flex-col items-center gap-1"
                   >
-                    <i className={`fas ${uploadingImage ? 'fa-spinner fa-spin' : 'fa-cloud-upload-alt'} text-3xl text-ocean-light`}></i>
-                    <span className="text-sm text-textSecondary">
+                    <i className={`fas ${uploadingImage ? 'fa-spinner fa-spin' : 'fa-cloud-upload-alt'} text-2xl text-ocean-light`}></i>
+                    <span className="text-xs text-textSecondary">
                       {uploadingImage ? 'Uploading...' : 'Click to upload images'}
                     </span>
                     <span className="text-xs text-neutral">PNG, JPG up to 5MB (Optional)</span>
@@ -1143,7 +1156,7 @@ export default function AdminRooms() {
                 </div>
                 
                 {formData.images.length > 0 && (
-                  <div className="grid grid-cols-4 gap-2 mt-3">
+                  <div className="grid grid-cols-4 gap-1.5 mt-2">
                     {formData.images.map((img, idx) => (
                       <div key={idx} className="relative group aspect-square rounded-lg overflow-hidden border border-ocean-light/20">
                         <Image
@@ -1155,7 +1168,7 @@ export default function AdminRooms() {
                         <button
                           type="button"
                           onClick={() => handleImageRemove(img)}
-                          className="absolute top-1 right-1 w-6 h-6 bg-red-500 text-white rounded-full flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity"
+                          className="absolute top-0.5 right-0.5 w-5 h-5 bg-red-500 text-white rounded-full flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity"
                         >
                           <i className="fas fa-times text-xs"></i>
                         </button>
@@ -1166,14 +1179,14 @@ export default function AdminRooms() {
               </div>
               
               {/* Form Actions */}
-              <div className="flex gap-3 justify-end mt-6">
+              <div className="flex gap-3 justify-end mt-4">
                 <button
                   type="button"
                   onClick={() => {
                     setShowModal(false);
                     setSelectedRoom(null);
                   }}
-                  className="px-5 py-2.5 border border-ocean-light/20 rounded-xl text-textSecondary text-sm font-medium hover:bg-ocean-ice transition-all duration-300"
+                  className="px-4 py-2 border border-ocean-light/20 rounded-xl text-textSecondary text-sm font-medium hover:bg-ocean-ice transition-all duration-300"
                 >
                   Cancel
                 </button>
@@ -1184,7 +1197,7 @@ export default function AdminRooms() {
                     (modalType === 'add' && isFormIncomplete()) ||
                     (modalType === 'edit' && (!hasChanges))
                   }
-                  className={`px-5 py-2.5 rounded-xl text-white text-sm font-medium transition-all duration-300 ${
+                  className={`px-4 py-2 rounded-xl text-white text-sm font-medium transition-all duration-300 ${
                     actionLoading || 
                     (modalType === 'add' && isFormIncomplete()) ||
                     (modalType === 'edit' && (!hasChanges))

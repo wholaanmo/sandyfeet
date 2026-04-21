@@ -27,14 +27,14 @@ export default function AdminReservations() {
   const buttonRefs = useRef({});
   
   // New state for confirmation modals
-  const [confirmModal, setConfirmModal] = useState({ show: false, booking: null, type: '', note: '' });
-  const [cancelModal, setCancelModal] = useState({ show: false, booking: null, reason: '' });
+  const [confirmModal, setConfirmModal] = useState({ show: false, booking: null, type: '', note: '', loading: false });
+  const [cancelModal, setCancelModal] = useState({ show: false, booking: null, type: '', note: '', loading: false });
   
   // New state for refund confirmation modal
-  const [refundConfirmModal, setRefundConfirmModal] = useState({ show: false, booking: null });
+  const [refundConfirmModal, setRefundConfirmModal] = useState({ show: false, booking: null, sending: false });
   
   // New state for move date confirmation modal
-  const [moveDateConfirmModal, setMoveDateConfirmModal] = useState({ show: false, booking: null });
+  const [moveDateConfirmModal, setMoveDateConfirmModal] = useState({ show: false, booking: null, sending: false });
   
   // New state for image zoom modal
   const [imageZoomModal, setImageZoomModal] = useState({ show: false, imageUrl: '', title: '' });
@@ -174,12 +174,15 @@ export default function AdminReservations() {
             createdAt: booking.createdAt,
             type: 'room',
             isMultiRoomGroup: true,
-            roomTypes: []
+            roomTypes: [],
+            tentCount: booking.tentCount || 0,
+            exclusiveAdults: booking.exclusiveAdults || 0,
+            exclusiveKids: booking.exclusiveKids || 0
           });
         }
         multiRoomGroups.get(booking.parentBookingId).bookings.push(booking);
       } else if (!booking.isMultiRoomBooking) {
-        // Single room booking
+        // Single room booking - preserve adults and kids
         singleBookings.push(booking);
       }
     }
@@ -197,11 +200,31 @@ export default function AdminReservations() {
       let totalRooms = 0;
       let totalPrice = 0;
       let totalGuests = 0;
+      let tentCount = group.tentCount || 0;
+      let exclusiveAdults = group.exclusiveAdults || 0;
+      let exclusiveKids = group.exclusiveKids || 0;
+      let childBookingsWithGuests = [];
       
       for (const booking of group.bookings) {
         totalRooms++;
         totalPrice += booking.totalPrice || 0;
         totalGuests += booking.guests || 1;
+        
+        // Capture exclusive booking details from child bookings
+        if (booking.isExclusiveResortBooking) {
+          tentCount = booking.tentCount || 0;
+          exclusiveAdults = booking.exclusiveAdults || 0;
+          exclusiveKids = booking.exclusiveKids || 0;
+        }
+        
+        // Store child booking with guest info for later display
+        childBookingsWithGuests.push({
+          roomType: booking.roomType,
+          guests: booking.guests || 1,
+          adults: booking.adults || booking.guests || 1,
+          kids: booking.kids || 0,
+          price: booking.price
+        });
         
         if (!roomTypeMap.has(booking.roomType)) {
           roomTypeMap.set(booking.roomType, {
@@ -226,11 +249,29 @@ export default function AdminReservations() {
       const exclusiveChildBooking = group.bookings.find((booking) => booking.isExclusiveResortBooking);
       const isExclusiveResortBooking = Boolean(exclusiveChildBooking);
       const exclusivePackagePrice = Number(exclusiveChildBooking?.exclusivePackagePrice || 0);
-      const roomTypesDisplay = isExclusiveResortBooking
-        ? 'Entire Resort Package (All Room Types)'
-        : roomTypesArray
-          .map(item => `${item.quantity} × ${item.type} (${item.guestsPerRoom} guest${item.guestsPerRoom !== 1 ? 's' : ''})`)
+      
+      // Calculate total rooms: base 5 rooms for Entire Resort Package, plus 1 per tent
+      let totalRoomsCount = totalRooms;
+      if (isExclusiveResortBooking) {
+        // Default 5 rooms for Entire Resort Package, plus 1 per tent
+        totalRoomsCount = 5 + (tentCount || 0);
+      }
+      
+      // Build room type display string with tent count (without guest counts)
+      let roomTypesDisplay = '';
+      if (isExclusiveResortBooking) {
+        roomTypesDisplay = tentCount > 0 
+          ? `Entire Resort Package + ${tentCount} Tent(s)`
+          : 'Entire Resort Package';
+      } else if (roomTypesArray.length > 1) {
+        roomTypesDisplay = roomTypesArray
+          .map(item => `${item.quantity} × ${item.type}`)
           .join(', ');
+      } else {
+        roomTypesDisplay = roomTypesArray
+          .map(item => `${item.quantity} × ${item.type}`)
+          .join(', ');
+      }
 
       const displayTotalPrice = isExclusiveResortBooking && exclusivePackagePrice > 0
         ? exclusivePackagePrice
@@ -238,9 +279,20 @@ export default function AdminReservations() {
       const displayDownPayment = displayTotalPrice * 0.5;
       const displayRemainingBalance = displayTotalPrice - displayDownPayment;
       
+      // Determine booking ID display type
+      let bookingIdDisplay = '';
+      if (isExclusiveResortBooking) {
+        bookingIdDisplay = 'Entire Resort';
+      } else if (roomTypesArray.length > 1) {
+        bookingIdDisplay = 'Multi-Room Types';
+      } else {
+        bookingIdDisplay = 'Single Room Type';
+      }
+      
       consolidatedGroups.push({
         id: parentId,
         bookingId: parentId,
+        bookingIdDisplay: bookingIdDisplay,
         guestInfo: group.guestInfo,
         checkIn: group.checkIn,
         checkOut: group.checkOut,
@@ -257,12 +309,17 @@ export default function AdminReservations() {
         exclusivePackagePrice: isExclusiveResortBooking ? exclusivePackagePrice : null,
         roomTypesDisplay,
         roomTypesArray,
-        totalRooms,
+        totalRooms: totalRoomsCount,
         totalPrice: displayTotalPrice,
         downPayment: displayDownPayment,
         remainingBalance: displayRemainingBalance,
         totalGuests,
-        childBookings: group.bookings
+        childBookings: childBookingsWithGuests,
+        originalChildBookings: group.bookings,
+        tentCount: tentCount,
+        exclusiveAdults: exclusiveAdults,
+        exclusiveKids: exclusiveKids,
+        exclusiveTotalGuests: exclusiveAdults + exclusiveKids
       });
     }
 
@@ -317,9 +374,9 @@ export default function AdminReservations() {
           
           let checkInRaw, checkOutRaw;
           
-          if (booking.isMultiRoomGroup && booking.childBookings) {
+          if (booking.isMultiRoomGroup && booking.originalChildBookings) {
             // Use first child booking for dates
-            const firstChild = booking.childBookings[0];
+            const firstChild = booking.originalChildBookings[0];
             checkInRaw = firstChild.checkIn?.toDate ? firstChild.checkIn.toDate() : new Date(firstChild.checkIn);
             checkOutRaw = firstChild.checkOut?.toDate ? firstChild.checkOut.toDate() : new Date(firstChild.checkOut);
           } else {
@@ -349,9 +406,9 @@ export default function AdminReservations() {
           }
           
           if (targetStatus && booking.status !== targetStatus) {
-            if (booking.isMultiRoomGroup && booking.childBookings) {
+            if (booking.isMultiRoomGroup && booking.originalChildBookings) {
               // Update all child bookings
-              for (const childBooking of booking.childBookings) {
+              for (const childBooking of booking.originalChildBookings) {
                 await updateDoc(doc(db, 'bookings', childBooking.id), {
                   status: targetStatus,
                   updatedAt: new Date().toISOString()
@@ -481,9 +538,9 @@ export default function AdminReservations() {
     try {
       const isRoomBooking = booking?.type === 'room';
       
-      if (booking.isMultiRoomGroup && booking.childBookings) {
+      if (booking.isMultiRoomGroup && booking.originalChildBookings) {
         // Update all child bookings
-        for (const childBooking of booking.childBookings) {
+        for (const childBooking of booking.originalChildBookings) {
           const bookingRef = doc(db, 'bookings', childBooking.id);
           await updateDoc(bookingRef, {
             refundProcessed: true,
@@ -521,8 +578,8 @@ export default function AdminReservations() {
           details: `Sent refund notification for ${booking.isMultiRoomGroup ? 'multi-room' : 'room'} booking ${booking.bookingId} to ${booking.guestInfo?.firstName} ${booking.guestInfo?.lastName} (${booking.guestInfo?.email}). Refund amount: ₱${refundAmount.toLocaleString()} (50% of down payment). Balance updated to 0.`
         });
 
-        if (booking.isMultiRoomGroup && booking.childBookings) {
-          for (const childBooking of booking.childBookings) {
+        if (booking.isMultiRoomGroup && booking.originalChildBookings) {
+          for (const childBooking of booking.originalChildBookings) {
             const bookingRef = doc(db, 'bookings', childBooking.id);
             await updateDoc(bookingRef, {
               refundNotificationSent: true,
@@ -574,8 +631,8 @@ export default function AdminReservations() {
           details: `Sent move date notification for ${booking.isMultiRoomGroup ? 'multi-room' : 'room'} booking ${booking.bookingId} to ${booking.guestInfo?.firstName} ${booking.guestInfo?.lastName} (${booking.guestInfo?.email}).`
         });
 
-        if (booking.isMultiRoomGroup && booking.childBookings) {
-          for (const childBooking of booking.childBookings) {
+        if (booking.isMultiRoomGroup && booking.originalChildBookings) {
+          for (const childBooking of booking.originalChildBookings) {
             const bookingRef = doc(db, 'bookings', childBooking.id);
             await updateDoc(bookingRef, {
               moveDateNotificationSent: true,
@@ -722,11 +779,11 @@ const handleConfirmDayTourReservation = async () => {
   
   if (booking.status !== 'pending') {
     showNotification('This reservation is no longer pending.', 'error');
-    setConfirmModal({ show: false, booking: null, type: '', note: '' });
+    setConfirmModal({ show: false, booking: null, type: '', note: '', loading: false });
     return;
   }
   
-  setActionLoading(prev => ({ ...prev, [booking.id]: true }));
+  setConfirmModal(prev => ({ ...prev, loading: true }));
   try {
     const bookingRef = doc(db, 'dayTourBookings', booking.id);
     await updateDoc(bookingRef, {
@@ -752,12 +809,11 @@ const handleConfirmDayTourReservation = async () => {
     });
 
     setShowPaymentModal(false);
-    setConfirmModal({ show: false, booking: null, type: '', note: '' });
+    setConfirmModal({ show: false, booking: null, type: '', note: '', loading: false });
   } catch (error) {
     console.error('Error confirming day tour reservation:', error);
     showNotification('Failed to confirm reservation.', 'error');
-  } finally {
-    setActionLoading(prev => ({ ...prev, [booking.id]: false }));
+    setConfirmModal(prev => ({ ...prev, loading: false }));
   }
 };
 
@@ -775,11 +831,11 @@ const handleConfirmDayTourReservation = async () => {
     
     if (booking.status !== 'pending') {
       showNotification('This reservation is no longer pending.', 'error');
-      setCancelModal({ show: false, booking: null, reason: '' });
+      setCancelModal({ show: false, booking: null, reason: '', loading: false });
       return;
     }
     
-    setActionLoading(prev => ({ ...prev, [booking.id]: true }));
+    setCancelModal(prev => ({ ...prev, loading: true }));
     try {
       const bookingRef = doc(db, 'dayTourBookings', booking.id);
       await updateDoc(bookingRef, {
@@ -807,32 +863,30 @@ const handleConfirmDayTourReservation = async () => {
       });
 
       setShowPaymentModal(false);
-      setCancelModal({ show: false, booking: null, reason: '' });
+      setCancelModal({ show: false, booking: null, reason: '', loading: false });
     } catch (error) {
       console.error('Error cancelling day tour reservation:', error);
       showNotification('Failed to cancel reservation.', 'error');
-    } finally {
-      setActionLoading(prev => ({ ...prev, [booking.id]: false }));
+      setCancelModal(prev => ({ ...prev, loading: false }));
     }
   };
 
   // Confirm room reservation
-// Confirm room reservation
 const handleConfirmReservation = async () => {
   const booking = confirmModal.booking;
   if (!booking) return;
   
   if (booking.status !== 'pending') {
     showNotification('This reservation is no longer pending.', 'error');
-    setConfirmModal({ show: false, booking: null, type: '', note: '' });
+    setConfirmModal({ show: false, booking: null, type: '', note: '', loading: false });
     return;
   }
   
-  setActionLoading(prev => ({ ...prev, [booking.id]: true }));
+  setConfirmModal(prev => ({ ...prev, loading: true }));
   try {
-    if (booking.isMultiRoomGroup && booking.childBookings) {
+    if (booking.isMultiRoomGroup && booking.originalChildBookings) {
       // Update all child bookings
-      for (const childBooking of booking.childBookings) {
+      for (const childBooking of booking.originalChildBookings) {
         const bookingRef = doc(db, 'bookings', childBooking.id);
         await updateDoc(bookingRef, {
           status: 'confirmed',
@@ -865,12 +919,11 @@ const handleConfirmReservation = async () => {
     });
 
     setShowPaymentModal(false);
-    setConfirmModal({ show: false, booking: null, type: '', note: '' });
+    setConfirmModal({ show: false, booking: null, type: '', note: '', loading: false });
   } catch (error) {
     console.error('Error confirming reservation:', error);
     showNotification('Failed to confirm reservation.', 'error');
-  } finally {
-    setActionLoading(prev => ({ ...prev, [booking.id]: false }));
+    setConfirmModal(prev => ({ ...prev, loading: false }));
   }
 };
 
@@ -888,15 +941,15 @@ const handleConfirmReservation = async () => {
     
     if (booking.status !== 'pending') {
       showNotification('This reservation is no longer pending.', 'error');
-      setCancelModal({ show: false, booking: null, reason: '' });
+      setCancelModal({ show: false, booking: null, reason: '', loading: false });
       return;
     }
     
-    setActionLoading(prev => ({ ...prev, [booking.id]: true }));
+    setCancelModal(prev => ({ ...prev, loading: true }));
     try {
-      if (booking.isMultiRoomGroup && booking.childBookings) {
+      if (booking.isMultiRoomGroup && booking.originalChildBookings) {
         // Update all child bookings
-        for (const childBooking of booking.childBookings) {
+        for (const childBooking of booking.originalChildBookings) {
           const bookingRef = doc(db, 'bookings', childBooking.id);
           await updateDoc(bookingRef, {
             status: 'cancelled',
@@ -933,12 +986,11 @@ const handleConfirmReservation = async () => {
       });
 
       setShowPaymentModal(false);
-      setCancelModal({ show: false, booking: null, reason: '' });
+      setCancelModal({ show: false, booking: null, reason: '', loading: false });
     } catch (error) {
       console.error('Error cancelling reservation:', error);
       showNotification('Failed to cancel reservation.', 'error');
-    } finally {
-      setActionLoading(prev => ({ ...prev, [booking.id]: false }));
+      setCancelModal(prev => ({ ...prev, loading: false }));
     }
   };
 
@@ -1041,6 +1093,7 @@ const handleConfirmReservation = async () => {
        booking.guestInfo?.firstName?.toLowerCase().includes(normalizedSearch) ||
        booking.guestInfo?.lastName?.toLowerCase().includes(normalizedSearch) ||
        booking.bookingId?.toLowerCase().includes(normalizedSearch) ||
+       booking.bookingIdDisplay?.toLowerCase().includes(normalizedSearch) ||
        (booking.isExclusiveResortBooking && 'entire resort'.includes(normalizedSearch)));
     
     const matchesStatus = statusFilter === 'all' || booking.status === statusFilter;
@@ -1141,6 +1194,7 @@ const handleConfirmReservation = async () => {
     {/* Left Tab - Rooms */}
     <div className="flex-1 flex justify-center">
       <button
+        ref={el => buttonRefs.current['rooms'] = el}
         onClick={() => setActiveTab('rooms')}
         className={`relative z-10 w-full px-6 py-3 font-medium transition-all duration-200 text-center flex items-center justify-center gap-2 ${
           activeTab === 'rooms'
@@ -1156,6 +1210,7 @@ const handleConfirmReservation = async () => {
     {/* Right Tab - Day Tour */}
     <div className="flex-1 flex justify-center">
       <button
+        ref={el => buttonRefs.current['daytour'] = el}
         onClick={() => setActiveTab('daytour')}
         className={`relative z-10 w-full px-6 py-3 font-medium transition-all duration-200 text-center flex items-center justify-center gap-2 ${
           activeTab === 'daytour'
@@ -1225,7 +1280,7 @@ const handleConfirmReservation = async () => {
                       <th className="px-3 py-2 text-left text-sm font-semibold text-textPrimary">Actions</th>
                       <th className="px-3 py-2 text-left text-sm font-semibold text-textPrimary">Booked On</th>
                     </tr>
-                    </thead>
+                  </thead>
                   <tbody>
                     {filteredBookings.length === 0 ? (
                       <tr>
@@ -1239,7 +1294,10 @@ const handleConfirmReservation = async () => {
                       filteredBookings.map((booking) => (
                         <tr key={booking.id} className="border-b border-ocean-light/10 hover:bg-ocean-ice/30 transition-colors">
                           <td className="px-3 py-2">
-                            <span className="font-mono text-xs">{booking.bookingId}</span>
+                            <div className="flex flex-col">
+                              <span className="font-mono text-xs">{booking.bookingId}</span>
+                              <span className="text-[9px] text-gray-500">{booking.bookingIdDisplay}</span>
+                            </div>
                             {booking.isExclusiveResortBooking ? (
                               <span className="ml-1 text-[10px] bg-amber-100 text-amber-700 px-1 py-0.5 rounded-full">Entire Resort</span>
                             ) : booking.isMultiRoomGroup && (
@@ -1253,18 +1311,12 @@ const handleConfirmReservation = async () => {
                             <div className="text-[10px] text-neutral">{booking.guestInfo?.email}</div>
                           </td>
                           <td className="px-3 py-2">
-                            {booking.isExclusiveResortBooking ? (
-                              <div className="text-xs text-amber-700 font-semibold">Entire Resort Package (All Room Types)</div>
-                            ) : booking.isMultiRoomGroup ? (
-                              <div className="text-xs text-textPrimary max-w-[200px] truncate" title={booking.roomTypesDisplay}>
-                                {booking.roomTypesDisplay}
-                              </div>
-                            ) : (
-                              <div className="text-xs text-textPrimary">{booking.roomType}</div>
-                            )}
+                            <div className="text-xs text-textPrimary">
+                              {booking.roomTypesDisplay || booking.roomType || 'N/A'}
+                            </div>
                           </td>
                           <td className="px-3 py-2 text-xs text-textSecondary">
-                            {booking.isMultiRoomGroup ? booking.totalRooms : (booking.numberOfRooms || 1)}
+                            {booking.totalRooms || (booking.isMultiRoomGroup ? booking.childBookings?.length || 0 : (booking.numberOfRooms || 1))}
                           </td>
                           <td className="px-3 py-2 text-xs text-textSecondary">
                             {formatDateWithTime(booking.checkIn, 'check-in')}
@@ -1338,7 +1390,7 @@ const handleConfirmReservation = async () => {
                       <th className="px-3 py-2 text-left text-sm font-semibold text-textPrimary min-w-[80px]">Status</th>
                       <th className="px-3 py-2 text-left text-sm font-semibold text-textPrimary">Actions</th>
                       <th className="px-3 py-2 text-left text-sm font-semibold text-textPrimary">Booked On</th>
-                    </tr>
+                   </tr>
                   </thead>
                   <tbody>
                     {filteredDayTours.length === 0 ? (
@@ -1418,7 +1470,6 @@ const handleConfirmReservation = async () => {
       )}
 
       {/* Right Sidebar Modal for Booking Details */}
-{/* Right Sidebar Modal for Booking Details */}
 {isSidebarOpen && sidebarBooking && (
   <>
     {/* Backdrop overlay */}
@@ -1430,7 +1481,7 @@ const handleConfirmReservation = async () => {
     {/* Sidebar that slides in from right */}
     <div className={`fixed right-0 top-0 h-full w-full max-w-md bg-white/50 backdrop-blur-xl border-l border-white/30 shadow-2xl z-50 transform transition-transform duration-300 ease-out flex flex-col ${isSidebarOpen ? 'translate-x-0' : 'translate-x-full'}`}>
       
-      {/* Sidebar Header - Copied from first modal */}
+      {/* Sidebar Header */}
       <div className="sticky top-0 bg-white/10 backdrop-blur-md border-b border-white/30 px-5 py-4 flex justify-between items-center z-10 flex-shrink-0">
         <div>
           <div className="flex items-center gap-3">
@@ -1446,7 +1497,6 @@ const handleConfirmReservation = async () => {
               : (activeTab === 'rooms' ? 'Room Booking' : 'Day Tour Booking')}
           </p>
         </div>
-        {/* Close button (X) - New Design */}
         <button 
           onClick={closeSidebar} 
           className="w-9 h-9 flex items-center justify-center rounded-lg bg-white/60 backdrop-blur-md border border-[#4D8CF5]/20 text-[#1E3A8A] shadow-sm transition-all duration-200 hover:bg-[#4D8CF5]/80 hover:text-white hover:shadow-lg hover:-translate-y-0.5 active:translate-y-0 active:scale-95"
@@ -1455,7 +1505,7 @@ const handleConfirmReservation = async () => {
         </button>
       </div>
 
-      {/* Scrollable Content - Updated styling */}
+      {/* Scrollable Content */}
       <div className="flex-1 overflow-y-auto p-5 space-y-4">
         {/* Guest Information */}
         <div className="bg-white/70 backdrop-blur-md border border-[#4D8CF5]/10 rounded-xl p-3 shadow-sm">
@@ -1473,26 +1523,25 @@ const handleConfirmReservation = async () => {
             <div className="bg-white/70 backdrop-blur-md border border-[#4D8CF5]/10 rounded-xl p-3 shadow-sm">
               <h3 className="text-xs font-semibold text-[#1E3A8A] uppercase tracking-wide mb-2">Room Details</h3>
               {sidebarBooking.isExclusiveResortBooking && (
-                <p className="text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded-lg px-2 py-1 mb-2 font-semibold">
-                  Entire Resort Package: all room types are booked for this schedule.
-                </p>
+                <>
+                  <p className="text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded-lg px-2 py-1 mb-2 font-semibold">
+                    Entire Resort Package: all room types are booked for this schedule.
+                  </p>
+                  {sidebarBooking.tentCount > 0 && (
+                    <p className="text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded-lg px-2 py-1 mb-2 font-semibold">
+                      Tents Added: {sidebarBooking.tentCount} tent(s)
+                    </p>
+                  )}
+                </>
               )}
-              {/* Multi-Room Detailed Display */}
+              {/* Multi-Room Detailed Display - without guest counts */}
               {sidebarBooking.isMultiRoomGroup && sidebarBooking.roomTypesArray && sidebarBooking.roomTypesArray.length > 0 ? (
-                <div className="space-y-2">
-                  <div className="border-b border-[#4D8CF5]/20 pb-1 mb-1">
-                    <span className="text-xs font-semibold text-[#1E3A8A]">Room Type Breakdown:</span>
-                  </div>
+                <div className="space-y-1">
                   {sidebarBooking.roomTypesArray.map((room, idx) => (
-                    <div key={idx} className="flex justify-between items-center text-sm">
+                    <div key={idx} className="flex items-center text-sm">
                       <span className="text-[#1E3A8A]/70">{room.quantity} × {room.type}</span>
-                      <span className="font-medium text-[#1E3A8A]">{room.guestsPerRoom} guest{room.guestsPerRoom !== 1 ? 's' : ''}</span>
                     </div>
                   ))}
-                  <div className="flex justify-between items-center text-sm pt-2 border-t border-[#4D8CF5]/20 mt-2">
-                    <span className="font-semibold text-[#1E3A8A]">Total Guests:</span>
-                    <span className="font-bold text-[#1E3A8A]">{sidebarBooking.totalGuests}</span>
-                  </div>
                 </div>
               ) : (
                 <>
@@ -1503,10 +1552,6 @@ const handleConfirmReservation = async () => {
                   <p className="text-sm mt-1">
                     <span className="text-[#1E3A8A]/70">Number of Rooms:</span>{' '}
                     <span className="font-medium text-[#1E3A8A]">{sidebarBooking.numberOfRooms || 1}</span>
-                  </p>
-                  <p className="text-sm mt-1">
-                    <span className="text-[#1E3A8A]/70">Number of Guests:</span>{' '}
-                    <span className="font-medium text-[#1E3A8A]">{sidebarBooking.guests || 1}</span>
                   </p>
                 </>
               )}
@@ -1523,8 +1568,68 @@ const handleConfirmReservation = async () => {
                 <span className="font-medium text-[#1E3A8A]">{formatDateWithTime(sidebarBooking.checkOut, 'check-out')}</span>
               </p>
             </div>
+
+            {/* Guest Count Container for ALL room bookings */}
+            <div className="bg-white/70 backdrop-blur-md border border-[#4D8CF5]/10 rounded-xl p-3 shadow-sm">
+              <h3 className="text-xs font-semibold text-[#1E3A8A] uppercase tracking-wide mb-2">Guest Count</h3>
+              
+              {sidebarBooking.isExclusiveResortBooking ? (
+                // Exclusive booking guest display
+    <>
+      <p className="text-sm">
+        <span className="text-[#1E3A8A]/70">Adults:</span>{' '}
+        <span className="font-medium text-[#1E3A8A]">{sidebarBooking.exclusiveAdults || 0}</span>
+      </p>
+      <p className="text-sm mt-1">
+        <span className="text-[#1E3A8A]/70">Kids:</span>{' '}
+        <span className="font-medium text-[#1E3A8A]">{sidebarBooking.exclusiveKids || 0}</span>
+      </p>
+      <p className="text-sm mt-1 pt-2 border-t border-[#4D8CF5]/20">
+        <span className="font-semibold text-[#1E3A8A]">Total Guests:</span>{' '}
+        <span className="font-bold text-[#1E3A8A]">{sidebarBooking.exclusiveTotalGuests || (sidebarBooking.exclusiveAdults + sidebarBooking.exclusiveKids)}</span>
+      </p>
+    </>
+  ) : sidebarBooking.isMultiRoomGroup && sidebarBooking.childBookings && sidebarBooking.childBookings.length > 0 ? (
+    // Multi-room booking - display each room type with Adults | Kids format (without quantity prefix)
+    <div className="space-y-2">
+      {sidebarBooking.childBookings.map((child, idx) => {
+        // Find the matching room type in roomTypesArray to get quantity
+        const roomTypeInfo = sidebarBooking.roomTypesArray?.find(r => r.type === child.roomType);
+        const quantity = roomTypeInfo?.quantity || 1;
+        return (
+          <div key={idx} className="border-b border-[#4D8CF5]/10 last:border-b-0 pb-2 last:pb-0">
+            <p className="text-xs font-medium text-[#1E3A8A]">{child.roomType} — Adults: {child.adults || child.guests || 1} | Kids: {child.kids || 0}</p>
+          </div>
+        );
+      })}
+      <div className="pt-2 mt-1 border-t border-[#4D8CF5]/20">
+        <p className="text-sm">
+          <span className="font-semibold text-[#1E3A8A]">Total Guests:</span>{' '}
+          <span className="font-bold text-[#1E3A8A]">{sidebarBooking.totalGuests || 0}</span>
+        </p>
+      </div>
+    </div>
+  ) : (
+    // Single room booking - display adults and kids from the booking
+    <div>
+      <p className="text-sm">
+        <span className="text-[#1E3A8A]/70">Adults:</span>{' '}
+        <span className="font-medium text-[#1E3A8A]">{sidebarBooking.adults || sidebarBooking.guests || 1}</span>
+      </p>
+      <p className="text-sm mt-1">
+        <span className="text-[#1E3A8A]/70">Kids:</span>{' '}
+        <span className="font-medium text-[#1E3A8A]">{sidebarBooking.kids || 0}</span>
+      </p>
+      <p className="text-sm mt-1 pt-2 border-t border-[#4D8CF5]/20">
+        <span className="font-semibold text-[#1E3A8A]">Total Guests:</span>{' '}
+        <span className="font-bold text-[#1E3A8A]">{sidebarBooking.guests || (sidebarBooking.adults + sidebarBooking.kids) || 1}</span>
+      </p>
+    </div>
+  )}
+</div>
           </>
         ) : (
+          // Day tour booking - guest count already displayed in Tour Details section
           <>
             <div className="bg-white/70 backdrop-blur-md border border-[#4D8CF5]/10 rounded-xl p-3 shadow-sm">
               <h3 className="text-xs font-semibold text-[#1E3A8A] uppercase tracking-wide mb-2">Tour Details</h3>
@@ -1633,7 +1738,7 @@ const handleConfirmReservation = async () => {
         </div>
       </div>
 
-      {/* Fixed Footer with Confirm and Cancel buttons - Updated styling */}
+      {/* Fixed Footer with Confirm and Cancel buttons - Updated styling with loading states */}
       <div className="sticky bottom-0 bg-white/10 backdrop-blur-md border-t border-white/30 px-5 py-3 rounded-b-xl flex gap-2 justify-end flex-shrink-0">
         <button 
           onClick={closeSidebar} 
@@ -1646,22 +1751,30 @@ const handleConfirmReservation = async () => {
             <button 
               onClick={() => {
                 closeSidebar();
-                setConfirmModal({ show: true, booking: sidebarBooking, type: activeTab === 'rooms' ? 'room' : 'daytour', note: '' });
+                setConfirmModal({ show: true, booking: sidebarBooking, type: activeTab === 'rooms' ? 'room' : 'daytour', note: '', loading: false });
               }} 
-              disabled={actionLoading[sidebarBooking.id]} 
+              disabled={actionLoading[sidebarBooking.id] || confirmModal.loading} 
               className="px-4 py-1.5 rounded-lg bg-green-500/10 text-green-600 hover:bg-green-600/80 hover:text-white transition-all duration-200 flex items-center gap-1 disabled:opacity-50"
             >
-              <i className="fas fa-check text-xs"></i> Confirm
+              {confirmModal.loading ? (
+                <><i className="fas fa-spinner fa-spin text-xs"></i> Processing...</>
+              ) : (
+                <><i className="fas fa-check text-xs"></i> Confirm</>
+              )}
             </button>
             <button 
               onClick={() => {
                 closeSidebar();
-                setCancelModal({ show: true, booking: sidebarBooking, reason: '' });
+                setCancelModal({ show: true, booking: sidebarBooking, reason: '', loading: false });
               }} 
-              disabled={actionLoading[sidebarBooking.id]} 
+              disabled={actionLoading[sidebarBooking.id] || cancelModal.loading} 
               className="px-4 py-1.5 rounded-lg bg-red-500/10 text-red-600 hover:bg-red-600/80 hover:text-white transition-all duration-200 flex items-center gap-1 disabled:opacity-50"
             >
-              <i className="fas fa-times text-xs"></i> Cancel
+              {cancelModal.loading ? (
+                <><i className="fas fa-spinner fa-spin text-xs"></i> Processing...</>
+              ) : (
+                <><i className="fas fa-times text-xs"></i> Cancel</>
+              )}
             </button>
           </>
         )}
@@ -1704,27 +1817,26 @@ const handleConfirmReservation = async () => {
                   <div className="bg-ocean-ice rounded-lg p-3">
                     <h3 className="text-xs font-semibold text-ocean-mid uppercase tracking-wide mb-2">Room Details</h3>
                     {selectedBooking.isExclusiveResortBooking && (
-                      <p className="text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded-lg px-2 py-1 mb-2 font-semibold">
-                        Entire Resort Package: all room types are booked for this schedule.
-                      </p>
+                      <>
+                        <p className="text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded-lg px-2 py-1 mb-2 font-semibold">
+                          Entire Resort Package: all room types are booked for this schedule.
+                        </p>
+                        {selectedBooking.tentCount > 0 && (
+                          <p className="text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded-lg px-2 py-1 mb-2 font-semibold">
+                            Tents Added: {selectedBooking.tentCount} tent(s)
+                          </p>
+                        )}
+                      </>
                     )}
                     
-                    {/* Multi-Room Detailed Display */}
+                    {/* Multi-Room Detailed Display - without guest counts */}
                     {selectedBooking.isMultiRoomGroup && selectedBooking.roomTypesArray && selectedBooking.roomTypesArray.length > 0 ? (
-                      <div className="space-y-2">
-                        <div className="border-b border-ocean-light/20 pb-1 mb-1">
-                          <span className="text-xs font-semibold text-ocean-mid">Room Type Breakdown:</span>
-                        </div>
+                      <div className="space-y-1">
                         {selectedBooking.roomTypesArray.map((room, idx) => (
-                          <div key={idx} className="flex justify-between items-center text-sm">
+                          <div key={idx} className="flex items-center text-sm">
                             <span className="text-textSecondary">{room.quantity} × {room.type}</span>
-                            <span className="font-medium text-textPrimary">{room.guestsPerRoom} guest{room.guestsPerRoom !== 1 ? 's' : ''}</span>
                           </div>
                         ))}
-                        <div className="flex justify-between items-center text-sm pt-2 border-t border-ocean-light/20 mt-2">
-                          <span className="font-semibold text-textPrimary">Total Guests:</span>
-                          <span className="font-bold text-ocean-mid">{selectedBooking.totalGuests}</span>
-                        </div>
                       </div>
                     ) : (
                       <>
@@ -1736,13 +1848,73 @@ const handleConfirmReservation = async () => {
                           <span className="text-textSecondary">Number of Rooms:</span>{' '}
                           <span className="font-medium text-textPrimary">{selectedBooking.numberOfRooms || 1}</span>
                         </p>
-                        <p className="text-sm mt-1">
-                          <span className="text-textSecondary">Number of Guests:</span>{' '}
-                          <span className="font-medium text-textPrimary">{selectedBooking.guests || 1}</span>
-                        </p>
                       </>
                     )}
                   </div>
+
+                  {/* Guest Count Display for Exclusive Booking - reflects exact values from multi-room-booking */}
+                  {selectedBooking.isExclusiveResortBooking && (
+                    <div className="bg-ocean-ice rounded-lg p-3">
+                      <h3 className="text-xs font-semibold text-ocean-mid uppercase tracking-wide mb-2">Guest Count</h3>
+                      <p className="text-sm">
+                        <span className="text-textSecondary">Adults:</span>{' '}
+                        <span className="font-medium text-textPrimary">{selectedBooking.exclusiveAdults || 0}</span>
+                      </p>
+                      <p className="text-sm mt-1">
+                        <span className="text-textSecondary">Kids:</span>{' '}
+                        <span className="font-medium text-textPrimary">{selectedBooking.exclusiveKids || 0}</span>
+                      </p>
+                      <p className="text-sm mt-1 pt-2 border-t border-ocean-light/20">
+                        <span className="font-semibold text-textPrimary">Total Guests:</span>{' '}
+                        <span className="font-bold text-ocean-mid">{selectedBooking.exclusiveTotalGuests || (selectedBooking.exclusiveAdults + selectedBooking.exclusiveKids)}</span>
+                      </p>
+                    </div>
+                  )}
+
+                  {/* Guest Count for Non-Exclusive Single/Multi Room */}
+                  {!selectedBooking.isExclusiveResortBooking && (
+                    <div className="bg-ocean-ice rounded-lg p-3">
+                      <h3 className="text-xs font-semibold text-ocean-mid uppercase tracking-wide mb-2">Guest Count</h3>
+                      {selectedBooking.isMultiRoomGroup && selectedBooking.childBookings && selectedBooking.childBookings.length > 0 ? (
+                        <div className="space-y-2">
+                          {selectedBooking.childBookings.map((child, idx) => {
+                            const roomTypeInfo = selectedBooking.roomTypesArray?.find(r => r.type === child.roomType);
+                            const quantity = roomTypeInfo?.quantity || 1;
+                            return (
+                              <div key={idx} className="border-b border-ocean-light/20 last:border-b-0 pb-2 last:pb-0">
+                                <p className="text-xs font-medium text-textPrimary">{quantity} × {child.roomType}</p>
+                                <div className="flex gap-3 mt-1 text-xs">
+                                  <span className="text-textSecondary">Adults: <span className="font-medium text-textPrimary">{child.adults || child.guests || 1}</span></span>
+                                  <span className="text-textSecondary">Kids: <span className="font-medium text-textPrimary">{child.kids || 0}</span></span>
+                                </div>
+                              </div>
+                            );
+                          })}
+                          <div className="pt-2 mt-1 border-t border-ocean-light/20">
+                            <p className="text-sm">
+                              <span className="font-semibold text-textPrimary">Total Guests:</span>{' '}
+                              <span className="font-bold text-ocean-mid">{selectedBooking.totalGuests || 0}</span>
+                            </p>
+                          </div>
+                        </div>
+                      ) : (
+                        <div>
+                          <p className="text-sm">
+                            <span className="text-textSecondary">Adults:</span>{' '}
+                            <span className="font-medium text-textPrimary">{selectedBooking.adults || selectedBooking.guests || 1}</span>
+                          </p>
+                          <p className="text-sm mt-1">
+                            <span className="text-textSecondary">Kids:</span>{' '}
+                            <span className="font-medium text-textPrimary">{selectedBooking.kids || 0}</span>
+                          </p>
+                          <p className="text-sm mt-1 pt-2 border-t border-ocean-light/20">
+                            <span className="font-semibold text-textPrimary">Total Guests:</span>{' '}
+                            <span className="font-bold text-ocean-mid">{selectedBooking.guests || (selectedBooking.adults + selectedBooking.kids) || 1}</span>
+                          </p>
+                        </div>
+                      )}
+                    </div>
+                  )}
 
                   <div className="bg-ocean-ice rounded-lg p-3">
                     <h3 className="text-xs font-semibold text-ocean-mid uppercase tracking-wide mb-2">Schedule</h3>
@@ -1867,7 +2039,7 @@ const handleConfirmReservation = async () => {
               </div>
             </div>
             
-            {/* Footer Actions */}
+            {/* Footer Actions with loading states */}
             <div className="sticky bottom-0 bg-white border-t border-ocean-light/20 px-5 py-3 rounded-b-xl flex gap-2 justify-end">
               <button
                 onClick={() => setShowPaymentModal(false)}
@@ -1880,24 +2052,30 @@ const handleConfirmReservation = async () => {
                   <button
                     onClick={() => {
                       setShowPaymentModal(false);
-                      setConfirmModal({ show: true, booking: selectedBooking, type: activeTab === 'rooms' ? 'room' : 'daytour', note: '' });
+                      setConfirmModal({ show: true, booking: selectedBooking, type: activeTab === 'rooms' ? 'room' : 'daytour', note: '', loading: false });
                     }}
-                    disabled={actionLoading[selectedBooking.id]}
+                    disabled={actionLoading[selectedBooking.id] || confirmModal.loading}
                     className="px-4 py-1.5 bg-gradient-to-r from-green-500 to-green-600 rounded-lg text-white text-sm font-medium hover:shadow-lg transition-all duration-300 flex items-center gap-1 disabled:opacity-50"
                   >
-                    <i className="fas fa-check text-xs"></i>
-                    Confirm
+                    {confirmModal.loading ? (
+                      <><i className="fas fa-spinner fa-spin text-xs"></i> Processing...</>
+                    ) : (
+                      <><i className="fas fa-check text-xs"></i> Confirm</>
+                    )}
                   </button>
                   <button
                     onClick={() => {
                       setShowPaymentModal(false);
-                      setCancelModal({ show: true, booking: selectedBooking, reason: '' });
+                      setCancelModal({ show: true, booking: selectedBooking, reason: '', loading: false });
                     }}
-                    disabled={actionLoading[selectedBooking.id]}
+                    disabled={actionLoading[selectedBooking.id] || cancelModal.loading}
                     className="px-4 py-1.5 bg-gradient-to-r from-red-500 to-red-600 rounded-lg text-white text-sm font-medium hover:shadow-lg transition-all duration-300 flex items-center gap-1 disabled:opacity-50"
                   >
-                    <i className="fas fa-times text-xs"></i>
-                    Cancel
+                    {cancelModal.loading ? (
+                      <><i className="fas fa-spinner fa-spin text-xs"></i> Processing...</>
+                    ) : (
+                      <><i className="fas fa-times text-xs"></i> Cancel</>
+                    )}
                   </button>
                 </>
               )}
@@ -1930,7 +2108,7 @@ const handleConfirmReservation = async () => {
         </div>
       )}
 
-      {/* Confirm Reservation Modal with Note Field */}
+      {/* Confirm Reservation Modal with Note Field and Loading State */}
       {confirmModal.show && confirmModal.booking && (
         <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-[60] p-4">
           <div className="bg-white rounded-2xl w-full max-w-md p-6 shadow-2xl animate-scaleIn">
@@ -1977,23 +2155,28 @@ const handleConfirmReservation = async () => {
             
             <div className="flex gap-3 justify-center">
               <button
-                onClick={() => setConfirmModal({ show: false, booking: null, type: '', note: '' })}
+                onClick={() => setConfirmModal({ show: false, booking: null, type: '', note: '', loading: false })}
                 className="px-5 py-2 border border-ocean-light/20 rounded-xl text-textSecondary text-sm font-medium hover:bg-ocean-ice transition-all duration-300"
               >
                 Cancel
               </button>
               <button
                 onClick={confirmModal.type === 'room' ? handleConfirmReservation : handleConfirmDayTourReservation}
-                className="px-5 py-2 bg-gradient-to-r from-green-500 to-green-600 rounded-xl text-white text-sm font-medium hover:shadow-lg hover:-translate-y-0.5 transition-all duration-300"
+                disabled={confirmModal.loading}
+                className="px-5 py-2 bg-gradient-to-r from-green-500 to-green-600 rounded-xl text-white text-sm font-medium hover:shadow-lg hover:-translate-y-0.5 transition-all duration-300 disabled:opacity-50 flex items-center gap-2"
               >
-                Confirm Reservation
+                {confirmModal.loading ? (
+                  <><i className="fas fa-spinner fa-spin"></i> Confirming...</>
+                ) : (
+                  'Confirm Reservation'
+                )}
               </button>
             </div>
           </div>
         </div>
       )}
 
-      {/* Cancel Reservation Modal */}
+      {/* Cancel Reservation Modal with Loading State */}
       {cancelModal.show && cancelModal.booking && (
         <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-[60] p-4">
           <div className="bg-white rounded-2xl w-full max-w-md p-6 shadow-2xl animate-scaleIn">
@@ -2031,24 +2214,28 @@ const handleConfirmReservation = async () => {
             
             <div className="flex gap-3 justify-center">
               <button
-                onClick={() => setCancelModal({ show: false, booking: null, reason: '' })}
+                onClick={() => setCancelModal({ show: false, booking: null, reason: '', loading: false })}
                 className="px-5 py-2 border border-ocean-light/20 rounded-xl text-textSecondary text-sm font-medium hover:bg-ocean-ice transition-all duration-300"
               >
                 Go Back
               </button>
               <button
                 onClick={activeTab === 'rooms' ? handleCancelReservation : handleCancelDayTourReservation}
-                disabled={!cancelModal.reason.trim()}
-                className="px-5 py-2 bg-gradient-to-r from-red-500 to-red-600 rounded-xl text-white text-sm font-medium hover:shadow-lg hover:-translate-y-0.5 transition-all duration-300 disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:translate-y-0"
+                disabled={!cancelModal.reason.trim() || cancelModal.loading}
+                className="px-5 py-2 bg-gradient-to-r from-red-500 to-red-600 rounded-xl text-white text-sm font-medium hover:shadow-lg hover:-translate-y-0.5 transition-all duration-300 disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:translate-y-0 flex items-center gap-2"
               >
-                Cancel Reservation
+                {cancelModal.loading ? (
+                  <><i className="fas fa-spinner fa-spin"></i> Cancelling...</>
+                ) : (
+                  'Cancel Reservation'
+                )}
               </button>
             </div>
           </div>
         </div>
       )}
 
-      {/* Refund Notification Confirmation Modal */}
+      {/* Refund Notification Confirmation Modal with Loading State */}
       {refundModal.show && refundModal.booking && (
         <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-[60] p-4">
           <div className="bg-white rounded-2xl w-full max-w-sm p-6 shadow-2xl animate-scaleIn">
@@ -2076,12 +2263,12 @@ const handleConfirmReservation = async () => {
               <button
                 onClick={handleSendRefundNotification}
                 disabled={refundModal.sending}
-                className="px-5 py-2 bg-gradient-to-r from-green-500 to-green-600 rounded-xl text-white text-sm font-medium hover:shadow-lg hover:-translate-y-0.5 transition-all duration-300 disabled:opacity-50"
+                className="px-5 py-2 bg-gradient-to-r from-green-500 to-green-600 rounded-xl text-white text-sm font-medium hover:shadow-lg hover:-translate-y-0.5 transition-all duration-300 disabled:opacity-50 flex items-center gap-2"
               >
                 {refundModal.sending ? (
-                  <><i className="fas fa-spinner fa-spin mr-1"></i> Sending...</>
+                  <><i className="fas fa-spinner fa-spin"></i> Sending...</>
                 ) : (
-                  <><i className="fas fa-paper-plane mr-1"></i> Send Email</>
+                  <><i className="fas fa-paper-plane"></i> Send Email</>
                 )}
               </button>
             </div>
@@ -2151,7 +2338,7 @@ const handleConfirmReservation = async () => {
         </div>
       )}
 
-      {/* Refund Confirmation Modal */}
+      {/* Refund Confirmation Modal with Loading State */}
       {refundConfirmModal.show && refundConfirmModal.booking && (
         <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-[70] p-4">
           <div className="bg-white rounded-2xl w-full max-w-sm p-6 shadow-2xl animate-scaleIn">
@@ -2179,12 +2366,12 @@ const handleConfirmReservation = async () => {
               <button
                 onClick={() => handleRefundNotify(refundConfirmModal.booking)}
                 disabled={refundConfirmModal.sending}
-                className="px-4 py-2 bg-gradient-to-r from-green-500 to-green-600 rounded-xl text-white text-sm font-medium hover:shadow-lg hover:-translate-y-0.5 transition-all duration-300 disabled:opacity-50"
+                className="px-4 py-2 bg-gradient-to-r from-green-500 to-green-600 rounded-xl text-white text-sm font-medium hover:shadow-lg hover:-translate-y-0.5 transition-all duration-300 disabled:opacity-50 flex items-center gap-2"
               >
                 {refundConfirmModal.sending ? (
-                  <><i className="fas fa-spinner fa-spin mr-1"></i> Sending...</>
+                  <><i className="fas fa-spinner fa-spin"></i> Sending...</>
                 ) : (
-                  <><i className="fas fa-check mr-1"></i> Yes, Send Refund Notification</>
+                  <><i className="fas fa-check"></i> Yes, Send Refund Notification</>
                 )}
               </button>
             </div>
@@ -2192,7 +2379,7 @@ const handleConfirmReservation = async () => {
         </div>
       )}
 
-      {/* Move Date Confirmation Modal */}
+      {/* Move Date Confirmation Modal with Loading State */}
       {moveDateConfirmModal.show && moveDateConfirmModal.booking && (
         <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-[70] p-4">
           <div className="bg-white rounded-2xl w-full max-w-sm p-6 shadow-2xl animate-scaleIn">
@@ -2220,12 +2407,12 @@ const handleConfirmReservation = async () => {
               <button
                 onClick={() => handleMoveDateNotify(moveDateConfirmModal.booking)}
                 disabled={moveDateConfirmModal.sending}
-                className="px-4 py-2 bg-gradient-to-r from-blue-500 to-blue-600 rounded-xl text-white text-sm font-medium hover:shadow-lg hover:-translate-y-0.5 transition-all duration-300 disabled:opacity-50"
+                className="px-4 py-2 bg-gradient-to-r from-blue-500 to-blue-600 rounded-xl text-white text-sm font-medium hover:shadow-lg hover:-translate-y-0.5 transition-all duration-300 disabled:opacity-50 flex items-center gap-2"
               >
                 {moveDateConfirmModal.sending ? (
-                  <><i className="fas fa-spinner fa-spin mr-1"></i> Sending...</>
+                  <><i className="fas fa-spinner fa-spin"></i> Sending...</>
                 ) : (
-                  <><i className="fas fa-check mr-1"></i> Yes, Send Move Date Notification</>
+                  <><i className="fas fa-check"></i> Yes, Send Move Date Notification</>
                 )}
               </button>
             </div>

@@ -1,3 +1,5 @@
+// app/rooms/[slug]/page.js
+
 'use client';
 
 import { useState, useEffect, useMemo, useRef } from 'react';
@@ -72,7 +74,8 @@ export default function RoomDetailsPage({ params }) {
   const [checkInHour, setCheckInHour] = useState(14);
   const [checkOutHour, setCheckOutHour] = useState(12);
   const [roomQuantity, setRoomQuantity] = useState(1);
-  const [selectedTotalGuests, setSelectedTotalGuests] = useState(1);
+  const [adultsCount, setAdultsCount] = useState(1);
+  const [kidsCount, setKidsCount] = useState(0);
   const [draftApplied, setDraftApplied] = useState(false);
   const calendarRef = useRef(null);
   const calendarBtnRef = useRef(null);
@@ -396,7 +399,10 @@ export default function RoomDetailsPage({ params }) {
     setRoomQuantity(quantity);
     const minGuests = quantity * (roomData.capacityMin || 1);
     const maxGuests = quantity * (roomData.capacityMax || Math.max(1, roomData.capacityMin || 1));
-    setSelectedTotalGuests(Math.min(maxGuests, Math.max(minGuests, totalGuests)));
+    // Distribute total guests to adults and kids (adults at least 1)
+    const restoredAdults = Math.min(totalGuests, Math.max(minGuests, totalGuests - 0));
+    setAdultsCount(restoredAdults);
+    setKidsCount(totalGuests - restoredAdults);
     setDraftApplied(true);
   }, [roomData, draftApplied]);
 
@@ -405,11 +411,33 @@ export default function RoomDetailsPage({ params }) {
     if (!roomData) return;
     const minGuests = roomQuantity * (roomData.capacityMin || 1);
     const maxGuests = roomQuantity * (roomData.capacityMax || Math.max(1, roomData.capacityMin || 1));
-    setSelectedTotalGuests((prev) => {
-      const value = Number(prev) || minGuests;
-      return Math.min(maxGuests, Math.max(minGuests, value));
-    });
-  }, [roomQuantity, roomData]);
+    const currentTotal = adultsCount + kidsCount;
+    if (currentTotal < minGuests) {
+      setAdultsCount(minGuests);
+      setKidsCount(0);
+    } else if (currentTotal > maxGuests) {
+      setAdultsCount(maxGuests);
+      setKidsCount(0);
+    }
+  }, [roomQuantity, roomData, adultsCount, kidsCount]);
+
+  const handleAdultsChange = (increment) => {
+    const minGuests = roomQuantity * (roomData.capacityMin || 1);
+    const maxGuests = roomQuantity * (roomData.capacityMax || Math.max(1, roomData.capacityMin || 1));
+    let newAdults = adultsCount + (increment ? 1 : -1);
+    newAdults = Math.max(1, Math.min(maxGuests, newAdults));
+    const newTotal = newAdults + kidsCount;
+    if (newTotal <= maxGuests) {
+      setAdultsCount(newAdults);
+    }
+  };
+
+  const handleKidsChange = (increment) => {
+    const maxGuests = roomQuantity * (roomData.capacityMax || Math.max(1, roomData.capacityMin || 1));
+    let newKids = kidsCount + (increment ? 1 : -1);
+    newKids = Math.max(0, Math.min(maxGuests - adultsCount, newKids));
+    setKidsCount(newKids);
+  };
 
   const handleNextImage = () => setSelectedImageIndex((prev) => (prev + 1) % images.length);
   const handlePrevImage = () => setSelectedImageIndex((prev) => (prev - 1 + images.length) % images.length);
@@ -420,7 +448,7 @@ export default function RoomDetailsPage({ params }) {
       const draft = {
         roomType: roomData.type,
         quantity: roomQuantity,
-        totalGuests: selectedTotalGuests,
+        totalGuests: adultsCount + kidsCount,
         checkInDate: checkInDate ? new Date(checkInDate).toISOString() : null,
         numberOfNights,
         checkInHour,
@@ -431,88 +459,75 @@ export default function RoomDetailsPage({ params }) {
     router.push('/rooms');
   };
 
-  const handleBookNow = () => {
-    setActionError('');
+const handleBookNow = () => {
+  setActionError('');
 
-    if (!checkInDate) {
-      setActionError('Please select a check-in date first.');
-      return;
-    }
+  if (!checkInDate) {
+    setActionError('Please select a check-in date first.');
+    return;
+  }
 
-    if (availabilityForStay <= 0) {
-      setActionError('No available rooms for the selected schedule. Please change dates.');
-      return;
-    }
+  if (availabilityForStay <= 0) {
+    setActionError('No available rooms for the selected schedule. Please change dates.');
+    return;
+  }
 
-    if (roomQuantity > availabilityForStay) {
-      setActionError(`Only ${availabilityForStay} room(s) are available for your selected stay.`);
-      return;
-    }
+  if (roomQuantity > availabilityForStay) {
+    setActionError(`Only ${availabilityForStay} room(s) are available for your selected stay.`);
+    return;
+  }
 
-    const minGuests = roomQuantity * (roomData.capacityMin || 1);
-    const maxGuests = roomQuantity * (roomData.capacityMax || Math.max(1, roomData.capacityMin || 1));
-    const normalizedGuests = Number(selectedTotalGuests) || minGuests;
+  const minGuests = roomQuantity * (roomData.capacityMin || 1);
+  const maxGuests = roomQuantity * (roomData.capacityMax || Math.max(1, roomData.capacityMin || 1));
+  const totalGuests = adultsCount + kidsCount;
 
-    if (normalizedGuests < minGuests || normalizedGuests > maxGuests) {
-      setActionError(`Guests must be between ${minGuests} and ${maxGuests} for ${roomQuantity} room(s).`);
-      return;
-    }
+  if (totalGuests < minGuests || totalGuests > maxGuests) {
+    setActionError(`Total guests must be between ${minGuests} and ${maxGuests} for ${roomQuantity} room(s).`);
+    return;
+  }
 
-    const checkIn = new Date(checkInDate);
-    checkIn.setHours(checkInHour, 0, 0, 0);
-    const checkOut = new Date(checkIn);
-    checkOut.setDate(checkOut.getDate() + numberOfNights);
-    checkOut.setHours(checkOutHour, 0, 0, 0);
-    const totalGuests = normalizedGuests;
-    const totalPrice = (roomData.price || 0) * roomQuantity * numberOfNights;
+  if (adultsCount < 1) {
+    setActionError('At least 1 adult is required.');
+    return;
+  }
 
-    if (roomQuantity === 1) {
-      sessionStorage.removeItem('multiRoomBooking');
-      sessionStorage.removeItem('multiRoomBookingDraft');
+  const checkIn = new Date(checkInDate);
+  checkIn.setHours(checkInHour, 0, 0, 0);
+  const checkOut = new Date(checkIn);
+  checkOut.setDate(checkOut.getDate() + numberOfNights);
+  checkOut.setHours(checkOutHour, 0, 0, 0);
+  const totalPrice = (roomData.price || 0) * roomQuantity * numberOfNights;
 
-      const singleRoomParams = new URLSearchParams({
-        roomId: roomData.id,
-        roomType: roomData.type,
-        price: String(roomData.price || 0),
-        maxCapacity: String(roomData.capacityMax || 1),
-        totalRooms: String(roomData.totalRooms || 1),
-        checkIn: checkIn.toISOString(),
-        checkOut: checkOut.toISOString(),
-        nights: String(numberOfNights),
-        numberOfRooms: '1'
-      });
-
-      router.push(`/rooms/booking?${singleRoomParams.toString()}`);
-      return;
-    }
-
-    const bookingData = {
-      selectedRooms: { [roomData.type]: roomQuantity },
-      totalGuestsPerType: { [roomData.type]: totalGuests },
-      checkInDate: checkIn.toISOString(),
-      checkOutDate: checkOut.toISOString(),
-      checkInHour,
-      checkOutHour,
-      checkInDisplay: formatHour(checkInHour),
-      checkOutDisplay: formatHour(checkOutHour),
-      numberOfNights,
-      specialRequest: '',
-      totalPrice,
+  // Always use multi-room booking flow (even for single room)
+  const bookingData = {
+    selectedRooms: { [roomData.type]: roomQuantity },
+    totalGuestsPerType: { [roomData.type]: totalGuests },
+    adultsPerType: { [roomData.type]: adultsCount },    // ADD THIS - maps Adults correctly
+    kidsPerType: { [roomData.type]: kidsCount },       // ADD THIS - maps Kids correctly
+    checkInDate: checkIn.toISOString(),
+    checkOutDate: checkOut.toISOString(),
+    checkInHour,
+    checkOutHour,
+    checkInDisplay: formatHour(checkInHour),
+    checkOutDisplay: formatHour(checkOutHour),
+    numberOfNights,
+    specialRequest: '',
+    totalPrice,
+    totalGuests,
+    roomTypes: [{
+      type: roomData.type,
+      quantity: roomQuantity,
       totalGuests,
-      roomTypes: [{
-        type: roomData.type,
-        quantity: roomQuantity,
-        totalGuests,
-        price: roomData.price,
-        roomIds: roomData.roomIds || [roomData.id],
-        capacityMin: roomData.capacityMin,
-        capacityMax: roomData.capacityMax
-      }]
-    };
-
-    sessionStorage.setItem('multiRoomBooking', JSON.stringify(bookingData));
-    router.push('/rooms/multi-room-booking');
+      price: roomData.price,
+      roomIds: roomData.roomIds || [roomData.id],
+      capacityMin: roomData.capacityMin,
+      capacityMax: roomData.capacityMax
+    }]
   };
+
+  sessionStorage.setItem('multiRoomBooking', JSON.stringify(bookingData));
+  router.push('/rooms/multi-room-booking');
+};
 
   // ─── LOADING STATE ───
   if (loading) {
@@ -552,6 +567,7 @@ export default function RoomDetailsPage({ params }) {
   const totalPricePreview = (roomData.price || 0) * roomQuantity * numberOfNights;
   const minGuests = roomQuantity * (roomData.capacityMin || 1);
   const maxGuests = roomQuantity * (roomData.capacityMax || Math.max(1, roomData.capacityMin || 1));
+  const totalGuests = adultsCount + kidsCount;
 
   // ─── MAIN RENDER ───
   return (
@@ -695,7 +711,7 @@ export default function RoomDetailsPage({ params }) {
             </div>
             </div>
 
-            {/* ─── RIGHT: BOOKING SIDEBAR (merged, no "Starting from" card) ─── */}
+            {/* ─── RIGHT: BOOKING SIDEBAR ─── */}
             <aside className="lg:col-span-5 lg:sticky lg:top-24">
               <div className="bg-white rounded-3xl border border-gray-100 shadow-[0_12px_40px_rgb(0,0,0,0.07)] p-4 w-full space-y-3.5">
 
@@ -880,29 +896,67 @@ export default function RoomDetailsPage({ params }) {
                   </div>
                 </div>
 
-                {/* Guests */}
-                <div>
-                  <label className="text-[10px] font-bold text-gray-500 uppercase tracking-wider block mb-1.5">Total Guests</label>
-                  <div className="flex items-center border border-gray-200 bg-white rounded-2xl overflow-hidden shadow-sm">
-                    <button
-                      type="button"
-                      onClick={() => setSelectedTotalGuests((prev) => Math.max(minGuests, Number(prev) - 1))}
-                      disabled={Number(selectedTotalGuests) <= minGuests}
-                      className="w-9 h-9 hover:bg-gray-50 text-gray-600 disabled:opacity-30 transition-colors flex items-center justify-center"
-                    >
-                      <i className="fas fa-minus text-[10px]"></i>
-                    </button>
-                    <span className="flex-1 text-center text-xs font-bold text-gray-900">{selectedTotalGuests}</span>
-                    <button
-                      type="button"
-                      onClick={() => setSelectedTotalGuests((prev) => Math.min(maxGuests, Number(prev) + 1))}
-                      disabled={Number(selectedTotalGuests) >= maxGuests}
-                      className="w-9 h-9 hover:bg-gray-50 text-gray-600 disabled:opacity-30 transition-colors flex items-center justify-center"
-                    >
-                      <i className="fas fa-plus text-[10px]"></i>
-                    </button>
+                {/* ─── ADULTS & KIDS COUNTERS ─── */}
+                <div className="grid grid-cols-2 gap-2.5">
+                  {/* Adults */}
+                  <div>
+                    <label className="text-[10px] font-bold text-gray-500 uppercase tracking-wider block mb-1.5">Adults</label>
+                    <div className="flex items-center border border-gray-200 bg-white rounded-2xl overflow-hidden shadow-sm">
+                      <button
+                        type="button"
+                        onClick={() => handleAdultsChange(false)}
+                        disabled={adultsCount <= 1}
+                        className="w-9 h-9 hover:bg-gray-50 text-gray-600 disabled:opacity-30 transition-colors flex items-center justify-center"
+                      >
+                        <i className="fas fa-minus text-[10px]"></i>
+                      </button>
+                      <span className="flex-1 text-center text-xs font-bold text-gray-900">{adultsCount}</span>
+                      <button
+                        type="button"
+                        onClick={() => handleAdultsChange(true)}
+                        disabled={adultsCount + kidsCount >= maxGuests}
+                        className="w-9 h-9 hover:bg-gray-50 text-gray-600 disabled:opacity-30 transition-colors flex items-center justify-center"
+                      >
+                        <i className="fas fa-plus text-[10px]"></i>
+                      </button>
+                    </div>
                   </div>
-                  <p className="text-[9px] text-gray-400 mt-1 px-1 font-medium">
+
+                  {/* Kids */}
+                  <div>
+                    <label className="text-[10px] font-bold text-gray-500 uppercase tracking-wider block mb-1.5">Kids</label>
+                    <div className="flex items-center border border-gray-200 bg-white rounded-2xl overflow-hidden shadow-sm">
+                      <button
+                        type="button"
+                        onClick={() => handleKidsChange(false)}
+                        disabled={kidsCount <= 0}
+                        className="w-9 h-9 hover:bg-gray-50 text-gray-600 disabled:opacity-30 transition-colors flex items-center justify-center"
+                      >
+                        <i className="fas fa-minus text-[10px]"></i>
+                      </button>
+                      <span className="flex-1 text-center text-xs font-bold text-gray-900">{kidsCount}</span>
+                      <button
+                        type="button"
+                        onClick={() => handleKidsChange(true)}
+                        disabled={adultsCount + kidsCount >= maxGuests}
+                        className="w-9 h-9 hover:bg-gray-50 text-gray-600 disabled:opacity-30 transition-colors flex items-center justify-center"
+                      >
+                        <i className="fas fa-plus text-[10px]"></i>
+                      </button>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Total Guests Summary - Right side below Adults counter */}
+                <div className="bg-gray-50/50 rounded-xl p-2 text-center">
+                  <p className="text-xs font-semibold text-gray-700">
+                    Total Guests: <span className="text-blue-600 font-bold">{totalGuests}</span>
+                  </p>
+                </div>
+
+                {/* Min/Max info - Left side below Kids counter */}
+                <div className="bg-gray-50/50 rounded-xl p-2 text-center">
+                  <p className="text-xs font-semibold text-gray-700">
                     Min {minGuests} · Max {maxGuests} guests for {roomQuantity} room{roomQuantity > 1 ? 's' : ''}
                   </p>
                 </div>

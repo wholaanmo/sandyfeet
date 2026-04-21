@@ -14,7 +14,7 @@ export default function MultiRoomBookingPage() {
   const router = useRouter();
   const [bookingData, setBookingData] = useState(null);
   const [loading, setLoading] = useState(true);
-  const [step, setStep] = useState(2); // Start at step 2 (Guest Details)
+  const [step, setStep] = useState(2);
   const [errors, setErrors] = useState({});
   const [uploading, setUploading] = useState(false);
   const [submitting, setSubmitting] = useState(false);
@@ -390,7 +390,6 @@ export default function MultiRoomBookingPage() {
       const allRoomIds = [];
       for (const roomType of bookingData.roomTypes) {
         for (let i = 0; i < roomType.quantity; i++) {
-          // Assign specific room IDs from the available pool
           const roomId = roomType.roomIds[i % roomType.roomIds.length];
           allRoomIds.push(roomId);
         }
@@ -408,6 +407,16 @@ export default function MultiRoomBookingPage() {
         const singleRoomId = allRoomIds[0] || roomTypeObj?.roomIds?.[0];
         const guestsPerRoomValue = roomTypeObj ? (guestsPerRoom[roomTypeObj.type] || 1) : 1;
 
+        // --- FIX: Capture adults and kids for single-room booking ---
+        let adultsCount = 0, kidsCount = 0;
+        if (isExclusiveResortBooking) {
+          adultsCount = bookingData.exclusiveAdults || 0;
+          kidsCount = bookingData.exclusiveKids || 0;
+        } else {
+          adultsCount = (bookingData.adultsPerType?.[roomTypeObj.type] || guestsPerRoomValue);
+          kidsCount = (bookingData.kidsPerType?.[roomTypeObj.type] || 0);
+        }
+
         const booking = {
           bookingId,
           roomId: singleRoomId,
@@ -415,6 +424,8 @@ export default function MultiRoomBookingPage() {
           price: roomTypeObj?.price || 0,
           nights: 1,
           guests: guestsPerRoomValue,
+          adults: adultsCount,
+          kids: kidsCount,
           totalPrice: packageTotalPrice,
           downPayment: packageDownPayment,
           remainingBalance: packageRemainingBalance,
@@ -437,7 +448,13 @@ export default function MultiRoomBookingPage() {
           numberOfRooms: 1,
           specialRequest: bookingData.specialRequest || null,
           isExclusiveResortBooking,
-          exclusivePackagePrice: isExclusiveResortBooking ? exclusivePackagePrice : null
+          exclusivePackagePrice: isExclusiveResortBooking ? exclusivePackagePrice : null,
+          // Store exclusive counts for entire resort bookings
+          ...(isExclusiveResortBooking && {
+            exclusiveAdults: bookingData.exclusiveAdults || 0,
+            exclusiveKids: bookingData.exclusiveKids || 0,
+            tentCount: bookingData.tentCount || 0
+          })
         };
 
         if (bankDetailsProvided) {
@@ -452,6 +469,16 @@ export default function MultiRoomBookingPage() {
           const roomTypeObj = bookingData.roomTypes.find(t => t.roomIds.includes(roomId));
           const guestsPerRoomValue = guestsPerRoom[roomTypeObj.type];
 
+          // --- FIX: Capture adults and kids per room type ---
+          let adultsCount = 0, kidsCount = 0;
+          if (isExclusiveResortBooking) {
+            adultsCount = bookingData.exclusiveAdults || 0;
+            kidsCount = bookingData.exclusiveKids || 0;
+          } else {
+            adultsCount = (bookingData.adultsPerType?.[roomTypeObj.type] || guestsPerRoomValue);
+            kidsCount = (bookingData.kidsPerType?.[roomTypeObj.type] || 0);
+          }
+
           const booking = {
             bookingId: `${bookingId}-${i + 1}`,
             roomId: roomId,
@@ -459,6 +486,8 @@ export default function MultiRoomBookingPage() {
             price: roomTypeObj.price,
             nights: 1,
             guests: guestsPerRoomValue,
+            adults: adultsCount,
+            kids: kidsCount,
             totalPrice: roomTypeObj.price,
             downPayment: roomTypeObj.price * 0.5,
             remainingBalance: roomTypeObj.price * 0.5,
@@ -486,10 +515,15 @@ export default function MultiRoomBookingPage() {
             exclusivePackagePrice: isExclusiveResortBooking ? exclusivePackagePrice : null,
             parentTotalPrice: isExclusiveResortBooking ? packageTotalPrice : null,
             parentDownPayment: isExclusiveResortBooking ? packageDownPayment : null,
-            parentRemainingBalance: isExclusiveResortBooking ? packageRemainingBalance : null
+            parentRemainingBalance: isExclusiveResortBooking ? packageRemainingBalance : null,
+            // Store exclusive counts for entire resort bookings
+            ...(isExclusiveResortBooking && {
+              exclusiveAdults: bookingData.exclusiveAdults || 0,
+              exclusiveKids: bookingData.exclusiveKids || 0,
+              tentCount: bookingData.tentCount || 0
+            })
           };
 
-          // Add bank details if provided
           if (bankDetailsProvided) {
             booking.bankDetailsProvided = bankDetailsProvided;
           }
@@ -497,6 +531,9 @@ export default function MultiRoomBookingPage() {
           await addDoc(collection(db, 'bookings'), booking);
         }
       }
+      
+      // Set flag to reset rooms page state after successful booking
+      sessionStorage.setItem('resetRoomsPage', 'true');
       
       setStep(4);
     } catch (error) {
@@ -562,6 +599,7 @@ export default function MultiRoomBookingPage() {
   const exclusiveAdults = Math.max(0, Number(bookingData.exclusiveAdults || 0));
   const exclusiveKids = Math.max(0, Number(bookingData.exclusiveKids || 0));
   const exclusiveTotalGuests = Math.max(0, Number(bookingData.totalGuests || 0));
+  const tentCount = Math.max(0, Number(bookingData.tentCount || 0));
 
   return (
     <GuestLayout>
@@ -588,7 +626,6 @@ export default function MultiRoomBookingPage() {
               {/* Progress Steps */}
               <div className="mb-6 bg-white rounded-2xl border border-gray-200 shadow-sm p-4 sm:p-6 pb-2">
                 <div className="flex justify-between items-start relative w-full mb-4">
-                  {/* Full width connecting lines background container */}
                   <div className="absolute top-5 left-0 w-full h-[2px] flex px-10 z-0">
                     <div className="w-1/3 h-full bg-blue-500 transition-all duration-300"></div>
                     <div className={`w-1/3 h-full transition-all duration-300 ${step >= 3 ? 'bg-blue-500' : 'bg-gray-200'}`}></div>
@@ -610,7 +647,7 @@ export default function MultiRoomBookingPage() {
                         <div className={`w-10 h-10 rounded-full flex items-center justify-center text-sm font-bold border-2 transition-colors ${
                           isActive
                             ? 'bg-blue-600 border-blue-600 text-white shadow-md shadow-blue-200'
-                            : isCompleted || item.id === 1 // Step 1 is always completed when we are on step 2
+                            : isCompleted || item.id === 1
                               ? 'bg-emerald-500 border-emerald-500 text-white'
                               : 'bg-white border-gray-300 text-gray-400'
                         }`}>
@@ -1149,24 +1186,40 @@ export default function MultiRoomBookingPage() {
                       {isExclusiveBooking ? 'Entire Resort Package' : 'Selected Rooms'}
                     </h4>
 
-                    {isExclusiveBooking ? (
-                      <div className="bg-blue-50/60 rounded-xl border border-blue-200 p-3 space-y-1.5">
-                        <p className="text-sm font-semibold text-blue-900">Whole resort reserved for your selected dates</p>
-                        <p className="text-xs text-blue-700">Adults: {exclusiveAdults} | Kids: {exclusiveKids}</p>
-                        <p className="text-xs text-blue-700 font-semibold">Total Guests: {exclusiveTotalGuests}</p>
-                      </div>
-                    ) : (
-                      <div className="bg-white rounded-xl border border-gray-200 p-3 space-y-2">
-                        {bookingData.roomTypes && bookingData.roomTypes.length > 0 ? bookingData.roomTypes.map((type, idx) => (
-                          <div key={`${type.type}-${idx}`} className="text-xs text-gray-700 leading-relaxed border-b border-gray-100 last:border-b-0 pb-1.5 last:pb-0">
-                            {type.quantity} × {type.type} • ₱{type.price.toLocaleString()}/night
-                            <span className="text-gray-500"> ({type.totalGuests || 1} total guest{(type.totalGuests || 1) !== 1 ? 's' : ''})</span>
-                          </div>
-                        )) : (
-                          <p className="text-xs text-gray-500">No room selections found.</p>
-                        )}
-                      </div>
-                    )}
+{isExclusiveBooking ? (
+  <div className="bg-blue-50/60 rounded-xl border border-blue-200 p-3 space-y-1.5">
+    <p className="text-sm font-semibold text-blue-900">Whole resort reserved for your selected dates</p>
+    {tentCount > 0 && (
+      <p className="text-xs text-amber-700 font-medium">
+        <i className="fas fa-tent mr-1"></i>
+        Tents: {tentCount} (+₱{tentCount * 1500 * stayNights} for the stay)
+      </p>
+    )}
+    <p className="text-xs text-blue-700">Adults: {exclusiveAdults} | Kids: {exclusiveKids}</p>
+  </div>
+) : (
+  <div className="bg-white rounded-xl border border-gray-200 p-3 space-y-2">
+    {bookingData.roomTypes && bookingData.roomTypes.length > 0 ? bookingData.roomTypes.map((type, idx) => {
+      const adultsCount = bookingData.adultsPerType?.[type.type] || (type.totalGuests || 1);
+      const kidsCount = bookingData.kidsPerType?.[type.type] || 0;
+      
+      return (
+        <div key={`${type.type}-${idx}`} className="text-xs text-gray-700 leading-relaxed border-b border-gray-100 last:border-b-0 pb-1.5 last:pb-0">
+          <div className="flex justify-between items-start">
+            <span className="font-medium">{type.quantity} × {type.type}</span>
+            <span className="text-gray-500">₱{type.price.toLocaleString()}/night</span>
+          </div>
+          <div className="mt-1 text-gray-500">
+            Adults: {adultsCount} | Kids: {kidsCount}
+          </div>
+        </div>
+      );
+    }) : (
+      <p className="text-xs text-gray-500">No room selections found.</p>
+    )}
+  </div>
+)}
+
                   </div>
 
                   <div>

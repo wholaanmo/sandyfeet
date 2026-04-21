@@ -1,4 +1,4 @@
-// app/rooms/select-room-types/page.js
+// app/rooms/page.js
 'use client';
 
 import { useState, useEffect, useRef } from 'react';
@@ -36,6 +36,7 @@ export default function RoomsPage() {
   const [exclusiveAdults, setExclusiveAdults] = useState(1);
   const [exclusiveKids, setExclusiveKids] = useState(0);
   const [exclusiveGuestError, setExclusiveGuestError] = useState('');
+  const [tentCount, setTentCount] = useState(0);
   const calendarPopoverRef = useRef(null);
   const calendarTriggerRef = useRef(null);
 
@@ -45,7 +46,7 @@ export default function RoomsPage() {
   const formatHour = (hour) => {
     const period = hour >= 12 ? 'PM' : 'AM';
     const normalized = hour % 12 === 0 ? 12 : hour % 12;
-    return `${String(normalized).padStart(2, '0')}:00 ${period}`;
+    return `${String(normalized).padStart(2, '00')}:00 ${period}`;
   };
 
   const toRoomSlug = (value) => {
@@ -61,13 +62,67 @@ export default function RoomsPage() {
   const checkOutDisplay = formatHour(checkOutHour);
   const nightlyHours = Math.max(1, 24 - checkInHour + checkOutHour);
   const ROOMS_CHECKOUT_CACHE_KEY = 'roomsCheckoutDraft';
-  const EXCLUSIVE_RESORT_PRICE = 22500;
+  const BASE_EXCLUSIVE_PRICE = 22500;
 
   const chunk = (arr, size) => {
     const out = [];
     for (let i = 0; i < arr.length; i += size) out.push(arr.slice(i, i + size));
     return out;
   };
+
+  // Get exclusive package price based on tent count
+  const getExclusivePackagePrice = () => {
+    return BASE_EXCLUSIVE_PRICE + (tentCount * 1500);
+  };
+
+  // Reset all selections and states to initial/default state
+  const resetToInitialState = () => {
+    // Clear session storage
+    sessionStorage.removeItem('multiRoomBooking');
+    sessionStorage.removeItem(ROOMS_CHECKOUT_CACHE_KEY);
+    sessionStorage.removeItem('roomsPageState');
+    sessionStorage.removeItem('roomDetailDraft');
+    
+    // Reset all state variables
+    setSelectedRooms({});
+    setTotalGuestsPerType({});
+    setAdultsPerType({});
+    setKidsPerType({});
+    setGuestInputErrors({});
+    setCheckInDate(null);
+    setCheckOutDate(null);
+    setNumberOfNights(1);
+    setCurrentMonth(new Date());
+    setSpecialRequest('');
+    setDateSelectionError('');
+    setAvailabilityStatus({});
+    setRoomAvailability({});
+    setUnitLevelAvailability({});
+    setIsModalOpen(false);
+    setActiveCategory('All Rooms');
+    setIsExclusiveResortBooking(false);
+    setExclusiveAdults(1);
+    setExclusiveKids(0);
+    setExclusiveGuestError('');
+    setTentCount(0);
+  };
+
+  // Listen for booking completion and reset state
+  useEffect(() => {
+    const checkForBookingReset = () => {
+      const resetFlag = sessionStorage.getItem('resetRoomsPage');
+      if (resetFlag === 'true') {
+        sessionStorage.removeItem('resetRoomsPage');
+        resetToInitialState();
+      }
+    };
+    
+    checkForBookingReset();
+    
+    // Add event listener for storage changes (in case of cross-tab)
+    window.addEventListener('storage', checkForBookingReset);
+    return () => window.removeEventListener('storage', checkForBookingReset);
+  }, []);
 
   // Fetch available room types from Firebase
   useEffect(() => {
@@ -197,6 +252,9 @@ export default function RoomsPage() {
           if (parsed.exclusiveKids != null) {
             setExclusiveKids(Math.max(0, Number(parsed.exclusiveKids) || 0));
           }
+          if (parsed.tentCount != null) {
+            setTentCount(Math.max(0, Number(parsed.tentCount) || 0));
+          }
         }
       } catch {
         // no-op on malformed data
@@ -294,6 +352,7 @@ export default function RoomsPage() {
       isExclusiveResortBooking,
       exclusiveAdults,
       exclusiveKids,
+      tentCount,
       updatedAt: new Date().toISOString()
     };
 
@@ -313,7 +372,8 @@ export default function RoomsPage() {
     activeCategory,
     isExclusiveResortBooking,
     exclusiveAdults,
-    exclusiveKids
+    exclusiveKids,
+    tentCount
   ]);
 
   // Fetch blocked slots
@@ -474,6 +534,8 @@ export default function RoomsPage() {
     if (!date || availableRoomTypes.length === 0) return false;
 
     for (const roomTypeData of availableRoomTypes) {
+      // Tent is excluded from exclusive booking base package, so we don't check its availability
+      if (roomTypeData.type === 'Tent') continue;
       const totalUnits = getTotalUnitsForRoomType(roomTypeData);
       if (totalUnits <= 0) return false;
 
@@ -563,6 +625,7 @@ export default function RoomsPage() {
       setAdultsPerType(clearedAdults);
       setKidsPerType(clearedKids);
       setTotalGuestsPerType(clearedTotals);
+      setTentCount(0);
       return;
     }
 
@@ -572,6 +635,14 @@ export default function RoomsPage() {
     const nextTotals = {};
 
     for (const roomType of availableRoomTypes) {
+      // Exclude Tent room type when in exclusive mode - tents are added separately
+      if (roomType.type === 'Tent') {
+        nextSelected[roomType.type] = 0;
+        nextAdults[roomType.type] = 1;
+        nextKids[roomType.type] = 0;
+        nextTotals[roomType.type] = 1;
+        continue;
+      }
       const qty = Math.max(0, getTotalUnitsForRoomType(roomType));
       const minGuests = qty * (roomType.capacityMin || 1);
       nextSelected[roomType.type] = qty;
@@ -661,7 +732,12 @@ export default function RoomsPage() {
   }, [checkInDate, checkOutDate, numberOfNights, selectedRooms, availableRoomTypes, bookedDates, blockedSlots, roomDetailsMap, checkInHour]);
 
   const handleQuantityChange = (roomType, increment) => {
-    setIsExclusiveResortBooking(false);
+    // If toggling exclusive mode, clear it
+    if (isExclusiveResortBooking) {
+      setIsExclusiveResortBooking(false);
+      setTentCount(0);
+    }
+    
     const typeData = availableRoomTypes.find(t => t.type === roomType);
     // Use unit-level availability for max available
     const maxAvailable = checkInDate 
@@ -680,6 +756,11 @@ export default function RoomsPage() {
       ...prev,
       [roomType]: newQuantity
     }));
+    
+    // If tent quantity changed, update tentCount state for pricing and capacity
+    if (roomType === 'Tent') {
+      setTentCount(newQuantity);
+    }
     
     // Clear error for this room type when quantity changes
     setGuestInputErrors(prev => ({ ...prev, [roomType]: '' }));
@@ -709,7 +790,10 @@ export default function RoomsPage() {
   };
 
   const handleGuestCountChange = (roomType, guestType, value) => {
-    setIsExclusiveResortBooking(false);
+    if (isExclusiveResortBooking) {
+      setIsExclusiveResortBooking(false);
+      setTentCount(0);
+    }
     const quantity = selectedRooms[roomType] || 0;
     if (quantity === 0) return;
 
@@ -781,6 +865,14 @@ export default function RoomsPage() {
     const nextTotals = {};
 
     for (const roomType of availableRoomTypes) {
+      // Exclude Tent room type from automatic selection
+      if (roomType.type === 'Tent') {
+        nextSelected[roomType.type] = 0;
+        nextAdults[roomType.type] = 1;
+        nextKids[roomType.type] = 0;
+        nextTotals[roomType.type] = 1;
+        continue;
+      }
       const qty = Math.max(0, getTotalUnitsForRoomType(roomType));
       const minGuests = qty * (roomType.capacityMin || 1);
       nextSelected[roomType.type] = qty;
@@ -795,6 +887,8 @@ export default function RoomsPage() {
     setTotalGuestsPerType(nextTotals);
     setGuestInputErrors({});
     setExclusiveGuestError('');
+    // Reset tent count when entering exclusive mode
+    setTentCount(0);
 
     if ((Number(exclusiveAdults) || 0) < 1) {
       setExclusiveAdults(1);
@@ -828,9 +922,80 @@ export default function RoomsPage() {
   };
 
   const handleClearExclusiveResort = () => {
+    // Reset all selections
+    const clearedSelected = {};
+    const clearedAdults = {};
+    const clearedKids = {};
+    const clearedTotals = {};
+
+    for (const roomType of availableRoomTypes) {
+      const minGuests = Math.max(1, roomType.capacityMin || 1);
+      clearedSelected[roomType.type] = 0;
+      clearedAdults[roomType.type] = minGuests;
+      clearedKids[roomType.type] = 0;
+      clearedTotals[roomType.type] = minGuests;
+    }
+
+    setSelectedRooms(clearedSelected);
+    setAdultsPerType(clearedAdults);
+    setKidsPerType(clearedKids);
+    setTotalGuestsPerType(clearedTotals);
     setIsExclusiveResortBooking(false);
     setDateSelectionError('');
     setExclusiveGuestError('');
+    setTentCount(0);
+  };
+
+  // Sync tent count between exclusive container and Tent's Add to Reservation button
+  const handleAddTentInExclusive = () => {
+    if (!isExclusiveResortBooking) return;
+    const tentType = availableRoomTypes.find(t => t.type === 'Tent');
+    const maxTentsAvailable = checkInDate 
+      ? (unitLevelAvailability['Tent'] || tentType?.availableRooms || 1)
+      : (tentType?.availableRooms || 1);
+    
+    if (tentCount < maxTentsAvailable) {
+      const newTentCount = tentCount + 1;
+      setTentCount(newTentCount);
+      // Also update the selectedRooms for Tent to keep the Add to Reservation button in sync
+      setSelectedRooms(prev => ({
+        ...prev,
+        Tent: newTentCount
+      }));
+      // Update total guests for Tent
+      const tentTypeData = availableRoomTypes.find(t => t.type === 'Tent');
+      if (tentTypeData && newTentCount > 0) {
+        const minGuests = newTentCount * (tentTypeData.capacityMin || 1);
+        setTotalGuestsPerType(prev => ({ ...prev, Tent: minGuests }));
+        setAdultsPerType(prev => ({ ...prev, Tent: minGuests }));
+        setKidsPerType(prev => ({ ...prev, Tent: 0 }));
+      }
+    }
+  };
+
+  const handleRemoveTentInExclusive = () => {
+    if (!isExclusiveResortBooking) return;
+    if (tentCount > 0) {
+      const newTentCount = tentCount - 1;
+      setTentCount(newTentCount);
+      // Also update the selectedRooms for Tent to keep the Add to Reservation button in sync
+      setSelectedRooms(prev => ({
+        ...prev,
+        Tent: newTentCount
+      }));
+      // Update total guests for Tent
+      const tentTypeData = availableRoomTypes.find(t => t.type === 'Tent');
+      if (tentTypeData && newTentCount > 0) {
+        const minGuests = newTentCount * (tentTypeData.capacityMin || 1);
+        setTotalGuestsPerType(prev => ({ ...prev, Tent: minGuests }));
+        setAdultsPerType(prev => ({ ...prev, Tent: minGuests }));
+        setKidsPerType(prev => ({ ...prev, Tent: 0 }));
+      } else if (newTentCount === 0) {
+        setTotalGuestsPerType(prev => ({ ...prev, Tent: 1 }));
+        setAdultsPerType(prev => ({ ...prev, Tent: 1 }));
+        setKidsPerType(prev => ({ ...prev, Tent: 0 }));
+      }
+    }
   };
 
   const handleRemoveFromReceipt = (roomType) => {
@@ -862,6 +1027,10 @@ export default function RoomsPage() {
       ...prev,
       [roomType]: ''
     }));
+    
+    if (roomType === 'Tent') {
+      setTentCount(0);
+    }
   };
 
   const getSelectedRoomsSummary = () => {
@@ -891,6 +1060,10 @@ export default function RoomsPage() {
   };
 
   const getTotalPrice = () => {
+    if (isExclusiveResortBooking) {
+      return getExclusivePackagePrice() * numberOfNights;
+    }
+    
     let total = 0;
     for (const [roomType, quantity] of Object.entries(selectedRooms)) {
       const typeData = availableRoomTypes.find(t => t.type === roomType);
@@ -902,11 +1075,16 @@ export default function RoomsPage() {
   };
 
   const getExclusiveMaxPax = () => {
-    return availableRoomTypes.reduce((sum, roomType) => {
+    // Base max pax excluding tents
+    let totalPax = availableRoomTypes.reduce((sum, roomType) => {
+      if (roomType.type === 'Tent') return sum;
       const totalUnits = getTotalUnitsForRoomType(roomType);
       const roomMaxCapacity = Number(roomType.capacityMax || roomType.capacityMin || 1);
       return sum + (totalUnits * roomMaxCapacity);
     }, 0);
+    // Add 4 pax per tent
+    totalPax += tentCount * 4;
+    return totalPax;
   };
 
   const handleExclusiveGuestChange = (guestType, rawValue) => {
@@ -944,7 +1122,7 @@ export default function RoomsPage() {
     }
     
     const selectedTypes = Object.entries(selectedRooms).filter(([_, qty]) => qty > 0);
-    if (selectedTypes.length === 0) {
+    if (!isExclusiveResortBooking && selectedTypes.length === 0) {
       setDateSelectionError('Please select at least one room type');
       return;
     }
@@ -991,7 +1169,7 @@ export default function RoomsPage() {
     
     if (hasError) return;
 
-    const computedTotalPrice = isExclusiveResortBooking ? (EXCLUSIVE_RESORT_PRICE * numberOfNights) : getTotalPrice();
+    const computedTotalPrice = getTotalPrice();
 
     // Store selected rooms and dates in session storage for the booking page
     const bookingData = {
@@ -1013,6 +1191,7 @@ export default function RoomsPage() {
       totalGuests: getTotalGuests(),
       isExclusiveResortBooking,
       exclusivePackagePrice: isExclusiveResortBooking ? computedTotalPrice : null,
+      tentCount: tentCount,
       roomTypes: availableRoomTypes.filter(t => selectedRooms[t.type] > 0).map(t => ({
         type: t.type,
         quantity: selectedRooms[t.type],
@@ -1194,8 +1373,8 @@ export default function RoomsPage() {
         return room.type === activeCategory;
     });
 
-  const exclusiveTotalPrice = EXCLUSIVE_RESORT_PRICE * numberOfNights;
-  const checkoutTotal = isExclusiveResortBooking ? exclusiveTotalPrice : getTotalPrice();
+  const exclusiveTotalPrice = getExclusivePackagePrice() * numberOfNights;
+  const checkoutTotal = getTotalPrice();
   const exclusiveMaxPax = getExclusiveMaxPax();
   const exclusiveTotalPax = Math.max(0, Number(exclusiveAdults) || 0) + Math.max(0, Number(exclusiveKids) || 0);
   const hasRoomGuestErrors = Object.values(guestInputErrors).some(err => err !== '');
@@ -1243,6 +1422,8 @@ export default function RoomsPage() {
                   const realTimeAvailable = checkInDate 
                     ? (unitLevelAvailability[room.type] || 0)
                     : room.availableRooms;
+                  // Disable tent Add to Reservation button when in exclusive mode
+                  const isTentDisabled = room.type === 'Tent' && isExclusiveResortBooking;
 
                   return (
                     <div key={room.type} className="bg-white rounded-[1.5rem] border border-gray-100 shadow-sm overflow-hidden flex flex-col transition-all hover:shadow-md h-full">
@@ -1295,10 +1476,20 @@ export default function RoomsPage() {
                            {quantity === 0 ? (
                               <button 
                                 onClick={() => handleQuantityChange(room.type, true)}
-                                disabled={realTimeAvailable <= 0}
-                                className="w-full py-3 bg-blue-600 hover:bg-blue-700 disabled:opacity-50 disabled:bg-gray-300 text-white text-sm font-semibold rounded-xl transition-all shadow-[0_4px_14px_0_rgb(37,99,235,0.39)] hover:shadow-[0_6px_20px_rgb(37,99,235,0.23)] hover:-translate-y-0.5 flex items-center justify-center gap-2"
+                                disabled={realTimeAvailable <= 0 || isTentDisabled}
+                                className={`w-full py-3 text-sm font-semibold rounded-xl transition-all flex items-center justify-center gap-2 ${
+                                  isTentDisabled
+                                    ? 'bg-gray-300 text-gray-500 cursor-not-allowed shadow-none'
+                                    : realTimeAvailable > 0
+                                      ? 'bg-blue-600 hover:bg-blue-700 text-white shadow-[0_4px_14px_0_rgb(37,99,235,0.39)] hover:shadow-[0_6px_20px_rgb(37,99,235,0.23)] hover:-translate-y-0.5'
+                                      : 'bg-gray-300 text-gray-500 cursor-not-allowed'
+                                }`}
                               >
-                                {realTimeAvailable > 0 ? (
+                                {isTentDisabled ? (
+                                  <>
+                                    <i className="fas fa-plus text-xs"></i> Add to Reservation
+                                  </>
+                                ) : realTimeAvailable > 0 ? (
                                   <>
                                     <i className="fas fa-plus text-xs"></i> Add to Reservation
                                   </>
@@ -1318,8 +1509,12 @@ export default function RoomsPage() {
                                 </span>
                                 <button 
                                   onClick={() => handleQuantityChange(room.type, true)}
-                                  disabled={quantity >= realTimeAvailable}
-                                  className="relative z-10 w-12 h-10 flex items-center justify-center bg-blue-600 text-white disabled:bg-blue-300 disabled:shadow-none rounded-xl shadow-sm hover:bg-blue-700 transition-colors"
+                                  disabled={quantity >= realTimeAvailable || isTentDisabled}
+                                  className={`relative z-10 w-12 h-10 flex items-center justify-center text-white rounded-xl shadow-sm transition-colors ${
+                                    isTentDisabled
+                                      ? 'bg-gray-400 cursor-not-allowed'
+                                      : 'bg-blue-600 hover:bg-blue-700'
+                                  }`}
                                 >
                                   <i className="fas fa-plus text-sm"></i>
                                 </button>
@@ -1397,7 +1592,7 @@ export default function RoomsPage() {
                     <div>
                       <p className="text-[10px] font-bold uppercase tracking-widest text-blue-700">Exclusive Option</p>
                       <p className="mt-1 text-sm font-semibold text-blue-900">Book Entire Resort</p>
-                      <p className="text-xs text-blue-700/80">₱{EXCLUSIVE_RESORT_PRICE.toLocaleString()} per night • Total: ₱{exclusiveTotalPrice.toLocaleString()}</p>
+                      <p className="text-xs text-blue-700/80">₱{BASE_EXCLUSIVE_PRICE.toLocaleString()} per night + ₱1,500/tent • Total: ₱{exclusiveTotalPrice.toLocaleString()}</p>
                     </div>
                     <button
                       type="button"
@@ -1408,7 +1603,7 @@ export default function RoomsPage() {
                           : 'bg-blue-600 text-white hover:bg-blue-700'
                       }`}
                     >
-                      {isExclusiveResortBooking ? 'Exclusive Selected' : 'Select Exclusive'}
+                      {isExclusiveResortBooking ? 'Remove Exclusive' : 'Select Exclusive'}
                     </button>
                   </div>
                   {!canBookExclusiveResort && !isExclusiveResortBooking && (
@@ -1536,6 +1731,33 @@ export default function RoomsPage() {
                         </p>
                       </div>
 
+                      {/* Tent controls for exclusive booking */}
+                      <div className="mt-3 ml-2 p-2 bg-amber-50/50 rounded-xl border border-amber-100">
+                        <div className="flex items-center justify-between">
+                          <div>
+                            <p className="text-[10px] font-bold text-amber-800 uppercase tracking-widest">Tents</p>
+                            <p className="text-[9px] text-amber-700">+₱1,500 per tent/night</p>
+                          </div>
+                          <div className="flex items-center gap-2">
+                            <button
+                              onClick={handleRemoveTentInExclusive}
+                              disabled={tentCount === 0}
+                              className="w-7 h-7 rounded-full bg-white text-amber-600 border border-amber-200 flex items-center justify-center hover:bg-amber-100 disabled:opacity-40 disabled:cursor-not-allowed"
+                            >
+                              <i className="fas fa-minus text-[10px]"></i>
+                            </button>
+                            <span className="font-bold text-amber-800 text-base min-w-[30px] text-center">{tentCount}</span>
+                            <button
+                              onClick={handleAddTentInExclusive}
+                              disabled={tentCount >= (availableRoomTypes.find(t => t.type === 'Tent')?.availableRooms || 5)}
+                              className="w-7 h-7 rounded-full bg-white text-amber-600 border border-amber-200 flex items-center justify-center hover:bg-amber-100 disabled:opacity-40 disabled:cursor-not-allowed"
+                            >
+                              <i className="fas fa-plus text-[10px]"></i>
+                            </button>
+                          </div>
+                        </div>
+                      </div>
+
                       <div className="bg-gray-50/80 rounded-xl p-2 mt-3 ml-2">
                         <div className="grid grid-cols-2 gap-2">
                           <label className="flex flex-col gap-1">
@@ -1589,7 +1811,7 @@ export default function RoomsPage() {
                            </div>
                            <div className="flex items-start gap-2">
                              <p className="text-sm font-bold text-gray-800 pt-0.5">
-                               ₱{(room.price * selectedRooms[room.type] * numberOfNights).toLocaleString()}
+                               ₱{((room.type === 'Tent' ? 1500 : room.price) * selectedRooms[room.type] * numberOfNights).toLocaleString()}
                              </p>
                              <button
                                onClick={() => handleRemoveFromReceipt(room.type)}
@@ -1601,7 +1823,14 @@ export default function RoomsPage() {
                              </button>
                            </div>
                         </div>
-                        <div className="bg-gray-50/80 rounded-xl p-2 mt-3 ml-2">
+                        {room.type === 'Tent' && (
+                          <div className="mb-2 ml-2">
+                            <p className="text-[10px] font-medium text-amber-700">
+                              +₱1,500 per tent per night
+                            </p>
+                          </div>
+                        )}
+                        <div className="bg-gray-50/80 rounded-xl p-2 mt-1 ml-2">
                            <div className="grid grid-cols-2 gap-2">
                               <label className="flex flex-col gap-1">
                                 <span className="text-[10px] uppercase font-bold text-gray-500">Adults</span>
@@ -1666,22 +1895,22 @@ export default function RoomsPage() {
                 <div className="relative group mt-4">
                   <button
                      onClick={handleProceed}
-                     disabled={!checkInDate || Object.values(selectedRooms).every(q => q === 0) || dateSelectionError !== '' || hasAnyGuestErrors}
+                     disabled={!checkInDate || (!isExclusiveResortBooking && Object.values(selectedRooms).every(q => q === 0)) || dateSelectionError !== '' || hasAnyGuestErrors}
                      className={`w-full py-4 font-bold rounded-xl transition-all duration-300 flex items-center justify-center gap-2 ${
-                       (checkInDate && Object.values(selectedRooms).some(q => q>0) && !hasAnyGuestErrors) 
+                       ((checkInDate && (isExclusiveResortBooking || Object.values(selectedRooms).some(q => q>0))) && !hasAnyGuestErrors) 
                        ? 'bg-blue-600 text-white shadow-[0_8px_20px_rgb(37,99,235,0.25)] hover:bg-blue-700 hover:-translate-y-0.5' 
                        : 'bg-gray-100 text-gray-400 cursor-not-allowed border border-gray-200'
                      }`}
                   >
                     Checkout &bull; ₱{checkoutTotal.toLocaleString()} &rarr;
                   </button>
-                  {(!checkInDate || Object.values(selectedRooms).every(q => q === 0)) && (
+                  {(!checkInDate || (!isExclusiveResortBooking && Object.values(selectedRooms).every(q => q === 0))) && (
                     <div className="absolute left-1/2 -top-10 -translate-x-1/2 opacity-0 group-hover:opacity-100 transition-opacity bg-gray-800 text-white text-[10px] font-medium py-1.5 px-3 rounded-lg shadow-xl whitespace-nowrap pointer-events-none z-10 tooltip">
                       Please select check-in dates and at least one room type.
                       <div className="absolute top-full left-1/2 -translate-x-1/2 w-0 h-0 border-x-4 border-x-transparent border-t-4 border-t-gray-800"></div>
                     </div>
                   )}
-                  {hasAnyGuestErrors && (checkInDate && Object.values(selectedRooms).some(q => q > 0)) && (
+                  {hasAnyGuestErrors && (checkInDate && (isExclusiveResortBooking || Object.values(selectedRooms).some(q => q > 0))) && (
                     <div className="absolute left-1/2 -top-10 -translate-x-1/2 opacity-0 group-hover:opacity-100 transition-opacity bg-red-600 text-white text-[10px] font-medium py-1.5 px-3 rounded-lg shadow-xl whitespace-nowrap pointer-events-none z-10 tooltip">
                       Please fix guest count errors before checking out.
                       <div className="absolute top-full left-1/2 -translate-x-1/2 w-0 h-0 border-x-4 border-x-transparent border-t-4 border-t-red-600"></div>
