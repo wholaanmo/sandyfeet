@@ -342,7 +342,8 @@ function DayTourBookingContent() {
   };
 
   const handleInputChange = (field, value) => {
-    setBookingData(prev => ({ ...prev, [field]: value }));
+    const nextValue = field === 'phone' ? String(value).replace(/\D/g, '').slice(0, 11) : value;
+    setBookingData(prev => ({ ...prev, [field]: nextValue }));
     if (errors[field]) {
       setErrors(prev => ({ ...prev, [field]: '' }));
     }
@@ -600,7 +601,7 @@ const handleNotifyResort = async () => {
 
   return (
     <GuestLayout>
-      <div className="min-h-screen bg-gradient-to-br from-ocean-ice to-blue-white py-12">
+      <div className="min-h-screen bg-gradient-to-br from-ocean-ice to-blue-white pt-28 sm:pt-32 pb-10">
         <div className="max-w-7xl w-full mx-auto px-4">
           <div className="flex flex-col lg:flex-row gap-8">
             {/* Left Column - Booking Form (70%) */}
@@ -764,6 +765,8 @@ const handleNotifyResort = async () => {
                         type="tel"
                         value={bookingData.phone}
                         onChange={(e) => handleInputChange('phone', e.target.value)}
+                        maxLength={11}
+                        inputMode="numeric"
                         placeholder="09123456789"
                         className={`w-full px-4 py-2 border ${errors.phone ? 'border-red-500' : 'border-ocean-light/20'} rounded-lg focus:outline-none focus:border-ocean-light`}
                       />
@@ -1220,153 +1223,90 @@ const handleNotifyResort = async () => {
               )}
             </div>
 
-            {/* Right Column - Day Tour Pricing Container + Capacity Display + Guest Breakdown */}
-            {/* Fixed layout: No sticky on the outer container, only the pricing container has sticky positioning */}
+            {/* Right Column - Compact Booking Summary */}
             <div className="lg:w-[30%]">
               <div className="sticky top-8 space-y-4">
                 <div className="bg-white rounded-xl shadow-md border border-ocean-light/20 overflow-hidden">
                   <div className="bg-gradient-to-r from-ocean-mid to-ocean-light px-5 py-3">
                     <h3 className="font-semibold text-white text-lg flex items-center gap-2">
-                      <i className="fas fa-tag"></i>
-                      Day Tour Pricing
+                      <i className="fas fa-receipt"></i>
+                      Booking Summary
                     </h3>
                   </div>
                   
                   <div className="p-5 space-y-4">
-                    <div className="bg-ocean-ice rounded-lg p-3">
-                      <h4 className="text-xs font-semibold text-ocean-mid uppercase tracking-wide mb-2 flex items-center gap-1">
-                        <i className="fas fa-calendar-check text-ocean-light text-xs"></i>
-                        Selected Schedule
-                      </h4>
-                      <p className="text-base font-semibold text-textPrimary">
-                        {selectedDate ? formatDate(selectedDate) : 'No date selected'}
-                      </p>
+                    <div className="bg-ocean-ice rounded-lg p-3 space-y-1.5">
+                      <p className="text-xs font-semibold text-ocean-mid uppercase tracking-wide">Selected Date</p>
+                      <p className="text-sm font-semibold text-textPrimary">{selectedDate ? formatDate(selectedDate) : 'No date selected'}</p>
                     </div>
 
-                    <div>
-                      <h4 className="text-sm font-semibold text-textPrimary mb-2 flex items-center gap-1">
-                        <i className="fas fa-coins text-ocean-light text-xs"></i>
-                        Rates
-                      </h4>
-                      <div className="grid grid-cols-3 gap-3 text-center">
-                        <div className="bg-ocean-ice rounded-lg p-2">
-                          <p className="text-xs text-textSecondary">Adult (16+)</p>
-                          <p className="text-base font-bold text-ocean-mid">₱{dayTour.adultPrice?.toLocaleString()}</p>
-                        </div>
-                        <div className="bg-ocean-ice rounded-lg p-2">
-                          <p className="text-xs text-textSecondary">Kid (15-)</p>
-                          <p className="text-base font-bold text-ocean-mid">₱{dayTour.kidPrice?.toLocaleString()}</p>
-                        </div>
-                        <div className="bg-ocean-ice rounded-lg p-2">
-                          <p className="text-xs text-textSecondary">Senior</p>
-                          <p className="text-base font-bold text-ocean-mid">₱{dayTour.seniorPrice?.toLocaleString()}</p>
-                        </div>
+                    <div className="bg-white rounded-lg border border-ocean-light/20 p-3 space-y-2">
+                      <div className="flex justify-between text-sm">
+                        <span className="text-textSecondary">Adults</span>
+                        <span className="font-semibold text-textPrimary">{bookingData.adults}</span>
+                      </div>
+                      <div className="flex justify-between text-sm">
+                        <span className="text-textSecondary">Kids</span>
+                        <span className="font-semibold text-textPrimary">{bookingData.kids}</span>
+                      </div>
+                      <div className="flex justify-between text-sm">
+                        <span className="text-textSecondary">Seniors</span>
+                        <span className="font-semibold text-textPrimary">{bookingData.seniors}</span>
+                      </div>
+                      <div className="flex justify-between text-sm pt-2 border-t border-ocean-light/10">
+                        <span className="font-semibold text-textPrimary">Total Guests</span>
+                        <span className="font-bold text-ocean-mid">{totalGuests}</span>
                       </div>
                     </div>
+                  </div>
+                </div>
 
-                    {dayTour.inclusions && dayTour.inclusions.length > 0 && (
+                <div className="bg-gradient-to-r from-amber-50 to-orange-50 rounded-xl shadow-sm border border-amber-200 p-4">
+                  <div className="flex items-center justify-between mb-3 pb-2 border-b border-amber-200">
+                    <div className="flex items-center gap-3">
+                      <div className="w-10 h-10 rounded-full bg-amber-100 flex items-center justify-center">
+                        <i className="fas fa-users text-amber-600"></i>
+                      </div>
                       <div>
-                        <h4 className="text-sm font-semibold text-textPrimary mb-2 flex items-center gap-1">
-                          <i className="fas fa-check-circle text-green-600 text-xs"></i>
-                          Inclusions
-                        </h4>
-                        <ul className="space-y-1.5">
-                          {dayTour.inclusions.map((item, idx) => (
-                            <li key={idx} className="text-sm text-textSecondary flex items-start gap-2">
-                              <i className="fas fa-check text-ocean-light text-xs mt-0.5"></i>
-                              <span>{item}</span>
-                            </li>
-                          ))}
-                        </ul>
+                        <p className="text-xs text-amber-700 uppercase tracking-wide font-semibold">Maximum Capacity</p>
+                        <p className="text-2xl font-bold text-amber-800">
+                          {dayTour.maxCapacity} <span className="text-sm font-normal">guests</span>
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+                  
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-3">
+                      <div className="w-10 h-10 rounded-full bg-green-100 flex items-center justify-center">
+                        <i className="fas fa-chart-line text-green-600"></i>
+                      </div>
+                      <div>
+                        <p className="text-xs text-green-700 uppercase tracking-wide font-semibold">Remaining Capacity</p>
+                        <p className="text-2xl font-bold text-green-700">
+                          {remainingCapacity !== Infinity ? remainingCapacity : dayTour.maxCapacity} <span className="text-sm font-normal">guests</span>
+                        </p>
+                      </div>
+                    </div>
+                    {remainingCapacity !== Infinity && remainingCapacity <= 10 && remainingCapacity > 0 && (
+                      <div className="bg-orange-100 rounded-lg px-3 py-1">
+                        <p className="text-xs text-orange-700 font-semibold">Limited Slots</p>
                       </div>
                     )}
-
-                    {dayTour.description && (
-                      <div>
-                        <h4 className="text-sm font-semibold text-textPrimary mb-2 flex items-center gap-1">
-                          <i className="fas fa-info-circle text-ocean-light text-xs"></i>
-                          Description
-                        </h4>
-                      <p className="text-sm text-textSecondary leading-relaxed">
-                        {dayTour.description}
-                      </p>
-                    </div>
-                  )}
-                </div>
-              </div>
-
-              {/* Maximum & Remaining Capacity Display - Now inside the sticky container */}
-              <div className="bg-gradient-to-r from-amber-50 to-orange-50 rounded-xl shadow-sm border border-amber-200 p-4">
-                <div className="flex items-center justify-between mb-3 pb-2 border-b border-amber-200">
-                  <div className="flex items-center gap-3">
-                    <div className="w-10 h-10 rounded-full bg-amber-100 flex items-center justify-center">
-                      <i className="fas fa-users text-amber-600"></i>
-                    </div>
-                    <div>
-                      <p className="text-xs text-amber-700 uppercase tracking-wide font-semibold">
-                        Maximum Capacity
-                      </p>
-                      <p className="text-2xl font-bold text-amber-800">
-                        {dayTour.maxCapacity} <span className="text-sm font-normal">guests</span>
-                      </p>
-                    </div>
                   </div>
-                </div>
-                
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-3">
-                    <div className="w-10 h-10 rounded-full bg-green-100 flex items-center justify-center">
-                      <i className="fas fa-chart-line text-green-600"></i>
-                    </div>
-                    <div>
-                      <p className="text-xs text-green-700 uppercase tracking-wide font-semibold">
-                        Remaining Capacity
-                      </p>
-                      <p className="text-2xl font-bold text-green-700">
-                        {remainingCapacity !== Infinity ? remainingCapacity : dayTour.maxCapacity} <span className="text-sm font-normal">guests</span>
-                      </p>
-                    </div>
-                  </div>
-                  {remainingCapacity !== Infinity && remainingCapacity <= 10 && remainingCapacity > 0 && (
-                    <div className="bg-orange-100 rounded-lg px-3 py-1">
-                      <p className="text-xs text-orange-700 font-semibold">⚠️ Limited Slots</p>
-                    </div>
-                  )}
-                </div>
 
-                {/* Guest Breakdown Section */}
-                <div className="mt-4 pt-3 border-t border-amber-200">
-                  <div className="flex items-center gap-2 mb-3">
-                    <div className="w-6 h-6 rounded-full bg-blue-100 flex items-center justify-center">
-                      <i className="fas fa-users text-blue-600 text-xs"></i>
+                  <div className="mt-4 pt-3 border-t border-amber-200 space-y-1">
+                    <div className="flex justify-between text-sm">
+                      <span className="text-textSecondary">Total Price</span>
+                      <span className="font-semibold text-textPrimary">₱{totalPrice.toLocaleString()}</span>
                     </div>
-                    <p className="text-sm font-semibold text-textPrimary">Guest Breakdown</p>
-                  </div>
-                  <div className="space-y-2">
-                    <div className="flex justify-between items-center">
-                      <span className="text-sm text-textSecondary">
-                        <i className="fas fa-user-tie text-blue-500 mr-2 text-xs"></i>
-                        Senior Guests
-                      </span>
-                      <span className="font-semibold text-textPrimary">{bookingData.seniors}</span>
+                    <div className="flex justify-between text-sm">
+                      <span className="text-textSecondary">Down Payment (50%)</span>
+                      <span className="font-bold text-amber-700">₱{downPaymentAmount.toLocaleString()}</span>
                     </div>
-                    <div className="flex justify-between items-center">
-                      <span className="text-sm text-textSecondary">
-                        <i className="fas fa-user text-green-500 mr-2 text-xs"></i>
-                        Adult Guests
-                      </span>
-                      <span className="font-semibold text-textPrimary">{bookingData.adults}</span>
-                    </div>
-                    <div className="flex justify-between items-center">
-                      <span className="text-sm text-textSecondary">
-                        <i className="fas fa-child text-yellow-500 mr-2 text-xs"></i>
-                        Kid Guests
-                      </span>
-                      <span className="font-semibold text-textPrimary">{bookingData.kids}</span>
-                    </div>
-                    <div className="flex justify-between items-center pt-2 border-t border-amber-100">
-                      <span className="text-sm font-semibold text-textPrimary">Total Guests</span>
-                      <span className="font-bold text-ocean-mid">{totalGuests}</span>
+                    <div className="flex justify-between text-sm">
+                      <span className="text-textSecondary">Remaining Balance</span>
+                      <span className="font-semibold text-textPrimary">₱{(totalPrice - downPaymentAmount).toLocaleString()}</span>
                     </div>
                   </div>
                 </div>
@@ -1375,7 +1315,6 @@ const handleNotifyResort = async () => {
           </div>
         </div>
       </div>
-    </div>
 
     {showValidIdModal && (
       <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4">

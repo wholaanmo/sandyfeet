@@ -149,17 +149,6 @@ export default function DayTourPage() {
     setIsCalendarOpen(false);
   };
 
-  const handleGoToday = () => {
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
-    setCurrentMonth(new Date(today.getFullYear(), today.getMonth(), 1));
-    if (isDateSelectable(today)) {
-      setDate(toLocalDateKey(today));
-      setDateError('');
-      setIsCalendarOpen(false);
-    }
-  };
-
   const goToPreviousMonth = () => {
     setCurrentMonth(new Date(currentMonth.getFullYear(), currentMonth.getMonth() - 1, 1));
   };
@@ -167,6 +156,40 @@ export default function DayTourPage() {
   const goToNextMonth = () => {
     setCurrentMonth(new Date(currentMonth.getFullYear(), currentMonth.getMonth() + 1, 1));
   };
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+
+    const params = new URLSearchParams(window.location.search);
+    const queryDate = params.get('date');
+    const queryAdults = params.get('adults');
+    const queryKids = params.get('kids');
+
+    if (!queryDate && !queryAdults && !queryKids) return;
+
+    const parsedAdults = parseInt(queryAdults || '', 10);
+    const parsedKids = parseInt(queryKids || '', 10);
+
+    const nextAdults = Number.isNaN(parsedAdults)
+      ? 1
+      : Math.max(1, Math.min(maxAllowedGuests, parsedAdults));
+
+    const maxKidsForAdults = Math.max(0, maxAllowedGuests - nextAdults);
+    const nextKids = Number.isNaN(parsedKids)
+      ? 0
+      : Math.max(0, Math.min(maxKidsForAdults, parsedKids));
+
+    setAdults(nextAdults);
+    setKids(nextKids);
+
+    if (queryDate) {
+      const parsedDate = parseDateKey(queryDate);
+      if (parsedDate) {
+        setDate(toLocalDateKey(parsedDate));
+        setCurrentMonth(new Date(parsedDate.getFullYear(), parsedDate.getMonth(), 1));
+      }
+    }
+  }, []);
 
   useEffect(() => {
     const activitiesRef = collection(db, 'activities');
@@ -461,25 +484,6 @@ export default function DayTourPage() {
                         })}
                       </div>
 
-                      <div className="mt-3 pt-2 border-t border-gray-100 flex justify-between items-center">
-                        <button
-                          type="button"
-                          onClick={() => {
-                            setDate('');
-                            setDateError('');
-                          }}
-                          className="text-sm text-ocean-mid hover:text-ocean-light"
-                        >
-                          Clear
-                        </button>
-                        <button
-                          type="button"
-                          onClick={handleGoToday}
-                          className="text-sm text-ocean-mid hover:text-ocean-light"
-                        >
-                          Today
-                        </button>
-                      </div>
                     </div>
                   )}
                 </div>
