@@ -77,6 +77,7 @@ export default function AdminSidebar({ isOpen, onToggle, isDesktop }) {
     { path: '/dashboard/admin/day-tour', icon: 'wb_sunny', label: 'Day Tour', materialIcon: 'wb_sunny' },
     { path: '/dashboard/admin/calendars', icon: 'event', label: 'Calendar', materialIcon: 'event' },
     { path: '/dashboard/admin/payment', icon: 'payment', label: 'Payment', materialIcon: 'payment' },
+    { path: '/dashboard/admin/reports', icon: 'assessment', label: 'Reports', materialIcon: 'assessment' },
     { path: '/dashboard/admin/feedback', icon: 'feedback', label: 'Feedback', materialIcon: 'feedback' },
     { path: '/dashboard/admin/audit', icon: 'history', label: 'Audit Logs', materialIcon: 'history' },
     { path: '/dashboard/admin/staff', icon: 'badge', label: 'Staff Management', materialIcon: 'badge' },

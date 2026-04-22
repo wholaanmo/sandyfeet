@@ -62,6 +62,7 @@ export default function RoomDetailsPage({ params }) {
   const [loading, setLoading] = useState(true);
 
   const [bookedDates, setBookedDates] = useState({});
+  const [exclusiveResortDates, setExclusiveResortDates] = useState({});
   const [blockedSlots, setBlockedSlots] = useState({});
 
   const [selectedImageIndex, setSelectedImageIndex] = useState(0);
@@ -74,8 +75,9 @@ export default function RoomDetailsPage({ params }) {
   const [checkInHour, setCheckInHour] = useState(14);
   const [checkOutHour, setCheckOutHour] = useState(12);
   const [roomQuantity, setRoomQuantity] = useState(1);
-  const [adultsCount, setAdultsCount] = useState(1);
-  const [kidsCount, setKidsCount] = useState(0);
+  // Per‑room guest counts
+  const [perRoomAdults, setPerRoomAdults] = useState([]);
+  const [perRoomKids, setPerRoomKids] = useState([]);
   const [draftApplied, setDraftApplied] = useState(false);
   const calendarRef = useRef(null);
   const calendarBtnRef = useRef(null);
@@ -138,6 +140,7 @@ export default function RoomDetailsPage({ params }) {
   const isDateFullyBooked = (date) => {
     if (!date || !roomData?.roomIds?.length) return false;
     const dateStr = toDateKey(date);
+    if (exclusiveResortDates[dateStr]) return true;
     let totalAvailableUnits = 0;
     for (const roomId of roomData.roomIds) {
       const maxRooms = roomUnitsById[roomId]?.availableUnits || 0;
@@ -152,7 +155,8 @@ export default function RoomDetailsPage({ params }) {
       }
       totalAvailableUnits += minAvailable;
     }
-    return totalAvailableUnits <= 0;
+    // Disable date if it cannot accommodate the selected number of rooms
+    return totalAvailableUnits < roomQuantity;
   };
 
   const handleDateSelect = (date) => {
@@ -298,6 +302,38 @@ export default function RoomDetailsPage({ params }) {
     return () => unsubscribes.forEach((u) => u());
   }, [roomData]);
 
+  // Fetch dates affected by "Entire Resort Package" bookings (blocks ALL room types, including tents)
+  useEffect(() => {
+    const bookingsRef = collection(db, 'bookings');
+    const q = query(
+      bookingsRef,
+      where('isExclusiveResortBooking', '==', true),
+      where('status', 'in', ['pending', 'confirmed', 'check-in'])
+    );
+
+    const unsubscribe = onSnapshot(q, (snapshot) => {
+      const exclusive = {};
+      snapshot.forEach((docSnap) => {
+        const booking = docSnap.data();
+        const ci = booking.checkIn?.toDate ? booking.checkIn.toDate() : new Date(booking.checkIn);
+        const co = booking.checkOut?.toDate ? booking.checkOut.toDate() : new Date(booking.checkOut);
+        if (!ci || !co || co <= ci) return;
+
+        const current = new Date(ci);
+        while (current < co) {
+          const hour = current.getHours();
+          if (hour >= checkInHour) {
+            exclusive[toDateKey(current)] = true;
+          }
+          current.setHours(current.getHours() + 1, 0, 0, 0);
+        }
+      });
+      setExclusiveResortDates(exclusive);
+    });
+
+    return () => unsubscribe();
+  }, [checkInHour]);
+
   // Fetch blocked slots
   useEffect(() => {
     if (!roomData?.roomIds?.length) {
@@ -331,6 +367,15 @@ export default function RoomDetailsPage({ params }) {
     if (!startDateString) return roomData.availableRooms || 0;
     const startDate = new Date(startDateString);
     startDate.setHours(checkInHour, 0, 0, 0);
+
+    // Entire Resort Package blocks every room type (including tents).
+    for (let dayOffset = 0; dayOffset < numberOfNights; dayOffset++) {
+      const currentDate = new Date(startDate);
+      currentDate.setDate(startDate.getDate() + dayOffset);
+      const dateKey = toDateKey(currentDate);
+      if (exclusiveResortDates[dateKey]) return 0;
+    }
+
     let totalAvailable = 0;
     for (const roomId of roomData.roomIds) {
       const maxRooms = roomUnitsById[roomId]?.availableUnits || 0;
@@ -361,7 +406,16 @@ export default function RoomDetailsPage({ params }) {
     if (computed > 0) {
       setRoomQuantity((prev) => Math.min(prev, computed));
     }
-  }, [roomData, checkInDate, numberOfNights, checkInHour, bookedDates, blockedSlots, roomUnitsById]);
+  }, [roomData, checkInDate, numberOfNights, checkInHour, bookedDates, blockedSlots, roomUnitsById, exclusiveResortDates]);
+
+  // Initialize per‑room guest arrays when roomQuantity changes
+  useEffect(() => {
+    const capacityMin = roomData?.capacityMin || 1;
+    const adultsArray = new Array(roomQuantity).fill(capacityMin);
+    const kidsArray = new Array(roomQuantity).fill(0);
+    setPerRoomAdults(adultsArray);
+    setPerRoomKids(kidsArray);
+  }, [roomQuantity, roomData]);
 
   // Apply draft from rooms page (restore booking state)
   useEffect(() => {
@@ -397,46 +451,49 @@ export default function RoomDetailsPage({ params }) {
     }
 
     setRoomQuantity(quantity);
-    const minGuests = quantity * (roomData.capacityMin || 1);
-    const maxGuests = quantity * (roomData.capacityMax || Math.max(1, roomData.capacityMin || 1));
-    // Distribute total guests to adults and kids (adults at least 1)
-    const restoredAdults = Math.min(totalGuests, Math.max(minGuests, totalGuests - 0));
-    setAdultsCount(restoredAdults);
-    setKidsCount(totalGuests - restoredAdults);
+    const capacityMin = roomData.capacityMin || 1;
+    const capacityMax = roomData.capacityMax || capacityMin;
+    // Distribute totalGuests evenly across rooms, respecting per‑room limits
+    let remaining = totalGuests;
+    const adultsArray = new Array(quantity).fill(capacityMin);
+    const kidsArray = new Array(quantity).fill(0);
+    remaining -= capacityMin * quantity;
+    for (let i = 0; i < quantity && remaining > 0; i++) {
+      const maxAdd = capacityMax - capacityMin;
+      const add = Math.min(maxAdd, remaining);
+      adultsArray[i] += add;
+      remaining -= add;
+    }
+    setPerRoomAdults(adultsArray);
+    setPerRoomKids(kidsArray);
     setDraftApplied(true);
   }, [roomData, draftApplied]);
 
-  // Auto-adjust guests when room quantity changes
-  useEffect(() => {
+  // Per‑room guest handlers
+  const handleRoomAdultsChange = (index, increment) => {
     if (!roomData) return;
-    const minGuests = roomQuantity * (roomData.capacityMin || 1);
-    const maxGuests = roomQuantity * (roomData.capacityMax || Math.max(1, roomData.capacityMin || 1));
-    const currentTotal = adultsCount + kidsCount;
-    if (currentTotal < minGuests) {
-      setAdultsCount(minGuests);
-      setKidsCount(0);
-    } else if (currentTotal > maxGuests) {
-      setAdultsCount(maxGuests);
-      setKidsCount(0);
-    }
-  }, [roomQuantity, roomData, adultsCount, kidsCount]);
-
-  const handleAdultsChange = (increment) => {
-    const minGuests = roomQuantity * (roomData.capacityMin || 1);
-    const maxGuests = roomQuantity * (roomData.capacityMax || Math.max(1, roomData.capacityMin || 1));
-    let newAdults = adultsCount + (increment ? 1 : -1);
-    newAdults = Math.max(1, Math.min(maxGuests, newAdults));
-    const newTotal = newAdults + kidsCount;
-    if (newTotal <= maxGuests) {
-      setAdultsCount(newAdults);
+    const capacityMin = roomData.capacityMin || 1;
+    const capacityMax = roomData.capacityMax || capacityMin;
+    const newAdults = [...perRoomAdults];
+    let newVal = newAdults[index] + (increment ? 1 : -1);
+    newVal = Math.max(1, Math.min(capacityMax - perRoomKids[index], newVal));
+    if (newVal !== newAdults[index]) {
+      newAdults[index] = newVal;
+      setPerRoomAdults(newAdults);
     }
   };
 
-  const handleKidsChange = (increment) => {
-    const maxGuests = roomQuantity * (roomData.capacityMax || Math.max(1, roomData.capacityMin || 1));
-    let newKids = kidsCount + (increment ? 1 : -1);
-    newKids = Math.max(0, Math.min(maxGuests - adultsCount, newKids));
-    setKidsCount(newKids);
+  const handleRoomKidsChange = (index, increment) => {
+    if (!roomData) return;
+    const capacityMin = roomData.capacityMin || 1;
+    const capacityMax = roomData.capacityMax || capacityMin;
+    const newKids = [...perRoomKids];
+    let newVal = newKids[index] + (increment ? 1 : -1);
+    newVal = Math.max(0, Math.min(capacityMax - perRoomAdults[index], newVal));
+    if (newVal !== newKids[index]) {
+      newKids[index] = newVal;
+      setPerRoomKids(newKids);
+    }
   };
 
   const handleNextImage = () => setSelectedImageIndex((prev) => (prev + 1) % images.length);
@@ -445,10 +502,11 @@ export default function RoomDetailsPage({ params }) {
   // Save current state back to sessionStorage so rooms page can restore it
   const saveStateAndGoBack = () => {
     if (roomData) {
+      const totalGuests = perRoomAdults.reduce((s, a) => s + a, 0) + perRoomKids.reduce((s, k) => s + k, 0);
       const draft = {
         roomType: roomData.type,
         quantity: roomQuantity,
-        totalGuests: adultsCount + kidsCount,
+        totalGuests,
         checkInDate: checkInDate ? new Date(checkInDate).toISOString() : null,
         numberOfNights,
         checkInHour,
@@ -477,17 +535,34 @@ const handleBookNow = () => {
     return;
   }
 
-  const minGuests = roomQuantity * (roomData.capacityMin || 1);
-  const maxGuests = roomQuantity * (roomData.capacityMax || Math.max(1, roomData.capacityMin || 1));
-  const totalGuests = adultsCount + kidsCount;
+  const capacityMin = roomData.capacityMin || 1;
+  const capacityMax = roomData.capacityMax || capacityMin;
+  const totalAdults = perRoomAdults.reduce((s, a) => s + a, 0);
+  const totalKids = perRoomKids.reduce((s, k) => s + k, 0);
+  const totalGuests = totalAdults + totalKids;
+  const minTotalGuests = roomQuantity * capacityMin;
+  const maxTotalGuests = roomQuantity * capacityMax;
 
-  if (totalGuests < minGuests || totalGuests > maxGuests) {
-    setActionError(`Total guests must be between ${minGuests} and ${maxGuests} for ${roomQuantity} room(s).`);
+  // Validate each room individually
+  let roomError = false;
+  for (let i = 0; i < roomQuantity; i++) {
+    const roomTotal = perRoomAdults[i] + perRoomKids[i];
+    if (roomTotal < capacityMin || roomTotal > capacityMax) {
+      roomError = true;
+      break;
+    }
+    if (perRoomAdults[i] < 1) {
+      roomError = true;
+      break;
+    }
+  }
+  if (roomError) {
+    setActionError(`Each room must have between ${capacityMin} and ${capacityMax} guests, with at least 1 adult.`);
     return;
   }
 
-  if (adultsCount < 1) {
-    setActionError('At least 1 adult is required.');
+  if (totalGuests < minTotalGuests || totalGuests > maxTotalGuests) {
+    setActionError(`Total guests must be between ${minTotalGuests} and ${maxTotalGuests} for ${roomQuantity} room(s).`);
     return;
   }
 
@@ -498,12 +573,21 @@ const handleBookNow = () => {
   checkOut.setHours(checkOutHour, 0, 0, 0);
   const totalPrice = (roomData.price || 0) * roomQuantity * numberOfNights;
 
-  // Always use multi-room booking flow (even for single room)
+  // Build per‑room guest array for the multi‑room booking page
+  const perRoomGuests = [];
+  for (let i = 0; i < roomQuantity; i++) {
+    perRoomGuests.push({
+      adults: perRoomAdults[i],
+      kids: perRoomKids[i]
+    });
+  }
+
   const bookingData = {
     selectedRooms: { [roomData.type]: roomQuantity },
+    perRoomGuests: { [roomData.type]: perRoomGuests },   // <-- per‑room breakdown
     totalGuestsPerType: { [roomData.type]: totalGuests },
-    adultsPerType: { [roomData.type]: adultsCount },    // ADD THIS - maps Adults correctly
-    kidsPerType: { [roomData.type]: kidsCount },       // ADD THIS - maps Kids correctly
+    adultsPerType: { [roomData.type]: totalAdults },
+    kidsPerType: { [roomData.type]: totalKids },
     checkInDate: checkIn.toISOString(),
     checkOutDate: checkOut.toISOString(),
     checkInHour,
@@ -520,8 +604,8 @@ const handleBookNow = () => {
       totalGuests,
       price: roomData.price,
       roomIds: roomData.roomIds || [roomData.id],
-      capacityMin: roomData.capacityMin,
-      capacityMax: roomData.capacityMax
+      capacityMin,
+      capacityMax
     }]
   };
 
@@ -564,10 +648,14 @@ const handleBookNow = () => {
     );
   }
 
+  const capacityMin = roomData.capacityMin || 1;
+  const capacityMax = roomData.capacityMax || capacityMin;
+  const totalAdults = perRoomAdults.reduce((s, a) => s + a, 0);
+  const totalKids = perRoomKids.reduce((s, k) => s + k, 0);
+  const totalGuests = totalAdults + totalKids;
+  const minTotalGuests = roomQuantity * capacityMin;
+  const maxTotalGuests = roomQuantity * capacityMax;
   const totalPricePreview = (roomData.price || 0) * roomQuantity * numberOfNights;
-  const minGuests = roomQuantity * (roomData.capacityMin || 1);
-  const maxGuests = roomQuantity * (roomData.capacityMax || Math.max(1, roomData.capacityMin || 1));
-  const totalGuests = adultsCount + kidsCount;
 
   // ─── MAIN RENDER ───
   return (
@@ -592,123 +680,124 @@ const handleBookNow = () => {
             {/* LEFT COLUMN: Gallery + Room Info */}
             <div className="lg:col-span-7 space-y-6">
 
-          {/* ─── HERO GALLERY ─── */}
-          <div className="grid grid-cols-1 md:grid-cols-4 gap-2.5 h-auto md:h-[400px]">
-            {/* Main image */}
-            <div
-              onClick={() => setIsGalleryOpen(true)}
-              className="md:col-span-3 w-full h-[280px] md:h-full relative group overflow-hidden bg-gray-100 rounded-3xl cursor-pointer"
-            >
-              <img
-                src={images[selectedImageIndex]}
-                alt={`${roomData.type} main`}
-                className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-700 ease-in-out"
-              />
-              <div className="absolute inset-0 bg-gradient-to-t from-black/40 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity"></div>
-              <button
-                type="button"
-                onClick={(e) => { e.stopPropagation(); handlePrevImage(); }}
-                className="absolute left-3 top-1/2 -translate-y-1/2 w-10 h-10 rounded-full bg-white/80 backdrop-blur-sm text-gray-700 hover:bg-white transition-all shadow-lg"
-                aria-label="Previous photo"
-              >
-                <i className="fas fa-chevron-left text-xs"></i>
-              </button>
-              <button
-                type="button"
-                onClick={(e) => { e.stopPropagation(); handleNextImage(); }}
-                className="absolute right-3 top-1/2 -translate-y-1/2 w-10 h-10 rounded-full bg-white/80 backdrop-blur-sm text-gray-700 hover:bg-white transition-all shadow-lg"
-                aria-label="Next photo"
-              >
-                <i className="fas fa-chevron-right text-xs"></i>
-              </button>
-              <div className="absolute bottom-4 left-4 flex items-center gap-2">
-                <span className="px-3 py-1.5 rounded-full bg-white/90 backdrop-blur-sm text-gray-800 text-[11px] font-bold shadow-sm">
-                  {selectedImageIndex + 1} / {images.length}
-                </span>
-              </div>
-            </div>
-
-            {/* Side previews */}
-            <div className="hidden md:flex flex-col gap-2.5 h-full">
-              {[1, 2].map((offset) => {
-                const imgIndex = (selectedImageIndex + offset) % images.length;
-                return (
+              {/* ─── HERO GALLERY ─── */}
+              <div className="grid grid-cols-1 md:grid-cols-4 gap-2.5 h-auto md:h-[400px]">
+                {/* Main image */}
+                <div
+                  onClick={() => setIsGalleryOpen(true)}
+                  className="md:col-span-3 w-full h-[280px] md:h-full relative group overflow-hidden bg-gray-100 rounded-3xl cursor-pointer"
+                >
+                  <img
+                    src={images[selectedImageIndex]}
+                    alt={`${roomData.type} main`}
+                    className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-700 ease-in-out"
+                  />
+                  <div className="absolute inset-0 bg-gradient-to-t from-black/40 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity"></div>
                   <button
-                    key={`preview-${offset}-${imgIndex}`}
-                    onClick={() => { setSelectedImageIndex(imgIndex); setIsGalleryOpen(true); }}
-                    className="h-1/2 w-full relative group overflow-hidden bg-gray-100 rounded-3xl"
+                    type="button"
+                    onClick={(e) => { e.stopPropagation(); handlePrevImage(); }}
+                    className="absolute left-3 top-1/2 -translate-y-1/2 w-10 h-10 rounded-full bg-white/80 backdrop-blur-sm text-gray-700 hover:bg-white transition-all shadow-lg"
+                    aria-label="Previous photo"
                   >
-                    <img
-                      src={images[imgIndex]}
-                      alt={`Room gallery ${imgIndex + 1}`}
-                      className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-700 ease-in-out"
-                    />
-                    <div className="absolute inset-0 bg-black/10 group-hover:bg-transparent transition-colors rounded-3xl"></div>
-                    {offset === 2 && images.length > 3 && (
-                      <div className="absolute inset-0 flex items-center justify-center bg-black/40 hover:bg-black/30 transition-colors rounded-3xl">
-                        <span className="text-white font-bold text-sm"><i className="fas fa-images mr-1"></i> View all</span>
-                      </div>
-                    )}
+                    <i className="fas fa-chevron-left text-xs"></i>
                   </button>
-                );
-              })}
-            </div>
-          </div>
-
-            {/* LEFT: Room Info */}
-            <div className="space-y-6">
-
-              {/* Room Overview */}
-              <section className="bg-white rounded-3xl p-6 border border-gray-100 shadow-[0_4px_20px_rgb(0,0,0,0.04)]">
-                <h1 className="text-xl md:text-2xl font-playfair font-extrabold text-gray-900 tracking-tight mb-3">
-                  {roomData.type}
-                </h1>
-                <p className="text-sm leading-relaxed text-gray-600">
-                  {roomData.description || `Experience comfort and relaxation in our ${roomData.type.toLowerCase()}. Enjoy easy access to camp facilities, great ambiance, and a restful stay.`}
-                </p>
-
-                <div className="flex flex-wrap items-center gap-2 mt-4">
-                  <span className="inline-flex items-center px-2.5 py-1 rounded-full bg-emerald-50 text-emerald-700 text-[10px] font-bold uppercase tracking-wider">
-                    <span className="w-1.5 h-1.5 bg-emerald-500 rounded-full mr-1.5 animate-pulse"></span>
-                    {availabilityForStay} Available
-                  </span>
-                  <span className="px-2.5 py-1 rounded-full bg-blue-50 text-blue-600 text-[10px] font-bold uppercase tracking-wider">
-                    <i className="fas fa-user-friends mr-1 text-[9px]"></i>
-                    {roomData.capacityMin}–{roomData.capacityMax} guests per unit
-                  </span>
-                  <span className="px-2.5 py-1 rounded-full bg-gray-50 text-gray-600 text-[10px] font-bold uppercase tracking-wider">
-                    <i className="fas fa-snowflake mr-1 text-[9px]"></i>
-                    Airconditioned
-                  </span>
-                  <span className="px-2.5 py-1 rounded-full bg-gray-50 text-gray-600 text-[10px] font-bold uppercase tracking-wider">
-                    <i className="fas fa-shower mr-1 text-[9px]"></i>
-                    Common bathroom
-                  </span>
-                  <span className="px-2.5 py-1 rounded-full bg-gray-50 text-gray-600 text-[10px] font-bold uppercase tracking-wider">
-                    <i className="fas fa-wifi mr-1 text-[9px]"></i>
-                    Free WiFi
-                  </span>
+                  <button
+                    type="button"
+                    onClick={(e) => { e.stopPropagation(); handleNextImage(); }}
+                    className="absolute right-3 top-1/2 -translate-y-1/2 w-10 h-10 rounded-full bg-white/80 backdrop-blur-sm text-gray-700 hover:bg-white transition-all shadow-lg"
+                    aria-label="Next photo"
+                  >
+                    <i className="fas fa-chevron-right text-xs"></i>
+                  </button>
+                  <div className="absolute bottom-4 left-4 flex items-center gap-2">
+                    <span className="px-3 py-1.5 rounded-full bg-white/90 backdrop-blur-sm text-gray-800 text-[11px] font-bold shadow-sm">
+                      {selectedImageIndex + 1} / {images.length}
+                    </span>
+                  </div>
                 </div>
-              </section>
 
-              {/* Gallery thumbnails */}
-              <section className="bg-white rounded-3xl p-6 border border-gray-100 shadow-[0_4px_20px_rgb(0,0,0,0.04)]">
-                <h2 className="text-xs font-bold text-gray-500 mb-4 uppercase tracking-widest">Gallery</h2>
-                <div className="grid grid-cols-4 sm:grid-cols-6 gap-2">
-                  {images.map((img, index) => (
-                    <button
-                      key={`${img}-${index}`}
-                      onClick={() => { setSelectedImageIndex(index); setIsGalleryOpen(true); }}
-                      className={`relative h-16 rounded-2xl overflow-hidden border-2 transition-all ${
-                        index === selectedImageIndex ? 'border-blue-500 shadow-md shadow-blue-500/20 scale-105' : 'border-transparent hover:border-blue-200'
-                      }`}
-                    >
-                      <img src={img} alt={`Thumbnail ${index + 1}`} className="w-full h-full object-cover" />
-                    </button>
-                  ))}
+                {/* Side previews */}
+                <div className="hidden md:flex flex-col gap-2.5 h-full">
+                  {[1, 2].map((offset) => {
+                    const imgIndex = (selectedImageIndex + offset) % images.length;
+                    return (
+                      <button
+                        key={`preview-${offset}-${imgIndex}`}
+                        onClick={() => { setSelectedImageIndex(imgIndex); setIsGalleryOpen(true); }}
+                        className="h-1/2 w-full relative group overflow-hidden bg-gray-100 rounded-3xl"
+                      >
+                        <img
+                          src={images[imgIndex]}
+                          alt={`Room gallery ${imgIndex + 1}`}
+                          className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-700 ease-in-out"
+                        />
+                        <div className="absolute inset-0 bg-black/10 group-hover:bg-transparent transition-colors rounded-3xl"></div>
+                        {offset === 2 && images.length > 3 && (
+                          <div className="absolute inset-0 flex items-center justify-center bg-black/40 hover:bg-black/30 transition-colors rounded-3xl">
+                            <span className="text-white font-bold text-sm"><i className="fas fa-images mr-1"></i> View all</span>
+                          </div>
+                        )}
+                      </button>
+                    );
+                  })}
                 </div>
-              </section>
-            </div>
+              </div>
+
+              {/* LEFT: Room Info */}
+              <div className="space-y-6">
+
+                {/* Room Overview */}
+                <section className="bg-white rounded-3xl p-6 border border-gray-100 shadow-[0_4px_20px_rgb(0,0,0,0.04)]">
+                  <h1 className="text-xl md:text-2xl font-playfair font-extrabold text-gray-900 tracking-tight mb-3">
+                    {roomData.type}
+                  </h1>
+                  <p className="text-sm leading-relaxed text-gray-600">
+                    {roomData.description || `Experience comfort and relaxation in our ${roomData.type.toLowerCase()}. Enjoy easy access to camp facilities, great ambiance, and a restful stay.`}
+                  </p>
+
+ <div className="flex flex-wrap items-center gap-2 mt-4">
+  <span className="inline-flex items-center px-2.5 py-1 rounded-full bg-emerald-50 text-emerald-700 text-[10px] font-bold uppercase tracking-wider">
+    <span className="w-1.5 h-1.5 bg-emerald-500 rounded-full mr-1.5 animate-pulse"></span>
+    {availabilityForStay} Available
+  </span>
+  <span className="px-2.5 py-1 rounded-full bg-blue-50 text-blue-600 text-[10px] font-bold uppercase tracking-wider">
+    <i className="fas fa-user-friends mr-1 text-[9px]"></i>
+    {capacityMin}–{capacityMax} guests per unit
+  </span>
+  {/* Dynamic inclusions from Firebase */}
+  {roomData.inclusions && roomData.inclusions.length > 0 ? (
+    roomData.inclusions.map((inclusion, idx) => (
+      <span key={idx} className="px-2.5 py-1 rounded-full bg-gray-50 text-gray-600 text-[10px] font-bold uppercase tracking-wider">
+        <i className="fas fa-tag mr-1 text-[9px]"></i>
+        {inclusion}
+      </span>
+    ))
+  ) : (
+    <span className="px-2.5 py-1 rounded-full bg-gray-50 text-gray-400 text-[10px] font-bold uppercase tracking-wider">
+      No inclusions listed
+    </span>
+  )}
+</div>
+                </section>
+
+                {/* Gallery thumbnails */}
+                <section className="bg-white rounded-3xl p-6 border border-gray-100 shadow-[0_4px_20px_rgb(0,0,0,0.04)]">
+                  <h2 className="text-xs font-bold text-gray-500 mb-4 uppercase tracking-widest">Gallery</h2>
+                  <div className="grid grid-cols-4 sm:grid-cols-6 gap-2">
+                    {images.map((img, index) => (
+                      <button
+                        key={`${img}-${index}`}
+                        onClick={() => { setSelectedImageIndex(index); setIsGalleryOpen(true); }}
+                        className={`relative h-16 rounded-2xl overflow-hidden border-2 transition-all ${
+                          index === selectedImageIndex ? 'border-blue-500 shadow-md shadow-blue-500/20 scale-105' : 'border-transparent hover:border-blue-200'
+                        }`}
+                      >
+                        <img src={img} alt={`Thumbnail ${index + 1}`} className="w-full h-full object-cover" />
+                      </button>
+                    ))}
+                  </div>
+                </section>
+              </div>
             </div>
 
             {/* ─── RIGHT: BOOKING SIDEBAR ─── */}
@@ -767,68 +856,68 @@ const handleBookNow = () => {
                     >
                       <div className="overflow-y-auto pr-1">
 
-                      {/* Month nav */}
-                      <div className="flex justify-between items-center mb-1.5 px-1">
-                        <button type="button" onClick={goToPreviousMonth} className="w-6 h-6 flex justify-center items-center text-gray-400 border border-gray-200 hover:text-blue-500 hover:border-blue-200 rounded-full transition-colors">
-                          <i className="fas fa-chevron-left text-[10px]"></i>
-                        </button>
-                        <h4 className="font-bold text-gray-800 text-[11px] tracking-wide">{monthNames[currentMonth.getMonth()]} {currentMonth.getFullYear()}</h4>
-                        <button type="button" onClick={goToNextMonth} className="w-6 h-6 flex justify-center items-center text-gray-400 border border-gray-200 hover:text-blue-500 hover:border-blue-200 rounded-full transition-colors">
-                          <i className="fas fa-chevron-right text-[10px]"></i>
-                        </button>
-                      </div>
+                        {/* Month nav */}
+                        <div className="flex justify-between items-center mb-1.5 px-1">
+                          <button type="button" onClick={goToPreviousMonth} className="w-6 h-6 flex justify-center items-center text-gray-400 border border-gray-200 hover:text-blue-500 hover:border-blue-200 rounded-full transition-colors">
+                            <i className="fas fa-chevron-left text-[10px]"></i>
+                          </button>
+                          <h4 className="font-bold text-gray-800 text-[11px] tracking-wide">{monthNames[currentMonth.getMonth()]} {currentMonth.getFullYear()}</h4>
+                          <button type="button" onClick={goToNextMonth} className="w-6 h-6 flex justify-center items-center text-gray-400 border border-gray-200 hover:text-blue-500 hover:border-blue-200 rounded-full transition-colors">
+                            <i className="fas fa-chevron-right text-[10px]"></i>
+                          </button>
+                        </div>
 
-                      {/* Day headers */}
-                      <div className="grid grid-cols-7 gap-0.5 mb-1">
-                        {['Su', 'Mo', 'Tu', 'We', 'Th', 'Fr', 'Sa'].map((d) => (
-                          <div key={d} className="text-center text-[9px] font-bold uppercase tracking-widest text-gray-400 py-1">{d}</div>
-                        ))}
-                      </div>
+                        {/* Day headers */}
+                        <div className="grid grid-cols-7 gap-0.5 mb-1">
+                          {['Su', 'Mo', 'Tu', 'We', 'Th', 'Fr', 'Sa'].map((d) => (
+                            <div key={d} className="text-center text-[9px] font-bold uppercase tracking-widest text-gray-400 py-1">{d}</div>
+                          ))}
+                        </div>
 
-                      {/* Day cells */}
-                      <div className="grid grid-cols-7 gap-0.5">
-                        {days.map((day, index) => {
-                          if (!day) return <div key={`empty-${index}`}></div>;
+                        {/* Day cells */}
+                        <div className="grid grid-cols-7 gap-0.5">
+                          {days.map((day, index) => {
+                            if (!day) return <div key={`empty-${index}`}></div>;
 
-                          const isPast = isDatePast(day);
-                          const isTooSoon = isDateTooSoon(day);
-                          const fullyBooked = isDateFullyBooked(day);
-                          const isSelected = checkInDateObject && checkInDateObject.toDateString() === day.toDateString();
-                          const isCheckoutDay = checkOutDate && checkOutDate.toDateString() === day.toDateString();
-                          const inRange = checkInDateObject && checkOutDate && day > checkInDateObject && day < checkOutDate;
-                          const disabled = isPast || isTooSoon || fullyBooked;
+                            const isPast = isDatePast(day);
+                            const isTooSoon = isDateTooSoon(day);
+                            const fullyBooked = isDateFullyBooked(day);
+                            const isSelected = checkInDateObject && checkInDateObject.toDateString() === day.toDateString();
+                            const isCheckoutDay = checkOutDate && checkOutDate.toDateString() === day.toDateString();
+                            const inRange = checkInDateObject && checkOutDate && day > checkInDateObject && day < checkOutDate;
+                            const disabled = isPast || isTooSoon || fullyBooked;
 
-                          let bg = 'bg-white border border-gray-100';
-                          let text = 'text-gray-700';
-                          let stateClass = 'hover:border-blue-400 hover:text-blue-600 cursor-pointer rounded-xl';
+                            let bg = 'bg-white border border-gray-100';
+                            let text = 'text-gray-700';
+                            let stateClass = 'hover:border-blue-400 hover:text-blue-600 cursor-pointer rounded-xl';
 
-                          if (disabled) {
-                            bg = 'bg-gray-50 border-transparent';
-                            text = fullyBooked ? 'text-red-300' : 'text-gray-300';
-                            stateClass = 'cursor-not-allowed rounded-xl';
-                          } else if (isSelected || isCheckoutDay) {
-                            bg = 'bg-blue-600 border-blue-600';
-                            text = 'text-white';
-                            stateClass = 'shadow-md cursor-pointer ring-4 ring-blue-500/20 rounded-xl z-10 relative';
-                          } else if (inRange) {
-                            bg = 'bg-blue-50 border-blue-100';
-                            text = 'text-blue-700 font-bold';
-                            stateClass = 'cursor-pointer rounded-lg';
-                          }
+                            if (disabled) {
+                              bg = 'bg-gray-50 border-transparent';
+                              text = fullyBooked ? 'text-gray-300' : 'text-gray-300';
+                              stateClass = 'cursor-not-allowed rounded-xl';
+                            } else if (isSelected || isCheckoutDay) {
+                              bg = 'bg-blue-600 border-blue-600';
+                              text = 'text-white';
+                              stateClass = 'shadow-md cursor-pointer ring-4 ring-blue-500/20 rounded-xl z-10 relative';
+                            } else if (inRange) {
+                              bg = 'bg-blue-50 border-blue-100';
+                              text = 'text-blue-700 font-bold';
+                              stateClass = 'cursor-pointer rounded-lg';
+                            }
 
-                          return (
-                            <button
-                              key={`day-${toDateKey(day)}`}
-                              type="button"
-                              disabled={disabled}
-                              onClick={() => handleDateSelect(day)}
-                              className={`h-9 flex items-center justify-center font-bold text-[10px] transition-all ${bg} ${text} ${stateClass}`}
-                            >
-                              {day.getDate()}
-                            </button>
-                          );
-                        })}
-                      </div>
+                            return (
+                              <button
+                                key={`day-${toDateKey(day)}`}
+                                type="button"
+                                disabled={disabled}
+                                onClick={() => handleDateSelect(day)}
+                                className={`h-9 flex items-center justify-center font-bold text-[10px] transition-all ${bg} ${text} ${stateClass}`}
+                              >
+                                {day.getDate()}
+                              </button>
+                            );
+                          })}
+                        </div>
                       </div>
 
                       {/* Confirm */}
@@ -845,7 +934,7 @@ const handleBookNow = () => {
                   )}
                 </div>
 
-                {/* ─── ROOM & GUEST CONTROLS ─── */}
+                {/* ─── ROOM & NIGHTS CONTROLS ─── */}
                 <div className="grid grid-cols-2 gap-2.5">
                   {/* Nights */}
                   <div>
@@ -896,69 +985,80 @@ const handleBookNow = () => {
                   </div>
                 </div>
 
-                {/* ─── ADULTS & KIDS COUNTERS ─── */}
+                {/* ─── PER‑ROOM GUEST CONTROLS ─── */}
+                <div className="space-y-3 max-h-[280px] overflow-y-auto pr-1">
+                  {Array.from({ length: roomQuantity }).map((_, idx) => {
+                    const roomAdults = perRoomAdults[idx] || capacityMin;
+                    const roomKids = perRoomKids[idx] || 0;
+                    const roomTotal = roomAdults + roomKids;
+                    return (
+                      <div key={idx} className="border-t border-gray-100 pt-2 first:border-t-0 first:pt-0">
+                        <p className="text-[10px] font-bold text-gray-500 mb-1">Room {idx + 1}</p>
+                        <div className="grid grid-cols-2 gap-2">
+                          {/* Adults */}
+                          <div>
+                            <label className="text-[9px] font-bold text-gray-400">Adults</label>
+                            <div className="flex items-center border border-gray-200 bg-white rounded-xl overflow-hidden shadow-sm mt-0.5">
+                              <button
+                                type="button"
+                                onClick={() => handleRoomAdultsChange(idx, false)}
+                                disabled={roomAdults <= 1}
+                                className="w-7 h-7 hover:bg-gray-50 text-gray-600 disabled:opacity-30 transition-colors flex items-center justify-center"
+                              >
+                                <i className="fas fa-minus text-[9px]"></i>
+                              </button>
+                              <span className="flex-1 text-center text-xs font-bold text-gray-900">{roomAdults}</span>
+                              <button
+                                type="button"
+                                onClick={() => handleRoomAdultsChange(idx, true)}
+                                disabled={roomTotal >= capacityMax}
+                                className="w-7 h-7 hover:bg-gray-50 text-gray-600 disabled:opacity-30 transition-colors flex items-center justify-center"
+                              >
+                                <i className="fas fa-plus text-[9px]"></i>
+                              </button>
+                            </div>
+                          </div>
+                          {/* Kids */}
+                          <div>
+                            <label className="text-[9px] font-bold text-gray-400">Kids</label>
+                            <div className="flex items-center border border-gray-200 bg-white rounded-xl overflow-hidden shadow-sm mt-0.5">
+                              <button
+                                type="button"
+                                onClick={() => handleRoomKidsChange(idx, false)}
+                                disabled={roomKids <= 0}
+                                className="w-7 h-7 hover:bg-gray-50 text-gray-600 disabled:opacity-30 transition-colors flex items-center justify-center"
+                              >
+                                <i className="fas fa-minus text-[9px]"></i>
+                              </button>
+                              <span className="flex-1 text-center text-xs font-bold text-gray-900">{roomKids}</span>
+                              <button
+                                type="button"
+                                onClick={() => handleRoomKidsChange(idx, true)}
+                                disabled={roomTotal >= capacityMax}
+                                className="w-7 h-7 hover:bg-gray-50 text-gray-600 disabled:opacity-30 transition-colors flex items-center justify-center"
+                              >
+                                <i className="fas fa-plus text-[9px]"></i>
+                              </button>
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+
+                {/* Total Guests Summary & Min/Max Info */}
                 <div className="grid grid-cols-2 gap-2.5">
-                  {/* Adults */}
-                  <div>
-                    <label className="text-[10px] font-bold text-gray-500 uppercase tracking-wider block mb-1.5">Adults</label>
-                    <div className="flex items-center border border-gray-200 bg-white rounded-2xl overflow-hidden shadow-sm">
-                      <button
-                        type="button"
-                        onClick={() => handleAdultsChange(false)}
-                        disabled={adultsCount <= 1}
-                        className="w-9 h-9 hover:bg-gray-50 text-gray-600 disabled:opacity-30 transition-colors flex items-center justify-center"
-                      >
-                        <i className="fas fa-minus text-[10px]"></i>
-                      </button>
-                      <span className="flex-1 text-center text-xs font-bold text-gray-900">{adultsCount}</span>
-                      <button
-                        type="button"
-                        onClick={() => handleAdultsChange(true)}
-                        disabled={adultsCount + kidsCount >= maxGuests}
-                        className="w-9 h-9 hover:bg-gray-50 text-gray-600 disabled:opacity-30 transition-colors flex items-center justify-center"
-                      >
-                        <i className="fas fa-plus text-[10px]"></i>
-                      </button>
-                    </div>
+                  <div className="bg-gray-50/50 rounded-xl p-2 text-left">
+                    <p className="text-xs font-semibold text-gray-700">
+                      Total Guests: <span className="text-blue-600 font-bold">{totalGuests}</span>
+                    </p>
                   </div>
-
-                  {/* Kids */}
-                  <div>
-                    <label className="text-[10px] font-bold text-gray-500 uppercase tracking-wider block mb-1.5">Kids</label>
-                    <div className="flex items-center border border-gray-200 bg-white rounded-2xl overflow-hidden shadow-sm">
-                      <button
-                        type="button"
-                        onClick={() => handleKidsChange(false)}
-                        disabled={kidsCount <= 0}
-                        className="w-9 h-9 hover:bg-gray-50 text-gray-600 disabled:opacity-30 transition-colors flex items-center justify-center"
-                      >
-                        <i className="fas fa-minus text-[10px]"></i>
-                      </button>
-                      <span className="flex-1 text-center text-xs font-bold text-gray-900">{kidsCount}</span>
-                      <button
-                        type="button"
-                        onClick={() => handleKidsChange(true)}
-                        disabled={adultsCount + kidsCount >= maxGuests}
-                        className="w-9 h-9 hover:bg-gray-50 text-gray-600 disabled:opacity-30 transition-colors flex items-center justify-center"
-                      >
-                        <i className="fas fa-plus text-[10px]"></i>
-                      </button>
-                    </div>
+                  <div className="bg-gray-50/50 rounded-xl p-2 text-center">
+                    <p className="text-xs font-semibold text-gray-700">
+                      Min {minTotalGuests} · Max {maxTotalGuests} guests for {roomQuantity} room{roomQuantity > 1 ? 's' : ''}
+                    </p>
                   </div>
-                </div>
-
-                {/* Total Guests Summary - Right side below Adults counter */}
-                <div className="bg-gray-50/50 rounded-xl p-2 text-center">
-                  <p className="text-xs font-semibold text-gray-700">
-                    Total Guests: <span className="text-blue-600 font-bold">{totalGuests}</span>
-                  </p>
-                </div>
-
-                {/* Min/Max info - Left side below Kids counter */}
-                <div className="bg-gray-50/50 rounded-xl p-2 text-center">
-                  <p className="text-xs font-semibold text-gray-700">
-                    Min {minGuests} · Max {maxGuests} guests for {roomQuantity} room{roomQuantity > 1 ? 's' : ''}
-                  </p>
                 </div>
 
                 {/* ─── TOTAL ─── */}

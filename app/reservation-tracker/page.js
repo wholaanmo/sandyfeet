@@ -17,13 +17,12 @@ export default function ReservationTrackerPage() {
   const [cancelling, setCancelling] = useState(false);
   const [showSuccessModal, setShowSuccessModal] = useState(false);
   const [cancellationReason, setCancellationReason] = useState('');
-  const [reservationType, setReservationType] = useState(null); // 'room' or 'daytour'
+  const [reservationType, setReservationType] = useState(null);
   const [reservationId, setReservationId] = useState(null);
   const [reservationCollection, setReservationCollection] = useState(null);
   const [isMultiRoomBooking, setIsMultiRoomBooking] = useState(false);
   const [childBookings, setChildBookings] = useState([]);
   
-  // Store the unsubscribe function for real-time listener
   const unsubscribeRef = useRef(null);
   const childUnsubscribeRefs = useRef([]);
 
@@ -32,7 +31,24 @@ export default function ReservationTrackerPage() {
     return re.test(email);
   };
 
-  // Cleanup previous listeners when component unmounts or new search is performed
+  const getBookingTypeDisplay = () => {
+    if (!reservation) return '';
+    if (reservation.isExclusiveResortBooking) return 'Entire Resort';
+    if (reservation.isMultiRoom && reservation.roomTypesArray && reservation.roomTypesArray.length > 1) return 'Multi-Room Types';
+    if (reservation.isMultiRoom && reservation.roomTypesArray && reservation.roomTypesArray.length === 1) return 'Single Room Type';
+    if (reservation.type === 'room' && !reservation.isMultiRoom) return 'Single Room Type';
+    return reservation.type === 'daytour' ? 'Day Tour' : 'Room';
+  };
+
+  const getBookingTypeColor = (type) => {
+    switch(type) {
+      case 'Single Room Type': return 'bg-blue-100 text-blue-700';
+      case 'Multi-Room Types': return 'bg-purple-100 text-purple-700';
+      case 'Entire Resort': return 'bg-amber-100 text-amber-700';
+      default: return 'bg-ocean-ice text-ocean-mid';
+    }
+  };
+
   useEffect(() => {
     return () => {
       if (unsubscribeRef.current) {
@@ -45,7 +61,6 @@ export default function ReservationTrackerPage() {
     };
   }, []);
 
-  // Function to fetch child bookings for a multi-room parent booking ID
   const fetchChildBookings = async (parentBookingId) => {
     try {
       const bookingsRef = collection(db, 'bookings');
@@ -54,26 +69,19 @@ export default function ReservationTrackerPage() {
         where('parentBookingId', '==', parentBookingId),
         where('isMultiRoomBooking', '==', true)
       );
-      
       const childSnapshot = await getDocs(childQuery);
       const children = [];
-      
       childSnapshot.forEach((doc) => {
         children.push({
           id: doc.id,
           ...doc.data()
         });
       });
-      
-      // Sort by room type for consistent display
       children.sort((a, b) => (a.roomType || '').localeCompare(b.roomType || ''));
-      
-      // Set up real-time listeners for child bookings
       childUnsubscribeRefs.current.forEach(unsub => {
         if (unsub) unsub();
       });
       childUnsubscribeRefs.current = [];
-      
       children.forEach(child => {
         const childRef = doc(db, 'bookings', child.id);
         const unsubscribe = onSnapshot(childRef, (docSnapshot) => {
@@ -88,7 +96,6 @@ export default function ReservationTrackerPage() {
         });
         childUnsubscribeRefs.current.push(unsubscribe);
       });
-      
       setChildBookings(children);
       return children;
     } catch (err) {
@@ -97,35 +104,22 @@ export default function ReservationTrackerPage() {
     }
   };
 
-  // Function to check if a booking ID is a multi-room parent
   const checkForMultiRoomBooking = async (email, bookingId) => {
     try {
-      // First, check if there's a parent booking record
-      // For multi-room bookings, we store a consolidated record with isMultiRoomGroup flag
-      // But also we can find by checking if there are any child bookings with this parentBookingId
-      
       const bookingsRef = collection(db, 'bookings');
-      
-      // Query for child bookings with this parentBookingId
       const childQuery = query(
         bookingsRef,
         where('parentBookingId', '==', bookingId),
         where('isMultiRoomBooking', '==', true)
       );
-      
       const childSnapshot = await getDocs(childQuery);
-      
       if (!childSnapshot.empty) {
-        // This is a multi-room booking - get the first child to extract shared info
         const firstChild = childSnapshot.docs[0].data();
-        
-        // Get all child bookings data
         const children = [];
         let totalPrice = 0;
         let totalRooms = 0;
         const roomTypes = {};
         let totalGuests = 0;
-        
         childSnapshot.forEach((doc) => {
           const childData = doc.data();
           children.push({
@@ -135,7 +129,6 @@ export default function ReservationTrackerPage() {
           totalPrice += childData.totalPrice || 0;
           totalRooms += childData.numberOfRooms || 1;
           totalGuests += childData.guests || 1;
-          
           if (!roomTypes[childData.roomType]) {
             roomTypes[childData.roomType] = {
               quantity: 1,
@@ -147,14 +140,14 @@ export default function ReservationTrackerPage() {
           }
         });
         
-        // Determine the overall status for the multi-room booking
-        // If any child is cancelled by admin, show as cancelled
-        // If any child is cancelled by guest, show as cancelled-by-guest
-        // Otherwise use the first child's status
+        // If this is an exclusive resort booking, add tents to total rooms
+        if (firstChild.isExclusiveResortBooking) {
+          totalRooms += (firstChild.tentCount || 0);
+        }
+        
         let overallStatus = firstChild.status;
         let cancellationReason = null;
         let cancelledBy = null;
-        
         for (const child of children) {
           if (child.status === 'cancelled') {
             overallStatus = 'cancelled';
@@ -167,8 +160,6 @@ export default function ReservationTrackerPage() {
             cancelledBy = child.cancelledBy;
           }
         }
-        
-        // Create consolidated multi-room reservation object
         const multiRoomReservation = {
           id: bookingId,
           bookingId: bookingId,
@@ -192,12 +183,15 @@ export default function ReservationTrackerPage() {
           children: children,
           cancellationReason: cancellationReason,
           cancelledBy: cancelledBy,
-          adminNote: firstChild.adminNote || null  // Add admin note from confirmation
+          adminNote: firstChild.adminNote || null,
+          isExclusiveResortBooking: firstChild.isExclusiveResortBooking || false,
+          exclusivePackagePrice: firstChild.exclusivePackagePrice || null,
+          tentCount: firstChild.tentCount || 0,
+          exclusiveAdults: firstChild.exclusiveAdults || 0,
+          exclusiveKids: firstChild.exclusiveKids || 0
         };
-        
         return multiRoomReservation;
       }
-      
       return null;
     } catch (err) {
       console.error('Error checking for multi-room booking:', err);
@@ -207,25 +201,20 @@ export default function ReservationTrackerPage() {
 
   const handleSearch = async (e) => {
     e.preventDefault();
-    
     if (!email.trim() || !referenceNumber.trim()) {
       setError('Please enter both email and reservation reference number.');
       return;
     }
-    
     if (!validateEmail(email)) {
       setError('Please enter a valid email address.');
       return;
     }
-    
     setLoading(true);
     setError('');
     setReservation(null);
     setReservationType(null);
     setIsMultiRoomBooking(false);
     setChildBookings([]);
-    
-    // Unsubscribe from any previous listeners
     if (unsubscribeRef.current) {
       unsubscribeRef.current();
       unsubscribeRef.current = null;
@@ -234,33 +223,24 @@ export default function ReservationTrackerPage() {
       if (unsub) unsub();
     });
     childUnsubscribeRefs.current = [];
-    
     try {
       const bookingId = referenceNumber.trim().toUpperCase();
-      
-      // First, check if this is a multi-room booking
       const multiRoomReservation = await checkForMultiRoomBooking(email.toLowerCase().trim(), bookingId);
-      
       if (multiRoomReservation) {
-        // Verify email matches
         if (multiRoomReservation.guestInfo?.email?.toLowerCase() !== email.toLowerCase().trim()) {
           setError('No reservation found. Please check your details and try again.');
           setLoading(false);
           return;
         }
-        
         setReservationType('room');
         setIsMultiRoomBooking(true);
         setReservation(multiRoomReservation);
-        
-        // Set up real-time listener for child bookings to update status
         const updateChildStatuses = () => {
           if (multiRoomReservation.children && multiRoomReservation.children.length > 0) {
             let hasAdminCancelled = false;
             let hasGuestCancelled = false;
             let adminCancellationReason = null;
             let guestCancellationReason = null;
-            
             for (const child of multiRoomReservation.children) {
               if (child.status === 'cancelled') {
                 hasAdminCancelled = true;
@@ -270,10 +250,8 @@ export default function ReservationTrackerPage() {
                 guestCancellationReason = child.cancellationReason;
               }
             }
-            
             let newStatus = multiRoomReservation.status;
             let newCancellationReason = null;
-            
             if (hasAdminCancelled) {
               newStatus = 'cancelled';
               newCancellationReason = adminCancellationReason;
@@ -281,7 +259,6 @@ export default function ReservationTrackerPage() {
               newStatus = 'cancelled-by-guest';
               newCancellationReason = guestCancellationReason;
             }
-            
             if (newStatus !== multiRoomReservation.status) {
               setReservation(prev => ({ 
                 ...prev, 
@@ -292,8 +269,6 @@ export default function ReservationTrackerPage() {
             }
           }
         };
-        
-        // Listen for changes on each child
         multiRoomReservation.children.forEach(child => {
           const childRef = doc(db, 'bookings', child.id);
           const unsubscribe = onSnapshot(childRef, (docSnapshot) => {
@@ -309,38 +284,29 @@ export default function ReservationTrackerPage() {
           });
           childUnsubscribeRefs.current.push(unsubscribe);
         });
-        
         setLoading(false);
         return;
       }
-      
-      // If not multi-room, try regular room bookings
       const bookingsRef = collection(db, 'bookings');
       const roomQuery = query(
         bookingsRef,
         where('guestInfo.email', '==', email.toLowerCase().trim()),
         where('bookingId', '==', bookingId)
       );
-      
       const roomSnapshot = await getDocs(roomQuery);
-      
       if (!roomSnapshot.empty) {
         const bookingDoc = roomSnapshot.docs[0];
         const bookingData = bookingDoc.data();
-        
         setReservationType('room');
         setReservationId(bookingDoc.id);
         setReservationCollection('bookings');
         setIsMultiRoomBooking(false);
-        
         setReservation({
           id: bookingDoc.id,
           ...bookingData,
           type: 'room',
-          adminNote: bookingData.adminNote || null  // Add admin note from confirmation
+          adminNote: bookingData.adminNote || null
         });
-        
-        // Set up real-time listener for this specific booking document
         const bookingRef = doc(db, 'bookings', bookingDoc.id);
         const unsubscribe = onSnapshot(bookingRef, (docSnapshot) => {
           if (docSnapshot.exists()) {
@@ -356,38 +322,29 @@ export default function ReservationTrackerPage() {
         }, (err) => {
           console.error('Real-time listener error:', err);
         });
-        
         unsubscribeRef.current = unsubscribe;
         setLoading(false);
         return;
       }
-      
-      // If not found in room bookings, try day tour bookings
       const dayTourBookingsRef = collection(db, 'dayTourBookings');
       const dayTourQuery = query(
         dayTourBookingsRef,
         where('guestInfo.email', '==', email.toLowerCase().trim()),
         where('bookingId', '==', bookingId)
       );
-      
       const dayTourSnapshot = await getDocs(dayTourQuery);
-      
       if (!dayTourSnapshot.empty) {
         const bookingDoc = dayTourSnapshot.docs[0];
         const bookingData = bookingDoc.data();
-        
         setReservationType('daytour');
         setReservationId(bookingDoc.id);
         setReservationCollection('dayTourBookings');
-        
         setReservation({
           id: bookingDoc.id,
           ...bookingData,
           type: 'daytour',
-          adminNote: bookingData.adminNote || null  // Add admin note from confirmation
+          adminNote: bookingData.adminNote || null
         });
-        
-        // Set up real-time listener for this specific day tour booking document
         const bookingRef = doc(db, 'dayTourBookings', bookingDoc.id);
         const unsubscribe = onSnapshot(bookingRef, (docSnapshot) => {
           if (docSnapshot.exists()) {
@@ -403,14 +360,11 @@ export default function ReservationTrackerPage() {
         }, (err) => {
           console.error('Real-time listener error:', err);
         });
-        
         unsubscribeRef.current = unsubscribe;
         setLoading(false);
         return;
       }
-      
       setError('No reservation found. Please check your details and try again.');
-      
     } catch (err) {
       console.error('Error fetching reservation:', err);
       setError('An error occurred while fetching your reservation. Please try again later.');
@@ -422,8 +376,6 @@ export default function ReservationTrackerPage() {
   const addCancellationNotification = async (booking, reason) => {
     try {
       const cancellationsRef = collection(db, 'guest_cancellations');
-      
-      // Create base notification data
       const notificationData = {
         guestName: `${booking.guestInfo?.firstName} ${booking.guestInfo?.lastName}`,
         bookingId: booking.bookingId,
@@ -432,8 +384,6 @@ export default function ReservationTrackerPage() {
         read: false,
         bookingType: booking.type || 'room'
       };
-      
-      // Add multi-room specific data
       if (booking.isMultiRoom) {
         notificationData.isMultiRoom = true;
         notificationData.totalRooms = booking.totalRooms;
@@ -447,144 +397,219 @@ export default function ReservationTrackerPage() {
         notificationData.roomType = booking.roomType;
         notificationData.bookingTypeLabel = 'Room';
       }
-      
       await addDoc(cancellationsRef, notificationData);
     } catch (err) {
       console.error('Error adding cancellation notification:', err);
     }
   };
 
-  const handleCancelReservation = async () => {
-    if (!reservation) return;
-    
-    if (!cancellationReason.trim()) {
-      setError('Please provide a reason for cancellation.');
-      return;
-    }
-    
-    // Check if multi-room booking can be cancelled
-    if (reservation.isMultiRoom) {
-      const anyActive = reservation.children?.some(child => 
-        child.status !== 'cancelled' && child.status !== 'cancelled-by-guest'
-      );
-      
-      if (!anyActive) {
-        setError('This reservation cannot be cancelled as it is no longer active.');
-        setShowCancelModal(false);
-        return;
-      }
-    } else if (reservation.status !== 'pending' && reservation.status !== 'confirmed') {
+const handleCancelReservation = async () => {
+  if (!reservation) return;
+  if (!cancellationReason.trim()) {
+    setError('Please provide a reason for cancellation.');
+    return;
+  }
+  if (reservation.isMultiRoom) {
+    const anyActive = reservation.children?.some(child => 
+      child.status !== 'cancelled' && child.status !== 'cancelled-by-guest'
+    );
+    if (!anyActive) {
       setError('This reservation cannot be cancelled as it is no longer active.');
       setShowCancelModal(false);
       return;
     }
-    
-    setCancelling(true);
-    
-    try {
-      if (reservation.isMultiRoom && reservation.children) {
-        // Cancel all child bookings
-        for (const child of reservation.children) {
-          if (child.status !== 'cancelled' && child.status !== 'cancelled-by-guest') {
-            const bookingRef = doc(db, 'bookings', child.id);
-            await updateDoc(bookingRef, {
-              status: 'cancelled-by-guest',
-              cancelledAt: new Date().toISOString(),
-              cancelledBy: 'guest',
-              cancellationReason: cancellationReason,
-              updatedAt: new Date().toISOString()
-            });
-          }
-        }
-        
-        setReservation({
-          ...reservation,
-          status: 'cancelled-by-guest',
-          cancelledAt: new Date().toISOString(),
-          cancelledBy: 'guest',
-          cancellationReason: cancellationReason
-        });
-        
-        // Add notification for admin
-        await addCancellationNotification(reservation, cancellationReason);
-        
-        // Send cancellation email (using first child for email details)
-        const firstChild = reservation.children[0];
-        const multiRoomEmailResult = await sendCancellationEmail({
-          ...firstChild,
-          totalPrice: reservation.totalPrice,
-          bookingId: reservation.bookingId,
-          isMultiRoomGroup: true,
-          roomTypesDisplay: Object.entries(reservation.roomTypes || {})
-            .map(([type, data]) => `${data.quantity} × ${type} (${data.guestsPerRoom} guest${data.guestsPerRoom !== 1 ? 's' : ''})`)
-            .join(', ')
-        }, cancellationReason, 'guest');
-        if (!multiRoomEmailResult?.success) {
-          setError('Reservation cancelled, but cancellation email could not be sent right now. Please contact the resort if needed.');
-        }
-        
-      } else if (reservation.type === 'daytour') {
-        const bookingRef = doc(db, 'dayTourBookings', reservation.id);
-        await updateDoc(bookingRef, {
-          status: 'cancelled-by-guest',
-          cancelledAt: new Date().toISOString(),
-          cancelledBy: 'guest',
-          cancellationReason: cancellationReason,
-          updatedAt: new Date().toISOString()
-        });
-        
-        setReservation({
-          ...reservation,
-          status: 'cancelled-by-guest',
-          cancelledAt: new Date().toISOString(),
-          cancelledBy: 'guest',
-          cancellationReason: cancellationReason
-        });
-        
-        await addCancellationNotification(reservation, cancellationReason);
-        const dayTourEmailResult = await sendDayTourCancellationEmail(reservation, cancellationReason, 'guest');
-        if (!dayTourEmailResult?.success) {
-          setError('Reservation cancelled, but cancellation email could not be sent right now. Please contact the resort if needed.');
-        }
-        
-      } else {
-        const bookingRef = doc(db, 'bookings', reservation.id);
-        await updateDoc(bookingRef, {
-          status: 'cancelled-by-guest',
-          cancelledAt: new Date().toISOString(),
-          cancelledBy: 'guest',
-          cancellationReason: cancellationReason,
-          updatedAt: new Date().toISOString()
-        });
-        
-        setReservation({
-          ...reservation,
-          status: 'cancelled-by-guest',
-          cancelledAt: new Date().toISOString(),
-          cancelledBy: 'guest',
-          cancellationReason: cancellationReason
-        });
-        
-        await addCancellationNotification(reservation, cancellationReason);
-        const roomEmailResult = await sendCancellationEmail(reservation, cancellationReason, 'guest');
-        if (!roomEmailResult?.success) {
-          setError('Reservation cancelled, but cancellation email could not be sent right now. Please contact the resort if needed.');
+  } else if (reservation.status !== 'pending' && reservation.status !== 'confirmed') {
+    setError('This reservation cannot be cancelled as it is no longer active.');
+    setShowCancelModal(false);
+    return;
+  }
+  setCancelling(true);
+  try {
+    if (reservation.isMultiRoom && reservation.children) {
+      for (const child of reservation.children) {
+        if (child.status !== 'cancelled' && child.status !== 'cancelled-by-guest') {
+          const bookingRef = doc(db, 'bookings', child.id);
+          await updateDoc(bookingRef, {
+            status: 'cancelled-by-guest',
+            cancelledAt: new Date().toISOString(),
+            cancelledBy: 'guest',
+            cancellationReason: cancellationReason,
+            updatedAt: new Date().toISOString()
+          });
         }
       }
+      setReservation({
+        ...reservation,
+        status: 'cancelled-by-guest',
+        cancelledAt: new Date().toISOString(),
+        cancelledBy: 'guest',
+        cancellationReason: cancellationReason
+      });
+      await addCancellationNotification(reservation, cancellationReason);
+      const firstChild = reservation.children[0];
       
-      setShowCancelModal(false);
-      setCancellationReason('');
-      setShowSuccessModal(true);
+      // Prepare room type display without guest counts
+      let roomTypesDisplaySimple = '';
+      if (reservation.isExclusiveResortBooking) {
+        roomTypesDisplaySimple = 'Entire Resort Package';
+        if (reservation.tentCount > 0) {
+          roomTypesDisplaySimple += ` + ${reservation.tentCount} Tent(s)`;
+        }
+      } else {
+        roomTypesDisplaySimple = getMultiRoomDisplaySimple();
+      }
       
-    } catch (err) {
-      console.error('Error cancelling reservation:', err);
-      setError('Failed to cancel reservation. Please try again later.');
-    } finally {
-      setCancelling(false);
+      const multiRoomEmailResult = await sendCancellationEmail({
+        ...firstChild,
+        totalPrice: reservation.totalPrice,
+        bookingId: reservation.bookingId,
+        isMultiRoomGroup: true,
+        roomTypesDisplay: roomTypesDisplaySimple
+      }, cancellationReason, 'guest');
+      if (!multiRoomEmailResult?.success) {
+        setError('Reservation cancelled, but cancellation email could not be sent right now. Please contact the resort if needed.');
+      }
+    } else if (reservation.type === 'daytour') {
+      const bookingRef = doc(db, 'dayTourBookings', reservation.id);
+      await updateDoc(bookingRef, {
+        status: 'cancelled-by-guest',
+        cancelledAt: new Date().toISOString(),
+        cancelledBy: 'guest',
+        cancellationReason: cancellationReason,
+        updatedAt: new Date().toISOString()
+      });
+      setReservation({
+        ...reservation,
+        status: 'cancelled-by-guest',
+        cancelledAt: new Date().toISOString(),
+        cancelledBy: 'guest',
+        cancellationReason: cancellationReason
+      });
+      await addCancellationNotification(reservation, cancellationReason);
+      const dayTourEmailResult = await sendDayTourCancellationEmail(reservation, cancellationReason, 'guest');
+      if (!dayTourEmailResult?.success) {
+        setError('Reservation cancelled, but cancellation email could not be sent right now. Please contact the resort if needed.');
+      }
+    } else {
+      const bookingRef = doc(db, 'bookings', reservation.id);
+      await updateDoc(bookingRef, {
+        status: 'cancelled-by-guest',
+        cancelledAt: new Date().toISOString(),
+        cancelledBy: 'guest',
+        cancellationReason: cancellationReason,
+        updatedAt: new Date().toISOString()
+      });
+      setReservation({
+        ...reservation,
+        status: 'cancelled-by-guest',
+        cancelledAt: new Date().toISOString(),
+        cancelledBy: 'guest',
+        cancellationReason: cancellationReason
+      });
+      await addCancellationNotification(reservation, cancellationReason);
+      // For single room, show "1 × RoomType"
+      const roomEmailResult = await sendCancellationEmail({
+        ...reservation,
+        roomTypesDisplay: `1 × ${reservation.roomType}`
+      }, cancellationReason, 'guest');
+      if (!roomEmailResult?.success) {
+        setError('Reservation cancelled, but cancellation email could not be sent right now. Please contact the resort if needed.');
+      }
     }
-  };
 
-  // Paste from clipboard
+    // --- Send email notification to the resort (unchanged) ---
+try {
+  let roomTypesString = '';
+  let checkInDate = '';
+  let checkOutDate = '';
+  let tourDate = '';
+  let totalPriceValue = reservation.totalPrice;
+  let downPaymentValue = calculateDownPayment(reservation.totalPrice);
+  
+  if (reservation.type === 'daytour') {
+    // Day tour booking - use the actual tour date
+    roomTypesString = 'Day Tour';
+    tourDate = formatDateOnly(reservation.selectedDate) || 'N/A';
+  } else {
+    // Room booking
+    if (reservation.isExclusiveResortBooking) {
+      roomTypesString = 'Entire Resort Package';
+      if (reservation.tentCount > 0) {
+        roomTypesString += ` + ${reservation.tentCount} Tent(s)`;
+      }
+    } else if (reservation.isMultiRoom) {
+      roomTypesString = getMultiRoomDisplay();
+    } else {
+      roomTypesString = reservation.roomType || 'Room';
+    }
+    checkInDate = formatDateOnly(reservation.checkIn);
+    checkOutDate = formatDateOnly(reservation.checkOut);
+  }
+
+  const guestName = `${reservation.guestInfo?.firstName} ${reservation.guestInfo?.lastName}`;
+  const bookingIdValue = reservation.bookingId;
+
+  // Build the email HTML without Booking Type field
+  let resortEmailHtml = '';
+  
+  if (reservation.type === 'daytour') {
+    resortEmailHtml = `
+      <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; background-color: #f8f9fa; border-radius: 8px;">
+        <h2 style="color: #dc2626;">Reservation Cancelled by Guest</h2>
+        <p><strong>Guest Name:</strong> ${guestName}</p>
+        <p><strong>Booking ID:</strong> ${bookingIdValue}</p>
+        <p><strong>Tour Date:</strong> ${tourDate}</p>
+        <p><strong>Total Price:</strong> ₱${totalPriceValue?.toLocaleString() || '0'}</p>
+        <p><strong>Down Payment Paid:</strong> ₱${downPaymentValue?.toLocaleString() || '0'}</p>
+        <hr />
+        <p><strong>Cancellation Reason:</strong> ${cancellationReason}</p>
+      </div>
+    `;
+  } else {
+    resortEmailHtml = `
+      <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; background-color: #f8f9fa; border-radius: 8px;">
+        <h2 style="color: #dc2626;">Reservation Cancelled by Guest</h2>
+        <p><strong>Guest Name:</strong> ${guestName}</p>
+        <p><strong>Booking ID:</strong> ${bookingIdValue}</p>
+        <p><strong>Room Types:</strong> ${roomTypesString}</p>
+        <p><strong>Check-in Date:</strong> ${checkInDate}</p>
+        <p><strong>Check-out Date:</strong> ${checkOutDate}</p>
+        <p><strong>Total Price:</strong> ₱${totalPriceValue?.toLocaleString() || '0'}</p>
+        <p><strong>Down Payment Paid:</strong> ₱${downPaymentValue?.toLocaleString() || '0'}</p>
+        <hr />
+        <p><strong>Cancellation Reason:</strong> ${cancellationReason}</p>
+      </div>
+    `;
+  }
+
+  const baseUrl = typeof window !== 'undefined' ? window.location.origin : '';
+  const emailResponse = await fetch(`${baseUrl}/api/send-email`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      to: 'sandyfeetreservation@gmail.com',
+      subject: `Reservation Cancelled - ${bookingIdValue}`,
+      html: resortEmailHtml
+    })
+  });
+  if (!emailResponse.ok) {
+    console.error('Failed to send resort notification email');
+  }
+} catch (emailError) {
+  console.error('Error sending resort notification email:', emailError);
+}
+
+    setShowCancelModal(false);
+    setCancellationReason('');
+    setShowSuccessModal(true);
+  } catch (err) {
+    console.error('Error cancelling reservation:', err);
+    setError('Failed to cancel reservation. Please try again later.');
+  } finally {
+    setCancelling(false);
+  }
+};
+
   const handlePasteReference = async () => {
     try {
       const text = await navigator.clipboard.readText();
@@ -597,12 +622,10 @@ export default function ReservationTrackerPage() {
     }
   };
 
-  // Calculate number of nights between check-in and check-out (for room bookings)
   const calculateNumberOfNights = (checkIn, checkOut) => {
     if (!checkIn || !checkOut) return 0;
     try {
       let checkInDate, checkOutDate;
-      
       if (checkIn && typeof checkIn.toDate === 'function') {
         checkInDate = checkIn.toDate();
       } else if (checkIn && typeof checkIn === 'object' && checkIn.seconds) {
@@ -610,7 +633,6 @@ export default function ReservationTrackerPage() {
       } else {
         checkInDate = new Date(checkIn);
       }
-      
       if (checkOut && typeof checkOut.toDate === 'function') {
         checkOutDate = checkOut.toDate();
       } else if (checkOut && typeof checkOut === 'object' && checkOut.seconds) {
@@ -618,12 +640,7 @@ export default function ReservationTrackerPage() {
       } else {
         checkOutDate = new Date(checkOut);
       }
-      
-      if (isNaN(checkInDate.getTime()) || isNaN(checkOutDate.getTime())) {
-        return 0;
-      }
-      
-      // Calculate difference in days
+      if (isNaN(checkInDate.getTime()) || isNaN(checkOutDate.getTime())) return 0;
       const checkInDay = new Date(checkInDate.getFullYear(), checkInDate.getMonth(), checkInDate.getDate());
       const checkOutDay = new Date(checkOutDate.getFullYear(), checkOutDate.getMonth(), checkOutDate.getDate());
       const timeDiff = checkOutDay - checkInDay;
@@ -646,11 +663,7 @@ export default function ReservationTrackerPage() {
       } else {
         dateObj = new Date(timestamp);
       }
-      
-      if (isNaN(dateObj.getTime())) {
-        return 'Invalid Date';
-      }
-      
+      if (isNaN(dateObj.getTime())) return 'Invalid Date';
       return dateObj.toLocaleString('en-US', {
         year: 'numeric',
         month: 'long',
@@ -665,10 +678,18 @@ export default function ReservationTrackerPage() {
     }
   };
 
-  const formatDateOnly = (dateString) => {
-    if (!dateString) return 'N/A';
+  // FIXED: Handle Firestore Timestamp objects properly
+  const formatDateOnly = (dateValue) => {
+    if (!dateValue) return 'N/A';
     try {
-      const date = new Date(dateString);
+      let date;
+      if (dateValue && typeof dateValue.toDate === 'function') {
+        date = dateValue.toDate();
+      } else if (dateValue && typeof dateValue === 'object' && dateValue.seconds) {
+        date = new Date(dateValue.seconds * 1000);
+      } else {
+        date = new Date(dateValue);
+      }
       if (isNaN(date.getTime())) return 'Invalid Date';
       return date.toLocaleDateString('en-US', {
         year: 'numeric',
@@ -682,14 +703,12 @@ export default function ReservationTrackerPage() {
   };
 
   const getStatusBadge = (status, cancelledBy) => {
-    // For multi-room bookings, check if cancelled by admin vs guest
     if (status === 'cancelled') {
       if (cancelledBy === 'admin') {
         return { label: 'Cancelled by Resort', color: 'bg-red-100 text-red-700' };
       }
       return { label: 'Not Confirmed', color: 'bg-red-100 text-red-700' };
     }
-    
     const statusMap = {
       'pending': { label: 'Pending', color: 'bg-yellow-100 text-yellow-700' },
       'confirmed': { label: 'Confirmed', color: 'bg-green-100 text-green-700' },
@@ -697,7 +716,6 @@ export default function ReservationTrackerPage() {
       'check-out': { label: 'Checked Out', color: 'bg-purple-100 text-purple-700' },
       'cancelled-by-guest': { label: 'Cancelled by Guest', color: 'bg-red-100 text-red-700' }
     };
-    
     const statusInfo = statusMap[status] || { label: status, color: 'bg-gray-100 text-gray-700' };
     return statusInfo;
   };
@@ -708,51 +726,26 @@ export default function ReservationTrackerPage() {
     return total * 0.5;
   };
 
-  // Updated calculateBalance function with new rules:
-  // - Pending or Confirmed: 50% of total amount (remaining balance = 50% of total)
-  // - Cancelled: "Not Confirmed"
-  // - Cancelled by Guest: 50% of down payment amount (down payment * 0.5)
   const calculateBalance = (totalPrice, status) => {
+    if (status === 'cancelled' || status === 'cancelled-by-guest') {
+      return '₱0';
+    }
     const total = typeof totalPrice === 'number' ? totalPrice : Number(totalPrice) || 0;
     const downPayment = total * 0.5;
-    
-    // If status is cancelled, mark as Not Confirmed
-    if (status === 'cancelled') {
-      return 'Not Confirmed';
-    }
-    
-    // If status is pending or confirmed: remaining balance should be 50% of total amount
     if (status === 'pending' || status === 'confirmed') {
       const remainingBalance = total - downPayment;
       return `₱${remainingBalance.toLocaleString()}`;
     }
-    
-    // If status is cancelled-by-guest: remaining balance should be 50% of the down payment amount
-    if (status === 'cancelled-by-guest') {
-      const balanceAfterCancellation = downPayment * 0.5;
-      return `₱${balanceAfterCancellation.toLocaleString()}`;
-    }
-    
-    // For check-in, check-out, and other statuses
     if (status === 'check-in' || status === 'check-out') {
       const remainingBalance = total - downPayment;
       return `₱${remainingBalance.toLocaleString()}`;
     }
-    
     return 'Not Confirmed';
   };
 
   const canCancel = (status, isMultiRoom = false, cancelledBy = null) => {
-    // For multi-room bookings, if already cancelled (by either party), don't show cancel button
-    if (isMultiRoom && (status === 'cancelled' || status === 'cancelled-by-guest')) {
-      return false;
-    }
-    
-    // For non-multi-room bookings, check if already cancelled
-    if (!isMultiRoom && (status === 'cancelled' || status === 'cancelled-by-guest')) {
-      return false;
-    }
-    
+    if (isMultiRoom && (status === 'cancelled' || status === 'cancelled-by-guest')) return false;
+    if (!isMultiRoom && (status === 'cancelled' || status === 'cancelled-by-guest')) return false;
     if (isMultiRoom && reservation?.children) {
       const anyActive = reservation.children.some(child => 
         child.status === 'pending' || child.status === 'confirmed'
@@ -762,37 +755,36 @@ export default function ReservationTrackerPage() {
     return status === 'pending' || status === 'confirmed';
   };
 
-  // Calculate number of nights for room reservations (non-multi-room)
   const numberOfNights = reservation && reservation.type === 'room' && !reservation.isMultiRoom 
-    ? calculateNumberOfNights(reservation.checkIn, reservation.checkOut) 
-    : 0;
-
-  // Calculate number of nights for multi-room reservations
+    ? calculateNumberOfNights(reservation.checkIn, reservation.checkOut) : 0;
   const multiRoomNumberOfNights = reservation && reservation.isMultiRoom && reservation.checkIn && reservation.checkOut
-    ? calculateNumberOfNights(reservation.checkIn, reservation.checkOut)
-    : 0;
-
-  // Calculate total guests for day tour
+    ? calculateNumberOfNights(reservation.checkIn, reservation.checkOut) : 0;
   const getTotalGuests = () => {
     if (!reservation) return 0;
     return (reservation.seniors || 0) + (reservation.adults || 0) + (reservation.kids || 0);
   };
-
-  // Get multi-room display string
   const getMultiRoomDisplay = () => {
     if (!reservation.roomTypesArray) return '';
     return reservation.roomTypesArray.map(room => 
-      `${room.quantity} × ${room.type} (${room.guestsPerRoom} guest${room.guestsPerRoom !== 1 ? 's' : ''})`
+      `${room.quantity} × ${room.type}`
     ).join(', ');
   };
 
+  const getMultiRoomDisplaySimple = () => {
+  if (!reservation.roomTypesArray) return '';
+  return reservation.roomTypesArray.map(room => 
+    `${room.quantity} × ${room.type}`
+  ).join(', ');
+};
+
   const statusInfo = reservation ? getStatusBadge(reservation.status, reservation.cancelledBy) : { label: '', color: '' };
+  const bookingTypeDisplay = reservation ? getBookingTypeDisplay() : '';
+  const bookingTypeColor = bookingTypeDisplay ? getBookingTypeColor(bookingTypeDisplay) : '';
 
   return (
     <GuestLayout>
       <div suppressHydrationWarning className="min-h-screen bg-gradient-to-br from-ocean-ice to-blue-white py-12 px-2 md:px-4">
         <div className="max-w-7xl mx-auto">
-          {/* Header */}
           <div className="text-center mb-8">
             <h1 className="text-4xl font-bold text-textPrimary font-playfair mb-2">
               Track Your Reservation
@@ -801,10 +793,7 @@ export default function ReservationTrackerPage() {
               Enter your email address and reservation reference number to view your booking details
             </p>
           </div>
-
-          {/* Two Column Layout - Form (40%) | Details (60%) */}
           <div className="flex flex-col lg:flex-row gap-6">
-            {/* Left Column - Search Form */}
             <div className="lg:w-2/5">
               <div className="bg-white rounded-2xl shadow-lg border-2 border-ocean-light/30 p-10 sticky top-6">
                 <form onSubmit={handleSearch} className="space-y-5">
@@ -821,7 +810,6 @@ export default function ReservationTrackerPage() {
                       disabled={loading}
                     />
                   </div>
-                  
                   <div>
                     <label className="block text-base font-semibold text-textPrimary mb-2">
                       Reservation Reference Number <span className="text-red-500">*</span>
@@ -845,7 +833,6 @@ export default function ReservationTrackerPage() {
                       </button>
                     </div>
                   </div>
-                  
                   <button
                     type="submit"
                     disabled={loading}
@@ -864,7 +851,6 @@ export default function ReservationTrackerPage() {
                     )}
                   </button>
                 </form>
-                
                 {error && (
                   <div className="mt-4 p-3 bg-red-50 border-l-4 border-red-500 rounded-lg">
                     <p className="text-red-700 text-sm">{error}</p>
@@ -872,12 +858,10 @@ export default function ReservationTrackerPage() {
                 )}
               </div>
             </div>
-
-            {/* Right Column - Reservation Details */}
             <div className="lg:w-3/5">
               {reservation ? (
                 <div className="space-y-6 animate-fadeIn">
-                  {/* Status Card */}
+                  {/* Reservation Details Card */}
                   <div className="bg-white rounded-2xl shadow-md border border-ocean-light/10 p-6">
                     <div className="flex justify-between items-start mb-4 flex-wrap gap-3">
                       <div>
@@ -886,8 +870,8 @@ export default function ReservationTrackerPage() {
                         </h2>
                         <div className="flex items-center gap-2 flex-wrap">
                           <p className="text-sm text-neutral">Booking ID: {reservation.bookingId}</p>
-                          <span className={`text-xs px-2 py-0.5 rounded-full ${reservation.isMultiRoom ? 'bg-purple-100 text-purple-700' : (reservation.type === 'daytour' ? 'bg-ocean-ice text-ocean-mid' : 'bg-ocean-ice text-ocean-mid')}`}>
-                            {reservation.isMultiRoom ? 'Multi-Room Reservation' : (reservation.type === 'daytour' ? 'Day Tour' : 'Room Reservation')}
+                          <span className={`text-xs px-2 py-0.5 rounded-full ${bookingTypeColor}`}>
+                            {bookingTypeDisplay}
                           </span>
                         </div>
                       </div>
@@ -895,8 +879,8 @@ export default function ReservationTrackerPage() {
                         {statusInfo.label}
                       </span>
                     </div>
-                    
-                    {/* Admin Note - Display for all reservation types when confirmed */}
+
+                    {/* Admin Note */}
                     {reservation.adminNote && reservation.status === 'confirmed' && (
                       <div className="mt-3 p-3 bg-blue-50 rounded-lg border border-blue-200">
                         <p className="text-blue-700 text-sm">
@@ -944,9 +928,9 @@ export default function ReservationTrackerPage() {
                       </div>
                     )}
 
-                    {/* Cancel Button - Only show for active reservations (not cancelled) */}
-                    {canCancel(reservation.status, reservation.isMultiRoom, reservation.cancelledBy) && (
-                      <div className="mt-6 flex justify-end">
+                    {/* Footer: Cancel button + Booked on */}
+                    <div className="mt-6 flex justify-between items-center flex-wrap gap-3">
+                      {canCancel(reservation.status, reservation.isMultiRoom, reservation.cancelledBy) && (
                         <button
                           onClick={() => setShowCancelModal(true)}
                           className="px-6 py-2.5 bg-gradient-to-r from-red-500 to-red-600 text-white font-semibold rounded-xl hover:shadow-lg hover:-translate-y-0.5 transition-all duration-300 flex items-center gap-2 text-sm"
@@ -954,8 +938,12 @@ export default function ReservationTrackerPage() {
                           <i className="fas fa-times-circle"></i>
                           Cancel Reservation
                         </button>
-                      </div>
-                    )}
+                      )}
+                      <p className="text-sm text-neutral">
+                        <i className="fas fa-calendar-check mr-1"></i>
+                        Booked on: {formatDateTime(reservation.createdAt)}
+                      </p>
+                    </div>
                   </div>
 
                   {/* Guest Information */}
@@ -992,7 +980,6 @@ export default function ReservationTrackerPage() {
                       <i className="fas fa-calendar-alt text-ocean-light"></i>
                       {reservation.type === 'daytour' ? 'Tour Schedule' : 'Booking Schedule'}
                     </h3>
-                    
                     {reservation.type === 'daytour' ? (
                       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                         <div>
@@ -1031,35 +1018,29 @@ export default function ReservationTrackerPage() {
                     )}
                   </div>
 
-                  {/* Room Details - For Room Reservations */}
+                  {/* Room Details – only room types, no guest counts */}
                   {reservation.type === 'room' && (
                     <div className="bg-white rounded-2xl shadow-md border border-ocean-light/10 p-6">
                       <h3 className="text-lg font-bold text-textPrimary mb-4 flex items-center gap-2">
                         <i className="fas fa-bed text-ocean-light"></i>
                         Room Details
                       </h3>
-                      
                       {reservation.isMultiRoom ? (
                         <>
                           <div className="mb-4">
-                            <p className="text-xs font-semibold text-neutral uppercase tracking-wide mb-2">Room Type Breakdown</p>
                             <div className="space-y-2">
                               {reservation.roomTypesArray && reservation.roomTypesArray.map((room, idx) => (
                                 <div key={idx} className="flex justify-between items-center border-b border-ocean-light/10 pb-2">
                                   <span className="font-medium text-textPrimary">{room.quantity} × {room.type}</span>
-                                  <span className="text-textSecondary">{room.guestsPerRoom} guest{room.guestsPerRoom !== 1 ? 's' : ''}</span>
                                 </div>
                               ))}
                             </div>
+ 
                           </div>
                           <div className="grid grid-cols-1 md:grid-cols-2 gap-4 pt-2 border-t border-ocean-light/20">
                             <div>
                               <p className="text-xs font-semibold text-neutral uppercase tracking-wide">Total Rooms</p>
                               <p className="text-textPrimary font-medium">{reservation.totalRooms}</p>
-                            </div>
-                            <div>
-                              <p className="text-xs font-semibold text-neutral uppercase tracking-wide">Total Guests</p>
-                              <p className="text-textPrimary font-medium">{reservation.totalGuests}</p>
                             </div>
                           </div>
                         </>
@@ -1073,9 +1054,73 @@ export default function ReservationTrackerPage() {
                             <p className="text-xs font-semibold text-neutral uppercase tracking-wide">Number of Rooms</p>
                             <p className="text-textPrimary font-medium">{reservation.numberOfRooms || 1}</p>
                           </div>
-                          <div>
-                            <p className="text-xs font-semibold text-neutral uppercase tracking-wide">Number of Guests</p>
-                            <p className="text-textPrimary font-medium">{reservation.guests}</p>
+                        </div>
+                      )}
+                    </div>
+                  )}
+
+                  {/* Guest Count – separate container, matches admin sidebar */}
+                  {reservation.type === 'room' && (
+                    <div className="bg-white rounded-2xl shadow-md border border-ocean-light/10 p-6">
+                      <h3 className="text-lg font-bold text-textPrimary mb-4 flex items-center gap-2">
+                        <i className="fas fa-users text-ocean-light"></i>
+                        Guest per Room
+                      </h3>
+                      {reservation.isExclusiveResortBooking ? (
+                        // Entire Resort guest display
+                        <div className="space-y-2">
+                          <div className="flex justify-between items-center border-b border-ocean-light/10 pb-2">
+                            <span className="text-textSecondary">Adults</span>
+                            <span className="font-medium text-textPrimary">{reservation.exclusiveAdults || 0}</span>
+                          </div>
+                          <div className="flex justify-between items-center border-b border-ocean-light/10 pb-2">
+                            <span className="text-textSecondary">Kids</span>
+                            <span className="font-medium text-textPrimary">{reservation.exclusiveKids || 0}</span>
+                          </div>
+                          <div className="flex justify-between items-center pt-2">
+                            <span className="font-semibold text-textPrimary">Total Guests</span>
+                            <span className="font-bold text-ocean-mid">{(reservation.exclusiveAdults || 0) + (reservation.exclusiveKids || 0)}</span>
+                          </div>
+                        </div>
+                      ) : reservation.isMultiRoom && reservation.children && reservation.children.length > 0 ? (
+                        // Multi‑room: list each room with Adults | Kids
+                        <div className="space-y-3">
+                          {reservation.children.map((child, idx) => {
+                            const adults = child.adults || 0;
+                            const kids = child.kids || 0;
+                            return (
+                              <div key={idx} className="border-b border-ocean-light/10 pb-2 last:border-b-0">
+                                <p className="font-medium text-textPrimary">{child.roomType}</p>
+                                <div className="flex justify-between items-center mt-1">
+                                  <span className="text-textSecondary text-sm">Adults</span>
+                                  <span className="font-medium text-textPrimary">{adults}</span>
+                                </div>
+                                <div className="flex justify-between items-center mt-1">
+                                  <span className="text-textSecondary text-sm">Kids</span>
+                                  <span className="font-medium text-textPrimary">{kids}</span>
+                                </div>
+                              </div>
+                            );
+                          })}
+                          <div className="flex justify-between items-center pt-2 mt-2 border-t border-ocean-light/20">
+                            <span className="font-semibold text-textPrimary">Total Guests</span>
+                            <span className="font-bold text-ocean-mid">{reservation.totalGuests || 0}</span>
+                          </div>
+                        </div>
+                      ) : (
+                        // Single room: show adults and kids
+                        <div className="space-y-2">
+                          <div className="flex justify-between items-center border-b border-ocean-light/10 pb-2">
+                            <span className="text-textSecondary">Adults</span>
+                            <span className="font-medium text-textPrimary">{reservation.adults || 1}</span>
+                          </div>
+                          <div className="flex justify-between items-center border-b border-ocean-light/10 pb-2">
+                            <span className="text-textSecondary">Kids</span>
+                            <span className="font-medium text-textPrimary">{reservation.kids || 0}</span>
+                          </div>
+                          <div className="flex justify-between items-center pt-2">
+                            <span className="font-semibold text-textPrimary">Total Guests</span>
+                            <span className="font-bold text-ocean-mid">{reservation.guests || 1}</span>
                           </div>
                         </div>
                       )}
@@ -1084,7 +1129,7 @@ export default function ReservationTrackerPage() {
 
                   {/* Payment Summary */}
                   <div className="bg-white rounded-2xl shadow-md border border-ocean-light/10 p-6">
-                    <h3 className="text-lg font-bold text-textPrimary mb-4 flex items-center gap-2">
+                    <h3 className="text-lg font-bold text-textPrimary mb-4 flex-items-center gap-2">
                       <i className="fas fa-credit-card text-ocean-light"></i>
                       Payment Summary
                     </h3>
@@ -1109,11 +1154,6 @@ export default function ReservationTrackerPage() {
                       </div>
                     </div>
                   </div>
-
-                  {/* Booking Date */}
-                  <div className="text-center text-sm text-neutral">
-                    <p>Booked on: {formatDateTime(reservation.createdAt)}</p>
-                  </div>
                 </div>
               ) : (
                 !loading && (
@@ -1126,40 +1166,31 @@ export default function ReservationTrackerPage() {
             </div>
           </div>
 
-          {/* Cancel Reservation Modal with Reason Input */}
-          {showCancelModal && (
-            <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4">
-              <div className="bg-white rounded-2xl w-full max-w-md p-6 shadow-2xl animate-scaleIn">
-                <div className="text-center mb-5">
-                  <div className="w-14 h-14 mx-auto mb-3 rounded-full bg-red-100 flex items-center justify-center">
-                    <i className="fas fa-exclamation-triangle text-red-500 text-2xl"></i>
-                  </div>
-                  <h3 className="text-lg font-bold text-textPrimary mb-2">Cancel {reservation?.isMultiRoom ? 'Multi-Room' : (reservation?.type === 'daytour' ? 'Day Tour' : 'Room')} Reservation</h3>
-                  <div className="bg-yellow-50 p-3 mb-3 rounded">
-                    <p className="text-sm text-yellow-800">
-                      <i className="fas fa-info-circle mr-2"></i>
-                      <span className="font-semibold">Important Note:</span> 50% of the down payment will be retained by the resort upon cancellation.
-                    </p>
-                  </div>
-                  <p className="text-textSecondary text-sm">
-                    Are you sure you want to cancel your {reservation?.isMultiRoom ? 'multi-room' : (reservation?.type === 'daytour' ? 'day tour' : 'room')} reservation for{" "}
-                    <span className="font-semibold text-textPrimary">
-                      {reservation?.guestInfo?.firstName} {reservation?.guestInfo?.lastName}
-                    </span>?<br />
-                    <span className="text-xs mt-1 block">
-                      Booking ID: {reservation?.bookingId}
-                      {reservation?.isMultiRoom ? (
-                        <><br />Room Types: {getMultiRoomDisplay()}</>
-                      ) : reservation?.type === 'room' ? (
-                        <><br />Room: {reservation?.roomType}<br />Dates: {formatDateOnly(reservation?.checkIn)} - {formatDateOnly(reservation?.checkOut)}</>
-                      ) : (
-                        <><br />Tour Date: {formatDateOnly(reservation?.selectedDate)}</>
-                      )}
-                    </span>
-                  </p>
-                </div>
-                
-                {/* Reason Input */}
+{/* Cancel Reservation Modal */}
+{showCancelModal && (
+  <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+    <div className="bg-white rounded-2xl w-full max-w-md p-6 shadow-2xl animate-scaleIn">
+      <div className="text-center mb-5">
+        <div className="w-14 h-14 mx-auto mb-3 rounded-full bg-red-100 flex items-center justify-center">
+          <i className="fas fa-exclamation-triangle text-red-500 text-2xl"></i>
+        </div>
+        <h3 className="text-lg font-bold text-textPrimary mb-2">Cancel {bookingTypeDisplay} Reservation</h3>
+        <div className="bg-yellow-50 p-3 mb-3 rounded">
+          <p className="text-sm text-yellow-800">
+            <i className="fas fa-info-circle mr-2"></i>
+            <span className="font-semibold">Important Note:</span> The full down payment will be retained by the resort upon cancellation.
+          </p>
+        </div>
+        <p className="text-textSecondary text-sm">
+          Are you sure you want to cancel your {bookingTypeDisplay.toLowerCase()} reservation for{" "}
+          <span className="font-semibold text-textPrimary">
+            {reservation?.guestInfo?.firstName} {reservation?.guestInfo?.lastName}
+          </span>?<br />
+          <span className="text-xs mt-1 block">
+            Booking ID: {reservation?.bookingId}
+          </span>
+        </p>
+      </div>
                 <div className="mb-5">
                   <label className="block text-sm font-semibold text-textPrimary mb-2">
                     Cancellation Reason <span className="text-red-500">*</span>
@@ -1171,11 +1202,7 @@ export default function ReservationTrackerPage() {
                     rows="3"
                     className="w-full px-3 py-2 border-2 border-ocean-light/20 rounded-xl text-sm focus:outline-none focus:border-red-300 focus:ring-2 focus:ring-red-200 transition-all duration-300 bg-white resize-none"
                   ></textarea>
-                  <p className="text-xs text-textSecondary mt-1">
-                    This helps us improve our services.
-                  </p>
                 </div>
-                
                 <div className="flex gap-3 justify-center">
                   <button
                     onClick={() => {
@@ -1205,32 +1232,31 @@ export default function ReservationTrackerPage() {
             </div>
           )}
 
-          {/* Success Modal after cancellation */}
-          {showSuccessModal && (
-            <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4">
-              <div className="bg-white rounded-2xl w-full max-w-md p-6 shadow-2xl animate-scaleIn">
-                <div className="text-center mb-5">
-                  <div className="w-14 h-14 mx-auto mb-3 rounded-full bg-green-100 flex items-center justify-center">
-                    <i className="fas fa-check-circle text-green-500 text-2xl"></i>
-                  </div>
-                  <h3 className="text-lg font-bold text-textPrimary mb-2">Reservation Cancelled</h3>
-                  <p className="text-textSecondary text-sm">
-                    Your {reservation?.isMultiRoom ? 'multi-room' : (reservation?.type === 'daytour' ? 'day tour' : 'room')} reservation has been successfully cancelled. 
-                  </p>
-                </div>
-                <div className="flex justify-center">
-                  <button
-                    onClick={() => setShowSuccessModal(false)}
-                    className="px-6 py-2 bg-gradient-to-r from-ocean-mid to-ocean-light text-white font-semibold rounded-xl hover:shadow-lg hover:-translate-y-0.5 transition-all duration-300"
-                  >
-                    Close
-                  </button>
-                </div>
-              </div>
-            </div>
-          )}
+{/* Success Modal */}
+{showSuccessModal && (
+  <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+    <div className="bg-white rounded-2xl w-full max-w-md p-6 shadow-2xl animate-scaleIn">
+      <div className="text-center mb-5">
+        <div className="w-14 h-14 mx-auto mb-3 rounded-full bg-green-100 flex items-center justify-center">
+          <i className="fas fa-check-circle text-green-500 text-2xl"></i>
         </div>
-
+        <h3 className="text-lg font-bold text-textPrimary mb-2">Reservation Cancelled</h3>
+        <p className="text-textSecondary text-sm">
+          Your {bookingTypeDisplay.toLowerCase()} reservation has been successfully cancelled. 
+        </p>
+      </div>
+      <div className="flex justify-center">
+        <button
+          onClick={() => setShowSuccessModal(false)}
+          className="px-6 py-2 bg-gradient-to-r from-ocean-mid to-ocean-light text-white font-semibold rounded-xl hover:shadow-lg hover:-translate-y-0.5 transition-all duration-300"
+        >
+          Close
+        </button>
+      </div>
+    </div>
+  </div>
+)}
+        </div>
         <style jsx>{`
           @keyframes fadeIn {
             from {
@@ -1245,7 +1271,6 @@ export default function ReservationTrackerPage() {
           .animate-fadeIn {
             animation: fadeIn 0.4s ease-out;
           }
-          
           @keyframes scaleIn {
             from {
               transform: scale(0.95);

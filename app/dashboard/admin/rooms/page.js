@@ -1090,7 +1090,7 @@ export default function AdminRooms() {
                 >
                   <option value="">Select an inclusion to add</option>
                   <option value="Access to Pool">Access to Pool</option>
-                  <option value="Access to Pool">Wi-Fi</option>
+                  <option value="Wi-Fi">Wi-Fi</option>
                   <option value="Free Use of Kitchenwares & Stove">Free Use of Kitchenwares & Stove</option>
                   <option value="Free Use of Grill with Charcoal">Free Use of Grill with Charcoal</option>
                   <option value="Free Drinking (Mineral) Water">Free Drinking (Mineral) Water</option>

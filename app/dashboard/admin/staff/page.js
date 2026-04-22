@@ -692,23 +692,28 @@ const handleResendVerification = async () => {
                             <i className={`fas ${member.status === 'active' ? 'fa-ban' : 'fa-check-circle'}`}></i>
                           </button>
 
-                          {member.role === 'staff' && member.status !== 'pending_verification' ? (
-                            <button
-                              onClick={() => handlePromoteToAdmin(member)}
-                              className="p-2 rounded-lg bg-green-500/10 text-green-700 border border-green-500/15 hover:bg-green-500/60 hover:text-white transition-all duration-200"
-                              title="Promote to Admin"
-                            >
-                              <i className="fas fa-arrow-up"></i>
-                            </button>
-                          ) : member.role === 'admin' && (
-                            <button
-                              onClick={() => handleDemoteToStaff(member)}
-                              className="p-2 rounded-lg bg-green-500/10 text-green-700 border border-green-500/15 hover:bg-green-500/60 hover:text-white transition-all duration-200"
-                              title="Demote to Staff"
-                            >
-                              <i className="fas fa-arrow-down"></i>
-                            </button>
-                          )}
+                         {member.role === 'staff' && member.status !== 'pending_verification' ? (
+  <button
+    onClick={() => handlePromoteToAdmin(member)}
+    className="p-2 rounded-lg bg-green-500/10 text-green-700 border border-green-500/15 hover:bg-green-500/60 hover:text-white transition-all duration-200"
+    title="Promote to Admin"
+  >
+    <i className="fas fa-arrow-up"></i>
+  </button>
+) : member.role === 'admin' && (
+  <button
+    onClick={() => handleDemoteToStaff(member)}
+    disabled={member.id === auth.currentUser?.uid}
+    className={`p-2 rounded-lg transition-all duration-200 flex items-center justify-center ${
+      member.id === auth.currentUser?.uid
+        ? 'bg-gray-200 text-gray-400 cursor-not-allowed'
+        : 'bg-green-500/10 text-green-700 border border-green-500/15 hover:bg-green-500/60 hover:text-white'
+    }`}
+    title={member.id === auth.currentUser?.uid ? "Cannot demote your own account" : "Demote to Staff"}
+  >
+    <i className="fas fa-arrow-down"></i>
+  </button>
+)}
 
                           <button
                             onClick={() => handleViewStaff(member)}

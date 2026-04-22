@@ -11,9 +11,8 @@ export default function RoomsPage() {
   const router = useRouter();
   const [availableRoomTypes, setAvailableRoomTypes] = useState([]);
   const [selectedRooms, setSelectedRooms] = useState({});
-  const [totalGuestsPerType, setTotalGuestsPerType] = useState({});
-  const [adultsPerType, setAdultsPerType] = useState({});
-  const [kidsPerType, setKidsPerType] = useState({});
+  // Per‑room guest arrays: perRoomGuests[roomType] = [{ adults, kids }, ...]
+  const [perRoomGuests, setPerRoomGuests] = useState({});
   const [guestInputErrors, setGuestInputErrors] = useState({});
   const [loading, setLoading] = useState(true);
   const [checkInDate, setCheckInDate] = useState(null);
@@ -70,24 +69,18 @@ export default function RoomsPage() {
     return out;
   };
 
-  // Get exclusive package price based on tent count
   const getExclusivePackagePrice = () => {
     return BASE_EXCLUSIVE_PRICE + (tentCount * 1500);
   };
 
-  // Reset all selections and states to initial/default state
   const resetToInitialState = () => {
-    // Clear session storage
     sessionStorage.removeItem('multiRoomBooking');
     sessionStorage.removeItem(ROOMS_CHECKOUT_CACHE_KEY);
     sessionStorage.removeItem('roomsPageState');
     sessionStorage.removeItem('roomDetailDraft');
     
-    // Reset all state variables
     setSelectedRooms({});
-    setTotalGuestsPerType({});
-    setAdultsPerType({});
-    setKidsPerType({});
+    setPerRoomGuests({});
     setGuestInputErrors({});
     setCheckInDate(null);
     setCheckOutDate(null);
@@ -107,7 +100,6 @@ export default function RoomsPage() {
     setTentCount(0);
   };
 
-  // Listen for booking completion and reset state
   useEffect(() => {
     const checkForBookingReset = () => {
       const resetFlag = sessionStorage.getItem('resetRoomsPage');
@@ -116,84 +108,76 @@ export default function RoomsPage() {
         resetToInitialState();
       }
     };
-    
     checkForBookingReset();
-    
-    // Add event listener for storage changes (in case of cross-tab)
     window.addEventListener('storage', checkForBookingReset);
     return () => window.removeEventListener('storage', checkForBookingReset);
   }, []);
 
-  // Fetch available room types from Firebase
-  useEffect(() => {
-    const roomsRef = collection(db, 'rooms');
-    const q = query(roomsRef, where('archived', '!=', true), where('availability', '==', 'available'));
+  // Fetch available room types
+ useEffect(() => {
+  const roomsRef = collection(db, 'rooms');
+  const q = query(roomsRef, where('archived', '!=', true), where('availability', '==', 'available'));
+  
+  const unsubscribe = onSnapshot(q, (querySnapshot) => {
+    const types = [];
+    const roomDetails = {};
     
-    const unsubscribe = onSnapshot(q, (querySnapshot) => {
-      const types = [];
-      const roomDetails = {};
+    querySnapshot.forEach((doc) => {
+      const roomData = doc.data();
+      const roomType = roomData.type;
       
-      querySnapshot.forEach((doc) => {
-        const roomData = doc.data();
-        const roomType = roomData.type;
-        
-        // Check if this room type is already added
-        const existingType = types.find(t => t.type === roomType);
-        if (existingType) {
-          existingType.totalRooms += roomData.totalRooms || 1;
-          existingType.maintenanceRooms += roomData.maintenanceRooms || 0;
-          existingType.availableRooms += (roomData.totalRooms || 1) - (roomData.maintenanceRooms || 0);
-          existingType.roomIds.push(doc.id);
-        } else {
-          types.push({
-            id: doc.id,
-            type: roomType,
-            price: roomData.price,
-            capacityMin: roomData.capacityMin,
-            capacityMax: roomData.capacityMax,
-            description: roomData.description,
-            images: roomData.images || [],
-            totalRooms: roomData.totalRooms || 1,
-            maintenanceRooms: roomData.maintenanceRooms || 0,
-            availableRooms: (roomData.totalRooms || 1) - (roomData.maintenanceRooms || 0),
-            roomIds: [doc.id]
-          });
+      const existingType = types.find(t => t.type === roomType);
+      if (existingType) {
+        existingType.totalRooms += roomData.totalRooms || 1;
+        existingType.maintenanceRooms += roomData.maintenanceRooms || 0;
+        existingType.availableRooms += (roomData.totalRooms || 1) - (roomData.maintenanceRooms || 0);
+        existingType.roomIds.push(doc.id);
+        // Merge inclusions (take unique values from both arrays)
+        if (roomData.inclusions && roomData.inclusions.length > 0) {
+          const mergedInclusions = [...new Set([...existingType.inclusions, ...roomData.inclusions])];
+          existingType.inclusions = mergedInclusions;
         }
-        
-        roomDetails[roomType] = {
-          ...roomDetails[roomType],
-          [doc.id]: roomData
-        };
-      });
+      } else {
+        types.push({
+          id: doc.id,
+          type: roomType,
+          price: roomData.price,
+          capacityMin: roomData.capacityMin,
+          capacityMax: roomData.capacityMax,
+          description: roomData.description,
+          images: roomData.images || [],
+          inclusions: roomData.inclusions || [],  // Include inclusions field
+          totalRooms: roomData.totalRooms || 1,
+          maintenanceRooms: roomData.maintenanceRooms || 0,
+          availableRooms: (roomData.totalRooms || 1) - (roomData.maintenanceRooms || 0),
+          roomIds: [doc.id]
+        });
+      }
       
-      setAvailableRoomTypes(types);
-      setRoomDetailsMap(roomDetails);
+      roomDetails[roomType] = {
+        ...roomDetails[roomType],
+        [doc.id]: roomData
+      };
+    });
+    
+    setAvailableRoomTypes(types);
+    setRoomDetailsMap(roomDetails);
       
-      // Initialize selectedRooms with default quantities
       const initialSelected = {};
-      const initialTotalGuests = {};
-      const initialAdults = {};
-      const initialKids = {};
+      const initialPerRoom = {};
       types.forEach(type => {
-        const minGuests = Math.max(1, type.capacityMin || 1);
         initialSelected[type.type] = 0;
-        initialTotalGuests[type.type] = minGuests;
-        initialAdults[type.type] = minGuests;
-        initialKids[type.type] = 0;
+        initialPerRoom[type.type] = [];
       });
 
-      // Restore state from sessionStorage (detail-page return takes priority, then cached checkout draft).
       try {
         const transientState = sessionStorage.getItem('roomsPageState');
         const cachedState = sessionStorage.getItem(ROOMS_CHECKOUT_CACHE_KEY);
         const savedState = transientState || cachedState;
         if (savedState) {
           const parsed = JSON.parse(savedState);
-          if (transientState) {
-            sessionStorage.removeItem('roomsPageState');
-          }
+          if (transientState) sessionStorage.removeItem('roomsPageState');
 
-          // Restore selected rooms
           if (parsed.selectedRooms) {
             Object.keys(parsed.selectedRooms).forEach(roomType => {
               if (roomType in initialSelected) {
@@ -202,35 +186,33 @@ export default function RoomsPage() {
             });
           }
 
-          // Restore guest counts
-          if (parsed.totalGuestsPerType) {
-            Object.keys(parsed.totalGuestsPerType).forEach(roomType => {
-              if (roomType in initialTotalGuests) {
-                const restoredGuests = Math.max(0, Number(parsed.totalGuestsPerType[roomType]) || 0);
-                initialTotalGuests[roomType] = restoredGuests;
-                initialAdults[roomType] = Math.max(1, restoredGuests);
-                initialKids[roomType] = 0;
+          if (parsed.perRoomGuests) {
+            Object.keys(parsed.perRoomGuests).forEach(roomType => {
+              if (roomType in initialPerRoom) {
+                initialPerRoom[roomType] = parsed.perRoomGuests[roomType];
               }
             });
+          } else if (parsed.adultsPerType && parsed.kidsPerType) {
+            // Legacy fallback
+            for (const roomType of types) {
+              const qty = initialSelected[roomType.type] || 0;
+              if (qty > 0) {
+                const totalAdults = parsed.adultsPerType[roomType.type] || 1;
+                const totalKids = parsed.kidsPerType[roomType.type] || 0;
+                const baseAdults = Math.floor(totalAdults / qty);
+                const remainder = totalAdults % qty;
+                const guestsArray = [];
+                for (let i = 0; i < qty; i++) {
+                  guestsArray.push({
+                    adults: baseAdults + (i < remainder ? 1 : 0),
+                    kids: Math.floor(totalKids / qty)
+                  });
+                }
+                initialPerRoom[roomType.type] = guestsArray;
+              }
+            }
           }
 
-          // Restore adults and kids breakdown if available in saved payload.
-          if (parsed.adultsPerType) {
-            Object.keys(parsed.adultsPerType).forEach(roomType => {
-              if (roomType in initialAdults) {
-                initialAdults[roomType] = Math.max(1, Number(parsed.adultsPerType[roomType]) || 1);
-              }
-            });
-          }
-          if (parsed.kidsPerType) {
-            Object.keys(parsed.kidsPerType).forEach(roomType => {
-              if (roomType in initialKids) {
-                initialKids[roomType] = Math.max(0, Number(parsed.kidsPerType[roomType]) || 0);
-              }
-            });
-          }
-
-          // Restore dates and settings
           if (parsed.checkInDate) {
             const restoredDate = new Date(parsed.checkInDate);
             if (!Number.isNaN(restoredDate.getTime())) {
@@ -257,13 +239,11 @@ export default function RoomsPage() {
           }
         }
       } catch {
-        // no-op on malformed data
+        // ignore
       }
 
       setSelectedRooms(initialSelected);
-      setTotalGuestsPerType(initialTotalGuests);
-      setAdultsPerType(initialAdults);
-      setKidsPerType(initialKids);
+      setPerRoomGuests(initialPerRoom);
       setLoading(false);
     }, (error) => {
       console.error('Error fetching rooms:', error);
@@ -273,21 +253,138 @@ export default function RoomsPage() {
     return () => unsubscribe();
   }, []);
 
-  // Fetch booking data for all room types with hour-level granularity.
-  // Note: Firestore `in` supports max 10 values, so we chunk listeners.
+  const updatePerRoomGuests = (roomType, newQuantity) => {
+    const oldGuests = perRoomGuests[roomType] || [];
+    const newGuests = [];
+    const typeData = availableRoomTypes.find(t => t.type === roomType);
+    const minPerUnit = typeData?.capacityMin || 1;
+    const maxPerUnit = typeData?.capacityMax || minPerUnit;
+
+    for (let i = 0; i < newQuantity; i++) {
+      if (i < oldGuests.length) {
+        newGuests.push({ ...oldGuests[i] });
+      } else {
+        newGuests.push({ adults: minPerUnit, kids: 0 });
+      }
+    }
+    for (let i = 0; i < newGuests.length; i++) {
+      let { adults, kids } = newGuests[i];
+      const total = adults + kids;
+      if (total < minPerUnit) {
+        adults = minPerUnit - kids;
+        if (adults < 1) adults = 1;
+      } else if (total > maxPerUnit) {
+        const diff = total - maxPerUnit;
+        if (kids >= diff) kids -= diff;
+        else {
+          adults -= (diff - kids);
+          kids = 0;
+        }
+      }
+      if (adults < 1) adults = 1;
+      newGuests[i] = { adults, kids };
+    }
+    setPerRoomGuests(prev => ({ ...prev, [roomType]: newGuests }));
+  };
+
+  const handleQuantityChange = (roomType, increment) => {
+    if (isExclusiveResortBooking) {
+      setIsExclusiveResortBooking(false);
+      setTentCount(0);
+    }
+    const typeData = availableRoomTypes.find(t => t.type === roomType);
+    const maxAvailable = checkInDate 
+      ? (unitLevelAvailability[roomType] || typeData?.availableRooms || 1)
+      : (typeData?.availableRooms || 1);
+    const currentQuantity = selectedRooms[roomType] || 0;
+    let newQuantity = currentQuantity;
+    
+    if (increment) {
+      newQuantity = Math.min(currentQuantity + 1, maxAvailable);
+    } else {
+      newQuantity = Math.max(0, currentQuantity - 1);
+    }
+    
+    setSelectedRooms(prev => ({ ...prev, [roomType]: newQuantity }));
+    updatePerRoomGuests(roomType, newQuantity);
+    
+    if (roomType === 'Tent') {
+      setTentCount(newQuantity);
+    }
+    
+    setGuestInputErrors(prev => ({ ...prev, [roomType]: '' }));
+  };
+
+  const handleUnitGuestChange = (roomType, unitIndex, guestType, value) => {
+    if (isExclusiveResortBooking) {
+      setIsExclusiveResortBooking(false);
+      setTentCount(0);
+    }
+    const quantity = selectedRooms[roomType] || 0;
+    if (quantity === 0) return;
+
+    const typeData = availableRoomTypes.find(t => t.type === roomType);
+    const maxPerUnit = typeData?.capacityMax || 10;
+    const minPerUnit = typeData?.capacityMin || 1;
+
+    const parsedValue = Number.parseInt(value, 10);
+    const normalized = Number.isNaN(parsedValue) ? 0 : Math.max(0, parsedValue);
+
+    const currentGuests = [...(perRoomGuests[roomType] || [])];
+    if (!currentGuests[unitIndex]) currentGuests[unitIndex] = { adults: minPerUnit, kids: 0 };
+    let { adults, kids } = currentGuests[unitIndex];
+
+    if (guestType === 'adults') {
+      adults = normalized;
+    } else {
+      kids = normalized;
+    }
+
+    const total = adults + kids;
+    let error = '';
+    if (adults < 1) error = 'At least 1 adult per room.';
+    else if (total < minPerUnit) error = `Minimum ${minPerUnit} guests per room.`;
+    else if (total > maxPerUnit) error = `Maximum ${maxPerUnit} guests per room.`;
+
+    if (!error) {
+      currentGuests[unitIndex] = { adults, kids };
+      setPerRoomGuests(prev => ({ ...prev, [roomType]: currentGuests }));
+    }
+    setGuestInputErrors(prev => ({ ...prev, [`${roomType}-${unitIndex}`]: error }));
+  };
+
+  const getAggregatedGuestCounts = (roomType) => {
+    const guests = perRoomGuests[roomType] || [];
+    let totalAdults = 0, totalKids = 0;
+    for (const g of guests) {
+      totalAdults += g.adults;
+      totalKids += g.kids;
+    }
+    return { totalAdults, totalKids, totalGuests: totalAdults + totalKids };
+  };
+
+  // Fetch bookings (unchanged)
   useEffect(() => {
     if (availableRoomTypes.length === 0) return;
-    
     const allRoomIds = availableRoomTypes.flatMap(type => type.roomIds);
     if (allRoomIds.length === 0) return;
-    
     const bookingsRef = collection(db, 'bookings');
     const roomIdChunks = chunk(allRoomIds, 10);
     const unsubscribes = [];
     const snapshotsByChunk = {};
 
+    const getMaxUnitsForRoomId = (roomId) => {
+      for (const roomType of availableRoomTypes) {
+        const detail = roomDetailsMap[roomType.type]?.[roomId];
+        if (!detail) continue;
+        const totalRooms = detail.totalRooms || 1;
+        const maintenanceRooms = detail.maintenanceRooms || 0;
+        return Math.max(0, totalRooms - maintenanceRooms);
+      }
+      return 1;
+    };
+
     const buildBookedIndex = () => {
-      // booked[YYYY-MM-DD][roomId][hour] = bookedUnits
       const booked = {};
       Object.values(snapshotsByChunk).forEach((querySnapshot) => {
         querySnapshot.forEach((docSnap) => {
@@ -296,19 +393,23 @@ export default function RoomsPage() {
           const checkOut = booking.checkOut?.toDate ? booking.checkOut.toDate() : new Date(booking.checkOut);
           const roomId = booking.roomId;
           const numberOfRooms = booking.numberOfRooms || 1;
-
           if (!checkIn || !checkOut || checkOut <= checkIn) return;
-
-          // Walk hour-by-hour through the booking window and attribute usage to each local date hour slot
           const current = new Date(checkIn);
           while (current < checkOut) {
             const dateStr = `${current.getFullYear()}-${String(current.getMonth() + 1).padStart(2, '0')}-${String(current.getDate()).padStart(2, '0')}`;
             const hour = current.getHours();
-
-            if (!booked[dateStr]) booked[dateStr] = {};
-            if (!booked[dateStr][roomId]) booked[dateStr][roomId] = {};
-            booked[dateStr][roomId][hour] = (booked[dateStr][roomId][hour] || 0) + numberOfRooms;
-
+            if (booking.isExclusiveResortBooking) {
+              if (!booked[dateStr]) booked[dateStr] = {};
+              for (const targetRoomId of allRoomIds) {
+                const maxUnits = getMaxUnitsForRoomId(targetRoomId);
+                if (!booked[dateStr][targetRoomId]) booked[dateStr][targetRoomId] = {};
+                booked[dateStr][targetRoomId][hour] = (booked[dateStr][targetRoomId][hour] || 0) + maxUnits;
+              }
+            } else {
+              if (!booked[dateStr]) booked[dateStr] = {};
+              if (!booked[dateStr][roomId]) booked[dateStr][roomId] = {};
+              booked[dateStr][roomId][hour] = (booked[dateStr][roomId][hour] || 0) + numberOfRooms;
+            }
             current.setHours(current.getHours() + 1, 0, 0, 0);
           }
         });
@@ -328,21 +429,15 @@ export default function RoomsPage() {
       });
       unsubscribes.push(unsub);
     });
+    return () => unsubscribes.forEach((u) => u());
+  }, [availableRoomTypes, roomDetailsMap]);
 
-    return () => {
-      unsubscribes.forEach((u) => u());
-    };
-  }, [availableRoomTypes]);
-
-  // Persist checkout draft so accidental back/navigation keeps selected values.
+  // Persist draft
   useEffect(() => {
     if (loading || availableRoomTypes.length === 0) return;
-
     const draft = {
       selectedRooms,
-      totalGuestsPerType,
-      adultsPerType,
-      kidsPerType,
+      perRoomGuests,
       checkInDate: checkInDate ? checkInDate.toISOString() : null,
       numberOfNights,
       checkInHour,
@@ -355,38 +450,21 @@ export default function RoomsPage() {
       tentCount,
       updatedAt: new Date().toISOString()
     };
-
     sessionStorage.setItem(ROOMS_CHECKOUT_CACHE_KEY, JSON.stringify(draft));
   }, [
-    loading,
-    availableRoomTypes,
-    selectedRooms,
-    totalGuestsPerType,
-    adultsPerType,
-    kidsPerType,
-    checkInDate,
-    numberOfNights,
-    checkInHour,
-    checkOutHour,
-    specialRequest,
-    activeCategory,
-    isExclusiveResortBooking,
-    exclusiveAdults,
-    exclusiveKids,
-    tentCount
+    loading, availableRoomTypes, selectedRooms, perRoomGuests, checkInDate,
+    numberOfNights, checkInHour, checkOutHour, specialRequest, activeCategory,
+    isExclusiveResortBooking, exclusiveAdults, exclusiveKids, tentCount
   ]);
 
   // Fetch blocked slots
   useEffect(() => {
     if (availableRoomTypes.length === 0) return;
-    
     const allRoomIds = availableRoomTypes.flatMap(type => type.roomIds);
     if (allRoomIds.length === 0) return;
-    
     const blockedRef = collection(db, 'unavailableSlots');
     const unsubscribe = onSnapshot(blockedRef, (snapshot) => {
       const blocks = {};
-      
       snapshot.forEach((docSnap) => {
         const data = docSnap.data();
         if (allRoomIds.includes(data.roomId)) {
@@ -394,26 +472,18 @@ export default function RoomsPage() {
           const startHour = data.startHour;
           const endHour = data.endHour;
           const unitsBlocked = data.unitsBlocked || 1;
-          
-          if (!blocks[dateKey]) {
-            blocks[dateKey] = {};
-          }
-          if (!blocks[dateKey][data.roomId]) {
-            blocks[dateKey][data.roomId] = {};
-          }
+          if (!blocks[dateKey]) blocks[dateKey] = {};
+          if (!blocks[dateKey][data.roomId]) blocks[dateKey][data.roomId] = {};
           for (let hour = startHour; hour < endHour; hour++) {
             blocks[dateKey][data.roomId][hour] = (blocks[dateKey][data.roomId][hour] || 0) + unitsBlocked;
           }
         }
       });
-      
       setBlockedSlots(blocks);
     });
-    
     return () => unsubscribe();
   }, [availableRoomTypes]);
 
-  // Update check-out date when check-in date or number of nights changes
   useEffect(() => {
     if (checkInDate && numberOfNights) {
       const newCheckOutDate = new Date(checkInDate);
@@ -433,38 +503,27 @@ export default function RoomsPage() {
 
   useEffect(() => {
     if (!isModalOpen) return;
-
     const handleClickOutside = (event) => {
       const target = event.target;
       if (calendarPopoverRef.current?.contains(target)) return;
       if (calendarTriggerRef.current?.contains(target)) return;
       setIsModalOpen(false);
     };
-
     document.addEventListener('mousedown', handleClickOutside);
-    return () => {
-      document.removeEventListener('mousedown', handleClickOutside);
-    };
+    return () => document.removeEventListener('mousedown', handleClickOutside);
   }, [isModalOpen]);
 
-  // Calculate unit-level availability for each room type on a given date
   const calculateUnitAvailabilityForDate = (date) => {
     if (!date || availableRoomTypes.length === 0) return {};
-    
     const availability = {};
-    
     for (const roomType of availableRoomTypes) {
       let totalAvailable = 0;
-      
       for (const roomId of roomType.roomIds) {
         const roomDetail = roomDetailsMap[roomType.type]?.[roomId];
         const maxRooms = (roomDetail?.totalRooms || 1) - (roomDetail?.maintenanceRooms || 0);
         if (maxRooms <= 0) continue;
-
         const dateStr = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
         let minAvailable = maxRooms;
-
-        // For date availability display, we only consider check-in window (2:00 PM – 12:00 AM).
         for (let hour = checkInHour; hour < 24; hour++) {
           const blockedUnits = blockedSlots[dateStr]?.[roomId]?.[hour] || 0;
           const bookedCount = bookedDates[dateStr]?.[roomId]?.[hour] || 0;
@@ -472,81 +531,62 @@ export default function RoomsPage() {
           minAvailable = Math.min(minAvailable, availableNow);
           if (minAvailable <= 0) break;
         }
-
         totalAvailable += minAvailable;
       }
-      
       availability[roomType.type] = totalAvailable;
     }
-    
     return availability;
   };
 
   const getTotalUnitsForRoomType = (roomTypeData) => {
     if (!roomTypeData) return 0;
-
     let totalUnits = 0;
     for (const roomId of roomTypeData.roomIds || []) {
       const roomDetail = roomDetailsMap[roomTypeData.type]?.[roomId];
       const maxRooms = (roomDetail?.totalRooms || 1) - (roomDetail?.maintenanceRooms || 0);
       totalUnits += Math.max(0, maxRooms);
     }
-
     if (totalUnits > 0) return totalUnits;
     return Math.max(0, Number(roomTypeData.availableRooms || 0));
   };
 
   const getAvailableUnitsForRoomTypeOnDate = (date, roomTypeData) => {
     if (!date || !roomTypeData) return 0;
-
     let totalAvailableUnits = 0;
     for (const roomId of roomTypeData.roomIds || []) {
       const roomDetail = roomDetailsMap[roomTypeData.type]?.[roomId];
       const maxRooms = (roomDetail?.totalRooms || 1) - (roomDetail?.maintenanceRooms || 0);
       if (maxRooms <= 0) continue;
-
       let availableForStay = maxRooms;
-
       for (let dayOffset = 0; dayOffset < numberOfNights; dayOffset++) {
         const currentDate = new Date(date);
         currentDate.setDate(date.getDate() + dayOffset);
         const dateStr = `${currentDate.getFullYear()}-${String(currentDate.getMonth() + 1).padStart(2, '0')}-${String(currentDate.getDate()).padStart(2, '0')}`;
-
         for (let hour = checkInHour; hour < 24; hour++) {
           const blockedUnits = blockedSlots[dateStr]?.[roomId]?.[hour] || 0;
           const bookedCount = bookedDates[dateStr]?.[roomId]?.[hour] || 0;
-
           const availableNow = Math.max(0, maxRooms - bookedCount - blockedUnits);
           availableForStay = Math.min(availableForStay, availableNow);
           if (availableForStay <= 0) break;
         }
-
         if (availableForStay <= 0) break;
       }
-
       totalAvailableUnits += availableForStay;
     }
-
     return totalAvailableUnits;
   };
 
   const isDateFullyAvailableForExclusive = (date) => {
     if (!date || availableRoomTypes.length === 0) return false;
-
     for (const roomTypeData of availableRoomTypes) {
-      // Tent is excluded from exclusive booking base package, so we don't check its availability
-      if (roomTypeData.type === 'Tent') continue;
       const totalUnits = getTotalUnitsForRoomType(roomTypeData);
       if (totalUnits <= 0) return false;
-
       const availableUnits = getAvailableUnitsForRoomTypeOnDate(date, roomTypeData);
       if (availableUnits < totalUnits) return false;
     }
-
     return true;
   };
 
-  // Update unit-level availability when date changes
   useEffect(() => {
     if (checkInDate) {
       const availability = calculateUnitAvailabilityForDate(checkInDate);
@@ -556,171 +596,117 @@ export default function RoomsPage() {
     }
   }, [checkInDate, availableRoomTypes, bookedDates, blockedSlots, checkInHour]);
 
-  // Calculate available units per room type for the selected date range
   useEffect(() => {
     if (!checkInDate || availableRoomTypes.length === 0) {
       setRoomAvailability({});
       return;
     }
-
     const availability = {};
-    
     for (const roomType of availableRoomTypes) {
       let totalAvailable = 0;
-      
       for (const roomId of roomType.roomIds) {
         const roomDetail = roomDetailsMap[roomType.type]?.[roomId];
         const maxRooms = (roomDetail?.totalRooms || 1) - (roomDetail?.maintenanceRooms || 0);
         let availableForStay = maxRooms;
         if (maxRooms <= 0) continue;
-        
-        // Check each day of the stay, focusing on check-in hours (2:00 PM onwards)
         for (let dayOffset = 0; dayOffset < numberOfNights; dayOffset++) {
           const currentDate = new Date(checkInDate);
           currentDate.setDate(checkInDate.getDate() + dayOffset);
           const dateStr = `${currentDate.getFullYear()}-${String(currentDate.getMonth() + 1).padStart(2, '0')}-${String(currentDate.getDate()).padStart(2, '0')}`;
-          
-          // Check hours from 2:00 PM to midnight for each day
           for (let hour = checkInHour; hour < 24; hour++) {
             const blockedUnits = blockedSlots[dateStr]?.[roomId]?.[hour] || 0;
             const bookedCount = bookedDates[dateStr]?.[roomId]?.[hour] || 0;
-            
             const available = maxRooms - bookedCount - blockedUnits;
             availableForStay = Math.min(availableForStay, available);
-            
             if (availableForStay <= 0) break;
           }
-          
           if (availableForStay <= 0) break;
         }
-        
         totalAvailable += availableForStay;
       }
-      
       availability[roomType.type] = totalAvailable;
     }
-    
     setRoomAvailability(availability);
   }, [checkInDate, numberOfNights, availableRoomTypes, bookedDates, blockedSlots, roomDetailsMap, checkInHour]);
 
-  // Keep exclusive mode synced with room availability for the selected stay.
   useEffect(() => {
     if (!isExclusiveResortBooking || availableRoomTypes.length === 0) return;
-
     if (!checkInDate || !isDateFullyAvailableForExclusive(checkInDate)) {
       const clearedSelected = {};
-      const clearedAdults = {};
-      const clearedKids = {};
-      const clearedTotals = {};
-
+      const clearedGuests = {};
       for (const roomType of availableRoomTypes) {
-        const minGuests = Math.max(1, roomType.capacityMin || 1);
         clearedSelected[roomType.type] = 0;
-        clearedAdults[roomType.type] = minGuests;
-        clearedKids[roomType.type] = 0;
-        clearedTotals[roomType.type] = minGuests;
+        clearedGuests[roomType.type] = [];
       }
-
       setSelectedRooms(clearedSelected);
-      setAdultsPerType(clearedAdults);
-      setKidsPerType(clearedKids);
-      setTotalGuestsPerType(clearedTotals);
+      setPerRoomGuests(clearedGuests);
       setTentCount(0);
       return;
     }
-
     const nextSelected = {};
-    const nextAdults = {};
-    const nextKids = {};
-    const nextTotals = {};
-
+    const nextGuests = {};
     for (const roomType of availableRoomTypes) {
-      // Exclude Tent room type when in exclusive mode - tents are added separately
       if (roomType.type === 'Tent') {
         nextSelected[roomType.type] = 0;
-        nextAdults[roomType.type] = 1;
-        nextKids[roomType.type] = 0;
-        nextTotals[roomType.type] = 1;
+        nextGuests[roomType.type] = [];
         continue;
       }
       const qty = Math.max(0, getTotalUnitsForRoomType(roomType));
-      const minGuests = qty * (roomType.capacityMin || 1);
+      const minPerUnit = roomType.capacityMin || 1;
+      const guestsArray = [];
+      for (let i = 0; i < qty; i++) {
+        guestsArray.push({ adults: minPerUnit, kids: 0 });
+      }
       nextSelected[roomType.type] = qty;
-      nextAdults[roomType.type] = Math.max(1, minGuests);
-      nextKids[roomType.type] = 0;
-      nextTotals[roomType.type] = Math.max(1, minGuests);
+      nextGuests[roomType.type] = guestsArray;
     }
-
     setSelectedRooms(nextSelected);
-    setAdultsPerType(nextAdults);
-    setKidsPerType(nextKids);
-    setTotalGuestsPerType(nextTotals);
+    setPerRoomGuests(nextGuests);
   }, [isExclusiveResortBooking, checkInDate, availableRoomTypes, roomAvailability, numberOfNights, checkInHour, blockedSlots, bookedDates, roomDetailsMap]);
 
-  // Check availability for selected rooms and dates
   useEffect(() => {
     if (!checkInDate || !checkOutDate) {
       setAvailabilityStatus({});
       return;
     }
-    
     const status = {};
     let allAvailable = true;
-    
     for (const roomType of availableRoomTypes) {
       const quantity = selectedRooms[roomType.type] || 0;
       if (quantity === 0) continue;
-      
-      let availableCount = 0;
       let totalAvailable = 0;
-      
       for (const roomId of roomType.roomIds) {
         const roomDetail = roomDetailsMap[roomType.type]?.[roomId];
         const maxRooms = (roomDetail?.totalRooms || 1) - (roomDetail?.maintenanceRooms || 0);
         let availableForStay = maxRooms;
         if (maxRooms <= 0) continue;
-        
-        // Check each day of the stay, focusing on check-in hours (2:00 PM onwards)
         for (let dayOffset = 0; dayOffset < numberOfNights; dayOffset++) {
           const currentDate = new Date(checkInDate);
           currentDate.setDate(checkInDate.getDate() + dayOffset);
           const dateStr = `${currentDate.getFullYear()}-${String(currentDate.getMonth() + 1).padStart(2, '0')}-${String(currentDate.getDate()).padStart(2, '0')}`;
-          
           for (let hour = checkInHour; hour < 24; hour++) {
             const blockedUnits = blockedSlots[dateStr]?.[roomId]?.[hour] || 0;
             const bookedCount = bookedDates[dateStr]?.[roomId]?.[hour] || 0;
-            
             const available = maxRooms - bookedCount - blockedUnits;
             availableForStay = Math.min(availableForStay, available);
-            
             if (availableForStay <= 0) break;
           }
-          
           if (availableForStay <= 0) break;
         }
-        
         totalAvailable += availableForStay;
       }
-      
-      availableCount = totalAvailable;
       status[roomType.type] = {
-        available: availableCount,
-        sufficient: availableCount >= quantity,
+        available: totalAvailable,
+        sufficient: totalAvailable >= quantity,
         quantity: quantity
       };
-      
-      if (availableCount < quantity) {
-        allAvailable = false;
-      }
+      if (totalAvailable < quantity) allAvailable = false;
     }
-    
     setAvailabilityStatus(status);
-    
     if (!allAvailable && checkInDate) {
       const unavailableTypes = Object.entries(status)
         .filter(([_, s]) => !s.sufficient && s.quantity > 0)
         .map(([type]) => type);
-      
       if (unavailableTypes.length > 0) {
         setDateSelectionError(`Not enough rooms available for: ${unavailableTypes.join(', ')}. Please reduce quantities or select different dates.`);
       } else {
@@ -731,115 +717,14 @@ export default function RoomsPage() {
     }
   }, [checkInDate, checkOutDate, numberOfNights, selectedRooms, availableRoomTypes, bookedDates, blockedSlots, roomDetailsMap, checkInHour]);
 
-  const handleQuantityChange = (roomType, increment) => {
-    // If toggling exclusive mode, clear it
-    if (isExclusiveResortBooking) {
-      setIsExclusiveResortBooking(false);
-      setTentCount(0);
-    }
-    
-    const typeData = availableRoomTypes.find(t => t.type === roomType);
-    // Use unit-level availability for max available
-    const maxAvailable = checkInDate 
-      ? (unitLevelAvailability[roomType] || typeData?.availableRooms || 1)
-      : (typeData?.availableRooms || 1);
-    const currentQuantity = selectedRooms[roomType] || 0;
-    let newQuantity = currentQuantity;
-    
-    if (increment) {
-      newQuantity = Math.min(currentQuantity + 1, maxAvailable);
-    } else {
-      newQuantity = Math.max(0, currentQuantity - 1);
-    }
-    
-    setSelectedRooms(prev => ({
-      ...prev,
-      [roomType]: newQuantity
-    }));
-    
-    // If tent quantity changed, update tentCount state for pricing and capacity
-    if (roomType === 'Tent') {
-      setTentCount(newQuantity);
-    }
-    
-    // Clear error for this room type when quantity changes
-    setGuestInputErrors(prev => ({ ...prev, [roomType]: '' }));
-    
-    // Reset total guests to min if quantity becomes 0
-    if (newQuantity === 0) {
-      setTotalGuestsPerType(prev => ({ ...prev, [roomType]: 1 }));
-      setAdultsPerType(prev => ({ ...prev, [roomType]: 1 }));
-      setKidsPerType(prev => ({ ...prev, [roomType]: 0 }));
-    } else {
-      // Keep adults/kids and total guests inside allowed bounds.
-      const maxTotalGuests = newQuantity * (typeData?.capacityMax || 10);
-      const minTotalGuests = newQuantity * (typeData?.capacityMin || 1);
-
-      const currentAdults = Number(adultsPerType[roomType] ?? minTotalGuests);
-      const currentKids = Number(kidsPerType[roomType] ?? 0);
-      const currentTotalGuests = currentAdults + currentKids;
-
-      const normalizedTotalGuests = Math.min(maxTotalGuests, Math.max(minTotalGuests, currentTotalGuests));
-      const normalizedAdults = Math.max(1, Math.min(normalizedTotalGuests, currentAdults));
-      const normalizedKids = Math.max(0, normalizedTotalGuests - normalizedAdults);
-
-      setAdultsPerType(prev => ({ ...prev, [roomType]: normalizedAdults }));
-      setKidsPerType(prev => ({ ...prev, [roomType]: normalizedKids }));
-      setTotalGuestsPerType(prev => ({ ...prev, [roomType]: normalizedTotalGuests }));
-    }
-  };
-
-  const handleGuestCountChange = (roomType, guestType, value) => {
-    if (isExclusiveResortBooking) {
-      setIsExclusiveResortBooking(false);
-      setTentCount(0);
-    }
-    const quantity = selectedRooms[roomType] || 0;
-    if (quantity === 0) return;
-
-    const typeData = availableRoomTypes.find((t) => t.type === roomType);
-    const maxTotalGuests = quantity * (typeData?.capacityMax || 10);
-    const minTotalGuests = quantity * (typeData?.capacityMin || 1);
-
-    const parsedValue = Number.parseInt(value, 10);
-    const normalizedInput = Number.isNaN(parsedValue) ? 0 : Math.max(0, parsedValue);
-
-    let nextAdults = Number(adultsPerType[roomType] ?? minTotalGuests);
-    let nextKids = Number(kidsPerType[roomType] ?? 0);
-
-    if (guestType === 'adults') {
-      nextAdults = normalizedInput;
-    } else {
-      nextKids = normalizedInput;
-    }
-
-    const nextTotalGuests = nextAdults + nextKids;
-    let errorMessage = '';
-
-    if (nextAdults < 1) {
-      errorMessage = 'At least 1 adult is required.';
-    } else if (nextTotalGuests > maxTotalGuests) {
-      errorMessage = `Maximum ${maxTotalGuests} guests allowed for ${quantity} unit${quantity !== 1 ? 's' : ''}`;
-    } else if (nextTotalGuests < minTotalGuests) {
-      errorMessage = `Minimum ${minTotalGuests} guests required for ${quantity} unit${quantity !== 1 ? 's' : ''}`;
-    }
-
-    setAdultsPerType((prev) => ({ ...prev, [roomType]: nextAdults }));
-    setKidsPerType((prev) => ({ ...prev, [roomType]: nextKids }));
-    setTotalGuestsPerType((prev) => ({ ...prev, [roomType]: nextTotalGuests }));
-    setGuestInputErrors((prev) => ({ ...prev, [roomType]: errorMessage }));
-  };
-
   const handleDateSelect = (date) => {
     const today = new Date();
     today.setHours(0, 0, 0, 0);
     const minBookableDate = new Date();
     minBookableDate.setDate(minBookableDate.getDate() + 2);
     minBookableDate.setHours(0, 0, 0, 0);
-    
     if (date < today) return;
     if (date < minBookableDate) return;
-    
     const selected = new Date(date);
     selected.setHours(checkInHour, 0, 0, 0);
     setCheckInDate(selected);
@@ -860,42 +745,29 @@ export default function RoomsPage() {
 
   const applyExclusiveSelections = () => {
     const nextSelected = {};
-    const nextAdults = {};
-    const nextKids = {};
-    const nextTotals = {};
-
+    const nextGuests = {};
     for (const roomType of availableRoomTypes) {
-      // Exclude Tent room type from automatic selection
       if (roomType.type === 'Tent') {
         nextSelected[roomType.type] = 0;
-        nextAdults[roomType.type] = 1;
-        nextKids[roomType.type] = 0;
-        nextTotals[roomType.type] = 1;
+        nextGuests[roomType.type] = [];
         continue;
       }
       const qty = Math.max(0, getTotalUnitsForRoomType(roomType));
-      const minGuests = qty * (roomType.capacityMin || 1);
+      const minPerUnit = roomType.capacityMin || 1;
+      const guestsArray = [];
+      for (let i = 0; i < qty; i++) {
+        guestsArray.push({ adults: minPerUnit, kids: 0 });
+      }
       nextSelected[roomType.type] = qty;
-      nextAdults[roomType.type] = Math.max(1, minGuests);
-      nextKids[roomType.type] = 0;
-      nextTotals[roomType.type] = Math.max(1, minGuests);
+      nextGuests[roomType.type] = guestsArray;
     }
-
     setSelectedRooms(nextSelected);
-    setAdultsPerType(nextAdults);
-    setKidsPerType(nextKids);
-    setTotalGuestsPerType(nextTotals);
+    setPerRoomGuests(nextGuests);
     setGuestInputErrors({});
     setExclusiveGuestError('');
-    // Reset tent count when entering exclusive mode
     setTentCount(0);
-
-    if ((Number(exclusiveAdults) || 0) < 1) {
-      setExclusiveAdults(1);
-    }
-    if ((Number(exclusiveKids) || 0) < 0) {
-      setExclusiveKids(0);
-    }
+    if ((Number(exclusiveAdults) || 0) < 1) setExclusiveAdults(1);
+    if ((Number(exclusiveKids) || 0) < 0) setExclusiveKids(0);
   };
 
   const handleSelectExclusiveResort = () => {
@@ -906,14 +778,12 @@ export default function RoomsPage() {
       setDateSelectionError('Exclusive mode is on. Select dates where the whole resort is fully available.');
       return;
     }
-
     if (!canBookExclusiveResort) {
       setIsExclusiveResortBooking(true);
       setActiveCategory('All Rooms');
       setDateSelectionError('Selected dates are not fully free. Choose dates where all units across all room types are available.');
       return;
     }
-
     applyExclusiveSelections();
     setIsExclusiveResortBooking(true);
     setActiveCategory('All Rooms');
@@ -922,53 +792,37 @@ export default function RoomsPage() {
   };
 
   const handleClearExclusiveResort = () => {
-    // Reset all selections
     const clearedSelected = {};
-    const clearedAdults = {};
-    const clearedKids = {};
-    const clearedTotals = {};
-
+    const clearedGuests = {};
     for (const roomType of availableRoomTypes) {
-      const minGuests = Math.max(1, roomType.capacityMin || 1);
       clearedSelected[roomType.type] = 0;
-      clearedAdults[roomType.type] = minGuests;
-      clearedKids[roomType.type] = 0;
-      clearedTotals[roomType.type] = minGuests;
+      clearedGuests[roomType.type] = [];
     }
-
     setSelectedRooms(clearedSelected);
-    setAdultsPerType(clearedAdults);
-    setKidsPerType(clearedKids);
-    setTotalGuestsPerType(clearedTotals);
+    setPerRoomGuests(clearedGuests);
     setIsExclusiveResortBooking(false);
     setDateSelectionError('');
     setExclusiveGuestError('');
     setTentCount(0);
   };
 
-  // Sync tent count between exclusive container and Tent's Add to Reservation button
   const handleAddTentInExclusive = () => {
     if (!isExclusiveResortBooking) return;
     const tentType = availableRoomTypes.find(t => t.type === 'Tent');
     const maxTentsAvailable = checkInDate 
       ? (unitLevelAvailability['Tent'] || tentType?.availableRooms || 1)
       : (tentType?.availableRooms || 1);
-    
     if (tentCount < maxTentsAvailable) {
       const newTentCount = tentCount + 1;
       setTentCount(newTentCount);
-      // Also update the selectedRooms for Tent to keep the Add to Reservation button in sync
-      setSelectedRooms(prev => ({
-        ...prev,
-        Tent: newTentCount
-      }));
-      // Update total guests for Tent
+      setSelectedRooms(prev => ({ ...prev, Tent: newTentCount }));
       const tentTypeData = availableRoomTypes.find(t => t.type === 'Tent');
       if (tentTypeData && newTentCount > 0) {
-        const minGuests = newTentCount * (tentTypeData.capacityMin || 1);
-        setTotalGuestsPerType(prev => ({ ...prev, Tent: minGuests }));
-        setAdultsPerType(prev => ({ ...prev, Tent: minGuests }));
-        setKidsPerType(prev => ({ ...prev, Tent: 0 }));
+        const guestsArray = [];
+        for (let i = 0; i < newTentCount; i++) {
+          guestsArray.push({ adults: tentTypeData.capacityMin || 1, kids: 0 });
+        }
+        setPerRoomGuests(prev => ({ ...prev, Tent: guestsArray }));
       }
     }
   };
@@ -978,66 +832,38 @@ export default function RoomsPage() {
     if (tentCount > 0) {
       const newTentCount = tentCount - 1;
       setTentCount(newTentCount);
-      // Also update the selectedRooms for Tent to keep the Add to Reservation button in sync
-      setSelectedRooms(prev => ({
-        ...prev,
-        Tent: newTentCount
-      }));
-      // Update total guests for Tent
-      const tentTypeData = availableRoomTypes.find(t => t.type === 'Tent');
-      if (tentTypeData && newTentCount > 0) {
-        const minGuests = newTentCount * (tentTypeData.capacityMin || 1);
-        setTotalGuestsPerType(prev => ({ ...prev, Tent: minGuests }));
-        setAdultsPerType(prev => ({ ...prev, Tent: minGuests }));
-        setKidsPerType(prev => ({ ...prev, Tent: 0 }));
-      } else if (newTentCount === 0) {
-        setTotalGuestsPerType(prev => ({ ...prev, Tent: 1 }));
-        setAdultsPerType(prev => ({ ...prev, Tent: 1 }));
-        setKidsPerType(prev => ({ ...prev, Tent: 0 }));
+      setSelectedRooms(prev => ({ ...prev, Tent: newTentCount }));
+      if (newTentCount === 0) {
+        setPerRoomGuests(prev => ({ ...prev, Tent: [] }));
+      } else {
+        setPerRoomGuests(prev => {
+          const newGuests = [...(prev.Tent || [])];
+          newGuests.pop();
+          return { ...prev, Tent: newGuests };
+        });
       }
     }
   };
 
   const handleRemoveFromReceipt = (roomType) => {
     setIsExclusiveResortBooking(false);
-    const roomTypeDetails = availableRoomTypes.find((room) => room.type === roomType);
-    const minGuests = Math.max(1, Number(roomTypeDetails?.capacityMin || 1));
-
-    setSelectedRooms((prev) => ({
-      ...prev,
-      [roomType]: 0
-    }));
-
-    setAdultsPerType((prev) => ({
-      ...prev,
-      [roomType]: minGuests
-    }));
-
-    setKidsPerType((prev) => ({
-      ...prev,
-      [roomType]: 0
-    }));
-
-    setTotalGuestsPerType((prev) => ({
-      ...prev,
-      [roomType]: minGuests
-    }));
-
-    setGuestInputErrors((prev) => ({
-      ...prev,
-      [roomType]: ''
-    }));
-    
-    if (roomType === 'Tent') {
-      setTentCount(0);
-    }
+    setSelectedRooms((prev) => ({ ...prev, [roomType]: 0 }));
+    setPerRoomGuests((prev) => ({ ...prev, [roomType]: [] }));
+    setGuestInputErrors((prev) => {
+      const newErrors = { ...prev };
+      Object.keys(newErrors).forEach(key => {
+        if (key.startsWith(roomType)) delete newErrors[key];
+      });
+      return newErrors;
+    });
+    if (roomType === 'Tent') setTentCount(0);
   };
 
   const getSelectedRoomsSummary = () => {
     const selected = Object.entries(selectedRooms).filter(([_, qty]) => qty > 0);
     if (selected.length === 0) return 'No rooms selected';
     return selected.map(([type, qty]) => {
-      const totalGuests = totalGuestsPerType[type] || 1;
+      const { totalGuests } = getAggregatedGuestCounts(type);
       return `${qty} × ${type} (${totalGuests} total guest${totalGuests !== 1 ? 's' : ''})`;
     }).join(', ');
   };
@@ -1048,12 +874,11 @@ export default function RoomsPage() {
       const kids = Math.max(0, Number(exclusiveKids) || 0);
       return adults + kids;
     }
-
     let total = 0;
     for (const [roomType, quantity] of Object.entries(selectedRooms)) {
       if (quantity > 0) {
-        const totalGuestsForType = totalGuestsPerType[roomType] || 1;
-        total += totalGuestsForType;
+        const { totalGuests } = getAggregatedGuestCounts(roomType);
+        total += totalGuests;
       }
     }
     return total;
@@ -1063,7 +888,6 @@ export default function RoomsPage() {
     if (isExclusiveResortBooking) {
       return getExclusivePackagePrice() * numberOfNights;
     }
-    
     let total = 0;
     for (const [roomType, quantity] of Object.entries(selectedRooms)) {
       const typeData = availableRoomTypes.find(t => t.type === roomType);
@@ -1075,14 +899,12 @@ export default function RoomsPage() {
   };
 
   const getExclusiveMaxPax = () => {
-    // Base max pax excluding tents
     let totalPax = availableRoomTypes.reduce((sum, roomType) => {
       if (roomType.type === 'Tent') return sum;
       const totalUnits = getTotalUnitsForRoomType(roomType);
       const roomMaxCapacity = Number(roomType.capacityMax || roomType.capacityMin || 1);
       return sum + (totalUnits * roomMaxCapacity);
     }, 0);
-    // Add 4 pax per tent
     totalPax += tentCount * 4;
     return totalPax;
   };
@@ -1090,93 +912,78 @@ export default function RoomsPage() {
   const handleExclusiveGuestChange = (guestType, rawValue) => {
     const parsedValue = Number.parseInt(rawValue, 10);
     const safeValue = Number.isNaN(parsedValue) ? 0 : Math.max(0, parsedValue);
-
     let nextAdults = Number(exclusiveAdults) || 1;
     let nextKids = Number(exclusiveKids) || 0;
-
-    if (guestType === 'adults') {
-      nextAdults = safeValue;
-    } else {
-      nextKids = safeValue;
-    }
-
+    if (guestType === 'adults') nextAdults = safeValue;
+    else nextKids = safeValue;
     const nextTotal = nextAdults + nextKids;
     const maxPax = getExclusiveMaxPax();
     let errorMessage = '';
-
-    if (nextAdults < 1) {
-      errorMessage = 'At least 1 adult is required.';
-    } else if (maxPax > 0 && nextTotal > maxPax) {
-      errorMessage = `Maximum ${maxPax} guests can be accommodated for the whole resort package.`;
-    }
-
+    if (nextAdults < 1) errorMessage = 'At least 1 adult is required.';
+    else if (maxPax > 0 && nextTotal > maxPax) errorMessage = `Maximum ${maxPax} guests can be accommodated for the whole resort package.`;
     setExclusiveAdults(Math.max(0, nextAdults));
     setExclusiveKids(Math.max(0, nextKids));
     setExclusiveGuestError(errorMessage);
   };
 
-  const handleProceed = () => {
-    if (!checkInDate) {
-      setDateSelectionError('Please select check-in and check-out dates');
+const handleProceed = () => {
+  if (!checkInDate) {
+    setDateSelectionError('Please select check-in and check-out dates');
+    return;
+  }
+  
+  // NEW: Check if exclusive booking is active and dates are not fully available
+  if (isExclusiveResortBooking && !canBookExclusiveResort) {
+    setDateSelectionError('Cannot proceed to checkout because some rooms are unavailable on the selected date.');
+    return;
+  }
+  
+  const selectedTypes = Object.entries(selectedRooms).filter(([_, qty]) => qty > 0);
+  if (!isExclusiveResortBooking && selectedTypes.length === 0) {
+    setDateSelectionError('Please select at least one room type');
+    return;
+  }
+  if (isExclusiveResortBooking) {
+    const adults = Math.max(0, Number(exclusiveAdults) || 0);
+    const kids = Math.max(0, Number(exclusiveKids) || 0);
+    const totalGuests = adults + kids;
+    const maxPax = getExclusiveMaxPax();
+    if (adults < 1) {
+      setExclusiveGuestError('At least 1 adult is required.');
       return;
     }
-    
-    const selectedTypes = Object.entries(selectedRooms).filter(([_, qty]) => qty > 0);
-    if (!isExclusiveResortBooking && selectedTypes.length === 0) {
-      setDateSelectionError('Please select at least one room type');
+    if (totalGuests < 1) {
+      setExclusiveGuestError('Please enter at least 1 guest.');
       return;
     }
-
-    if (isExclusiveResortBooking) {
-      const adults = Math.max(0, Number(exclusiveAdults) || 0);
-      const kids = Math.max(0, Number(exclusiveKids) || 0);
-      const totalGuests = adults + kids;
-      const maxPax = getExclusiveMaxPax();
-
-      if (adults < 1) {
-        setExclusiveGuestError('At least 1 adult is required.');
-        return;
-      }
-
-      if (totalGuests < 1) {
-        setExclusiveGuestError('Please enter at least 1 guest.');
-        return;
-      }
-
-      if (maxPax > 0 && totalGuests > maxPax) {
-        setExclusiveGuestError(`Maximum ${maxPax} guests can be accommodated for the whole resort package.`);
-        return;
-      }
-    }
-    
-    // Check if there are any guest input errors
-    const hasErrors = Object.values(guestInputErrors).some(error => error !== '');
-    if (!isExclusiveResortBooking && hasErrors) {
-      setDateSelectionError('Please fix the guest count errors before proceeding');
+    if (maxPax > 0 && totalGuests > maxPax) {
+      setExclusiveGuestError(`Maximum ${maxPax} guests can be accommodated for the whole resort package.`);
       return;
     }
-    
-    // Check if all selected room types have sufficient availability
-    let hasError = false;
-    for (const [roomType, quantity] of selectedTypes) {
-      const status = availabilityStatus[roomType];
-      if (!status || !status.sufficient) {
-        setDateSelectionError(`Insufficient availability for ${roomType}. Please reduce quantity or select different dates.`);
-        hasError = true;
-        break;
-      }
+  }
+  const hasErrors = Object.values(guestInputErrors).some(error => error !== '');
+  if (!isExclusiveResortBooking && hasErrors) {
+    setDateSelectionError('Please fix the guest count errors before proceeding');
+    return;
+  }
+  let hasError = false;
+  for (const [roomType, quantity] of selectedTypes) {
+    const status = availabilityStatus[roomType];
+    if (!status || !status.sufficient) {
+      setDateSelectionError(`Insufficient availability for ${roomType}. Please reduce quantity or select different dates.`);
+      hasError = true;
+      break;
     }
-    
-    if (hasError) return;
+  }
+  if (hasError) return;
 
     const computedTotalPrice = getTotalPrice();
-
-    // Store selected rooms and dates in session storage for the booking page
     const bookingData = {
       selectedRooms,
-      totalGuestsPerType,
-      adultsPerType,
-      kidsPerType,
+      perRoomGuests,
+      adultsPerType: {},
+      kidsPerType: {},
+      totalGuestsPerType: {},
       exclusiveAdults: isExclusiveResortBooking ? Math.max(0, Number(exclusiveAdults) || 0) : null,
       exclusiveKids: isExclusiveResortBooking ? Math.max(0, Number(exclusiveKids) || 0) : null,
       checkInDate: checkInDate.toISOString(),
@@ -1195,14 +1002,20 @@ export default function RoomsPage() {
       roomTypes: availableRoomTypes.filter(t => selectedRooms[t.type] > 0).map(t => ({
         type: t.type,
         quantity: selectedRooms[t.type],
-        totalGuests: totalGuestsPerType[t.type] || 1,
+        totalGuests: getAggregatedGuestCounts(t.type).totalGuests,
         price: t.price,
         roomIds: t.roomIds,
         capacityMin: t.capacityMin,
         capacityMax: t.capacityMax
       }))
     };
-    
+    // Add aggregated counts for compatibility
+    for (const roomType of Object.keys(selectedRooms)) {
+      const { totalAdults, totalKids, totalGuests } = getAggregatedGuestCounts(roomType);
+      bookingData.adultsPerType[roomType] = totalAdults;
+      bookingData.kidsPerType[roomType] = totalKids;
+      bookingData.totalGuestsPerType[roomType] = totalGuests;
+    }
     sessionStorage.setItem('multiRoomBooking', JSON.stringify(bookingData));
     router.push('/rooms/multi-room-booking');
   };
@@ -1211,7 +1024,7 @@ export default function RoomsPage() {
     router.push('/rooms');
   };
 
-  // Calendar functions (replicated from app/rooms/calendar)
+  // Calendar functions
   const getDaysInMonth = (date) => {
     const year = date.getFullYear();
     const month = date.getMonth();
@@ -1248,56 +1061,32 @@ export default function RoomsPage() {
     return date < minBookableDate && date >= today;
   };
 
-  // Updated availability check function based on check-in period (2:00 PM onwards)
-  // This function checks if a date is fully booked for ALL selected room types
   const isDateFullyBooked = (date) => {
     if (!date) return false;
-
-    if (isExclusiveResortBooking) {
-      return !isDateFullyAvailableForExclusive(date);
-    }
-    
+    if (isExclusiveResortBooking) return !isDateFullyAvailableForExclusive(date);
     const selectedTypes = Object.entries(selectedRooms).filter(([_, qty]) => qty > 0);
-    // If no room types are selected, any date is technically selectable
     if (selectedTypes.length === 0) return false;
-    
-    // For multi-room booking logic: A date is considered FULLY BOOKED if ANY of the selected room types
-    // does not have enough available units for the requested quantity on that date.
-    // This ensures guests cannot select a date where any of their selected room types is fully booked.
     for (const [roomType, quantity] of selectedTypes) {
       const typeData = availableRoomTypes.find(t => t.type === roomType);
       if (!typeData) continue;
-      
       let totalAvailableUnits = 0;
       for (const roomId of typeData.roomIds) {
         const roomDetail = roomDetailsMap[roomType]?.[roomId];
         const maxRooms = (roomDetail?.totalRooms || 1) - (roomDetail?.maintenanceRooms || 0);
         if (maxRooms <= 0) continue;
         let minAvailable = maxRooms;
-        
-        // Check hours from 2:00 PM to midnight (14:00 to 23:59)
-        // This is the check-in window that determines availability
         const dateStr = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
         for (let hour = checkInHour; hour < 24; hour++) {
           const blockedUnits = blockedSlots[dateStr]?.[roomId]?.[hour] || 0;
           const bookedCount = bookedDates[dateStr]?.[roomId]?.[hour] || 0;
-          
           const availableNow = Math.max(0, maxRooms - bookedCount - blockedUnits);
           minAvailable = Math.min(minAvailable, availableNow);
           if (minAvailable <= 0) break;
         }
-        
         totalAvailableUnits += minAvailable;
       }
-      
-      // If this room type doesn't have enough available units for the requested quantity,
-      // the date is NOT selectable
-      if (totalAvailableUnits < quantity) {
-        return true;
-      }
+      if (totalAvailableUnits < quantity) return true;
     }
-    
-    // All selected room types have enough available units
     return false;
   };
 
@@ -1305,13 +1094,10 @@ export default function RoomsPage() {
     if (!date) return false;
     const selectedTypes = Object.entries(selectedRooms).filter(([_, qty]) => qty > 0);
     if (selectedTypes.length === 0) return false;
-    
     const dateKey = toLocalDateKey(date);
-    
     for (const [roomType, quantity] of selectedTypes) {
       const typeData = availableRoomTypes.find(t => t.type === roomType);
       if (!typeData) continue;
-
       let totalUnits = 0;
       let blockedAtCheckIn = 0;
       let blockedAtMorning = 0;
@@ -1325,12 +1111,10 @@ export default function RoomsPage() {
         const blockedUnits = blockedSlots[dateKey]?.[roomId]?.[checkInHour] || 0;
         blockedAtCheckIn += Math.min(maxRooms, blockedUnits);
       }
-
       const morningClosed = totalUnits > 0 && blockedAtMorning >= totalUnits;
       const afternoonClosed = totalUnits > 0 && blockedAtCheckIn >= totalUnits;
       if (morningClosed && afternoonClosed) return true;
     }
-    
     return false;
   };
 
@@ -1345,15 +1129,13 @@ export default function RoomsPage() {
   const goToPreviousMonth = () => {
     setCurrentMonth(new Date(currentMonth.getFullYear(), currentMonth.getMonth() - 1, 1));
   };
-
   const goToNextMonth = () => {
     setCurrentMonth(new Date(currentMonth.getFullYear(), currentMonth.getMonth() + 1, 1));
   };
-
   const monthNames = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
   const days = getDaysInMonth(currentMonth);
 
-   if (loading) {
+  if (loading) {
     return (
       <GuestLayout>
         <div className="min-h-screen bg-white flex items-center justify-center">
@@ -1422,7 +1204,6 @@ export default function RoomsPage() {
                   const realTimeAvailable = checkInDate 
                     ? (unitLevelAvailability[room.type] || 0)
                     : room.availableRooms;
-                  // Disable tent Add to Reservation button when in exclusive mode
                   const isTentDisabled = room.type === 'Tent' && isExclusiveResortBooking;
 
                   return (
@@ -1466,10 +1247,24 @@ export default function RoomsPage() {
                             {realTimeAvailable} unit{realTimeAvailable !== 1 ? 's' : ''} available
                           </p>
                           
-                          <div className="flex flex-wrap gap-2 mb-6">
-                            <span className="px-3 py-1.5 bg-gray-50 border border-gray-100 text-[11px] font-medium text-gray-600 rounded-full">Airconditioned</span>
-                            <span className="px-3 py-1.5 bg-gray-50 border border-gray-100 text-[11px] font-medium text-gray-600 rounded-full">Common bathroom</span>
-                          </div>
+      <div className="flex flex-wrap gap-2 mb-6">
+        {room.inclusions && room.inclusions.length > 0 ? (
+          room.inclusions.slice(0, 3).map((inclusion, idx) => (
+            <span key={idx} className="px-3 py-1.5 bg-gray-50 border border-gray-100 text-[11px] font-medium text-gray-600 rounded-full">
+              {inclusion}
+            </span>
+          ))
+        ) : (
+          <span className="px-3 py-1.5 bg-gray-50 border border-gray-100 text-[11px] font-medium text-gray-600 rounded-full">
+            No inclusions listed
+          </span>
+        )}
+        {room.inclusions && room.inclusions.length > 3 && (
+          <span className="px-3 py-1.5 bg-gray-50 border border-gray-100 text-[11px] font-medium text-gray-600 rounded-full">
+            +{room.inclusions.length - 3} more
+          </span>
+        )}
+      </div>
                         </div>
 
                         <div className="flex flex-col gap-2 relative z-10 w-full mb-0 mt-auto">
@@ -1498,54 +1293,53 @@ export default function RoomsPage() {
                            ) : (
                               <div className="w-full flex items-center justify-between bg-blue-50/80 border border-blue-200 rounded-xl p-1.5 shadow-inner relative overflow-hidden">
                                 <div className="absolute inset-0 bg-gradient-to-r from-blue-100/50 to-transparent pointer-events-none"></div>
-                                <button 
-                                  onClick={() => handleQuantityChange(room.type, false)}
-                                  className="relative z-10 w-12 h-10 flex items-center justify-center bg-white text-blue-600 rounded-lg shadow-sm border border-blue-100 hover:bg-blue-100 hover:text-blue-700 transition-colors"
-                                >
-                                  <i className="fas fa-minus text-sm"></i>
-                                </button>
+<button 
+  onClick={() => handleQuantityChange(room.type, false)}
+  disabled={isTentDisabled}
+  className={`relative z-10 w-12 h-10 flex items-center justify-center rounded-lg shadow-sm transition-colors ${
+    isTentDisabled
+      ? 'bg-gray-100 text-gray-400 cursor-not-allowed border border-gray-200'
+      : 'bg-white text-blue-600 border border-blue-100 hover:bg-blue-100 hover:text-blue-700'
+  }`}
+>
+  <i className="fas fa-minus text-sm"></i>
+</button>
                                 <span className="font-bold text-blue-800 text-lg relative z-10 tracking-tight">
                                   {quantity} <span className="text-[10px] text-blue-600/70 font-black uppercase tracking-wider ml-0.5">Units</span>
                                 </span>
-                                <button 
-                                  onClick={() => handleQuantityChange(room.type, true)}
-                                  disabled={quantity >= realTimeAvailable || isTentDisabled}
-                                  className={`relative z-10 w-12 h-10 flex items-center justify-center text-white rounded-xl shadow-sm transition-colors ${
-                                    isTentDisabled
-                                      ? 'bg-gray-400 cursor-not-allowed'
-                                      : 'bg-blue-600 hover:bg-blue-700'
-                                  }`}
-                                >
-                                  <i className="fas fa-plus text-sm"></i>
-                                </button>
+<button 
+  onClick={() => handleQuantityChange(room.type, true)}
+  disabled={quantity >= realTimeAvailable || isTentDisabled}
+  className={`relative z-10 w-12 h-10 flex items-center justify-center text-white rounded-xl shadow-sm transition-colors ${
+    isTentDisabled
+      ? 'bg-gray-400 cursor-not-allowed'
+      : 'bg-blue-600 hover:bg-blue-700'
+  }`}
+>
+  <i className="fas fa-plus text-sm"></i>
+</button>
                               </div>
                            )}
                            <button 
                              onClick={() => {
                                const slug = toRoomSlug(room.type);
                                const qtyObj = Math.max(1, selectedRooms[room.type] || 1);
-                               const fallbackGuests = qtyObj * (room.capacityMin || 1);
-                               const totalGuests = Math.max(
-                                 fallbackGuests,
-                                 Number(totalGuestsPerType[room.type] || fallbackGuests)
-                               );
-
-                               // Save per-room draft for the detail page
+                               const guestsForDetail = perRoomGuests[room.type] || [];
+                               const totalGuestsForDetail = guestsForDetail.reduce((s, g) => s + g.adults + g.kids, 0);
                                const draft = {
                                  roomType: room.type,
                                  quantity: qtyObj,
-                                 totalGuests,
+                                 totalGuests: totalGuestsForDetail || (qtyObj * (room.capacityMin || 1)),
+                                 perRoomGuests: guestsForDetail,
                                  checkInDate: checkInDate ? checkInDate.toISOString() : null,
                                  numberOfNights,
                                  checkInHour,
                                  checkOutHour
                                };
                                sessionStorage.setItem('roomDetailDraft', JSON.stringify(draft));
-
-                               // Also save full multi-room booking progress so it can be restored
                                const multiRoomState = {
                                  selectedRooms,
-                                 totalGuestsPerType,
+                                 perRoomGuests,
                                  checkInDate: checkInDate ? checkInDate.toISOString() : null,
                                  numberOfNights,
                                  checkInHour,
@@ -1554,7 +1348,6 @@ export default function RoomsPage() {
                                  activeCategory
                                };
                                sessionStorage.setItem('roomsPageState', JSON.stringify(multiRoomState));
-
                                router.push(`/rooms/${encodeURIComponent(slug)}`);
                              }}
                              className="w-full py-2.5 bg-gray-50 border border-gray-200 text-gray-600 hover:text-blue-600 hover:bg-blue-50 text-xs font-bold rounded-2xl transition-colors flex items-center justify-center gap-2 shadow-sm hover:shadow"
@@ -1570,7 +1363,7 @@ export default function RoomsPage() {
               </div>
             </div>
 
-            {/* RIGHT: Booking Receipt & Dates (lg:col-span-4) */}
+            {/* RIGHT: Booking Receipt & Dates */}
             <div className="lg:col-span-4 lg:sticky lg:top-24">
               <div className="bg-white rounded-[2rem] border border-gray-100 shadow-[0_12px_40px_rgb(0,0,0,0.06)] p-6">
                 
@@ -1613,112 +1406,101 @@ export default function RoomsPage() {
                   )}
                 </div>
 
-                 <div className="mb-6 p-4 bg-gray-50/50 rounded-[1.5rem] border border-gray-100 relative">
-                    <h3 className="text-xs font-semibold text-gray-800 mb-3 uppercase tracking-wider">Stay Schedule</h3>
-                    <div 
-                      ref={calendarTriggerRef}
-                       className="flex items-center justify-between text-sm font-semibold text-gray-700 bg-white p-3.5 rounded-xl border border-gray-200 mb-3 cursor-pointer hover:border-blue-400 transition-colors shadow-sm" 
-                       onClick={() => setIsModalOpen(true)}
-                    >
-                       {checkInDate ? (
-                         <span>{checkInDate.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })} &rarr; {checkOutDate ? checkOutDate.toLocaleDateString('en-US', { month: 'short', day: 'numeric' }) : '...'}</span>
-                       ) : (
-                         <span className="text-gray-400">Select check-in date</span>
-                       )}
-                       <i className="fas fa-calendar-alt text-blue-500"></i>
+                <div className="mb-6 p-4 bg-gray-50/50 rounded-[1.5rem] border border-gray-100 relative">
+                  <h3 className="text-xs font-semibold text-gray-800 mb-3 uppercase tracking-wider">Stay Schedule</h3>
+                  <div 
+                    ref={calendarTriggerRef}
+                    className="flex items-center justify-between text-sm font-semibold text-gray-700 bg-white p-3.5 rounded-xl border border-gray-200 mb-3 cursor-pointer hover:border-blue-400 transition-colors shadow-sm" 
+                    onClick={() => setIsModalOpen(true)}
+                  >
+                    {checkInDate ? (
+                      <span>{checkInDate.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })} &rarr; {checkOutDate ? checkOutDate.toLocaleDateString('en-US', { month: 'short', day: 'numeric' }) : '...'}</span>
+                    ) : (
+                      <span className="text-gray-400">Select check-in date</span>
+                    )}
+                    <i className="fas fa-calendar-alt text-blue-500"></i>
+                  </div>
+                  <div className="text-[11px] font-semibold text-gray-600 bg-white p-3 rounded-xl border border-gray-200">
+                    Fixed schedule: Check-in {checkInDisplay}, Check-out {checkOutDisplay}
+                  </div>
+                  <div className="mt-3">
+                    <p className="text-[10px] font-bold text-gray-500 uppercase tracking-wider mb-1.5">Nights</p>
+                    <div className="flex items-center bg-white rounded-xl p-1 border border-gray-200 shadow-sm">
+                      <button onClick={() => handleNightsChange(false)} disabled={numberOfNights<=1} className="w-8 h-8 flex items-center justify-center rounded-lg text-gray-500 hover:bg-gray-50 disabled:opacity-30 transition-colors">
+                        <i className="fas fa-minus text-[10px]"></i>
+                      </button>
+                      <span className="font-bold text-sm flex-1 text-center text-gray-800">{numberOfNights}</span>
+                      <button onClick={() => handleNightsChange(true)} disabled={numberOfNights>=30} className="w-8 h-8 flex items-center justify-center rounded-lg text-gray-500 hover:bg-gray-50 disabled:opacity-30 transition-colors">
+                        <i className="fas fa-plus text-[10px]"></i>
+                      </button>
                     </div>
-                    <div className="text-[11px] font-semibold text-gray-600 bg-white p-3 rounded-xl border border-gray-200">
-                      Fixed schedule: Check-in {checkInDisplay}, Check-out {checkOutDisplay}
-                    </div>
-
-                    <div className="mt-3">
-                      <p className="text-[10px] font-bold text-gray-500 uppercase tracking-wider mb-1.5">Nights</p>
-                      <div className="flex items-center bg-white rounded-xl p-1 border border-gray-200 shadow-sm">
-                        <button onClick={() => handleNightsChange(false)} disabled={numberOfNights<=1} className="w-8 h-8 flex items-center justify-center rounded-lg text-gray-500 hover:bg-gray-50 disabled:opacity-30 transition-colors">
-                          <i className="fas fa-minus text-[10px]"></i>
-                        </button>
-                        <span className="font-bold text-sm flex-1 text-center text-gray-800">{numberOfNights}</span>
-                        <button onClick={() => handleNightsChange(true)} disabled={numberOfNights>=30} className="w-8 h-8 flex items-center justify-center rounded-lg text-gray-500 hover:bg-gray-50 disabled:opacity-30 transition-colors">
-                          <i className="fas fa-plus text-[10px]"></i>
-                        </button>
-                      </div>
-                    </div>
-
-                    {isModalOpen && (
-                      <div
-                        ref={calendarPopoverRef}
-                        className="absolute left-0 top-[4.25rem] z-50 bg-white w-[290px] max-w-[calc(100vw-3rem)] rounded-2xl shadow-[0_16px_40px_rgb(0,0,0,0.14)] p-2.5 border border-gray-100 max-h-[58vh] overflow-hidden flex flex-col"
-                      >
-                        <div className="overflow-y-auto pr-1">
-                          <div className="flex justify-between items-center mb-1.5 px-1">
-                            <button type="button" onClick={goToPreviousMonth} className="w-6 h-6 flex justify-center items-center text-gray-400 border border-gray-200 hover:text-blue-500 hover:border-blue-200 rounded-full transition-colors">
-                              <i className="fas fa-chevron-left text-[10px]"></i>
-                            </button>
-                            <h4 className="font-bold text-gray-800 text-[11px] tracking-wide">{monthNames[currentMonth.getMonth()]} {currentMonth.getFullYear()}</h4>
-                            <button type="button" onClick={goToNextMonth} className="w-6 h-6 flex justify-center items-center text-gray-400 border border-gray-200 hover:text-blue-500 hover:border-blue-200 rounded-full transition-colors">
-                              <i className="fas fa-chevron-right text-[10px]"></i>
-                            </button>
-                          </div>
-
-                          <div className="grid grid-cols-7 gap-0.5 mb-1">
-                            {['Su', 'Mo', 'Tu', 'We', 'Th', 'Fr', 'Sa'].map((d) => (
-                              <div key={d} className="text-center text-[9px] font-bold uppercase tracking-widest text-gray-400 py-1">{d}</div>
-                            ))}
-                          </div>
-                          <div className="grid grid-cols-7 gap-0.5">
-                            {days.map((day, index) => {
-                              if (!day) return <div key={index}></div>;
-
-                              const isPast = isDatePast(day);
-                              const isTooSoon = isDateTooSoon(day);
-                              const isFullyBlocked = isDateFullyBlockedByAdmin(day);
-                              const isFullyBooked = isDateFullyBooked(day);
-                              const isSelected = checkInDate && checkInDate.toDateString() === day.toDateString();
-                              const isCheckout = checkOutDate && checkOutDate.toDateString() === day.toDateString();
-                              const inRange = checkInDate && checkOutDate && day > checkInDate && day < checkOutDate;
-                              const isDisabled = isPast || isTooSoon || isFullyBlocked || isFullyBooked;
-
-                              let bg = 'bg-white border border-gray-100';
-                              let text = 'text-gray-700';
-                              let stateClass = 'hover:border-blue-400 hover:text-blue-600 cursor-pointer rounded-xl';
-
-                              if (isDisabled) {
-                                bg = 'bg-gray-50 border-transparent';
-                                text = (isFullyBlocked || isFullyBooked) ? 'text-red-300' : 'text-gray-300';
-                                stateClass = 'cursor-not-allowed rounded-xl';
-                              } else if (isSelected || isCheckout) {
-                                bg = 'bg-blue-600 border-blue-600';
-                                text = 'text-white';
-                                stateClass = 'shadow-md cursor-pointer ring-4 ring-blue-500/20 rounded-xl z-10 relative';
-                              } else if (inRange) {
-                                bg = 'bg-blue-50 border-blue-100';
-                                text = 'text-blue-700 font-bold';
-                                stateClass = 'cursor-pointer rounded-lg';
-                              }
-
-                              return (
-                                <button
-                                  key={index}
-                                  type="button"
-                                  disabled={isDisabled}
-                                  onClick={() => handleDateSelect(day)}
-                                  className={`h-9 flex items-center justify-center font-bold text-[10px] transition-all ${bg} ${text} ${stateClass}`}
-                                >
-                                  {day.getDate()}
-                                </button>
-                              );
-                            })}
-                          </div>
-                        </div>
-
-                        <div className="pt-1.5 mt-1.5 border-t border-gray-100 bg-white">
-                          <button type="button" onClick={() => setIsModalOpen(false)} className="w-full py-2 bg-blue-600 text-white rounded-xl text-xs font-bold hover:bg-blue-700 transition-all shadow-lg shadow-blue-500/20">
-                            Confirm Dates
+                                    {dateSelectionError && (
+                  <p className="text-red-500 text-[10px] mt-4 text-center font-bold bg-red-50 py-2.5 px-3 rounded-xl border border-red-100">
+                    <i className="fas fa-exclamation-circle mr-1"></i>
+                    {dateSelectionError}
+                  </p>
+                )}
+                  </div>
+                  {isModalOpen && (
+                    <div ref={calendarPopoverRef} className="absolute left-0 top-[4.25rem] z-50 bg-white w-[290px] max-w-[calc(100vw-3rem)] rounded-2xl shadow-[0_16px_40px_rgb(0,0,0,0.14)] p-2.5 border border-gray-100 max-h-[58vh] overflow-hidden flex flex-col">
+                      <div className="overflow-y-auto pr-1">
+                        <div className="flex justify-between items-center mb-1.5 px-1">
+                          <button type="button" onClick={goToPreviousMonth} className="w-6 h-6 flex justify-center items-center text-gray-400 border border-gray-200 hover:text-blue-500 hover:border-blue-200 rounded-full transition-colors">
+                            <i className="fas fa-chevron-left text-[10px]"></i>
+                          </button>
+                          <h4 className="font-bold text-gray-800 text-[11px] tracking-wide">{monthNames[currentMonth.getMonth()]} {currentMonth.getFullYear()}</h4>
+                          <button type="button" onClick={goToNextMonth} className="w-6 h-6 flex justify-center items-center text-gray-400 border border-gray-200 hover:text-blue-500 hover:border-blue-200 rounded-full transition-colors">
+                            <i className="fas fa-chevron-right text-[10px]"></i>
                           </button>
                         </div>
+                        <div className="grid grid-cols-7 gap-0.5 mb-1">
+                          {['Su', 'Mo', 'Tu', 'We', 'Th', 'Fr', 'Sa'].map((d) => (
+                            <div key={d} className="text-center text-[9px] font-bold uppercase tracking-widest text-gray-400 py-1">{d}</div>
+                          ))}
+                        </div>
+                        <div className="grid grid-cols-7 gap-0.5">
+                          {days.map((day, index) => {
+                            if (!day) return <div key={index}></div>;
+                            const isPast = isDatePast(day);
+                            const isTooSoon = isDateTooSoon(day);
+                            const isFullyBlocked = isDateFullyBlockedByAdmin(day);
+                            const isFullyBooked = isDateFullyBooked(day);
+                            const isSelected = checkInDate && checkInDate.toDateString() === day.toDateString();
+                            const isCheckout = checkOutDate && checkOutDate.toDateString() === day.toDateString();
+                            const inRange = checkInDate && checkOutDate && day > checkInDate && day < checkOutDate;
+                            const isDisabled = isPast || isTooSoon || isFullyBlocked || isFullyBooked;
+                            let bg = 'bg-white border border-gray-100';
+                            let text = 'text-gray-700';
+                            let stateClass = 'hover:border-blue-400 hover:text-blue-600 cursor-pointer rounded-xl';
+                            if (isDisabled) {
+                              bg = 'bg-gray-50 border-transparent';
+                              text = (isFullyBlocked || isFullyBooked) ? 'text-gray-300' : 'text-gray-300';
+                              stateClass = 'cursor-not-allowed rounded-xl';
+                            } else if (isSelected || isCheckout) {
+                              bg = 'bg-blue-600 border-blue-600';
+                              text = 'text-white';
+                              stateClass = 'shadow-md cursor-pointer ring-4 ring-blue-500/20 rounded-xl z-10 relative';
+                            } else if (inRange) {
+                              bg = 'bg-blue-50 border-blue-100';
+                              text = 'text-blue-700 font-bold';
+                              stateClass = 'cursor-pointer rounded-lg';
+                            }
+                            return (
+                              <button key={index} type="button" disabled={isDisabled} onClick={() => handleDateSelect(day)} className={`h-9 flex items-center justify-center font-bold text-[10px] transition-all ${bg} ${text} ${stateClass}`}>
+                                {day.getDate()}
+                              </button>
+                            );
+                          })}
+                        </div>
                       </div>
-                    )}
-                 </div>
+                      <div className="pt-1.5 mt-1.5 border-t border-gray-100 bg-white">
+                        <button type="button" onClick={() => setIsModalOpen(false)} className="w-full py-2 bg-blue-600 text-white rounded-xl text-xs font-bold hover:bg-blue-700 transition-all shadow-lg shadow-blue-500/20">
+                          Confirm Dates
+                        </button>
+                      </div>
+                    </div>
+                  )}
+                </div>
 
                 <div className="space-y-3 mb-6">
                   {isExclusiveResortBooking ? (
@@ -1730,8 +1512,6 @@ export default function RoomsPage() {
                           Can entertain up to {exclusiveMaxPax} pax
                         </p>
                       </div>
-
-                      {/* Tent controls for exclusive booking */}
                       <div className="mt-3 ml-2 p-2 bg-amber-50/50 rounded-xl border border-amber-100">
                         <div className="flex items-center justify-between">
                           <div>
@@ -1739,53 +1519,29 @@ export default function RoomsPage() {
                             <p className="text-[9px] text-amber-700">+₱1,500 per tent/night</p>
                           </div>
                           <div className="flex items-center gap-2">
-                            <button
-                              onClick={handleRemoveTentInExclusive}
-                              disabled={tentCount === 0}
-                              className="w-7 h-7 rounded-full bg-white text-amber-600 border border-amber-200 flex items-center justify-center hover:bg-amber-100 disabled:opacity-40 disabled:cursor-not-allowed"
-                            >
+                            <button onClick={handleRemoveTentInExclusive} disabled={tentCount === 0} className="w-7 h-7 rounded-full bg-white text-amber-600 border border-amber-200 flex items-center justify-center hover:bg-amber-100 disabled:opacity-40 disabled:cursor-not-allowed">
                               <i className="fas fa-minus text-[10px]"></i>
                             </button>
                             <span className="font-bold text-amber-800 text-base min-w-[30px] text-center">{tentCount}</span>
-                            <button
-                              onClick={handleAddTentInExclusive}
-                              disabled={tentCount >= (availableRoomTypes.find(t => t.type === 'Tent')?.availableRooms || 5)}
-                              className="w-7 h-7 rounded-full bg-white text-amber-600 border border-amber-200 flex items-center justify-center hover:bg-amber-100 disabled:opacity-40 disabled:cursor-not-allowed"
-                            >
+                            <button onClick={handleAddTentInExclusive} disabled={tentCount >= (availableRoomTypes.find(t => t.type === 'Tent')?.availableRooms || 5)} className="w-7 h-7 rounded-full bg-white text-amber-600 border border-amber-200 flex items-center justify-center hover:bg-amber-100 disabled:opacity-40 disabled:cursor-not-allowed">
                               <i className="fas fa-plus text-[10px]"></i>
                             </button>
                           </div>
                         </div>
                       </div>
-
                       <div className="bg-gray-50/80 rounded-xl p-2 mt-3 ml-2">
                         <div className="grid grid-cols-2 gap-2">
                           <label className="flex flex-col gap-1">
                             <span className="text-[10px] uppercase font-bold text-gray-500">Adults</span>
-                            <input
-                              type="number"
-                              min={1}
-                              value={exclusiveAdults}
-                              onChange={(e) => handleExclusiveGuestChange('adults', e.target.value)}
-                              className={`w-full text-xs font-bold border bg-white rounded-md pl-3 py-1 shadow-sm focus:outline-none focus:ring-2 ${exclusiveGuestError ? 'border-red-300 focus:border-red-400 ring-red-100 text-red-600' : 'border-gray-200 focus:border-blue-400 ring-blue-100'}`}
-                            />
+                            <input type="number" min={1} value={exclusiveAdults} onChange={(e) => handleExclusiveGuestChange('adults', e.target.value)} className={`w-full text-xs font-bold border bg-white rounded-md pl-3 py-1 shadow-sm focus:outline-none focus:ring-2 ${exclusiveGuestError ? 'border-red-300 focus:border-red-400 ring-red-100 text-red-600' : 'border-gray-200 focus:border-blue-400 ring-blue-100'}`} />
                           </label>
                           <label className="flex flex-col gap-1">
                             <span className="text-[10px] uppercase font-bold text-gray-500">Kids</span>
-                            <input
-                              type="number"
-                              min={0}
-                              value={exclusiveKids}
-                              onChange={(e) => handleExclusiveGuestChange('kids', e.target.value)}
-                              className={`w-full text-xs font-bold border bg-white rounded-md pl-3 py-1 shadow-sm focus:outline-none focus:ring-2 ${exclusiveGuestError ? 'border-red-300 focus:border-red-400 ring-red-100 text-red-600' : 'border-gray-200 focus:border-blue-400 ring-blue-100'}`}
-                            />
+                            <input type="number" min={0} value={exclusiveKids} onChange={(e) => handleExclusiveGuestChange('kids', e.target.value)} className={`w-full text-xs font-bold border bg-white rounded-md pl-3 py-1 shadow-sm focus:outline-none focus:ring-2 ${exclusiveGuestError ? 'border-red-300 focus:border-red-400 ring-red-100 text-red-600' : 'border-gray-200 focus:border-blue-400 ring-blue-100'}`} />
                           </label>
                         </div>
-                        <p className="text-[10px] font-semibold text-gray-500 mt-2">
-                          Total Pax: {exclusiveTotalPax}
-                        </p>
+                        <p className="text-[10px] font-semibold text-gray-500 mt-2">Total Pax: {exclusiveTotalPax}</p>
                       </div>
-
                       {exclusiveGuestError && (
                         <div className="bg-red-50/80 border-t border-red-100 p-2 text-[10px] text-red-600 font-semibold tracking-tight leading-tight flex items-start gap-1 w-full rounded-b-2xl absolute bottom-0 left-0">
                           <i className="fas fa-exclamation-circle mt-[0.1rem]"></i>
@@ -1801,107 +1557,101 @@ export default function RoomsPage() {
                       <p className="text-xs text-gray-400 font-medium max-w-[200px] mx-auto leading-relaxed">No rooms added yet. Click "Select Room" to build your stay.</p>
                     </div>
                   ) : (
-                    availableRoomTypes.filter(r => selectedRooms[r.type] > 0).map(room => (
-                      <div key={room.type} className="p-3.5 bg-white border border-gray-100 shadow-sm rounded-2xl relative overflow-hidden">
-                        <div className="absolute top-0 left-0 w-1 h-full bg-blue-400"></div>
-                        <div className="flex justify-between items-start mb-2 pl-2">
-                           <div>
+                    availableRoomTypes.filter(r => selectedRooms[r.type] > 0).map(room => {
+                      const guestsArray = perRoomGuests[room.type] || [];
+                      const { totalAdults, totalKids, totalGuests } = getAggregatedGuestCounts(room.type);
+                      return (
+                        <div key={room.type} className="p-3.5 bg-white border border-gray-100 shadow-sm rounded-2xl relative overflow-hidden">
+                          <div className="absolute top-0 left-0 w-1 h-full bg-blue-400"></div>
+                          <div className="flex justify-between items-start mb-2 pl-2">
+                            <div>
                               <p className="text-sm font-bold text-gray-800 truncate max-w-[120px]">{room.type}</p>
                               <p className="text-[10px] text-blue-500 font-extrabold uppercase tracking-widest mt-1">{selectedRooms[room.type]} unit{selectedRooms[room.type] > 1 ? 's' : ''}</p>
-                           </div>
-                           <div className="flex items-start gap-2">
-                             <p className="text-sm font-bold text-gray-800 pt-0.5">
-                               ₱{((room.type === 'Tent' ? 1500 : room.price) * selectedRooms[room.type] * numberOfNights).toLocaleString()}
-                             </p>
-                             <button
-                               onClick={() => handleRemoveFromReceipt(room.type)}
-                               className="w-6 h-6 rounded-full bg-red-50 border border-red-100 text-red-500 hover:bg-red-100 hover:text-red-600 transition-colors flex items-center justify-center"
-                               aria-label={`Remove ${room.type} from receipt`}
-                               title="Remove room"
-                             >
-                               <i className="fas fa-times text-[10px]"></i>
-                             </button>
-                           </div>
-                        </div>
-                        {room.type === 'Tent' && (
-                          <div className="mb-2 ml-2">
-                            <p className="text-[10px] font-medium text-amber-700">
-                              +₱1,500 per tent per night
+                            </div>
+                            <div className="flex items-start gap-2">
+                              <p className="text-sm font-bold text-gray-800 pt-0.5">
+                                ₱{((room.type === 'Tent' ? 1500 : room.price) * selectedRooms[room.type] * numberOfNights).toLocaleString()}
+                              </p>
+                              <button onClick={() => handleRemoveFromReceipt(room.type)} className="w-6 h-6 rounded-full bg-red-50 border border-red-100 text-red-500 hover:bg-red-100 hover:text-red-600 transition-colors flex items-center justify-center">
+                                <i className="fas fa-times text-[10px]"></i>
+                              </button>
+                            </div>
+                          </div>
+                          {room.type === 'Tent' && (
+                            <div className="mb-2 ml-2">
+                              <p className="text-[10px] font-medium text-amber-700">+₱1,500 per tent per night</p>
+                            </div>
+                          )}
+                          {/* Per‑room guest controls */}
+                          <div className="space-y-2 mt-2">
+                            {guestsArray.map((guest, idx) => (
+                              <div key={idx} className="bg-gray-50/80 rounded-xl p-2 ml-2">
+                                <p className="text-[9px] font-bold text-gray-500 mb-1">Unit {idx + 1}</p>
+                                <div className="grid grid-cols-2 gap-2">
+                                  <label className="flex flex-col gap-1">
+                                    <span className="text-[10px] uppercase font-bold text-gray-500">Adults</span>
+                                    <input
+                                      type="number"
+                                      min={1}
+                                      value={guest.adults}
+                                      onChange={(e) => handleUnitGuestChange(room.type, idx, 'adults', e.target.value)}
+                                      className={`w-full text-xs font-bold border bg-white rounded-md pl-3 py-1 shadow-sm focus:outline-none focus:ring-2 ${guestInputErrors[`${room.type}-${idx}`] ? 'border-red-300 focus:border-red-400 ring-red-100 text-red-600' : 'border-gray-200 focus:border-blue-400 ring-blue-100'}`}
+                                    />
+                                  </label>
+                                  <label className="flex flex-col gap-1">
+                                    <span className="text-[10px] uppercase font-bold text-gray-500">Kids</span>
+                                    <input
+                                      type="number"
+                                      min={0}
+                                      value={guest.kids}
+                                      onChange={(e) => handleUnitGuestChange(room.type, idx, 'kids', e.target.value)}
+                                      className={`w-full text-xs font-bold border bg-white rounded-md pl-3 py-1 shadow-sm focus:outline-none focus:ring-2 ${guestInputErrors[`${room.type}-${idx}`] ? 'border-red-300 focus:border-red-400 ring-red-100 text-red-600' : 'border-gray-200 focus:border-blue-400 ring-blue-100'}`}
+                                    />
+                                  </label>
+                                </div>
+                                {guestInputErrors[`${room.type}-${idx}`] && (
+                                  <p className="text-[9px] text-red-500 mt-1">{guestInputErrors[`${room.type}-${idx}`]}</p>
+                                )}
+                              </div>
+                            ))}
+                          </div>
+                          <div className="bg-gray-50/80 rounded-xl p-2 mt-3 ml-2">
+                            <p className="text-[10px] font-semibold text-gray-500 mt-2">
+                              Total Guests: {totalGuests} (Adults: {totalAdults}, Kids: {totalKids})
                             </p>
                           </div>
-                        )}
-                        <div className="bg-gray-50/80 rounded-xl p-2 mt-1 ml-2">
-                           <div className="grid grid-cols-2 gap-2">
-                              <label className="flex flex-col gap-1">
-                                <span className="text-[10px] uppercase font-bold text-gray-500">Adults</span>
-                                <input
-                                  type="number"
-                                  min={1}
-                                  value={adultsPerType[room.type] ?? 1}
-                                  onChange={(e) => handleGuestCountChange(room.type, 'adults', e.target.value)}
-                                  className={`w-full text-xs font-bold border bg-white rounded-md pl-3 py-1 shadow-sm focus:outline-none focus:ring-2 ${guestInputErrors[room.type] ? 'border-red-300 focus:border-red-400 ring-red-100 text-red-600' : 'border-gray-200 focus:border-blue-400 ring-blue-100'}`}
-                                />
-                              </label>
-                              <label className="flex flex-col gap-1">
-                                <span className="text-[10px] uppercase font-bold text-gray-500">Kids</span>
-                                <input
-                                  type="number"
-                                  min={0}
-                                  value={kidsPerType[room.type] ?? 0}
-                                  onChange={(e) => handleGuestCountChange(room.type, 'kids', e.target.value)}
-                                  className={`w-full text-xs font-bold border bg-white rounded-md pl-3 py-1 shadow-sm focus:outline-none focus:ring-2 ${guestInputErrors[room.type] ? 'border-red-300 focus:border-red-400 ring-red-100 text-red-600' : 'border-gray-200 focus:border-blue-400 ring-blue-100'}`}
-                                />
-                              </label>
-                           </div>
-                           <p className="text-[10px] font-semibold text-gray-500 mt-2">
-                             Total Guests: {totalGuestsPerType[room.type] || 0}
-                           </p>
                         </div>
-                        {guestInputErrors[room.type] && (
-                           <div className="bg-red-50/80 border-t border-red-100 p-2 text-[10px] text-red-600 font-semibold tracking-tight leading-tight flex items-start gap-1 w-full rounded-b-2xl absolute bottom-0 left-0">
-                              <i className="fas fa-exclamation-circle mt-[0.1rem]"></i>
-                              <span>{guestInputErrors[room.type]}</span>
-                           </div>
-                        )}
-                      </div>
-                    ))
+                      );
+                    })
                   )}
                 </div>
 
                 <div className="bg-[#F8FCFF] border border-blue-100/50 rounded-2xl p-4 mb-6 relative overflow-hidden">
-                   <div className="absolute inset-0 bg-blue-500/5 mix-blend-multiply"></div>
-                   <div className="flex justify-between items-center mb-1 relative z-10">
-                      <p className="text-[10px] font-bold text-blue-800/60 uppercase tracking-widest">Nightly Total</p>
-                     {isExclusiveResortBooking ? (
+                  <div className="absolute inset-0 bg-blue-500/5 mix-blend-multiply"></div>
+                  <div className="flex justify-between items-center mb-1 relative z-10">
+                    <p className="text-[10px] font-bold text-blue-800/60 uppercase tracking-widest">Nightly Total</p>
+                    {isExclusiveResortBooking ? (
                       <p className="text-[10px] font-bold text-emerald-700 uppercase tracking-widest bg-emerald-50 px-2 py-0.5 rounded-full border border-emerald-200 shadow-sm">
                         Entire Resort • {exclusiveTotalPax} Pax
                       </p>
-                     ) : (
+                    ) : (
                       <p className="text-[10px] font-bold text-blue-500 uppercase tracking-widest bg-white px-2 py-0.5 rounded-full shadow-sm">
                         {Object.values(selectedRooms).reduce((a,b)=>a+b, 0)} Units Chosen
                       </p>
-                     )}
-                   </div>
-                   <div className="flex items-center gap-1.5 mb-2 text-blue-500 text-lg relative z-10">
-                      <i className="fas fa-bed text-blue-500/30"></i>
-                      <i className="fas fa-bed"></i>
-                   </div>
-                   <div className="flex justify-between items-center pt-3 mt-3 border-t border-blue-200/50 relative z-10">
-                      <p className="text-gray-800 font-bold text-sm">Est. Total</p>
-                     <p className="text-2xl font-bold text-gray-900 tracking-tight">₱{checkoutTotal.toLocaleString()}</p>
-                   </div>
+                    )}
+                  </div>
+                  <div className="flex items-center gap-1.5 mb-2 text-blue-500 text-lg relative z-10">
+                    <i className="fas fa-bed text-blue-500/30"></i>
+                    <i className="fas fa-bed"></i>
+                  </div>
+                  <div className="flex justify-between items-center pt-3 mt-3 border-t border-blue-200/50 relative z-10">
+                    <p className="text-gray-800 font-bold text-sm">Est. Total</p>
+                    <p className="text-2xl font-bold text-gray-900 tracking-tight">₱{checkoutTotal.toLocaleString()}</p>
+                  </div>
                 </div>
 
                 <div className="relative group mt-4">
-                  <button
-                     onClick={handleProceed}
-                     disabled={!checkInDate || (!isExclusiveResortBooking && Object.values(selectedRooms).every(q => q === 0)) || dateSelectionError !== '' || hasAnyGuestErrors}
-                     className={`w-full py-4 font-bold rounded-xl transition-all duration-300 flex items-center justify-center gap-2 ${
-                       ((checkInDate && (isExclusiveResortBooking || Object.values(selectedRooms).some(q => q>0))) && !hasAnyGuestErrors) 
-                       ? 'bg-blue-600 text-white shadow-[0_8px_20px_rgb(37,99,235,0.25)] hover:bg-blue-700 hover:-translate-y-0.5' 
-                       : 'bg-gray-100 text-gray-400 cursor-not-allowed border border-gray-200'
-                     }`}
-                  >
+                  <button onClick={handleProceed} disabled={!checkInDate || (!isExclusiveResortBooking && Object.values(selectedRooms).every(q => q === 0)) || dateSelectionError !== '' || hasAnyGuestErrors} className={`w-full py-4 font-bold rounded-xl transition-all duration-300 flex items-center justify-center gap-2 ${ ((checkInDate && (isExclusiveResortBooking || Object.values(selectedRooms).some(q => q>0))) && !hasAnyGuestErrors) ? 'bg-blue-600 text-white shadow-[0_8px_20px_rgb(37,99,235,0.25)] hover:bg-blue-700 hover:-translate-y-0.5' : 'bg-gray-100 text-gray-400 cursor-not-allowed border border-gray-200' }`}>
                     Checkout &bull; ₱{checkoutTotal.toLocaleString()} &rarr;
                   </button>
                   {(!checkInDate || (!isExclusiveResortBooking && Object.values(selectedRooms).every(q => q === 0))) && (
@@ -1919,24 +1669,14 @@ export default function RoomsPage() {
                 </div>
 
                 <div className="mt-5 flex items-center justify-center gap-2 text-gray-400">
-                   <i className="fas fa-lock text-[10px]"></i>
-                   <p className="text-[9px] font-bold uppercase tracking-widest">Secure booking guaranteed</p>
+                  <i className="fas fa-lock text-[10px]"></i>
+                  <p className="text-[9px] font-bold uppercase tracking-widest">Secure booking guaranteed</p>
                 </div>
-                {dateSelectionError && (
-                  <p className="text-red-500 text-[10px] mt-4 text-center font-bold bg-red-50 py-2.5 px-3 rounded-xl border border-red-100">
-                     <i className="fas fa-exclamation-circle mr-1"></i>
-                     {dateSelectionError}
-                  </p>
-                )}
-
               </div>
             </div>
-
           </div>
         </div>
       </div>
-
-
     </GuestLayout>
   );
 }

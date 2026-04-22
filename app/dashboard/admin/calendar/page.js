@@ -1,7 +1,7 @@
 // app/dashboard/admin/calendar/page.js
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { db } from '@/lib/firebase';
 import { collection, query, where, doc, onSnapshot, addDoc, deleteDoc, updateDoc } from 'firebase/firestore';
 import { logAdminAction } from '@/lib/auditLogger';
@@ -27,7 +27,14 @@ export default function AdminCalendar() {
   const [unavailableEntries, setUnavailableEntries] = useState([]);
   const [totalBlockedUnitsByDate, setTotalBlockedUnitsByDate] = useState({});
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
-  
+
+  // Compute total available units (total rooms minus maintenance)
+  const totalRoomUnits = useMemo(() => {
+    if (!roomDetails) return 1;
+    const total = parseInt(roomDetails.totalRooms) || 1;
+    const maintenance = parseInt(roomDetails.maintenanceRooms) || 0;
+    return Math.max(0, total - maintenance);
+  }, [roomDetails]);
 
   // Fetch rooms list (only non-archived)
   useEffect(() => {
@@ -57,24 +64,34 @@ export default function AdminCalendar() {
     return () => unsubscribe();
   }, [selectedRoomId]);
 
-  // Fetch bookings
+  // Fetch bookings (depends on totalRoomUnits)
   useEffect(() => {
     if (!selectedRoomId) return;
     const bookingsRef = collection(db, 'bookings');
-    const q = query(
+    const qRoom = query(
       bookingsRef,
       where('roomId', '==', selectedRoomId),
       where('status', 'in', ['pending', 'confirmed', 'check-in'])
     );
-    const unsubscribe = onSnapshot(q, (snapshot) => {
+    const qExclusive = query(
+      bookingsRef,
+      where('isExclusiveResortBooking', '==', true),
+      where('status', 'in', ['pending', 'confirmed', 'check-in'])
+    );
+
+    let roomSnapshot = null;
+    let exclusiveSnapshot = null;
+
+    const recompute = () => {
       const booked = {};
       const exclusiveDates = {};
-      snapshot.forEach(docSnap => {
-        const booking = docSnap.data();
+
+      const applyBooking = (booking, options = {}) => {
         const checkIn = toJsDate(booking.checkIn);
         const checkOut = toJsDate(booking.checkOut);
-        const numberOfRooms = booking.numberOfRooms || 1;
+        const numberOfRooms = options.forceUnits ?? (booking.numberOfRooms || 1);
         if (!checkIn || !checkOut || checkOut <= checkIn) return;
+
         let current = new Date(checkIn);
         while (current < checkOut) {
           const dateKey = current.toDateString();
@@ -82,13 +99,13 @@ export default function AdminCalendar() {
             booked[dateKey] = { times: {} };
             for (let h = 0; h < 24; h++) booked[dateKey].times[`${h}:00`] = 0;
           }
+
           const startHour = current.getHours();
           const endHour = current.toDateString() === checkOut.toDateString() ? checkOut.getHours() : 24;
           for (let h = startHour; h < endHour; h++) {
             booked[dateKey].times[`${h}:00`] += numberOfRooms;
           }
 
-          // Flag dates affected by exclusive whole-resort bookings for visual context.
           if (booking.isExclusiveResortBooking) {
             const overlapsCheckInWindow = Math.max(startHour, 14) < endHour;
             if (overlapsCheckInWindow) {
@@ -99,13 +116,40 @@ export default function AdminCalendar() {
           current.setDate(current.getDate() + 1);
           current.setHours(0, 0, 0, 0);
         }
-      });
+      };
+
+      if (roomSnapshot) {
+        roomSnapshot.forEach((docSnap) => applyBooking(docSnap.data()));
+      }
+
+      // Entire Resort Package: block this room type even if the booking doc is for a different roomId.
+      if (exclusiveSnapshot) {
+        exclusiveSnapshot.forEach((docSnap) => {
+          const booking = docSnap.data();
+          applyBooking(booking, { forceUnits: Math.max(0, totalRoomUnits) });
+        });
+      }
+
       setBookedDates(booked);
       setExclusiveResortDates(exclusiveDates);
       setLoading(false);
+    };
+
+    const unsubRoom = onSnapshot(qRoom, (snapshot) => {
+      roomSnapshot = snapshot;
+      recompute();
     });
-    return () => unsubscribe();
-  }, [selectedRoomId]);
+
+    const unsubExclusive = onSnapshot(qExclusive, (snapshot) => {
+      exclusiveSnapshot = snapshot;
+      recompute();
+    });
+
+    return () => {
+      unsubRoom();
+      unsubExclusive();
+    };
+  }, [selectedRoomId, totalRoomUnits]);
 
   const toJsDate = (value) => {
     if (!value) return null;
@@ -122,13 +166,6 @@ export default function AdminCalendar() {
     const day = String(d.getDate()).padStart(2, '0');
     return `${y}-${m}-${day}`;
   };
-
-  const totalRoomUnits = (() => {
-    if (!roomDetails) return 1;
-    const total = parseInt(roomDetails.totalRooms) || 1;
-    const maintenance = parseInt(roomDetails.maintenanceRooms) || 0;
-    return Math.max(0, total - maintenance);
-  })();
 
   const getBlockedUnitsAtHour = (dateKey, hour) => {
     const day = blockedSlots[dateKey];
@@ -472,7 +509,7 @@ export default function AdminCalendar() {
     return 'available';
   };
 
-   if (loading && rooms.length === 0) {
+  if (loading && rooms.length === 0) {
     return (
       <div className="min-h-screen bg-gradient-to-br from-ocean-ice to-blue-white flex items-center justify-center">
         <i className="fas fa-spinner fa-spin text-3xl text-ocean-light"></i>
@@ -504,7 +541,6 @@ export default function AdminCalendar() {
           <span className="text-sm font-medium">{notification.message}</span>
         </div>
       )}
-
 
       {/* Two‑column layout: Calendar (60%) and Right Column (40%) */}
       <div className="flex flex-col xl:flex-row gap-8 items-stretch">
@@ -619,7 +655,7 @@ export default function AdminCalendar() {
                 </div>
                 <div className="flex items-center gap-1.5"><div className="w-3 h-3 bg-gray-100 border border-gray-200 rounded"></div><span>Past Dates</span></div>
                 <div className="flex items-center gap-1.5"><div className="w-3 h-3 bg-orange-100 border border-orange-200 rounded"></div><span>Unavailable</span></div>
-                <div className="flex items-center gap-1.5"><div className="w-3 h-3 bg-amber-100 border border-amber-200 rounded"></div><span>Entire Resort booking</span></div>
+                <div className="flex items-center gap-1.5"><div className="w-3 h-3 rounded bg-rose-100 border border-amber-400 ring-1 ring-amber-300"></div><span>Entire Resort Booked</span></div>
                 <div className="flex items-center gap-1.5"><div className="w-3 h-3 bg-ocean-mid rounded"></div><span>Selected</span></div>
               </div>
             </div>

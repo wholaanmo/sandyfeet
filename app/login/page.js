@@ -157,99 +157,99 @@ export default function Login() {
         }
     };
 
-    const loginUser = async (e) => {
-        e.preventDefault();
-        setError('');
-        setShowResendOption(false);
-        
-        if (!email || !password) {
-            setError('Email and password are required.');
+const loginUser = async (e) => {
+    e.preventDefault();
+    setError('');
+    setShowResendOption(false);
+    
+    if (!email || !password) {
+        setError('Email and password are required.');
+        return;
+    }
+
+    setLoading(true);
+
+    try {
+        const userCredential = await signInWithEmailAndPassword(auth, email, password);
+        const user = userCredential.user;
+        const uid = user.uid;
+
+        const userDoc = await getDoc(doc(db, "users", uid));
+
+        if (!userDoc.exists()) {
+            setError('Your account is not approved. Contact the system administrator.');
+            await auth.signOut();
+            setLoading(false);
             return;
         }
 
-        setLoading(true);
-
-        try {
-            const userCredential = await signInWithEmailAndPassword(auth, email, password);
-            const user = userCredential.user;
-            const uid = user.uid;
-
-            const userDoc = await getDoc(doc(db, "users", uid));
-
-            if (!userDoc.exists()) {
-                setError('Your account is not approved. Contact the system administrator.');
-                await auth.signOut();
-                setLoading(false);
-                return;
-            }
-
-            const userData = userDoc.data();
-            const role = userData.role;
-            const status = userData.status;
-            
-            // Check if email is verified in Firebase Auth
-            await user.reload();
-            const isEmailVerified = user.emailVerified;
-            
-            // Update Firestore if verification status changed
-            if (isEmailVerified && !userData.emailVerified) {
-                const userRef = doc(db, 'users', uid);
-                await updateDoc(userRef, {
-                    emailVerified: true,
-                    status: 'active'
-                });
-                userData.emailVerified = true;
-                userData.status = 'active';
-            }
-            
-            // For staff accounts, require email verification
-            if (role === 'staff' && !userData.emailVerified) {
-                // Check if verification link expired
-                const expirationTime = userData.verificationExpiresAt ? new Date(userData.verificationExpiresAt) : null;
-                const now = new Date();
-                const isExpired = expirationTime && now > expirationTime;
-                
-                setPendingEmail(email);
-                
-                if (isExpired) {
-                    setError('Your verification link has expired. Please request a new verification email.');
-                    setShowResendOption(true);
-                } else {
-                    setError('Please verify your email address before logging in. Check your inbox for the verification link.');
-                    setShowResendOption(true);
-                }
-                await auth.signOut();
-                setLoading(false);
-                return;
-            }
-
-            if (status === 'inactive') {
-                setError('This account has been deactivated by the admin.');
-                await auth.signOut();
-                setLoading(false);
-                return;
-            }
-            
-            await completeLogin(uid);
-            
-        } catch (err) {
-            console.error("Login Error:", err);
-            
-            if (err.code === 'auth/user-not-found' || err.code === 'auth/wrong-password' || err.code === 'auth/invalid-credential') {
-                setError('Invalid email or password. Please try again.');
-            } else if (err.code === 'auth/invalid-email') {
-                setError('Invalid email format.');
-            } else if (err.code === 'auth/too-many-requests') {
-                setError('Too many failed attempts. Try again later.');
-            } else if (err.code === 'auth/network-request-failed') {
-                setError('Network error. Please check your connection.');
-            } else {
-                setError('Invalid email or password. Please try again.');
-            }
-        } finally {
-            setLoading(false);
+        const userData = userDoc.data();
+        const role = userData.role;
+        const status = userData.status;
+        
+        // Check if email is verified in Firebase Auth
+        await user.reload();
+        const isEmailVerified = user.emailVerified;
+        
+        // Update Firestore if verification status changed
+        if (isEmailVerified && !userData.emailVerified) {
+            const userRef = doc(db, 'users', uid);
+            await updateDoc(userRef, {
+                emailVerified: true,
+                status: 'active'
+            });
+            userData.emailVerified = true;
+            userData.status = 'active';
         }
-    };
+        
+        // For ALL users (admin and staff), require email verification
+        if (!userData.emailVerified) {
+            // Check if verification link expired
+            const expirationTime = userData.verificationExpiresAt ? new Date(userData.verificationExpiresAt) : null;
+            const now = new Date();
+            const isExpired = expirationTime && now > expirationTime;
+            
+            setPendingEmail(email);
+            
+            if (isExpired) {
+                setError('Your verification link has expired. Please request a new verification email.');
+                setShowResendOption(true);
+            } else {
+                setError('Please verify your email address before logging in. Check your inbox for the verification link.');
+                setShowResendOption(true);
+            }
+            await auth.signOut();
+            setLoading(false);
+            return;
+        }
+
+        if (status === 'inactive') {
+            setError('This account has been deactivated by the admin.');
+            await auth.signOut();
+            setLoading(false);
+            return;
+        }
+        
+        await completeLogin(uid);
+        
+    } catch (err) {
+        console.error("Login Error:", err);
+        
+        if (err.code === 'auth/user-not-found' || err.code === 'auth/wrong-password' || err.code === 'auth/invalid-credential') {
+            setError('Invalid email or password. Please try again.');
+        } else if (err.code === 'auth/invalid-email') {
+            setError('Invalid email format.');
+        } else if (err.code === 'auth/too-many-requests') {
+            setError('Too many failed attempts. Try again later.');
+        } else if (err.code === 'auth/network-request-failed') {
+            setError('Network error. Please check your connection.');
+        } else {
+            setError('Invalid email or password. Please try again.');
+        }
+    } finally {
+        setLoading(false);
+    }
+};
     
     const handleForgotPassword = (e) => {
         e.preventDefault();
