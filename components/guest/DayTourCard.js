@@ -39,6 +39,17 @@ export default function DayTourCard({ tour, compact = false }) {
     setDetailImageFailed(false);
     setIsAnimating(true);
     setShowDetailsModal(true);
+    
+    const scrollbarWidth = window.innerWidth - document.documentElement.clientWidth;
+    document.body.style.paddingRight = `${scrollbarWidth}px`;
+    
+    const navContainer = document.getElementById('guest-navbar');
+    if (navContainer) {
+      const computedPadding = window.getComputedStyle(navContainer).paddingRight;
+      navContainer.dataset.originalPadding = computedPadding;
+      navContainer.style.paddingRight = `calc(${computedPadding} + ${scrollbarWidth}px)`;
+    }
+
     document.body.style.overflow = 'hidden';
   };
 
@@ -47,6 +58,14 @@ export default function DayTourCard({ tour, compact = false }) {
     setTimeout(() => {
       setShowDetailsModal(false);
       document.body.style.overflow = 'unset';
+      document.body.style.paddingRight = '';
+      
+      const navContainer = document.getElementById('guest-navbar');
+      if (navContainer && navContainer.dataset.originalPadding) {
+        navContainer.style.paddingRight = navContainer.dataset.originalPadding;
+      } else if (navContainer) {
+        navContainer.style.paddingRight = '';
+      }
     }, 260);
   };
 
@@ -65,6 +84,9 @@ export default function DayTourCard({ tour, compact = false }) {
   useEffect(() => {
     return () => {
       document.body.style.overflow = 'unset';
+      document.body.style.paddingRight = '';
+      const navContainer = document.getElementById('guest-navbar');
+      if (navContainer) navContainer.style.paddingRight = '';
     };
   }, []);
 
@@ -211,22 +233,30 @@ export default function DayTourCard({ tour, compact = false }) {
                   )}
 
                   {images.length > 1 && (
-                    <div className="absolute bottom-3 right-3 rounded-full bg-black/45 px-2.5 py-1 text-xs font-medium text-white backdrop-blur-sm">
+                    <div className="absolute bottom-3 right-3 rounded-full bg-black/45 px-2.5 py-1 text-xs font-medium text-white backdrop-blur-sm z-10">
                       {activeImageIndex + 1} / {images.length}
                     </div>
                   )}
+
+                  <button
+                    type="button"
+                    onClick={closeModal}
+                    className="absolute right-4 top-4 z-20 flex lg:hidden h-10 w-10 items-center justify-center rounded-full bg-black/50 text-white backdrop-blur-md transition-all duration-200 hover:bg-black/70 hover:scale-105"
+                  >
+                    <i className="fas fa-times text-lg"></i>
+                  </button>
                 </div>
 
-                <div className="flex max-h-[80vh] flex-col">
-                  <div className="flex items-center justify-between border-b border-ocean-light/15 px-5 py-4 sm:px-6">
+                <div className="flex max-h-[80vh] flex-col relative">
+                  <button
+                    type="button"
+                    onClick={closeModal}
+                    className="absolute right-4 top-4 z-20 hidden lg:flex h-9 w-9 items-center justify-center rounded-full bg-gray-100 text-gray-600 transition-all duration-200 hover:bg-gray-200 hover:scale-105"
+                  >
+                    <i className="fas fa-times"></i>
+                  </button>
+                  <div className="flex items-center justify-between border-b border-ocean-light/15 px-5 py-4 sm:px-6 pr-14 lg:pr-16">
                     <h3 className="font-playfair text-2xl font-bold text-textPrimary">Day Tour Details</h3>
-                    <button
-                      type="button"
-                      onClick={closeModal}
-                      className="ml-4 inline-flex h-9 w-9 items-center justify-center rounded-full bg-gray-100 text-gray-700 transition-colors duration-200 hover:bg-gray-200"
-                    >
-                      <i className="fas fa-times"></i>
-                    </button>
                   </div>
 
                   <div className="space-y-4 overflow-y-auto px-5 py-5 sm:px-6">
@@ -285,16 +315,41 @@ export default function DayTourCard({ tour, compact = false }) {
                         {tour.description || 'No day tour description has been added yet.'}
                       </p>
                     </div>
+
+                    {images.length > 1 && (
+                      <div className="rounded-2xl border border-ocean-light/20 bg-white p-3">
+                        <p className="mb-2 text-xs font-semibold uppercase tracking-[0.15em] text-textSecondary">
+                          Gallery
+                        </p>
+                        <div className="flex gap-2 overflow-x-auto pb-1">
+                          {images.map((image, idx) => (
+                            <button
+                              key={`${image}-${idx}`}
+                              type="button"
+                              onClick={() => {
+                                setDetailImageFailed(false);
+                                setActiveImageIndex(idx);
+                              }}
+                              className={`relative h-16 w-16 flex-shrink-0 overflow-hidden rounded-xl border transition-all duration-200 ${
+                                activeImageIndex === idx
+                                  ? 'border-ocean-mid ring-2 ring-ocean-mid/25'
+                                  : 'border-ocean-light/20 opacity-75 hover:opacity-100'
+                              }`}
+                            >
+                              <Image
+                                src={image}
+                                alt={`Day tour thumbnail ${idx + 1}`}
+                                fill
+                                className="object-cover"
+                              />
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+                    )}
                   </div>
 
                   <div className="flex gap-3 border-t border-ocean-light/15 px-5 py-4 sm:px-6">
-                    <button
-                      type="button"
-                      onClick={closeModal}
-                      className="inline-flex flex-1 items-center justify-center rounded-xl border border-gray-300 px-4 py-2.5 text-sm font-semibold text-gray-700 transition-colors duration-200 hover:bg-gray-50"
-                    >
-                      Close
-                    </button>
                     <button
                       type="button"
                       onClick={() => {

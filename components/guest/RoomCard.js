@@ -36,7 +36,18 @@ export default function RoomCard({ room }) {
   const openSidebar = () => {
     setIsAnimating(true);
     setShowDetailsModal(true);
-    // Prevent body scroll when sidebar is open
+    
+    // Prevent body scroll and layout shift when sidebar is open
+    const scrollbarWidth = window.innerWidth - document.documentElement.clientWidth;
+    document.body.style.paddingRight = `${scrollbarWidth}px`;
+    
+    const navContainer = document.getElementById('guest-navbar');
+    if (navContainer) {
+      const computedPadding = window.getComputedStyle(navContainer).paddingRight;
+      navContainer.dataset.originalPadding = computedPadding;
+      navContainer.style.paddingRight = `calc(${computedPadding} + ${scrollbarWidth}px)`;
+    }
+
     document.body.style.overflow = 'hidden';
   };
 
@@ -46,6 +57,14 @@ export default function RoomCard({ room }) {
       setShowDetailsModal(false);
       // Restore body scroll
       document.body.style.overflow = 'unset';
+      document.body.style.paddingRight = '';
+      
+      const navContainer = document.getElementById('guest-navbar');
+      if (navContainer && navContainer.dataset.originalPadding) {
+        navContainer.style.paddingRight = navContainer.dataset.originalPadding;
+      } else if (navContainer) {
+        navContainer.style.paddingRight = '';
+      }
     }, 300);
   };
 
@@ -53,6 +72,9 @@ export default function RoomCard({ room }) {
   useEffect(() => {
     return () => {
       document.body.style.overflow = 'unset';
+      document.body.style.paddingRight = '';
+      const navContainer = document.getElementById('guest-navbar');
+      if (navContainer) navContainer.style.paddingRight = '';
     };
   }, []);
 

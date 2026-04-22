@@ -29,7 +29,7 @@ export default function GuestNavbar() {
   if (!mounted) return null;
 
   return (
-    <div className="fixed top-0 left-0 right-0 z-50 px-4 sm:px-6 lg:px-8 mt-6">
+    <div id="guest-navbar" className="fixed top-0 left-0 right-0 z-50 px-4 sm:px-6 lg:px-8 mt-6">
       <nav className="max-w-6xl mx-auto bg-white/95 backdrop-blur-md rounded-[2.5rem] shadow-[0_8px_30px_rgb(0,0,0,0.08)] px-8 py-3.5 border border-gray-100/50">
         <div className="flex items-center justify-between h-12">
           

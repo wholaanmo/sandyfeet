@@ -11,6 +11,8 @@ import { uploadImage } from '@/lib/cloudinary';
 function DayTourBookingContent() {
   const searchParams = useSearchParams();
   const router = useRouter();
+  const HARD_MAX_PACKS = 38;
+  const LEAD_TIME_DAYS = 2;
   const dateParam = searchParams.get('date');
   
   const [loading, setLoading] = useState(true);
@@ -36,9 +38,14 @@ function DayTourBookingContent() {
   const [modalNotification, setModalNotification] = useState(null);
   const [copiedMessage, setCopiedMessage] = useState(false);
   
+  const initialAdultsRaw = parseInt(searchParams.get('adults')) || 1;
+  const initialKidsRaw = parseInt(searchParams.get('kids')) || 0;
+  const initialAdults = Math.max(1, Math.min(HARD_MAX_PACKS, initialAdultsRaw));
+  const initialKids = Math.max(0, Math.min(HARD_MAX_PACKS - initialAdults, initialKidsRaw));
+
   const [bookingData, setBookingData] = useState({
-    adults: 1,
-    kids: 0,
+    adults: initialAdults,
+    kids: initialKids,
     seniors: 0,
     firstName: '',
     lastName: '',
@@ -66,6 +73,18 @@ function DayTourBookingContent() {
     'PhilHealth ID',
     'Other Government IDs'
   ];
+
+  const isDateBeforeLeadTime = (targetDate) => {
+    if (!targetDate) return true;
+    const normalizedTarget = new Date(targetDate);
+    normalizedTarget.setHours(0, 0, 0, 0);
+
+    const minBookableDate = new Date();
+    minBookableDate.setHours(0, 0, 0, 0);
+    minBookableDate.setDate(minBookableDate.getDate() + LEAD_TIME_DAYS);
+
+    return normalizedTarget < minBookableDate;
+  };
 
   // Generate unique booking reference number
   const generateBookingReference = () => {
@@ -213,7 +232,7 @@ function DayTourBookingContent() {
   useEffect(() => {
     if (dateParam) {
       const date = new Date(dateParam);
-      if (!isNaN(date.getTime())) {
+      if (!isNaN(date.getTime()) && !isDateBeforeLeadTime(date)) {
         setSelectedDate(date);
       } else {
         router.push('/day-tour/calendar');
@@ -254,6 +273,7 @@ function DayTourBookingContent() {
 
   // Calculate total guests and total price
   const totalGuests = bookingData.adults + bookingData.kids + bookingData.seniors;
+  const maxAllowedGuests = HARD_MAX_PACKS;
   const totalPrice = (bookingData.adults * (dayTour?.adultPrice || 0)) +
                      (bookingData.kids * (dayTour?.kidPrice || 0)) +
                      (bookingData.seniors * (dayTour?.seniorPrice || 0));
@@ -271,6 +291,11 @@ function DayTourBookingContent() {
   const validateGuests = () => {
     if (totalGuests < 1) {
       setErrors(prev => ({ ...prev, guests: 'At least 1 guest is required' }));
+      return false;
+    }
+
+    if (totalGuests > maxAllowedGuests) {
+      setErrors(prev => ({ ...prev, guests: `Maximum packs is ${maxAllowedGuests}` }));
       return false;
     }
     
@@ -308,7 +333,8 @@ function DayTourBookingContent() {
   };
 
   const handleGuestChange = (field, value) => {
-    const numValue = parseInt(value) || 0;
+    const parsed = parseInt(value, 10);
+    const numValue = Math.max(0, Math.min(maxAllowedGuests, Number.isNaN(parsed) ? 0 : parsed));
     setBookingData(prev => ({ ...prev, [field]: numValue }));
     if (errors.guests) {
       validateGuests();
@@ -433,6 +459,12 @@ const handleNotifyResort = async () => {
 };
 
   const handleSubmitBooking = async () => {
+    if (!selectedDate || isDateBeforeLeadTime(selectedDate)) {
+      alert('Walk-ins or same-day bookings are not allowed. Please choose a later date.');
+      router.push('/day-tour/calendar');
+      return;
+    }
+
     setSubmitting(true);
     try {
       const year = selectedDate.getFullYear();
@@ -610,6 +642,7 @@ const handleNotifyResort = async () => {
                       <input
                         type="number"
                         min="0"
+                        max={maxAllowedGuests}
                         value={bookingData.adults}
                         onChange={(e) => handleGuestChange('adults', e.target.value)}
                         className="w-full px-4 py-2 border border-ocean-light/20 rounded-lg focus:outline-none focus:border-ocean-light"
@@ -621,6 +654,7 @@ const handleNotifyResort = async () => {
                       <input
                         type="number"
                         min="0"
+                        max={Math.max(0, maxAllowedGuests - bookingData.adults - bookingData.seniors)}
                         value={bookingData.kids}
                         onChange={(e) => handleGuestChange('kids', e.target.value)}
                         className="w-full px-4 py-2 border border-ocean-light/20 rounded-lg focus:outline-none focus:border-ocean-light"
@@ -632,6 +666,7 @@ const handleNotifyResort = async () => {
                       <input
                         type="number"
                         min="0"
+                        max={Math.max(0, maxAllowedGuests - bookingData.adults - bookingData.kids)}
                         value={bookingData.seniors}
                         onChange={(e) => handleGuestChange('seniors', e.target.value)}
                         className="w-full px-4 py-2 border border-ocean-light/20 rounded-lg focus:outline-none focus:border-ocean-light"
@@ -671,9 +706,9 @@ const handleNotifyResort = async () => {
                     </button>
                     <button
                       onClick={handleNextStep}
-                      disabled={totalGuests < 1 || (remainingCapacity !== Infinity && totalGuests > remainingCapacity)}
+                      disabled={totalGuests < 1 || totalGuests > maxAllowedGuests || (remainingCapacity !== Infinity && totalGuests > remainingCapacity)}
                       className={`flex-1 py-3 rounded-xl font-medium transition-all duration-300 ${
-                        totalGuests >= 1 && (remainingCapacity === Infinity || totalGuests <= remainingCapacity)
+                        totalGuests >= 1 && totalGuests <= maxAllowedGuests && (remainingCapacity === Infinity || totalGuests <= remainingCapacity)
                           ? 'bg-gradient-to-r from-ocean-mid to-ocean-light text-white hover:shadow-lg'
                           : 'bg-gray-200 text-gray-500 cursor-not-allowed'
                       }`}
