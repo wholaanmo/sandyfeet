@@ -20,11 +20,11 @@
   },
   "devDependencies": {
     "@tailwindcss/postcss": "^4",
-    "autoprefixer": "^10.4.27",
+    "autoprefixer": "^10.5.0",
     "babel-plugin-react-compiler": "1.0.0",
     "eslint": "^9",
     "eslint-config-next": "16.1.6",
-    "postcss": "^8.5.8",
-    "tailwindcss": "^4.2.2"
+    "postcss": "^8.5.10",
+    "tailwindcss": "^4.2.4"
   }
 }

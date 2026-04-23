@@ -1,0 +1,334 @@
+// components/admin/AdminNavbar.js
+'use client';
+
+import { useState, useEffect } from 'react';
+import Image from 'next/image';
+import { auth, db } from '../../lib/firebase';
+import { doc, getDoc } from 'firebase/firestore';
+import { 
+  asDate, 
+  setupBankRequestsListener, 
+  setupDayTourBankRequestsListener, 
+  setupRoomReservationsListener, 
+  setupDayTourReservationsListener, 
+  setupGuestCancellationsListener,
+  markNotificationAsRead,
+  markAllNotificationsAsRead
+} from './notificationService';
+
+export default function AdminNavbar({ toggleSidebar, sidebarOpen, isDesktop }) {
+  const [userName, setUserName] = useState('');
+  const [userRole, setUserRole] = useState('');
+  const [unreadCount, setUnreadCount] = useState(0);
+  const [showNotifications, setShowNotifications] = useState(false);
+  const [notifications, setNotifications] = useState([]);
+
+  useEffect(() => {
+    const fetchUserData = async () => {
+      try {
+        const uid = localStorage.getItem('uid');
+        if (uid) {
+          const userDoc = await getDoc(doc(db, 'users', uid));
+          if (userDoc.exists()) {
+            const userData = userDoc.data();
+            setUserName(userData.name || 'User');
+            setUserRole(userData.role === 'admin' ? 'Administrator' : 'Staff');
+          }
+        }
+      } catch (error) {
+        console.error('Error fetching user data:', error);
+      }
+    };
+    
+    fetchUserData();
+  }, []);
+
+  // Combined notification update handler
+  const handleNotificationsUpdate = (newItems, type) => {
+    setNotifications(prev => {
+      const filtered = prev.filter(n => n.type !== type);
+      const combined = [...filtered, ...newItems];
+      combined.sort((a, b) => asDate(b.createdAt) - asDate(a.createdAt));
+      return combined;
+    });
+  };
+
+  // Set up all notification listeners
+  useEffect(() => {
+    const unsubscribeBank = setupBankRequestsListener(handleNotificationsUpdate);
+    const unsubscribeDayTourBank = setupDayTourBankRequestsListener(handleNotificationsUpdate);
+    const unsubscribeRoomReservations = setupRoomReservationsListener(handleNotificationsUpdate);
+    const unsubscribeDayTourReservations = setupDayTourReservationsListener(handleNotificationsUpdate);
+    const unsubscribeCancellations = setupGuestCancellationsListener(handleNotificationsUpdate);
+
+    return () => {
+      unsubscribeBank();
+      unsubscribeDayTourBank();
+      unsubscribeRoomReservations();
+      unsubscribeDayTourReservations();
+      unsubscribeCancellations();
+    };
+  }, []);
+
+  // Recalculate unread count whenever notifications change
+  useEffect(() => {
+    const count = notifications.filter(n => !n.read).length;
+    setUnreadCount(count);
+  }, [notifications]);
+
+  const handleToggleNotifications = async () => {
+    if (!showNotifications && unreadCount > 0) {
+      await markAllNotificationsAsRead();
+      // Update local read status
+      setNotifications(prev => prev.map(n => ({ ...n, read: true })));
+    }
+    setShowNotifications(!showNotifications);
+  };
+
+  const handleMarkAsRead = async (notification) => {
+    await markNotificationAsRead(notification);
+    setNotifications(prev => prev.map(n => 
+      n.id === notification.id && n.type === notification.type ? { ...n, read: true } : n
+    ));
+  };
+
+  const navbarStyle = isDesktop
+    ? {
+        left: sidebarOpen ? '260px' : '80px',
+        width: sidebarOpen ? 'calc(100% - 260px)' : 'calc(100% - 80px)',
+        transition: 'left 0.3s cubic-bezier(0.4, 0, 0.2, 1), width 0.3s cubic-bezier(0.4, 0, 0.2, 1)'
+      }
+    : {
+        left: 0,
+        width: '100%',
+        transition: 'none'
+      };
+
+  // Function to get notification icon and color based on type
+  const getNotificationStyle = (type) => {
+    switch(type) {
+      case 'cancellation':
+        return { icon: 'fas fa-calendar-times', bgColor: 'bg-gradient-to-br from-red-50 to-red-100', iconColor: 'text-red-600', borderColor: 'border-red-200' };
+      case 'bank_transfer':
+      case 'bank_transfer_daytour':
+        return { icon: 'fas fa-university', bgColor: 'bg-gradient-to-br from-amber-50 to-amber-100', iconColor: 'text-amber-600', borderColor: 'border-amber-200' };
+      case 'reservation_room':
+        return { icon: 'fas fa-bed', bgColor: 'bg-gradient-to-br from-blue-50 to-blue-100', iconColor: 'text-blue-600', borderColor: 'border-blue-200' };
+      case 'reservation_daytour':
+        return { icon: 'fas fa-sun', bgColor: 'bg-gradient-to-br from-emerald-50 to-emerald-100', iconColor: 'text-emerald-600', borderColor: 'border-emerald-200' };
+      default:
+        return { icon: 'fas fa-bell', bgColor: 'bg-gradient-to-br from-gray-50 to-gray-100', iconColor: 'text-gray-600', borderColor: 'border-gray-200' };
+    }
+  };
+
+  return (
+    <nav 
+      className="fixed right-0 h-16 bg-white/80 backdrop-blur-md z-50 shadow-lg flex items-center border-b border-[#4D8CF5]/10"
+      style={navbarStyle}
+    >
+      <div className="flex items-center justify-between h-full px-6 w-full">
+        {/* Left section: hamburger (mobile) */}
+        <div className="flex items-center gap-3">
+          {/* Hamburger button - visible only on mobile */}
+          <button
+            onClick={toggleSidebar}
+            className="block lg:hidden text-[#1E3A8A] hover:text-[#4D8CF5] hover:scale-105 transition-all duration-200 p-2 rounded-xl hover:bg-[#4D8CF5]/10 focus:outline-none"
+            aria-label="Menu"
+          >
+            <span className="material-icons text-2xl">menu</span>
+          </button>
+        </div>
+
+        <div className="flex items-center gap-4">
+          {/* Role and Name Badge - Enhanced */}
+          <div className="flex items-center gap-3 px-4 py-2 rounded-full bg-gradient-to-r from-[#4D8CF5]/5 to-[#7AAAF8]/5 backdrop-blur-sm shadow-sm border border-[#4D8CF5]/15 hover:shadow-md hover:border-[#4D8CF5]/30 transition-all duration-300">
+            <div className="w-8 h-8 rounded-full bg-gradient-to-br from-[#4D8CF5] to-[#7AAAF8] flex items-center justify-center shadow-md">
+              <i className="fas fa-user-shield text-white text-sm"></i>
+            </div>
+            <div className="flex flex-col">
+              <span className="text-sm font-bold text-[#1E3A8A]">
+                {userRole}: {userName}
+              </span>
+            </div>
+          </div>
+
+          {/* Notification Bell - Enhanced */}
+          <div className="relative">
+            <button
+              onClick={handleToggleNotifications}
+              className="relative flex items-center justify-center w-11 h-11 rounded-xl bg-gradient-to-br from-white to-gray-50 text-[#1E3A8A] border border-[#4D8CF5]/20 hover:bg-gradient-to-br hover:from-[#4D8CF5] hover:to-[#7AAAF8] hover:text-white hover:border-transparent transition-all duration-300 shadow-sm hover:shadow-md group"
+            >
+              <i className="fas fa-bell text-lg group-hover:scale-105 transition-transform duration-200"></i>
+              {unreadCount > 0 && (
+                <span className="absolute -top-1 -right-1 min-w-[20px] h-5 bg-gradient-to-r from-red-500 to-red-600 text-white text-xs font-bold rounded-full flex items-center justify-center px-1 shadow-md animate-pulse">
+                  {unreadCount > 9 ? '9+' : unreadCount}
+                </span>
+              )}
+            </button>
+            
+            {/* Notifications Dropdown - Enhanced UI */}
+            {showNotifications && (
+              <div className="absolute right-0 mt-3 w-96 bg-white rounded-2xl shadow-2xl border border-[#4D8CF5]/15 overflow-hidden z-50 animate-fadeIn">
+                {/* Header */}
+                <div className="px-5 py-4 border border-[#7AAAF8]/20 bg-[#7AAAF8]/5">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                      <i className="fas fa-bell text-#1F2937e text-lg"></i>
+                      <h3 className="text-#1F2937 font-bold text-base">Notifications</h3>
+                    </div>
+                    {unreadCount > 0 && (
+                      <span className="bg-white/20 backdrop-blur-sm text-white text-xs font-semibold px-2.5 py-1 rounded-full">
+                        {unreadCount} new
+                      </span>
+                    )}
+                  </div>
+                </div>
+                
+                {/* Notifications List */}
+                <div className="max-h-[480px] overflow-y-auto divide-y divide-gray-100">
+                  {notifications.length === 0 ? (
+                    <div className="p-8 text-center">
+                      <div className="w-16 h-16 mx-auto mb-4 rounded-full bg-gray-100 flex items-center justify-center">
+                        <i className="fas fa-bell-slash text-2xl text-gray-400"></i>
+                      </div>
+                      <p className="text-gray-500 font-medium">No notifications</p>
+                      <p className="text-xs text-gray-400 mt-1">New notifications will appear here</p>
+                    </div>
+                  ) : (
+                    notifications.map((notification) => {
+                      const style = getNotificationStyle(notification.type);
+                      return (
+                        <div 
+                          key={`${notification.type}-${notification.id}`} 
+                          onClick={() => handleMarkAsRead(notification)}
+                          className={`relative p-4 transition-all duration-200 cursor-pointer hover:bg-gray-50 ${
+                            !notification.read ? 'bg-gradient-to-r from-[#4D8CF5]/5 to-transparent border-l-4 border-[#4D8CF5]' : ''
+                          }`}
+                        >
+                          <div className="flex items-start gap-3">
+                            {/* Icon Container */}
+                            <div className={`w-10 h-10 rounded-xl ${style.bgColor} flex items-center justify-center flex-shrink-0 shadow-sm`}>
+                              <i className={`${style.icon} ${style.iconColor} text-base`}></i>
+                            </div>
+                            
+                            {/* Content */}
+                            <div className="flex-1 min-w-0">
+                              {notification.type === 'bank_transfer' ? (
+                                <>
+                                  <p className="text-sm font-bold text-gray-800 mb-1">
+                                    Room Bank Transfer Request
+                                  </p>
+                                  <p className="text-xs text-gray-600 mb-1">
+                                    <span className="font-semibold">{notification.guestName}</span> requested bank transfer for {notification.roomType || 'room'}
+                                  </p>
+                                  <div className="inline-flex items-center gap-1.5 mt-1 px-2 py-0.5 bg-amber-50 rounded-full">
+                                    <i className="fas fa-building text-amber-500 text-[10px]"></i>
+                                    <span className="text-[11px] font-medium text-amber-700">{notification.selectedBank}</span>
+                                  </div>
+                                </>
+                              ) : notification.type === 'bank_transfer_daytour' ? (
+                                <>
+                                  <p className="text-sm font-bold text-gray-800 mb-1">
+                                    Day Tour Bank Transfer Request
+                                  </p>
+                                  <p className="text-xs text-gray-600 mb-1">
+                                    <span className="font-semibold">{notification.guestName}</span> | Booking ID: <span className="font-mono">{notification.bookingId}</span>
+                                  </p>
+                                  <div className="inline-flex items-center gap-1.5 mt-1 px-2 py-0.5 bg-amber-50 rounded-full">
+                                    <i className="fas fa-building text-amber-500 text-[10px]"></i>
+                                    <span className="text-[11px] font-medium text-amber-700">{notification.selectedBank}</span>
+                                  </div>
+                                </>
+                              ) : notification.type === 'reservation_room' ? (
+                                <>
+                                  <p className="text-sm font-bold text-gray-800 mb-1">
+                                    Room Reservation
+                                  </p>
+                                  <p className="text-xs text-gray-600 mb-1">
+                                    <span className="font-semibold">{notification.guestName}</span> | Booking ID: <span className="font-mono">{notification.bookingId}</span>
+                                  </p>
+                                  <div className="inline-flex items-center gap-1.5 mt-1 px-2 py-0.5 bg-blue-50 rounded-full">
+                                    <i className="fas fa-bed text-blue-500 text-[10px]"></i>
+                                    <span className="text-[11px] font-medium text-blue-700">{notification.roomType}</span>
+                                  </div>
+                                </>
+                              ) : notification.type === 'reservation_daytour' ? (
+                                <>
+                                  <p className="text-sm font-bold text-gray-800 mb-1">
+                                    Day Tour Reservation
+                                  </p>
+                                  <p className="text-xs text-gray-600 mb-1">
+                                    <span className="font-semibold">{notification.guestName}</span> | Booking ID: <span className="font-mono">{notification.bookingId}</span>
+                                  </p>
+                                  <div className="inline-flex items-center gap-1.5 mt-1 px-2 py-0.5 bg-emerald-50 rounded-full">
+                                    <i className="fas fa-calendar-alt text-emerald-500 text-[10px]"></i>
+                                    <span className="text-[11px] font-medium text-emerald-700">{notification.reservationDate}</span>
+                                  </div>
+                                </>
+                              ) : (
+                                <>
+                                  <p className="text-sm font-bold text-gray-800 mb-1">
+                                    Guest Cancellation
+                                  </p>
+                                  <p className="text-xs text-gray-600 mb-1">
+                                    <span className="font-semibold">{notification.guestName}</span> cancelled reservation <span className="font-mono">{notification.bookingId}</span>
+                                  </p>
+                                  <div className="inline-flex items-center gap-1.5 mt-1 px-2 py-0.5 bg-red-50 rounded-full">
+                                    <i className="fas fa-door-open text-red-500 text-[10px]"></i>
+                                    <span className="text-[11px] font-medium text-red-700">{notification.roomType || 'Day Tour'}</span>
+                                  </div>
+                                </>
+                              )}
+                              {/* Timestamp */}
+                              <p className="text-[10px] text-gray-400 mt-2 flex items-center gap-1">
+                                <i className="fas fa-clock text-[8px]"></i>
+                                {asDate(notification.createdAt).toLocaleString()}
+                              </p>
+                            </div>
+                            
+                            {/* Unread indicator */}
+                            {!notification.read && (
+                              <div className="w-2 h-2 rounded-full bg-[#4D8CF5] flex-shrink-0 mt-2"></div>
+                            )}
+                          </div>
+                        </div>
+                      );
+                    })
+                  )}
+                </div>
+                
+                {/* Footer */}
+                {notifications.length > 0 && (
+                  <div className="px-4 py-3 bg-gray-50 border-t border-gray-100 text-center">
+                    <button 
+                      onClick={() => setShowNotifications(false)}
+                      className="text-xs text-gray-500 hover:text-[#4D8CF5] transition-colors duration-200"
+                    >
+                      Close
+                    </button>
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
+        </div>
+      </div>
+      
+      <style jsx>{`
+        @keyframes fadeIn {
+          from {
+            opacity: 0;
+            transform: translateY(-10px);
+          }
+          to {
+            opacity: 1;
+            transform: translateY(0);
+          }
+        }
+        .animate-fadeIn {
+          animation: fadeIn 0.2s ease-out;
+        }
+      `}</style>
+    </nav>
+  );
+}
