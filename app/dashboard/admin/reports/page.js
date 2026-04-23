@@ -3,7 +3,7 @@
 
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { db } from '@/lib/firebase';
-import { collection, query, where, onSnapshot, getDocs, Timestamp } from 'firebase/firestore';
+import { collection, getDocs } from 'firebase/firestore';
 import {
   BarChart,
   Bar,
@@ -30,15 +30,10 @@ export default function AdminReports() {
   const [totalDayTourGuests, setTotalDayTourGuests] = useState(0);
   
   // Chart data states
-  const [roomTypeData, setRoomTypeData] = useState([]);
-  const [revenueData, setRevenueData] = useState([]);
-  const [bookingSplitData, setBookingSplitData] = useState([]);
-  const [trendData, setTrendData] = useState([]);
-  
-  // Yearly monthly data for year-based filtering
   const [yearlyMonthlyRoomData, setYearlyMonthlyRoomData] = useState({});
   const [yearlyMonthlyRevenueData, setYearlyMonthlyRevenueData] = useState({});
   const [yearlyMonthlyTrendData, setYearlyMonthlyTrendData] = useState({});
+  const [bookingSplitData, setBookingSplitData] = useState([]);
   
   // Filter states
   const [selectedYear, setSelectedYear] = useState('');
@@ -49,25 +44,22 @@ export default function AdminReports() {
   // Available years
   const [availableYears, setAvailableYears] = useState([]);
   
-  // Tab refs for sliding underline
+  // Tab refs
   const tabsContainerRef = useRef(null);
   const sliderRef = useRef(null);
   const buttonRefs = useRef({});
   
   // Colors
-  const COLORS = ['#4D8CF5', '#F59E0B', '#10B981', '#8B5CF6', '#EF4444', '#06B6D4'];
+  const COLORS = ['#8B5CF6', '#4D8CF5', '#F59E0B'];
   const ROOM_TYPE_COLORS = {
     'Tent': '#10B981',
     'Ground Floor Room': '#4D8CF5',
     'Group Room': '#8B5CF6',
     'Couple Room': '#F59E0B'
   };
-  const SPLIT_COLORS = ['#8B5CF6', '#4D8CF5', '#F59E0B'];
   
-  // Month names
   const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
   
-  // Update slider position for justified tabs
   const updateSlider = useCallback(() => {
     const activeButton = buttonRefs.current[activeTab];
     const container = tabsContainerRef.current;
@@ -95,6 +87,14 @@ export default function AdminReports() {
     };
   }, [updateSlider]);
   
+  // Initialize slider after mount
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      updateSlider();
+    }, 100);
+    return () => clearTimeout(timer);
+  }, [updateSlider]);
+  
   useEffect(() => {
     fetchAllData();
   }, []);
@@ -102,7 +102,6 @@ export default function AdminReports() {
   const fetchAllData = async () => {
     setLoading(true);
     try {
-      // Fetch room bookings
       const bookingsRef = collection(db, 'bookings');
       const bookingsSnapshot = await getDocs(bookingsRef);
       const bookings = [];
@@ -113,7 +112,6 @@ export default function AdminReports() {
         }
       });
       
-      // Fetch day tour bookings
       const dayTourRef = collection(db, 'dayTourBookings');
       const dayTourSnapshot = await getDocs(dayTourRef);
       const dayTours = [];
@@ -130,7 +128,6 @@ export default function AdminReports() {
   };
   
   const processData = (bookings, dayTours) => {
-    // --- Total Revenue: only COMPLETED transactions ---
     let revenue = 0;
     let roomBookingCount = 0;
     let dayTourGuestCount = 0;
@@ -138,19 +135,15 @@ export default function AdminReports() {
     const processedBookings = [];
     const multiRoomGroups = new Map();
     
-    // First pass: collect all bookings and sum revenue for completed ones
     bookings.forEach(booking => {
-      // Sum revenue only if status is 'completed'
       if (booking.status === 'completed') {
         revenue += booking.totalPrice || 0;
       }
       
-      // Count room bookings regardless of status (for total card)
       if (!booking.isMultiRoomBooking) {
         roomBookingCount++;
       }
       
-      // Grouping for charts (still include all bookings for chart data)
       if (booking.isMultiRoomBooking && booking.parentBookingId) {
         if (!multiRoomGroups.has(booking.parentBookingId)) {
           multiRoomGroups.set(booking.parentBookingId, {
@@ -163,13 +156,11 @@ export default function AdminReports() {
         const group = multiRoomGroups.get(booking.parentBookingId);
         group.bookings.push(booking);
         group.totalPrice += booking.totalPrice || 0;
-        // If any child is not completed, group status is not completed? But for revenue we already summed individually.
       } else if (!booking.isMultiRoomBooking) {
         processedBookings.push(booking);
       }
     });
     
-    // Process multi-room groups for chart data (still include all)
     multiRoomGroups.forEach((group, parentId) => {
       processedBookings.push({
         ...group.bookings[0],
@@ -178,11 +169,9 @@ export default function AdminReports() {
         isGrouped: true,
         childBookings: group.bookings
       });
-      // Count as one booking for total count
       roomBookingCount++;
     });
     
-    // Day tour guests: total guests (all statuses, unchanged)
     dayTours.forEach(tour => {
       const seniors = tour.seniors || 0;
       const adults = tour.adults || 0;
@@ -194,7 +183,7 @@ export default function AdminReports() {
     setTotalRoomBookings(roomBookingCount);
     setTotalDayTourGuests(dayTourGuestCount);
     
-    // Process yearly monthly data for room types (all bookings, regardless of status)
+    // Process yearly data
     const yearlyMonthlyRoom = {};
     const yearlyMonthlyRevenue = {};
     const yearlyMonthlyTrend = {};
@@ -228,7 +217,6 @@ export default function AdminReports() {
         };
       }
       
-      // Room types
       let roomTypes = [];
       if (booking.isGrouped && booking.childBookings) {
         roomTypes = booking.childBookings.map(cb => cb.roomType);
@@ -243,6 +231,7 @@ export default function AdminReports() {
           roomTypes.push(booking.roomType);
         }
       }
+      
       roomTypes.forEach(roomType => {
         if (roomType === 'Tent') yearlyMonthlyRoom[year].Tent[month]++;
         else if (roomType === 'Ground Floor Rooms') yearlyMonthlyRoom[year]['Ground Floor Room'][month]++;
@@ -250,15 +239,12 @@ export default function AdminReports() {
         else if (roomType === 'Couple Room') yearlyMonthlyRoom[year]['Couple Room'][month]++;
       });
       
-      // Revenue for charts (all bookings, not filtered by status)
       const totalPrice = booking.totalPrice || 0;
       yearlyMonthlyRevenue[year].roomRevenue[month] += totalPrice;
       yearlyMonthlyRevenue[year].total[month] += totalPrice;
-      
       yearlyMonthlyTrend[year].roomBookings[month]++;
     });
     
-    // Day tour data for charts (all statuses)
     dayTours.forEach(tour => {
       const createdAt = tour.createdAt?.toDate ? tour.createdAt.toDate() : new Date(tour.createdAt);
       const year = createdAt.getFullYear();
@@ -321,7 +307,7 @@ export default function AdminReports() {
     if (years.length > 0 && !selectedYear) setSelectedYear(years[0]);
     if (years.length > 0 && !selectedSplitYear) setSelectedSplitYear(years[0]);
     
-    // Booking split data (all bookings, all statuses)
+    // Booking split data
     let entireResortCount = 0, multiRoomCount = 0, singleRoomCount = 0;
     processedBookings.forEach(booking => {
       if (booking.isExclusiveResortBooking || (booking.isGrouped && booking.childBookings?.some(cb => cb.isExclusiveResortBooking))) {
@@ -339,8 +325,6 @@ export default function AdminReports() {
     ]);
   };
   
-  const getFilteredSplitData = () => bookingSplitData;
-  
   const CustomTooltip = ({ active, payload, label }) => {
     if (active && payload && payload.length) {
       const isRevenue = payload[0]?.name === 'roomRevenue' || payload[0]?.name === 'dayTourRevenue';
@@ -357,8 +341,6 @@ export default function AdminReports() {
     }
     return null;
   };
-  
-  const splitFilteredData = getFilteredSplitData();
   
   if (loading) {
     return (
@@ -382,9 +364,8 @@ export default function AdminReports() {
         </p>
       </div>
       
-      {/* Summary Cards - Enhanced UI */}
+      {/* Summary Cards - WITHOUT progress bars */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-10">
-        {/* Total Revenue Card */}
         <div className="group bg-gradient-to-br from-white via-white to-blue-50/30 rounded-2xl shadow-md border border-[#4D8CF5]/20 overflow-hidden hover:shadow-xl hover:border-[#4D8CF5]/40 transition-all duration-300">
           <div className="p-6">
             <div className="flex items-center justify-between mb-4">
@@ -397,13 +378,9 @@ export default function AdminReports() {
             </div>
             <h3 className="text-sm font-bold text-[#1E3A8A] mb-1">Total Revenue</h3>
             <p className="text-xs text-[#1E3A8A]/50">Lifetime revenue from <strong>completed</strong> bookings</p>
-            <div className="mt-4 h-1 w-full bg-[#4D8CF5]/10 rounded-full overflow-hidden">
-              <div className="h-full w-full bg-gradient-to-r from-[#4D8CF5] to-[#7AAAF8] rounded-full transform origin-left transition-transform duration-500" style={{ transform: `scaleX(${Math.min(totalRevenue / 1000000, 1)})` }}></div>
-            </div>
           </div>
         </div>
         
-        {/* Total Room Bookings Card */}
         <div className="group bg-gradient-to-br from-white via-white to-emerald-50/30 rounded-2xl shadow-md border border-[#10B981]/20 overflow-hidden hover:shadow-xl hover:border-[#10B981]/40 transition-all duration-300">
           <div className="p-6">
             <div className="flex items-center justify-between mb-4">
@@ -416,13 +393,9 @@ export default function AdminReports() {
             </div>
             <h3 className="text-sm font-bold text-[#1E3A8A] mb-1">Total Room Bookings</h3>
             <p className="text-xs text-[#1E3A8A]/50">All room reservations (all statuses)</p>
-            <div className="mt-4 h-1 w-full bg-[#10B981]/10 rounded-full overflow-hidden">
-              <div className="h-full w-full bg-gradient-to-r from-[#10B981] to-[#34D399] rounded-full transform origin-left transition-transform duration-500" style={{ transform: `scaleX(${Math.min(totalRoomBookings / 500, 1)})` }}></div>
-            </div>
           </div>
         </div>
         
-        {/* Total Day Tour Guest Bookings Card */}
         <div className="group bg-gradient-to-br from-white via-white to-amber-50/30 rounded-2xl shadow-md border border-[#F59E0B]/20 overflow-hidden hover:shadow-xl hover:border-[#F59E0B]/40 transition-all duration-300">
           <div className="p-6">
             <div className="flex items-center justify-between mb-4">
@@ -435,79 +408,25 @@ export default function AdminReports() {
             </div>
             <h3 className="text-sm font-bold text-[#1E3A8A] mb-1">Total Day Tour Guests</h3>
             <p className="text-xs text-[#1E3A8A]/50">All guests who joined day tours (all statuses)</p>
-            <div className="mt-4 h-1 w-full bg-[#F59E0B]/10 rounded-full overflow-hidden">
-              <div className="h-full w-full bg-gradient-to-r from-[#F59E0B] to-[#FBBF24] rounded-full transform origin-left transition-transform duration-500" style={{ transform: `scaleX(${Math.min(totalDayTourGuests / 1000, 1)})` }}></div>
-            </div>
           </div>
         </div>
       </div>
       
-      {/* Tabs - Justified layout */}
-      <div
-        className="relative flex w-full mb-8 border-b border-[#4D8CF5]/20"
-        ref={tabsContainerRef}
-      >
-        {/* Sliding background */}
-        <div
-          ref={sliderRef}
-          className="absolute top-1 bottom-1 rounded-lg bg-[#4D8CF5]/10 transition-all duration-300 ease-in-out shadow-sm"
-          style={{ transform: 'translateX(0px)', width: '0px' }}
-        />
+      {/* Tabs */}
+      <div className="relative flex w-full mb-8 border-b border-[#4D8CF5]/20" ref={tabsContainerRef}>
+        <div ref={sliderRef} className="absolute bottom-0 h-0.5 bg-gradient-to-r from-[#4D8CF5] to-[#7AAAF8] transition-all duration-300 ease-in-out rounded-full" style={{ transform: 'translateX(0px)', width: '0px' }} />
         
-        {/* Room Types Tab */}
-        <button
-          ref={(el) => (buttonRefs.current.roomTypes = el)}
-          onClick={() => setActiveTab('roomTypes')}
-          className={`relative z-10 flex-1 px-4 py-3 font-medium transition-all duration-200 text-center flex items-center justify-center gap-2 ${
-            activeTab === 'roomTypes'
-              ? 'text-[#1E3A8A]'
-              : 'text-[#1E3A8A]/60 hover:text-[#4D8CF5]'
-          }`}
-        >
-          <i className="fas fa-chart-bar"></i>
-          <span>Most Booked Room Types</span>
+        <button ref={(el) => (buttonRefs.current.roomTypes = el)} onClick={() => setActiveTab('roomTypes')} className={`relative z-10 flex-1 px-4 py-3 font-medium transition-all duration-200 text-center flex items-center justify-center gap-2 ${activeTab === 'roomTypes' ? 'text-[#1E3A8A]' : 'text-[#1E3A8A]/60 hover:text-[#4D8CF5]'}`}>
+          <i className="fas fa-chart-bar"></i><span>Most Booked Room Types</span>
         </button>
-        
-        {/* Revenue Summary Tab */}
-        <button
-          ref={(el) => (buttonRefs.current.revenue = el)}
-          onClick={() => setActiveTab('revenue')}
-          className={`relative z-10 flex-1 px-4 py-3 font-medium transition-all duration-200 text-center flex items-center justify-center gap-2 ${
-            activeTab === 'revenue'
-              ? 'text-[#1E3A8A]'
-              : 'text-[#1E3A8A]/60 hover:text-[#4D8CF5]'
-          }`}
-        >
-          <i className="fas fa-chart-line"></i>
-          <span>Revenue Summary</span>
+        <button ref={(el) => (buttonRefs.current.revenue = el)} onClick={() => setActiveTab('revenue')} className={`relative z-10 flex-1 px-4 py-3 font-medium transition-all duration-200 text-center flex items-center justify-center gap-2 ${activeTab === 'revenue' ? 'text-[#1E3A8A]' : 'text-[#1E3A8A]/60 hover:text-[#4D8CF5]'}`}>
+          <i className="fas fa-chart-line"></i><span>Revenue Summary</span>
         </button>
-        
-        {/* Room Booking Type Split Tab */}
-        <button
-          ref={(el) => (buttonRefs.current.bookingSplit = el)}
-          onClick={() => setActiveTab('bookingSplit')}
-          className={`relative z-10 flex-1 px-4 py-3 font-medium transition-all duration-200 text-center flex items-center justify-center gap-2 ${
-            activeTab === 'bookingSplit'
-              ? 'text-[#1E3A8A]'
-              : 'text-[#1E3A8A]/60 hover:text-[#4D8CF5]'
-          }`}
-        >
-          <i className="fas fa-chart-pie"></i>
-          <span>Room Booking Type Split</span>
+        <button ref={(el) => (buttonRefs.current.bookingSplit = el)} onClick={() => setActiveTab('bookingSplit')} className={`relative z-10 flex-1 px-4 py-3 font-medium transition-all duration-200 text-center flex items-center justify-center gap-2 ${activeTab === 'bookingSplit' ? 'text-[#1E3A8A]' : 'text-[#1E3A8A]/60 hover:text-[#4D8CF5]'}`}>
+          <i className="fas fa-chart-pie"></i><span>Room Booking Type Split</span>
         </button>
-        
-        {/* Monthly / Seasonal Trend Tab */}
-        <button
-          ref={(el) => (buttonRefs.current.trends = el)}
-          onClick={() => setActiveTab('trends')}
-          className={`relative z-10 flex-1 px-4 py-3 font-medium transition-all duration-200 text-center flex items-center justify-center gap-2 ${
-            activeTab === 'trends'
-              ? 'text-[#1E3A8A]'
-              : 'text-[#1E3A8A]/60 hover:text-[#4D8CF5]'
-          }`}
-        >
-          <i className="fas fa-chart-line"></i>
-          <span>Monthly / Seasonal Trend</span>
+        <button ref={(el) => (buttonRefs.current.trends = el)} onClick={() => setActiveTab('trends')} className={`relative z-10 flex-1 px-4 py-3 font-medium transition-all duration-200 text-center flex items-center justify-center gap-2 ${activeTab === 'trends' ? 'text-[#1E3A8A]' : 'text-[#1E3A8A]/60 hover:text-[#4D8CF5]'}`}>
+          <i className="fas fa-chart-line"></i><span>Monthly / Seasonal Trend</span>
         </button>
       </div>
       
@@ -516,36 +435,28 @@ export default function AdminReports() {
         {/* Tab 1: Most Booked Room Types */}
         {activeTab === 'roomTypes' && (
           <div>
-            <div className="flex justify-between items-center mb-6 flex-wrap gap-4">
-              <h2 className="text-xl font-bold text-[#1E3A8A]">Most Booked Room Types</h2>
+            <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-6">
               <div>
-                <label className="text-sm font-medium text-gray-700 mr-3">Select Year:</label>
-                <select
-                  value={selectedYear}
-                  onChange={(e) => setSelectedYear(e.target.value)}
-                  className="px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#4D8CF5] focus:border-transparent bg-white"
-                >
-                  {availableYears.map(year => (
-                    <option key={year} value={year}>{year}</option>
-                  ))}
+                <h2 className="text-2xl font-bold text-[#1E3A8A] font-playfair">Most Booked Room Types</h2>
+                <p className="text-sm text-gray-500 mt-1">Track booking popularity across different room categories</p>
+              </div>
+              <div className="flex items-center gap-3 bg-gray-50 px-4 py-2 rounded-xl">
+                <label className="text-sm font-medium text-gray-700">Select Year:</label>
+                <select value={selectedYear} onChange={(e) => setSelectedYear(e.target.value)} className="px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#4D8CF5] focus:border-transparent bg-white">
+                  {availableYears.map(year => (<option key={year} value={year}>{year}</option>))}
                 </select>
               </div>
             </div>
-            <p className="text-sm text-gray-500 mb-6">
-              Monthly booking frequency by room type for <span className="font-semibold">{selectedYear}</span>
-            </p>
+            <p className="text-sm text-gray-500 mb-6">Monthly booking frequency by room type for <span className="font-semibold text-[#1E3A8A]">{selectedYear}</span></p>
             {selectedYear && yearlyMonthlyRoomData[selectedYear] && (
               <div className="bg-gradient-to-br from-gray-50 to-white rounded-xl p-4 border border-gray-100 shadow-sm">
                 <ResponsiveContainer width="100%" height={400}>
-                  <BarChart
-                    data={yearlyMonthlyRoomData[selectedYear]}
-                    margin={{ top: 20, right: 30, left: 20, bottom: 5 }}
-                  >
+                  <BarChart data={yearlyMonthlyRoomData[selectedYear]} margin={{ top: 20, right: 30, left: 20, bottom: 5 }}>
                     <CartesianGrid strokeDasharray="3 3" />
                     <XAxis dataKey="month" />
                     <YAxis />
                     <Tooltip content={<CustomTooltip />} />
-                    <Legend />
+                    <Legend wrapperStyle={{ paddingTop: '20px', paddingBottom: '10px' }} />
                     <Bar dataKey="Tent" stackId="a" fill={ROOM_TYPE_COLORS['Tent']} />
                     <Bar dataKey="Ground Floor Room" stackId="a" fill={ROOM_TYPE_COLORS['Ground Floor Room']} />
                     <Bar dataKey="Group Room" stackId="a" fill={ROOM_TYPE_COLORS['Group Room']} />
@@ -560,36 +471,28 @@ export default function AdminReports() {
         {/* Tab 2: Revenue Summary */}
         {activeTab === 'revenue' && (
           <div>
-            <div className="flex justify-between items-center mb-6 flex-wrap gap-4">
-              <h2 className="text-xl font-bold text-[#1E3A8A]">Revenue Summary</h2>
+            <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-6">
               <div>
-                <label className="text-sm font-medium text-gray-700 mr-3">Select Year:</label>
-                <select
-                  value={selectedYear}
-                  onChange={(e) => setSelectedYear(e.target.value)}
-                  className="px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#4D8CF5] focus:border-transparent bg-white"
-                >
-                  {availableYears.map(year => (
-                    <option key={year} value={year}>{year}</option>
-                  ))}
+                <h2 className="text-2xl font-bold text-[#1E3A8A] font-playfair">Revenue Summary</h2>
+                <p className="text-sm text-gray-500 mt-1">Track revenue trends from room bookings and day tours</p>
+              </div>
+              <div className="flex items-center gap-3 bg-gray-50 px-4 py-2 rounded-xl">
+                <label className="text-sm font-medium text-gray-700">Select Year:</label>
+                <select value={selectedYear} onChange={(e) => setSelectedYear(e.target.value)} className="px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#4D8CF5] focus:border-transparent bg-white">
+                  {availableYears.map(year => (<option key={year} value={year}>{year}</option>))}
                 </select>
               </div>
             </div>
-            <p className="text-sm text-gray-500 mb-6">
-              Monthly revenue breakdown for <span className="font-semibold">{selectedYear}</span>
-            </p>
+            <p className="text-sm text-gray-500 mb-6">Monthly revenue breakdown for <span className="font-semibold text-[#1E3A8A]">{selectedYear}</span></p>
             {selectedYear && yearlyMonthlyRevenueData[selectedYear] && (
               <div className="bg-gradient-to-br from-gray-50 to-white rounded-xl p-4 border border-gray-100 shadow-sm">
                 <ResponsiveContainer width="100%" height={400}>
-                  <BarChart
-                    data={yearlyMonthlyRevenueData[selectedYear]}
-                    margin={{ top: 20, right: 30, left: 20, bottom: 5 }}
-                  >
+                  <BarChart data={yearlyMonthlyRevenueData[selectedYear]} margin={{ top: 20, right: 30, left: 20, bottom: 5 }}>
                     <CartesianGrid strokeDasharray="3 3" />
                     <XAxis dataKey="month" />
                     <YAxis />
                     <Tooltip content={<CustomTooltip />} />
-                    <Legend />
+                    <Legend wrapperStyle={{ paddingTop: '20px', paddingBottom: '10px' }} />
                     <Bar dataKey="roomRevenue" name="Room Booking Revenue" stackId="a" fill="#4D8CF5" />
                     <Bar dataKey="dayTourRevenue" name="Day Tour Revenue" stackId="a" fill="#F59E0B" />
                   </BarChart>
@@ -602,95 +505,60 @@ export default function AdminReports() {
         {/* Tab 3: Room Booking Type Split */}
         {activeTab === 'bookingSplit' && (
           <div>
-            <div className="flex justify-between items-center mb-6 flex-wrap gap-4">
-              <h2 className="text-xl font-bold text-[#1E3A8A]">Room Booking Type Split</h2>
-              <div className="flex gap-4">
-                <div>
-                  <label className="text-sm font-medium text-gray-700 mr-3">Filter by:</label>
-                  <select
-                    value={selectedSplitFilter}
-                    onChange={(e) => setSelectedSplitFilter(e.target.value)}
-                    className="px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#4D8CF5] focus:border-transparent bg-white"
-                  >
-                    <option value="year">Year</option>
-                    <option value="month">Month</option>
+            <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-6">
+              <div>
+                <h2 className="text-2xl font-bold text-[#1E3A8A] font-playfair">Room Booking Type Split</h2>
+                <p className="text-sm text-gray-500 mt-1">Distribution of booking types across your property</p>
+              </div>
+              <div className="flex flex-wrap gap-4">
+                <div className="flex items-center gap-3 bg-gray-50 px-4 py-2 rounded-xl">
+                  <label className="text-sm font-medium text-gray-700">Filter by:</label>
+                  <select value={selectedSplitFilter} onChange={(e) => setSelectedSplitFilter(e.target.value)} className="px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#4D8CF5] focus:border-transparent bg-white">
+                    <option value="year">Year</option><option value="month">Month</option>
                   </select>
                 </div>
                 {selectedSplitFilter === 'year' ? (
-                  <div>
-                    <label className="text-sm font-medium text-gray-700 mr-3">Year:</label>
-                    <select
-                      value={selectedSplitYear}
-                      onChange={(e) => setSelectedSplitYear(e.target.value)}
-                      className="px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#4D8CF5] focus:border-transparent bg-white"
-                    >
-                      {availableYears.map(year => (
-                        <option key={year} value={year}>{year}</option>
-                      ))}
+                  <div className="flex items-center gap-3 bg-gray-50 px-4 py-2 rounded-xl">
+                    <label className="text-sm font-medium text-gray-700">Year:</label>
+                    <select value={selectedSplitYear} onChange={(e) => setSelectedSplitYear(e.target.value)} className="px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#4D8CF5] focus:border-transparent bg-white">
+                      {availableYears.map(year => (<option key={year} value={year}>{year}</option>))}
                     </select>
                   </div>
                 ) : (
-                  <div className="flex gap-3">
-                    <div>
-                      <label className="text-sm font-medium text-gray-700 mr-3">Year:</label>
-                      <select
-                        value={selectedSplitYear}
-                        onChange={(e) => setSelectedSplitYear(e.target.value)}
-                        className="px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#4D8CF5] focus:border-transparent bg-white"
-                      >
-                        {availableYears.map(year => (
-                          <option key={year} value={year}>{year}</option>
-                        ))}
+                  <div className="flex flex-wrap gap-3">
+                    <div className="flex items-center gap-3 bg-gray-50 px-4 py-2 rounded-xl">
+                      <label className="text-sm font-medium text-gray-700">Year:</label>
+                      <select value={selectedSplitYear} onChange={(e) => setSelectedSplitYear(e.target.value)} className="px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#4D8CF5] focus:border-transparent bg-white">
+                        {availableYears.map(year => (<option key={year} value={year}>{year}</option>))}
                       </select>
                     </div>
-                    <div>
-                      <label className="text-sm font-medium text-gray-700 mr-3">Month:</label>
-                      <select
-                        value={selectedSplitMonth}
-                        onChange={(e) => setSelectedSplitMonth(e.target.value)}
-                        className="px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#4D8CF5] focus:border-transparent bg-white"
-                      >
-                        {MONTHS.map((month, idx) => (
-                          <option key={idx} value={idx}>{month}</option>
-                        ))}
+                    <div className="flex items-center gap-3 bg-gray-50 px-4 py-2 rounded-xl">
+                      <label className="text-sm font-medium text-gray-700">Month:</label>
+                      <select value={selectedSplitMonth} onChange={(e) => setSelectedSplitMonth(e.target.value)} className="px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#4D8CF5] focus:border-transparent bg-white">
+                        {MONTHS.map((month, idx) => (<option key={idx} value={idx}>{month}</option>))}
                       </select>
                     </div>
                   </div>
                 )}
               </div>
             </div>
-            <p className="text-sm text-gray-500 mb-8">
-              Distribution of booking types for {selectedSplitFilter === 'year' ? `year ${selectedSplitYear}` : `${MONTHS[parseInt(selectedSplitMonth)]} ${selectedSplitYear}`}
-            </p>
+            <p className="text-sm text-gray-500 mb-8">Distribution of booking types for {selectedSplitFilter === 'year' ? `year ${selectedSplitYear}` : `${MONTHS[parseInt(selectedSplitMonth)]} ${selectedSplitYear}`}</p>
             <div className="flex flex-col lg:flex-row items-center justify-center gap-8">
               <div className="bg-gradient-to-br from-gray-50 to-white rounded-xl p-4 border border-gray-100 shadow-sm w-full">
                 <ResponsiveContainer width="100%" height={400}>
                   <PieChart>
-                    <Pie
-                      data={splitFilteredData}
-                      cx="50%"
-                      cy="50%"
-                      labelLine={true}
-                      label={({ name, percent }) => `${name}: ${(percent * 100).toFixed(0)}%`}
-                      outerRadius={150}
-                      fill="#8884d8"
-                      dataKey="value"
-                    >
-                      {splitFilteredData.map((entry, index) => (
-                        <Cell key={`cell-${index}`} fill={entry.color || COLORS[index % COLORS.length]} />
-                      ))}
+                    <Pie data={bookingSplitData} cx="50%" cy="50%" labelLine={false} label={({ percent }) => `${(percent * 100).toFixed(0)}%`} outerRadius={150} fill="#8884d8" dataKey="value">
+                      {bookingSplitData.map((entry, index) => (<Cell key={`cell-${index}`} fill={entry.color || COLORS[index % COLORS.length]} />))}
                     </Pie>
                     <Tooltip content={<CustomTooltip />} />
-                    <Legend />
                   </PieChart>
                 </ResponsiveContainer>
               </div>
-              <div className="space-y-3 min-w-[180px]">
-                {splitFilteredData.map((item, idx) => (
-                  <div key={idx} className="flex items-center gap-3 p-2 rounded-lg hover:bg-gray-50 transition-colors">
-                    <div className="w-4 h-4 rounded-full" style={{ backgroundColor: item.color }}></div>
-                    <span className="text-sm font-medium text-gray-700">{item.name}</span>
-                    <span className="text-sm font-bold text-gray-900 ml-auto">{item.value} bookings</span>
+              <div className="space-y-4 min-w-[220px]">
+                {bookingSplitData.map((item, idx) => (
+                  <div key={idx} className="flex items-center justify-between gap-4 p-3 bg-gray-50 rounded-xl hover:bg-gray-100 transition-colors">
+                    <div className="flex items-center gap-3"><div className="w-4 h-4 rounded-full" style={{ backgroundColor: item.color }}></div><span className="text-sm font-medium text-gray-700">{item.name}</span></div>
+                    <span className="text-sm font-bold text-gray-900">{item.value} bookings</span>
                   </div>
                 ))}
               </div>
@@ -701,92 +569,52 @@ export default function AdminReports() {
         {/* Tab 4: Monthly / Seasonal Trend */}
         {activeTab === 'trends' && (
           <div>
-            <div className="flex justify-between items-center mb-6 flex-wrap gap-4">
-              <h2 className="text-xl font-bold text-[#1E3A8A]">Monthly / Seasonal Trend</h2>
+            <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-6">
               <div>
-                <label className="text-sm font-medium text-gray-700 mr-3">Select Year:</label>
-                <select
-                  value={selectedYear}
-                  onChange={(e) => setSelectedYear(e.target.value)}
-                  className="px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#4D8CF5] focus:border-transparent bg-white"
-                >
-                  {availableYears.map(year => (
-                    <option key={year} value={year}>{year}</option>
-                  ))}
+                <h2 className="text-2xl font-bold text-[#1E3A8A] font-playfair">Monthly / Seasonal Trend</h2>
+                <p className="text-sm text-gray-500 mt-1">Analyze booking patterns and seasonal fluctuations</p>
+              </div>
+              <div className="flex items-center gap-3 bg-gray-50 px-4 py-2 rounded-xl">
+                <label className="text-sm font-medium text-gray-700">Select Year:</label>
+                <select value={selectedYear} onChange={(e) => setSelectedYear(e.target.value)} className="px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#4D8CF5] focus:border-transparent bg-white">
+                  {availableYears.map(year => (<option key={year} value={year}>{year}</option>))}
                 </select>
               </div>
             </div>
-            <p className="text-sm text-gray-500 mb-8">
-              Monthly booking patterns for <span className="font-semibold">{selectedYear}</span>
-            </p>
+            <p className="text-sm text-gray-500 mb-8">Monthly booking patterns for <span className="font-semibold text-[#1E3A8A]">{selectedYear}</span></p>
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-              {/* Room Bookings Trend */}
               <div className="bg-gradient-to-br from-gray-50 to-white rounded-xl p-5 border border-gray-100 shadow-sm hover:shadow-md transition-shadow">
                 <div className="flex items-center gap-3 mb-5 pb-3 border-b border-gray-200">
-                  <div className="w-10 h-10 rounded-lg bg-[#4D8CF5]/10 flex items-center justify-center">
-                    <i className="fas fa-bed text-[#4D8CF5] text-lg"></i>
-                  </div>
-                  <div>
-                    <h3 className="text-lg font-semibold text-gray-800">Room Bookings</h3>
-                    <p className="text-xs text-gray-500">Number of room reservations over time</p>
-                  </div>
+                  <div className="w-10 h-10 rounded-lg bg-[#4D8CF5]/10 flex items-center justify-center"><i className="fas fa-bed text-[#4D8CF5] text-lg"></i></div>
+                  <div><h3 className="text-lg font-semibold text-gray-800">Room Bookings</h3><p className="text-xs text-gray-500">Number of room reservations over time</p></div>
                 </div>
                 {selectedYear && yearlyMonthlyTrendData[selectedYear] && (
-                  <ResponsiveContainer width="100%" height={300}>
-                    <LineChart
-                      data={yearlyMonthlyTrendData[selectedYear]}
-                      margin={{ top: 20, right: 30, left: 20, bottom: 5 }}
-                    >
+                  <ResponsiveContainer width="100%" height={320}>
+                    <LineChart data={yearlyMonthlyTrendData[selectedYear]} margin={{ top: 30, right: 30, left: 20, bottom: 20 }}>
                       <CartesianGrid strokeDasharray="3 3" />
                       <XAxis dataKey="month" />
                       <YAxis />
                       <Tooltip content={<CustomTooltip />} />
-                      <Legend />
-                      <Line
-                        type="monotone"
-                        dataKey="roomBookings"
-                        name="Room Bookings"
-                        stroke="#4D8CF5"
-                        strokeWidth={3}
-                        dot={{ r: 4, fill: '#4D8CF5' }}
-                        activeDot={{ r: 8 }}
-                      />
+                      <Legend wrapperStyle={{ paddingTop: '10px' }} />
+                      <Line type="monotone" dataKey="roomBookings" name="Room Bookings" stroke="#4D8CF5" strokeWidth={3} dot={{ r: 4, fill: '#4D8CF5' }} activeDot={{ r: 8 }} />
                     </LineChart>
                   </ResponsiveContainer>
                 )}
               </div>
-              
-              {/* Day Tour Guests Trend */}
               <div className="bg-gradient-to-br from-gray-50 to-white rounded-xl p-5 border border-gray-100 shadow-sm hover:shadow-md transition-shadow">
                 <div className="flex items-center gap-3 mb-5 pb-3 border-b border-gray-200">
-                  <div className="w-10 h-10 rounded-lg bg-[#F59E0B]/10 flex items-center justify-center">
-                    <i className="fas fa-users text-[#F59E0B] text-lg"></i>
-                  </div>
-                  <div>
-                    <h3 className="text-lg font-semibold text-gray-800">Day Tour Guests</h3>
-                    <p className="text-xs text-gray-500">Number of guests on day tours</p>
-                  </div>
+                  <div className="w-10 h-10 rounded-lg bg-[#F59E0B]/10 flex items-center justify-center"><i className="fas fa-users text-[#F59E0B] text-lg"></i></div>
+                  <div><h3 className="text-lg font-semibold text-gray-800">Day Tour Guests</h3><p className="text-xs text-gray-500">Number of guests on day tours</p></div>
                 </div>
                 {selectedYear && yearlyMonthlyTrendData[selectedYear] && (
-                  <ResponsiveContainer width="100%" height={300}>
-                    <LineChart
-                      data={yearlyMonthlyTrendData[selectedYear]}
-                      margin={{ top: 20, right: 30, left: 20, bottom: 5 }}
-                    >
+                  <ResponsiveContainer width="100%" height={320}>
+                    <LineChart data={yearlyMonthlyTrendData[selectedYear]} margin={{ top: 30, right: 30, left: 20, bottom: 20 }}>
                       <CartesianGrid strokeDasharray="3 3" />
                       <XAxis dataKey="month" />
                       <YAxis />
                       <Tooltip content={<CustomTooltip />} />
-                      <Legend />
-                      <Line
-                        type="monotone"
-                        dataKey="dayTourGuests"
-                        name="Day Tour Guests"
-                        stroke="#F59E0B"
-                        strokeWidth={3}
-                        dot={{ r: 4, fill: '#F59E0B' }}
-                        activeDot={{ r: 8 }}
-                      />
+                      <Legend wrapperStyle={{ paddingTop: '10px' }} />
+                      <Line type="monotone" dataKey="dayTourGuests" name="Day Tour Guests" stroke="#F59E0B" strokeWidth={3} dot={{ r: 4, fill: '#F59E0B' }} activeDot={{ r: 8 }} />
                     </LineChart>
                   </ResponsiveContainer>
                 )}

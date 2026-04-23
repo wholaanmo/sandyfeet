@@ -3,7 +3,7 @@
 
 import { useState, useEffect } from 'react';
 import { db, auth } from '@/lib/firebase';
-import { collection, query, where, onSnapshot, Timestamp, orderBy, limit } from 'firebase/firestore';
+import { collection, query, where, onSnapshot, Timestamp, orderBy, limit, doc, getDoc } from 'firebase/firestore';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 
@@ -31,47 +31,28 @@ export default function AdminOverview() {
   // Fetch admin name from Firebase Auth and Firestore
 useEffect(() => {
   const fetchAdminName = async () => {
-    const user = auth.currentUser;
-    if (user) {
+    // Try to get uid from localStorage first (fastest after login)
+    let uid = localStorage.getItem('uid');
+    if (!uid && auth.currentUser) {
+      uid = auth.currentUser.uid;
+    }
+    
+    if (uid) {
       try {
-        // Fetch user document from Firestore to get the full name
-        const userDoc = await getDoc(doc(db, 'users', user.uid));
+        const userDoc = await getDoc(doc(db, 'users', uid));
         if (userDoc.exists()) {
           const userData = userDoc.data();
-          // Use fullName from Firestore if available
-          if (userData.fullName) {
-            setAdminName(userData.fullName);
-          } 
-          // Fallback to firstName + lastName
-          else if (userData.firstName && userData.lastName) {
-            setAdminName(`${userData.firstName} ${userData.lastName}`);
+          if (userData.name) {
+            setAdminName(userData.name);
+            return;
           }
-          // Fallback to displayName
-          else if (user.displayName) {
-            setAdminName(user.displayName);
-          }
-          // Last resort: email username
-          else {
-            const emailName = user.email?.split('@')[0] || 'Admin';
-            setAdminName(emailName);
-          }
-        } else if (user.displayName) {
-          setAdminName(user.displayName);
-        } else {
-          const emailName = user.email?.split('@')[0] || 'Admin';
-          setAdminName(emailName);
         }
       } catch (error) {
         console.error('Error fetching user name:', error);
-        // Fallback to displayName or email
-        if (user.displayName) {
-          setAdminName(user.displayName);
-        } else {
-          const emailName = user.email?.split('@')[0] || 'Admin';
-          setAdminName(emailName);
-        }
       }
     }
+    // Fallback to 'Admin' only if no name found (never show email)
+    setAdminName('Admin');
   };
   
   fetchAdminName();
