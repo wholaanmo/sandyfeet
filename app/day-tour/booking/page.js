@@ -995,9 +995,9 @@ const handleNotifyResort = async () => {
     <GuestLayout>
       <div className="min-h-screen bg-gradient-to-br from-ocean-ice to-blue-white pt-28 sm:pt-32 pb-10">
         <div className="max-w-7xl w-full mx-auto px-4">
-          <div className="flex flex-col lg:flex-row gap-8">
-            {/* Left Column - Booking Form (70%) */}
-            <div className="lg:w-[70%]">
+          <div className="flex flex-col gap-8">
+            {/* Main Column - Booking Form */}
+            <div className="w-full">
               {/* Progress Steps */}
               <div className="mb-8 rounded-2xl border border-ocean-light/20 bg-white/70 px-3 py-4 sm:px-5">
                 <div className="relative">
@@ -1651,43 +1651,94 @@ const handleNotifyResort = async () => {
 
               {/* Step 4: Confirmation */}
               {step === 4 && (
-                <div className="bg-white rounded-2xl shadow-lg p-8 text-center">
-                  <div className="w-20 h-20 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-4">
-                    <i className="fas fa-check text-3xl text-green-600"></i>
-                  </div>
-                  <h2 className="text-2xl font-bold text-textPrimary mb-2">Booking Confirmed!</h2>
-                  <p className="text-textSecondary mb-4">
-                    Thank you for booking your day tour! A confirmation email will be sent to {bookingData.email}. You can also track and cancel your reservation anytime through the Reservation Tracker page.
-                  </p>
-                  
-                  <div className="p-4 bg-ocean-ice rounded-lg mb-4">
-                    <p className="text-sm text-textPrimary">Copy your booking reference to track your reservation.</p>
-                    <div className="flex items-center justify-center gap-2 mt-1">
-                      <strong className="text-lg font-mono">{generatedBookingId}</strong>
-                      <button
-                        onClick={() => copyToClipboard(generatedBookingId)}
-                        className="p-1.5 rounded-lg bg-white hover:bg-ocean-light/10 text-ocean-mid transition"
-                        title="Copy to clipboard"
-                      >
-                        <i className="fas fa-copy"></i>
-                      </button>
-                    </div>
-                    {copiedMessage && (
-                      <p className="text-xs text-green-600 mt-1">
-                        <i className="fas fa-check-circle mr-1"></i>Copied!
+                <div className="rounded-[2rem] bg-white p-6 shadow-lg sm:p-8">
+                  <div className="mx-auto max-w-3xl">
+                    <div className="text-center">
+                      <div className="mx-auto mb-4 flex h-20 w-20 items-center justify-center rounded-full bg-green-100">
+                        <i className="fas fa-check text-3xl text-green-600"></i>
+                      </div>
+                      <h2 className="text-2xl font-bold text-textPrimary mb-2">Booking Confirmed!</h2>
+                      <p className="text-textSecondary mb-6">
+                        Thank you for booking your day tour! A confirmation email will be sent to {bookingData.email}. You can also track and cancel your reservation anytime through the Reservation Tracker page.
                       </p>
-                    )}
-                  </div>
-                  
-                  <div className="p-4 bg-amber-50 rounded-lg mb-6">
-                    <p className="text-sm text-amber-800">
-                      <i className="fas fa-info-circle mr-2"></i>
-                      Down payment of <strong>₱{downPaymentAmount.toLocaleString()}</strong> has been confirmed.
-                      Remaining balance of <strong>₱{(totalPrice - downPaymentAmount).toLocaleString()}</strong> is payable at the resort.
-                    </p>
-                  </div>
-                  
-                  <div className="flex gap-3">
+                    </div>
+
+                    <div className="mx-auto mb-6 max-w-2xl rounded-[1.75rem] border border-ocean-light/20 bg-[linear-gradient(180deg,_#ffffff_0%,_#f8fbff_100%)] p-5 shadow-sm">
+                      <div className="flex items-start justify-between gap-4 border-b border-dashed border-ocean-light/30 pb-4">
+                        <div>
+                          <p className="text-[11px] font-semibold uppercase tracking-[0.2em] text-ocean-mid">Sandy Feet Day Tour</p>
+                          <h3 className="mt-2 text-xl font-bold text-textPrimary">Reservation Receipt</h3>
+                          <p className="mt-1 text-sm text-textSecondary">{selectedDate ? formatDate(selectedDate) : ''}</p>
+                        </div>
+                        <div className="text-right">
+                          <p className="text-[11px] uppercase tracking-[0.16em] text-textSecondary">Reference</p>
+                          <div className="mt-2 flex items-center justify-end gap-2">
+                            <strong className="text-sm font-mono text-textPrimary">{generatedBookingId}</strong>
+                            <button
+                              onClick={() => copyToClipboard(generatedBookingId)}
+                              className="rounded-lg bg-white p-1.5 text-ocean-mid transition hover:bg-ocean-light/10"
+                              title="Copy to clipboard"
+                            >
+                              <i className="fas fa-copy"></i>
+                            </button>
+                          </div>
+                          {copiedMessage && (
+                            <p className="mt-1 text-xs text-green-600">
+                              <i className="fas fa-check-circle mr-1"></i>Copied!
+                            </p>
+                          )}
+                        </div>
+                      </div>
+
+                      <div className="grid gap-6 border-b border-dashed border-ocean-light/30 py-5 md:grid-cols-2">
+                        <div className="space-y-2">
+                          <p className="text-[11px] uppercase tracking-[0.16em] text-textSecondary">Guest</p>
+                          <p className="text-base font-semibold text-textPrimary">{bookingData.firstName} {bookingData.lastName}</p>
+                          <p className="text-sm text-textSecondary">{bookingData.email}</p>
+                          <p className="text-sm text-textSecondary">{bookingData.phone}</p>
+                        </div>
+                        <div className="space-y-2">
+                          <p className="text-[11px] uppercase tracking-[0.16em] text-textSecondary">Payment Method</p>
+                          <p className="text-base font-semibold text-textPrimary">{paymentMethod === 'gcash' ? 'GCash' : 'Bank Transfer'}</p>
+                          <p className="text-sm text-textSecondary">Status: Down payment received</p>
+                          <p className="text-sm text-textSecondary">Valid ID: {bookingData.validIdType || 'Submitted'}</p>
+                        </div>
+                      </div>
+
+                      <div className="space-y-3 py-5">
+                        <div className="flex items-center justify-between text-sm">
+                          <span className="text-textSecondary">Adults</span>
+                          <span className="font-semibold text-textPrimary">{adultsCount}</span>
+                        </div>
+                        <div className="flex items-center justify-between text-sm">
+                          <span className="text-textSecondary">Kids</span>
+                          <span className="font-semibold text-textPrimary">{kidsCount}</span>
+                        </div>
+                        <div className="flex items-center justify-between text-sm">
+                          <span className="text-textSecondary">Total Guests</span>
+                          <span className="font-semibold text-textPrimary">{totalGuests}</span>
+                        </div>
+                        <div className="flex items-center justify-between border-t border-dashed border-ocean-light/30 pt-3 text-sm">
+                          <span className="text-textSecondary">Total Price</span>
+                          <span className="font-semibold text-textPrimary">₱{totalPrice.toLocaleString()}</span>
+                        </div>
+                        <div className="flex items-center justify-between text-sm">
+                          <span className="text-textSecondary">Down Payment Paid</span>
+                          <span className="font-bold text-amber-700">₱{downPaymentAmount.toLocaleString()}</span>
+                        </div>
+                        <div className="flex items-center justify-between text-sm">
+                          <span className="text-textSecondary">Remaining Balance</span>
+                          <span className="font-semibold text-textPrimary">₱{remainingBalance.toLocaleString()}</span>
+                        </div>
+                      </div>
+
+                      <div className="rounded-xl bg-amber-50 px-4 py-3 text-sm text-amber-800">
+                        <i className="fas fa-info-circle mr-2"></i>
+                        Remaining balance is payable at the resort upon arrival.
+                      </div>
+                    </div>
+
+                    <div className="flex gap-3">
                     <button
                       onClick={() => router.push('/day-tour')}
                       className="flex-1 py-3 border border-ocean-light/20 rounded-xl text-textSecondary font-medium hover:bg-ocean-ice transition"
@@ -1702,94 +1753,10 @@ const handleNotifyResort = async () => {
                     </button>
                   </div>
                 </div>
+                </div>
               )}
             </div>
 
-            {/* Right Column - Compact Booking Summary */}
-            <div className="lg:w-[30%]">
-              <div className="sticky top-8 space-y-4">
-                <div className="bg-white rounded-xl shadow-md border border-ocean-light/20 overflow-hidden">
-                  <div className="bg-gradient-to-r from-ocean-mid to-ocean-light px-5 py-3">
-                    <h3 className="font-semibold text-white text-lg flex items-center gap-2">
-                      <i className="fas fa-receipt"></i>
-                      Booking Summary
-                    </h3>
-                  </div>
-                  
-                  <div className="p-5 space-y-4">
-                    <div className="bg-ocean-ice rounded-lg p-3 space-y-1.5">
-                      <p className="text-xs font-semibold text-ocean-mid uppercase tracking-wide">Selected Date</p>
-                      <p className="text-sm font-semibold text-textPrimary">{selectedDate ? formatDate(selectedDate) : 'No date selected'}</p>
-                    </div>
-
-                    <div className="bg-white rounded-lg border border-ocean-light/20 p-3 space-y-2">
-                      <div className="flex justify-between text-sm">
-                        <span className="text-textSecondary">Adults</span>
-                        <span className="font-semibold text-textPrimary">{adultsCount}</span>
-                      </div>
-                      <div className="flex justify-between text-sm">
-                        <span className="text-textSecondary">Kids</span>
-                        <span className="font-semibold text-textPrimary">{kidsCount}</span>
-                      </div>
-                      <div className="flex justify-between text-sm pt-2 border-t border-ocean-light/10">
-                        <span className="font-semibold text-textPrimary">Total Guests</span>
-                        <span className="font-bold text-ocean-mid">{totalGuests}</span>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-
-                <div className="bg-gradient-to-r from-amber-50 to-orange-50 rounded-xl shadow-sm border border-amber-200 p-4">
-                  <div className="flex items-center justify-between mb-3 pb-2 border-b border-amber-200">
-                    <div className="flex items-center gap-3">
-                      <div className="w-10 h-10 rounded-full bg-amber-100 flex items-center justify-center">
-                        <i className="fas fa-users text-amber-600"></i>
-                      </div>
-                      <div>
-                        <p className="text-xs text-amber-700 uppercase tracking-wide font-semibold">Maximum Capacity</p>
-                        <p className="text-2xl font-bold text-amber-800">
-                          {dayTour.maxCapacity} <span className="text-sm font-normal">guests</span>
-                        </p>
-                      </div>
-                    </div>
-                  </div>
-                  
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-3">
-                      <div className="w-10 h-10 rounded-full bg-green-100 flex items-center justify-center">
-                        <i className="fas fa-chart-line text-green-600"></i>
-                      </div>
-                      <div>
-                        <p className="text-xs text-green-700 uppercase tracking-wide font-semibold">Remaining Capacity</p>
-                        <p className="text-2xl font-bold text-green-700">
-                          {remainingCapacity !== Infinity ? remainingCapacity : dayTour.maxCapacity} <span className="text-sm font-normal">guests</span>
-                        </p>
-                      </div>
-                    </div>
-                    {remainingCapacity !== Infinity && remainingCapacity <= 10 && remainingCapacity > 0 && (
-                      <div className="bg-orange-100 rounded-lg px-3 py-1">
-                        <p className="text-xs text-orange-700 font-semibold">Limited Slots</p>
-                      </div>
-                    )}
-                  </div>
-
-                  <div className="mt-4 pt-3 border-t border-amber-200 space-y-1">
-                    <div className="flex justify-between text-sm">
-                      <span className="text-textSecondary">Total Price</span>
-                      <span className="font-semibold text-textPrimary">₱{totalPrice.toLocaleString()}</span>
-                    </div>
-                    <div className="flex justify-between text-sm">
-                      <span className="text-textSecondary">Down Payment (50%)</span>
-                      <span className="font-bold text-amber-700">₱{downPaymentAmount.toLocaleString()}</span>
-                    </div>
-                    <div className="flex justify-between text-sm">
-                      <span className="text-textSecondary">Remaining Balance</span>
-                      <span className="font-semibold text-textPrimary">₱{(totalPrice - downPaymentAmount).toLocaleString()}</span>
-                    </div>
-                  </div>
-                </div>
-              </div>
-            </div>
           </div>
         </div>
       </div>
