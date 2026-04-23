@@ -1100,36 +1100,6 @@ const handleNotifyResort = async () => {
                     </div>
                   </div>
 
-                  <div className="mt-6 grid gap-4 lg:grid-cols-[minmax(0,1fr)_320px]">
-                    <div className="rounded-[1.75rem] border border-ocean-light/20 bg-[#f7fbff] p-5">
-                      <div className="mb-4 flex items-center justify-between gap-3">
-                        <div>
-                          <p className="text-sm font-semibold text-textPrimary">Payment Checklist</p>
-                          <p className="mt-1 text-xs text-textSecondary">Finish all items below before confirming.</p>
-                        </div>
-                        <div className={`rounded-full px-3 py-1 text-xs font-semibold ${canSubmitPayment ? 'bg-green-100 text-green-700' : 'bg-amber-100 text-amber-700'}`}>
-                          {canSubmitPayment ? 'Ready' : 'In Progress'}
-                        </div>
-                      </div>
-
-                      <div className="space-y-3">
-                        {paymentChecklist.map((item) => (
-                          <div key={item.label} className="flex items-start gap-3 rounded-2xl bg-white p-3 shadow-sm">
-                            <div className={`flex h-10 w-10 items-center justify-center rounded-full ${item.complete ? 'bg-green-100 text-green-600' : 'bg-ocean-ice text-ocean-mid'}`}>
-                              <i className={`fas ${item.complete ? 'fa-check' : item.icon}`}></i>
-                            </div>
-                            <div className="min-w-0">
-                              <p className="text-sm font-semibold text-textPrimary">{item.label}</p>
-                              <p className="mt-1 text-xs leading-5 text-textSecondary">{item.description}</p>
-                            </div>
-                          </div>
-                        ))}
-                      </div>
-                    </div>
-
-                    {renderPaymentNotesCard()}
-                  </div>
-
                   <div className="flex gap-3 mt-6">
                     <button
                       onClick={handlePreviousStep}
@@ -1626,6 +1596,36 @@ const handleNotifyResort = async () => {
                     </div>
                   )}
                   
+                  <div className="mt-6 grid gap-4 lg:grid-cols-[minmax(0,1fr)_320px]">
+                    <div className="rounded-[1.75rem] border border-ocean-light/20 bg-[#f7fbff] p-5">
+                      <div className="mb-4 flex items-center justify-between gap-3">
+                        <div>
+                          <p className="text-sm font-semibold text-textPrimary">Payment Checklist</p>
+                          <p className="mt-1 text-xs text-textSecondary">Finish all items below before confirming.</p>
+                        </div>
+                        <div className={`rounded-full px-3 py-1 text-xs font-semibold ${canSubmitPayment ? 'bg-green-100 text-green-700' : 'bg-amber-100 text-amber-700'}`}>
+                          {canSubmitPayment ? 'Ready' : 'In Progress'}
+                        </div>
+                      </div>
+
+                      <div className="space-y-3">
+                        {paymentChecklist.map((item) => (
+                          <div key={item.label} className="flex items-start gap-3 rounded-2xl bg-white p-3 shadow-sm">
+                            <div className={`flex h-10 w-10 items-center justify-center rounded-full ${item.complete ? 'bg-green-100 text-green-600' : 'bg-ocean-ice text-ocean-mid'}`}>
+                              <i className={`fas ${item.complete ? 'fa-check' : item.icon}`}></i>
+                            </div>
+                            <div className="min-w-0">
+                              <p className="text-sm font-semibold text-textPrimary">{item.label}</p>
+                              <p className="mt-1 text-xs leading-5 text-textSecondary">{item.description}</p>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+
+                    {renderPaymentNotesCard()}
+                  </div>
+
                   <div className="flex gap-3 mt-6">
                     <button
                       onClick={handlePreviousStep}
