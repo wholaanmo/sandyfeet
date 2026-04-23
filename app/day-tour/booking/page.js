@@ -1,4 +1,4 @@
-// app/day-tour/booking/page.js
+﻿// app/day-tour/booking/page.js
 'use client';
 
 import { Suspense, useState, useEffect } from 'react';
@@ -1197,47 +1197,62 @@ const handleNotifyResort = async () => {
 
               {/* Step 3: Payment */}
               {step === 3 && (
-                <div className="bg-white rounded-2xl shadow-lg border border-ocean-light/20 p-6 sm:p-8">
-                  <div className="mb-5">
-                    <h2 className="text-2xl font-bold text-textPrimary">Step 3: Payment</h2>
-                    <p className="text-sm text-textSecondary mt-1">Complete your down payment to secure this reservation.</p>
-                  </div>
+                <div className="rounded-[2rem] border border-ocean-light/20 bg-white p-5 shadow-lg sm:p-8">
+                  <div className="overflow-hidden rounded-[1.75rem] border border-ocean-light/20 bg-[radial-gradient(circle_at_top_left,_rgba(103,183,255,0.22),_transparent_32%),linear-gradient(135deg,_rgba(244,251,255,0.98),_rgba(255,255,255,0.98))] p-6">
+                    <div className="flex flex-col gap-6 xl:flex-row xl:items-end xl:justify-between">
+                      <div className="max-w-2xl">
+                        <div className="inline-flex items-center gap-2 rounded-full bg-white/85 px-3 py-1 text-xs font-semibold uppercase tracking-[0.2em] text-ocean-mid shadow-sm">
+                          <i className="fas fa-lock"></i>
+                          Secure Payment
+                        </div>
+                        <h2 className="mt-4 text-3xl font-bold text-textPrimary">Step 3: Complete Your Down Payment</h2>
+                        <p className="mt-2 text-sm leading-6 text-textSecondary">
+                          Choose how you want to pay, upload your ID and receipt, then confirm the reservation once everything is complete.
+                        </p>
+                      </div>
 
-                  <div className="grid sm:grid-cols-3 gap-3 mb-6">
-                    <div className="rounded-xl border border-ocean-light/20 bg-ocean-ice/50 p-3">
-                      <p className="text-[11px] uppercase tracking-[0.14em] text-textSecondary">Total Price</p>
-                      <p className="text-lg font-bold text-textPrimary mt-1">₱{totalPrice.toLocaleString()}</p>
-                    </div>
-                    <div className="rounded-xl border border-amber-200 bg-amber-50 p-3">
-                      <p className="text-[11px] uppercase tracking-[0.14em] text-amber-700">Down Payment (50%)</p>
-                      <p className="text-lg font-bold text-amber-700 mt-1">₱{downPaymentAmount.toLocaleString()}</p>
-                    </div>
-                    <div className="rounded-xl border border-ocean-light/20 bg-white p-3">
-                      <p className="text-[11px] uppercase tracking-[0.14em] text-textSecondary">Remaining Balance</p>
-                      <p className="text-lg font-bold text-textPrimary mt-1">₱{(totalPrice - downPaymentAmount).toLocaleString()}</p>
+                      <div className="grid gap-3 sm:grid-cols-2 xl:min-w-[420px] xl:max-w-[460px]">
+                        <div className="rounded-2xl border border-white/60 bg-white/80 p-4 shadow-sm">
+                          <p className="text-[11px] uppercase tracking-[0.16em] text-textSecondary">Total Price</p>
+                          <p className="mt-2 text-2xl font-bold text-textPrimary">₱{totalPrice.toLocaleString()}</p>
+                        </div>
+                        <div className="rounded-2xl border border-amber-200 bg-amber-50/90 p-4 shadow-sm">
+                          <p className="text-[11px] uppercase tracking-[0.16em] text-amber-700">Pay Now</p>
+                          <p className="mt-2 text-2xl font-bold text-amber-700">₱{downPaymentAmount.toLocaleString()}</p>
+                        </div>
+                        <div className="rounded-2xl border border-white/60 bg-white/80 p-4 shadow-sm">
+                          <p className="text-[11px] uppercase tracking-[0.16em] text-textSecondary">Remaining On Arrival</p>
+                          <p className="mt-2 text-xl font-bold text-textPrimary">₱{remainingBalance.toLocaleString()}</p>
+                        </div>
+                        <div className="rounded-2xl border border-white/60 bg-white/80 p-4 shadow-sm">
+                          <p className="text-[11px] uppercase tracking-[0.16em] text-textSecondary">Booking For</p>
+                          <p className="mt-2 text-xl font-bold text-textPrimary">{totalGuests} guest{totalGuests === 1 ? '' : 's'}</p>
+                          <p className="mt-1 text-xs text-textSecondary">{selectedDate ? formatDate(selectedDate) : ''}</p>
+                        </div>
+                      </div>
                     </div>
                   </div>
                   
-                  <div className="mb-6">
-                    <label className="block text-xs uppercase tracking-[0.18em] font-bold text-textSecondary mb-3">Select Payment Method</label>
-                    <div className="grid grid-cols-2 gap-4">
+                  <div className="mt-6 mb-6">
+                    <label className="mb-3 block text-xs font-bold uppercase tracking-[0.18em] text-textSecondary">Select Payment Method</label>
+                    <div className="grid gap-4 md:grid-cols-2">
                       <button
                         type="button"
                         onClick={() => setPaymentMethod('gcash')}
-                        className={`p-4 rounded-xl border-2 transition-all duration-200 text-left ${
+                        className={`rounded-[1.5rem] border p-5 text-left transition-all duration-200 ${
                           paymentMethod === 'gcash'
-                            ? 'border-ocean-mid bg-ocean-ice shadow-[0_8px_20px_rgba(33,105,243,0.16)]'
-                            : 'border-ocean-light/20 bg-white hover:border-ocean-light'
+                            ? 'border-ocean-mid bg-ocean-ice shadow-[0_14px_32px_rgba(33,105,243,0.14)]'
+                            : 'border-ocean-light/20 bg-white hover:-translate-y-0.5 hover:border-ocean-light hover:shadow-md'
                         }`}
                       >
-                        <div className="flex items-center justify-between">
-                          <div className="flex items-center gap-3">
-                            <div className={`w-10 h-10 rounded-lg flex items-center justify-center ${paymentMethod === 'gcash' ? 'bg-ocean-mid text-white' : 'bg-gray-100 text-gray-500'}`}>
-                              <i className="fas fa-wallet text-sm"></i>
+                        <div className="flex items-start justify-between gap-3">
+                          <div className="flex items-start gap-3">
+                            <div className={`flex h-12 w-12 items-center justify-center rounded-2xl ${paymentMethod === 'gcash' ? 'bg-ocean-mid text-white' : 'bg-ocean-ice text-ocean-mid'}`}>
+                              <i className="fas fa-wallet text-base"></i>
                             </div>
                             <div>
-                              <p className={`text-sm font-semibold ${paymentMethod === 'gcash' ? 'text-ocean-mid' : 'text-textPrimary'}`}>GCash</p>
-                              <p className="text-xs text-textSecondary">Scan QR and upload proof</p>
+                              <p className={`text-base font-semibold ${paymentMethod === 'gcash' ? 'text-ocean-mid' : 'text-textPrimary'}`}>GCash</p>
+                              <p className="mt-1 text-sm text-textSecondary">Scan the QR code, pay instantly, then upload your receipt.</p>
                             </div>
                           </div>
                           {paymentMethod === 'gcash' && <i className="fas fa-check-circle text-ocean-mid"></i>}
@@ -1246,20 +1261,20 @@ const handleNotifyResort = async () => {
                       <button
                         type="button"
                         onClick={() => setPaymentMethod('bank_transfer')}
-                        className={`p-4 rounded-xl border-2 transition-all duration-200 text-left ${
+                        className={`rounded-[1.5rem] border p-5 text-left transition-all duration-200 ${
                           paymentMethod === 'bank_transfer'
-                            ? 'border-ocean-mid bg-ocean-ice shadow-[0_8px_20px_rgba(33,105,243,0.16)]'
-                            : 'border-ocean-light/20 bg-white hover:border-ocean-light'
+                            ? 'border-ocean-mid bg-ocean-ice shadow-[0_14px_32px_rgba(33,105,243,0.14)]'
+                            : 'border-ocean-light/20 bg-white hover:-translate-y-0.5 hover:border-ocean-light hover:shadow-md'
                         }`}
                       >
-                        <div className="flex items-center justify-between">
-                          <div className="flex items-center gap-3">
-                            <div className={`w-10 h-10 rounded-lg flex items-center justify-center ${paymentMethod === 'bank_transfer' ? 'bg-ocean-mid text-white' : 'bg-gray-100 text-gray-500'}`}>
-                              <i className="fas fa-university text-sm"></i>
+                        <div className="flex items-start justify-between gap-3">
+                          <div className="flex items-start gap-3">
+                            <div className={`flex h-12 w-12 items-center justify-center rounded-2xl ${paymentMethod === 'bank_transfer' ? 'bg-ocean-mid text-white' : 'bg-ocean-ice text-ocean-mid'}`}>
+                              <i className="fas fa-building-columns text-base"></i>
                             </div>
                             <div>
-                              <p className={`text-sm font-semibold ${paymentMethod === 'bank_transfer' ? 'text-ocean-mid' : 'text-textPrimary'}`}>Bank Transfer</p>
-                              <p className="text-xs text-textSecondary">Request bank details first</p>
+                              <p className={`text-base font-semibold ${paymentMethod === 'bank_transfer' ? 'text-ocean-mid' : 'text-textPrimary'}`}>Bank Transfer</p>
+                              <p className="mt-1 text-sm text-textSecondary">Request the resort account details before uploading proof.</p>
                             </div>
                           </div>
                           {paymentMethod === 'bank_transfer' && <i className="fas fa-check-circle text-ocean-mid"></i>}
@@ -1268,8 +1283,10 @@ const handleNotifyResort = async () => {
                     </div>
                   </div>
                   
+                  {paymentMethod === 'gcash' && renderGcashPanel()}
+
                   {/* GCash Payment Section */}
-                  {paymentMethod === 'gcash' && (
+                  {false && paymentMethod === 'gcash' && (
                     <div className="space-y-6">
                       <div className="p-5 border border-ocean-light/20 bg-gradient-to-br from-ocean-ice/80 to-white rounded-xl text-center">
                         <h3 className="text-lg font-semibold text-textPrimary mb-3 flex items-center justify-center gap-2">
@@ -1379,8 +1396,10 @@ const handleNotifyResort = async () => {
                     </div>
                   )}
                   
+                  {paymentMethod === 'bank_transfer' && renderBankTransferPanel()}
+
                   {/* Bank Transfer Section for Day Tour */}
-                  {paymentMethod === 'bank_transfer' && (
+                  {false && paymentMethod === 'bank_transfer' && (
                     <div className="space-y-6">
                       <div className="p-5 border border-ocean-light/20 bg-gradient-to-br from-ocean-ice/80 to-white rounded-xl">
                         <h3 className="text-lg font-semibold text-textPrimary mb-3 flex items-center gap-2">
@@ -1587,17 +1606,9 @@ const handleNotifyResort = async () => {
                     </button>
                     <button
                       onClick={handleSubmitBooking}
-                      disabled={
-                        !bookingData.paymentProof ||
-                        !bookingData.validIdImage ||
-                        submitting ||
-                        (paymentMethod === 'bank_transfer' && !bankDetailsProvided)
-                      }
+                      disabled={!canSubmitPayment}
                       className={`flex-1 py-3 rounded-xl font-medium transition-all duration-300 ${
-                        bookingData.paymentProof &&
-                        bookingData.validIdImage &&
-                        !submitting &&
-                        (paymentMethod !== 'bank_transfer' || bankDetailsProvided)
+                        canSubmitPayment
                           ? 'bg-gradient-to-r from-ocean-mid to-ocean-light text-white hover:shadow-lg'
                           : 'bg-gray-200 text-gray-500 cursor-not-allowed'
                       }`}
@@ -1813,18 +1824,20 @@ const handleNotifyResort = async () => {
                 </label>
               </div>
 
-              {tempValidIdImage && (
-                <div className="mt-2">
-                  <p className="text-xs font-semibold text-textPrimary mb-1">Preview</p>
-                  <div className="border border-ocean-light/30 rounded-lg overflow-hidden bg-ocean-ice">
+              <div className="mt-2">
+                <p className="text-xs font-semibold text-textPrimary mb-1">Preview</p>
+                <div className="h-64 border border-ocean-light/30 rounded-lg overflow-hidden bg-ocean-ice flex items-center justify-center">
+                  {tempValidIdImage ? (
                     <img
                       src={tempValidIdImage}
                       alt="Valid ID Preview"
-                      className="w-full max-h-64 object-contain bg-white"
+                      className="w-full h-full object-contain bg-white"
                     />
-                  </div>
+                  ) : (
+                    <p className="text-xs text-textSecondary">No image selected</p>
+                  )}
                 </div>
-              )}
+              </div>
             </div>
           </div>
 
