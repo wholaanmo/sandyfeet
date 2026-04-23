@@ -44,9 +44,8 @@ function DayTourBookingContent() {
   const initialKids = Math.max(0, Math.min(HARD_MAX_PACKS - initialAdults, initialKidsRaw));
 
   const [bookingData, setBookingData] = useState({
-    adults: initialAdults,
-    kids: initialKids,
-    seniors: 0,
+    adults: String(initialAdults),
+    kids: String(initialKids),
     firstName: '',
     lastName: '',
     email: '',
@@ -73,6 +72,11 @@ function DayTourBookingContent() {
     'PhilHealth ID',
     'Other Government IDs'
   ];
+
+  const toGuestNumber = (value) => {
+    const parsed = parseInt(String(value), 10);
+    return Number.isNaN(parsed) ? 0 : parsed;
+  };
 
   const isDateBeforeLeadTime = (targetDate) => {
     if (!targetDate) return true;
@@ -190,7 +194,7 @@ function DayTourBookingContent() {
       setRemainingCapacity(capacity);
 
       // Re-validate guests if capacity changed
-      const currentTotalGuests = bookingData.adults + bookingData.kids + bookingData.seniors;
+      const currentTotalGuests = toGuestNumber(bookingData.adults) + toGuestNumber(bookingData.kids);
       if (capacity !== Infinity && currentTotalGuests > capacity) {
         setErrors(prev => ({ ...prev, guests: `Only ${capacity} slot(s) remaining for this date` }));
       } else if (errors.guests && errors.guests.includes('remaining')) {
@@ -226,7 +230,7 @@ function DayTourBookingContent() {
       unsubscribeBookings();
       unsubscribeUnavailable();
     };
-  }, [selectedDate, dayTour, bookingData.adults, bookingData.kids, bookingData.seniors]);
+  }, [selectedDate, dayTour, bookingData.adults, bookingData.kids]);
 
   // Parse selected date
   useEffect(() => {
@@ -235,10 +239,10 @@ function DayTourBookingContent() {
       if (!isNaN(date.getTime()) && !isDateBeforeLeadTime(date)) {
         setSelectedDate(date);
       } else {
-        router.push('/day-tour/calendar');
+        router.push('/day-tour');
       }
     } else {
-      router.push('/day-tour/calendar');
+      router.push('/day-tour');
     }
   }, [dateParam, router]);
 
@@ -272,12 +276,20 @@ function DayTourBookingContent() {
   }, [selectedDate, router]);
 
   // Calculate total guests and total price
-  const totalGuests = bookingData.adults + bookingData.kids + bookingData.seniors;
+  const adultsCount = toGuestNumber(bookingData.adults);
+  const kidsCount = toGuestNumber(bookingData.kids);
+  const totalGuests = adultsCount + kidsCount;
   const maxAllowedGuests = HARD_MAX_PACKS;
-  const totalPrice = (bookingData.adults * (dayTour?.adultPrice || 0)) +
-                     (bookingData.kids * (dayTour?.kidPrice || 0)) +
-                     (bookingData.seniors * (dayTour?.seniorPrice || 0));
+  const totalPrice = (adultsCount * (dayTour?.adultPrice || 0)) +
+                     (kidsCount * (dayTour?.kidPrice || 0));
   const downPaymentAmount = totalPrice * 0.5;
+  const remainingBalance = totalPrice - downPaymentAmount;
+  const canSubmitPayment = Boolean(
+    bookingData.paymentProof &&
+    bookingData.validIdImage &&
+    !submitting &&
+    (paymentMethod !== 'bank_transfer' || bankDetailsProvided)
+  );
 
   // Format date for display
   const formatSelectedDate = () => {
@@ -289,13 +301,23 @@ function DayTourBookingContent() {
   };
 
   const validateGuests = () => {
+    if (bookingData.adults === '' || adultsCount < 1) {
+      setErrors(prev => ({ ...prev, guests: 'At least 1 adult is required' }));
+      return false;
+    }
+
+    if (bookingData.kids === '') {
+      setErrors(prev => ({ ...prev, guests: 'Please enter a valid number of kids (use 0 if none)' }));
+      return false;
+    }
+
     if (totalGuests < 1) {
       setErrors(prev => ({ ...prev, guests: 'At least 1 guest is required' }));
       return false;
     }
 
-    if (totalGuests > maxAllowedGuests) {
-      setErrors(prev => ({ ...prev, guests: `Maximum packs is ${maxAllowedGuests}` }));
+    if (adultsCount > maxAllowedGuests || kidsCount > maxAllowedGuests || totalGuests > maxAllowedGuests) {
+      setErrors(prev => ({ ...prev, guests: `We only allow up to ${maxAllowedGuests} guests per booking.` }));
       return false;
     }
     
@@ -333,9 +355,27 @@ function DayTourBookingContent() {
   };
 
   const handleGuestChange = (field, value) => {
-    const parsed = parseInt(value, 10);
-    const numValue = Math.max(0, Math.min(maxAllowedGuests, Number.isNaN(parsed) ? 0 : parsed));
-    setBookingData(prev => ({ ...prev, [field]: numValue }));
+    if (value === '') {
+      setBookingData(prev => ({ ...prev, [field]: '' }));
+      if (errors.guests) {
+        setErrors(prev => ({ ...prev, guests: '' }));
+      }
+      return;
+    }
+
+    if (!/^\d+$/.test(value)) return;
+
+    setBookingData(prev => ({ ...prev, [field]: value }));
+
+    const nextAdults = field === 'adults' ? toGuestNumber(value) : adultsCount;
+    const nextKids = field === 'kids' ? toGuestNumber(value) : kidsCount;
+    const nextTotal = nextAdults + nextKids;
+
+    if (nextAdults > maxAllowedGuests || nextKids > maxAllowedGuests || nextTotal > maxAllowedGuests) {
+      setErrors(prev => ({ ...prev, guests: `We only allow up to ${maxAllowedGuests} guests per booking.` }));
+      return;
+    }
+
     if (errors.guests) {
       validateGuests();
     }
@@ -365,7 +405,7 @@ function DayTourBookingContent() {
 
   const handlePreviousStep = () => {
     if (step === 1) {
-      router.push('/day-tour/calendar');
+      router.push('/day-tour');
     } else {
       setStep(step - 1);
     }
@@ -462,7 +502,7 @@ const handleNotifyResort = async () => {
   const handleSubmitBooking = async () => {
     if (!selectedDate || isDateBeforeLeadTime(selectedDate)) {
       alert('Walk-ins or same-day bookings are not allowed. Please choose a later date.');
-      router.push('/day-tour/calendar');
+      router.push('/day-tour');
       return;
     }
 
@@ -512,9 +552,8 @@ const handleNotifyResort = async () => {
         dayTourId: dayTour.id,
         selectedDate: dateKey,
         selectedDateISO: selectedDate.toISOString(),
-        adults: bookingData.adults,
-        kids: bookingData.kids,
-        seniors: bookingData.seniors,
+        adults: adultsCount,
+        kids: kidsCount,
         totalGuests: totalGuests,
         totalPrice: totalPrice,
         downPayment: downPaymentAmount,
@@ -569,6 +608,359 @@ const handleNotifyResort = async () => {
     return `${weekday}, ${month} ${day}, ${year}`;
   };
 
+  const paymentChecklist = [
+    {
+      icon: 'fa-wallet',
+      label: 'Choose Method',
+      description: paymentMethod === 'gcash' ? 'GCash QR payment selected.' : 'Bank transfer request flow selected.',
+      complete: true
+    },
+    {
+      icon: 'fa-id-card',
+      label: 'Upload Valid ID',
+      description: bookingData.validIdImage ? `${bookingData.validIdType || 'Valid ID'} uploaded.` : 'Required before confirmation.',
+      complete: Boolean(bookingData.validIdImage)
+    },
+    {
+      icon: 'fa-receipt',
+      label: 'Upload Proof',
+      description: bookingData.paymentProof
+        ? 'Payment proof uploaded successfully.'
+        : paymentMethod === 'bank_transfer' && !bankDetailsProvided
+          ? 'Available after bank details are provided.'
+          : 'Upload your payment receipt screenshot.',
+      complete: Boolean(bookingData.paymentProof)
+    }
+  ];
+
+  const paymentNotes = [
+    'You only need to pay the 50% down payment to reserve this date.',
+    `The remaining balance of ₱${remainingBalance.toLocaleString()} is paid at the resort.`,
+    'If you cancel your reservation, the resort retains 50% of the down payment.'
+  ];
+
+  const renderPaymentNotesCard = () => (
+    <div className="rounded-2xl border border-blue-200 bg-blue-50/90 p-5">
+      <div className="flex items-center gap-2 mb-3">
+        <div className="flex h-9 w-9 items-center justify-center rounded-full bg-white text-blue-600 shadow-sm">
+          <i className="fas fa-circle-info"></i>
+        </div>
+        <div>
+          <p className="text-sm font-semibold text-blue-900">Payment Notes</p>
+          <p className="text-xs text-blue-700">Review these before confirming the booking.</p>
+        </div>
+      </div>
+      <div className="space-y-2">
+        {paymentNotes.map((note) => (
+          <div key={note} className="flex items-start gap-2 text-sm text-blue-800">
+            <i className="fas fa-check mt-1 text-[11px]"></i>
+            <span>{note}</span>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+
+  const renderValidIdCard = () => (
+    <div className="rounded-2xl border border-ocean-light/20 bg-gradient-to-br from-white to-ocean-ice/40 p-5 shadow-sm">
+      <div className="flex items-start justify-between gap-3 mb-4">
+        <div>
+          <p className="text-sm font-semibold text-textPrimary">Valid ID</p>
+          <p className="text-xs text-textSecondary mt-1">Full name must match the booking details. Front image only.</p>
+        </div>
+        <div className={`flex h-10 w-10 items-center justify-center rounded-full ${bookingData.validIdImage ? 'bg-green-100 text-green-600' : 'bg-ocean-ice text-ocean-mid'}`}>
+          <i className={`fas ${bookingData.validIdImage ? 'fa-check' : 'fa-id-card'}`}></i>
+        </div>
+      </div>
+
+      <button
+        type="button"
+        onClick={() => {
+          setTempValidIdType(bookingData.validIdType || 'Passport');
+          setTempValidIdImage(bookingData.validIdImage || null);
+          setShowValidIdModal(true);
+        }}
+        className="inline-flex items-center gap-2 rounded-xl border border-ocean-light/40 bg-white px-4 py-2.5 text-sm font-medium text-textPrimary transition-all duration-200 hover:border-ocean-mid/50 hover:bg-ocean-ice"
+      >
+        <i className="fas fa-cloud-upload-alt text-ocean-mid"></i>
+        {bookingData.validIdImage ? 'Update Valid ID' : 'Upload Valid ID'}
+      </button>
+
+      {bookingData.validIdType && (
+        <p className="mt-3 text-xs text-ocean-mid">
+          Selected ID: <span className="font-semibold">{bookingData.validIdType}</span>
+        </p>
+      )}
+      {bookingData.validIdImage && (
+        <p className="mt-1 text-xs text-green-600">
+          <i className="fas fa-check-circle mr-1"></i>
+          Valid ID uploaded
+        </p>
+      )}
+    </div>
+  );
+
+  const renderPaymentProofCard = (inputId) => {
+    const proofLocked = paymentMethod === 'bank_transfer' && !bankDetailsProvided;
+
+    return (
+      <div className={`rounded-2xl border p-5 shadow-sm ${proofLocked ? 'border-amber-200 bg-amber-50/80' : 'border-ocean-light/20 bg-white'}`}>
+        <div className="flex items-start justify-between gap-3 mb-4">
+          <div>
+            <p className="text-sm font-semibold text-textPrimary">Proof of Payment</p>
+            <p className="text-xs text-textSecondary mt-1">
+              {proofLocked ? 'Wait for the resort to provide bank details before uploading proof.' : 'Upload the screenshot or image of your down payment receipt.'}
+            </p>
+          </div>
+          <div className={`flex h-10 w-10 items-center justify-center rounded-full ${bookingData.paymentProof ? 'bg-green-100 text-green-600' : proofLocked ? 'bg-amber-100 text-amber-600' : 'bg-ocean-ice text-ocean-mid'}`}>
+            <i className={`fas ${bookingData.paymentProof ? 'fa-check' : proofLocked ? 'fa-hourglass-half' : 'fa-upload'}`}></i>
+          </div>
+        </div>
+
+        {!proofLocked ? (
+          <div className="relative">
+            <input
+              type="file"
+              accept="image/*"
+              onChange={handlePaymentProofUpload}
+              className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
+              id={inputId}
+              disabled={uploading}
+            />
+            <label
+              htmlFor={inputId}
+              className={`inline-flex cursor-pointer items-center gap-2 rounded-xl px-4 py-2.5 text-sm font-medium transition-all duration-300 ${
+                uploading
+                  ? 'bg-gray-300 text-gray-500 cursor-not-allowed'
+                  : 'bg-gradient-to-r from-ocean-mid to-ocean-light text-white hover:shadow-lg'
+              }`}
+            >
+              <i className="fas fa-upload"></i>
+              {uploading ? 'Uploading...' : bookingData.paymentProof ? 'Replace Proof' : 'Upload Proof'}
+            </label>
+            {bookingData.paymentProof && (
+              <p className="mt-3 text-xs text-green-600">
+                <i className="fas fa-check-circle mr-1"></i>
+                Payment proof uploaded
+              </p>
+            )}
+          </div>
+        ) : (
+          <div className="rounded-xl border border-dashed border-amber-300 bg-white/70 px-4 py-3 text-sm text-amber-700">
+            Upload will unlock once bank details are available.
+          </div>
+        )}
+      </div>
+    );
+  };
+
+  const renderGcashPanel = () => (
+    <div className="space-y-5">
+      <div className="rounded-2xl border border-ocean-light/20 bg-gradient-to-br from-[#e9f7ff] via-white to-[#f4fbff] p-6">
+        <div className="flex flex-col gap-6 lg:flex-row lg:items-center lg:justify-between">
+          <div className="max-w-md">
+            <div className="inline-flex items-center gap-2 rounded-full bg-white px-3 py-1 text-xs font-semibold uppercase tracking-[0.18em] text-ocean-mid shadow-sm">
+              <i className="fas fa-bolt"></i>
+              Fastest Option
+            </div>
+            <h3 className="mt-4 text-xl font-semibold text-textPrimary">Pay with GCash</h3>
+            <p className="mt-2 text-sm text-textSecondary">
+              Scan the resort QR code, pay the exact down payment, then upload your receipt to finish this booking.
+            </p>
+            <div className="mt-4 rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3">
+              <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-amber-700">Amount To Send</p>
+              <p className="mt-1 text-3xl font-bold text-amber-700">₱{downPaymentAmount.toLocaleString()}</p>
+              <p className="mt-1 text-xs text-amber-700">50% down payment required to secure the reservation.</p>
+            </div>
+          </div>
+
+          <div className="flex justify-center">
+            {paymentSettings.gcashQRCode ? (
+              <div className="rounded-[1.75rem] bg-white p-4 shadow-[0_18px_40px_rgba(18,78,124,0.16)]">
+                <div className="flex h-64 w-64 items-center justify-center overflow-hidden rounded-[1.25rem] border border-ocean-light/20 bg-white">
+                  <img
+                    src={paymentSettings.gcashQRCode}
+                    alt="GCash QR Code"
+                    className="h-full w-full object-contain"
+                  />
+                </div>
+              </div>
+            ) : (
+              <div className="flex h-64 w-full max-w-xs items-center justify-center rounded-[1.75rem] border border-dashed border-amber-300 bg-amber-50 px-6 text-center text-sm text-amber-700">
+                GCash QR code is not available right now. Please contact the resort before proceeding.
+              </div>
+            )}
+          </div>
+        </div>
+      </div>
+
+      <div className="grid gap-4 lg:grid-cols-2">
+        {renderValidIdCard()}
+        {renderPaymentProofCard('payment-proof-upload')}
+      </div>
+    </div>
+  );
+
+  const renderBankTransferPanel = () => (
+    <div className="space-y-5">
+      <div className="rounded-2xl border border-ocean-light/20 bg-gradient-to-br from-white via-[#f7fbff] to-[#eef7fb] p-6">
+        <div className="flex flex-col gap-5">
+          <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
+            <div className="max-w-xl">
+              <div className="inline-flex items-center gap-2 rounded-full bg-ocean-ice px-3 py-1 text-xs font-semibold uppercase tracking-[0.18em] text-ocean-mid">
+                <i className="fas fa-building-columns"></i>
+                Manual Verification
+              </div>
+              <h3 className="mt-4 text-xl font-semibold text-textPrimary">Pay by Bank Transfer</h3>
+              <p className="mt-2 text-sm text-textSecondary">
+                Choose your preferred bank, request the resort details, then upload your transfer receipt once they respond.
+              </p>
+            </div>
+
+            <div className="rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 lg:min-w-[220px]">
+              <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-amber-700">Amount To Send</p>
+              <p className="mt-1 text-3xl font-bold text-amber-700">₱{downPaymentAmount.toLocaleString()}</p>
+              <p className="mt-1 text-xs text-amber-700">Transfer only after bank details are provided.</p>
+            </div>
+          </div>
+
+          {modalNotification && (
+            <div className={`rounded-xl border px-4 py-3 text-sm ${
+              modalNotification.type === 'error'
+                ? 'border-red-200 bg-red-50 text-red-700'
+                : 'border-green-200 bg-green-50 text-green-700'
+            }`}>
+              <i className={`fas ${modalNotification.type === 'error' ? 'fa-exclamation-circle' : 'fa-check-circle'} mr-2`}></i>
+              {modalNotification.message}
+            </div>
+          )}
+
+          {bankDetailsProvided ? (
+            <div className="rounded-2xl border border-green-200 bg-green-50/80 p-5">
+              <div className="flex items-center gap-2 mb-3">
+                <div className="flex h-10 w-10 items-center justify-center rounded-full bg-white text-green-600">
+                  <i className="fas fa-check"></i>
+                </div>
+                <div>
+                  <p className="text-sm font-semibold text-green-900">Bank Details Ready</p>
+                  <p className="text-xs text-green-700">Use these details for your transfer.</p>
+                </div>
+              </div>
+              <div className="grid gap-3 lg:grid-cols-2">
+                <div className="rounded-xl bg-white p-4 shadow-sm">
+                  <p className="text-xs uppercase tracking-[0.16em] text-textSecondary">Bank</p>
+                  <p className="mt-1 font-semibold text-textPrimary">{bankDetailsProvided.bankName}</p>
+                </div>
+                <div className="rounded-xl bg-white p-4 shadow-sm">
+                  <p className="text-xs uppercase tracking-[0.16em] text-textSecondary">Account Name</p>
+                  <p className="mt-1 font-semibold text-textPrimary">{bankDetailsProvided.accountName}</p>
+                </div>
+                {bankDetailsProvided.accountNumber && bankDetailsProvided.accountNumber !== 'QR Code Provided' ? (
+                  <div className="rounded-xl bg-white p-4 shadow-sm lg:col-span-2">
+                    <p className="text-xs uppercase tracking-[0.16em] text-textSecondary">Account Number</p>
+                    <p className="mt-1 font-semibold text-textPrimary">{bankDetailsProvided.accountNumber}</p>
+                  </div>
+                ) : bankDetailsProvided.qrCodeUrl ? (
+                  <div className="rounded-xl bg-white p-4 shadow-sm lg:col-span-2">
+                    <p className="text-xs uppercase tracking-[0.16em] text-textSecondary mb-3">Bank QR Code</p>
+                    <div className="flex flex-col items-center gap-3">
+                      <div className="flex h-56 w-56 items-center justify-center overflow-hidden rounded-[1.25rem] border border-ocean-light/20 bg-white">
+                        <img
+                          src={bankDetailsProvided.qrCodeUrl}
+                          alt="Bank QR Code"
+                          className="h-full w-full object-contain"
+                        />
+                      </div>
+                      <p className="text-sm text-textSecondary">Scan to pay.</p>
+                    </div>
+                  </div>
+                ) : null}
+              </div>
+            </div>
+          ) : bankRequestSent ? (
+            <div className="rounded-2xl border border-blue-200 bg-blue-50/80 p-6 text-center">
+              <div className="mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-full bg-white text-blue-600 shadow-sm">
+                <i className="fas fa-clock text-xl"></i>
+              </div>
+              <p className="text-base font-semibold text-blue-900">Request Sent</p>
+              <p className="mt-2 text-sm text-blue-800">
+                The resort has been notified. Bank details will appear here once they respond.
+              </p>
+            </div>
+          ) : !showBankSelection ? (
+            <div className="space-y-3">
+              <div className="flex items-center justify-between gap-3">
+                <p className="text-sm font-semibold text-textPrimary">Choose your preferred bank</p>
+                <span className="text-xs text-textSecondary">{paymentSettings.bankAccounts.length} option(s)</span>
+              </div>
+              {paymentSettings.bankAccounts.length > 0 ? (
+                <div className="grid gap-3 md:grid-cols-2">
+                  {paymentSettings.bankAccounts.map((bank) => (
+                    <button
+                      key={bank.id}
+                      type="button"
+                      onClick={() => {
+                        setSelectedBankAccount(bank);
+                        setShowBankSelection(true);
+                      }}
+                      className="rounded-2xl border border-ocean-light/20 bg-white p-4 text-left transition-all duration-200 hover:-translate-y-0.5 hover:border-ocean-mid/40 hover:shadow-md"
+                    >
+                      <div className="flex items-center justify-between gap-3">
+                        <div>
+                          <p className="font-semibold text-textPrimary">{bank.bankName}</p>
+                          <p className="mt-1 text-xs text-textSecondary">{bank.accountName}</p>
+                        </div>
+                        <div className="flex h-10 w-10 items-center justify-center rounded-full bg-ocean-ice text-ocean-mid">
+                          <i className="fas fa-arrow-right"></i>
+                        </div>
+                      </div>
+                    </button>
+                  ))}
+                </div>
+              ) : (
+                <div className="rounded-xl border border-dashed border-amber-300 bg-amber-50 px-4 py-3 text-sm text-amber-700">
+                  No bank accounts are available right now. Please contact the resort.
+                </div>
+              )}
+            </div>
+          ) : (
+            <div className="rounded-2xl border border-amber-200 bg-amber-50/80 p-5">
+              <p className="text-xs font-semibold uppercase tracking-[0.16em] text-amber-700">Selected Bank</p>
+              <p className="mt-2 text-lg font-semibold text-textPrimary">{selectedBankAccount?.bankName}</p>
+              <p className="text-sm text-textSecondary">{selectedBankAccount?.accountName}</p>
+              <div className="mt-5 flex flex-col gap-3 sm:flex-row">
+                <button
+                  type="button"
+                  onClick={handleNotifyResort}
+                  disabled={notifyingResort}
+                  className="flex-1 rounded-xl bg-amber-500 px-4 py-3 text-sm font-semibold text-white transition hover:bg-amber-600 disabled:cursor-not-allowed disabled:bg-amber-300"
+                >
+                  {notifyingResort ? (
+                    <><i className="fas fa-spinner fa-spin mr-2"></i>Sending Request...</>
+                  ) : (
+                    <><i className="fas fa-paper-plane mr-2"></i>Confirm And Send Request</>
+                  )}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setShowBankSelection(false)}
+                  className="flex-1 rounded-xl border border-ocean-light/20 px-4 py-3 text-sm font-semibold text-textSecondary transition hover:bg-ocean-ice"
+                >
+                  Back
+                </button>
+              </div>
+            </div>
+          )}
+        </div>
+      </div>
+
+      <div className="grid gap-4 lg:grid-cols-2">
+        {renderValidIdCard()}
+        {renderPaymentProofCard('payment-proof-upload-bank')}
+      </div>
+    </div>
+  );
+
   if (loading) {
     return (
       <GuestLayout>
@@ -607,114 +999,125 @@ const handleNotifyResort = async () => {
             {/* Left Column - Booking Form (70%) */}
             <div className="lg:w-[70%]">
               {/* Progress Steps */}
-              <div className="mb-8">
-                <div className="flex justify-between items-center">
-                  {[1, 2, 3, 4].map((s) => (
-                    <div key={s} className="flex-1 relative">
-                      <div className={`w-10 h-10 mx-auto rounded-full flex items-center justify-center font-semibold ${
-                        step >= s ? 'bg-ocean-mid text-white' : 'bg-gray-200 text-gray-500'
-                      }`}>
-                        {s}
-                      </div>
-                      <div className="text-center text-xs mt-2 text-textSecondary">
-                        {s === 1 && 'Guests'}
-                        {s === 2 && 'Details'}
-                        {s === 3 && 'Payment'}
-                        {s === 4 && 'Confirmation'}
-                      </div>
-                      {s < 4 && (
-                        <div className={`absolute top-5 left-1/2 w-full h-0.5 ${
-                          step > s ? 'bg-ocean-mid' : 'bg-gray-200'
-                        }`} style={{ transform: 'translateY(-50%)' }}></div>
-                      )}
-                    </div>
-                  ))}
+              <div className="mb-8 rounded-2xl border border-ocean-light/20 bg-white/70 px-3 py-4 sm:px-5">
+                <div className="relative">
+                  <div className="absolute left-[12%] right-[12%] top-5 h-0.5 bg-gray-200"></div>
+                  <div className="absolute left-[12%] right-[12%] top-5 h-0.5 bg-transparent">
+                    <div
+                      className="h-full bg-ocean-mid transition-all duration-300"
+                      style={{ width: `${Math.max(0, ((step - 1) / 3) * 100)}%` }}
+                    ></div>
+                  </div>
+
+                  <div className="grid grid-cols-4 gap-1">
+                    {[1, 2, 3, 4].map((s) => {
+                      const label = s === 1 ? 'Guests' : s === 2 ? 'Details' : s === 3 ? 'Payment' : 'Confirmation';
+                      const isCurrent = step === s;
+                      const isDone = step > s;
+
+                      return (
+                        <div key={s} className="relative z-10 flex flex-col items-center">
+                          <div
+                            className={`w-10 h-10 rounded-full flex items-center justify-center text-sm font-bold border transition-all duration-300 ${
+                              isCurrent
+                                ? 'bg-ocean-mid text-white border-ocean-mid shadow-[0_6px_14px_rgba(33,105,243,0.28)]'
+                                : isDone
+                                  ? 'bg-ocean-light text-white border-ocean-light'
+                                  : 'bg-gray-100 text-gray-500 border-gray-200'
+                            }`}
+                          >
+                            {s}
+                          </div>
+                          <span className={`mt-2 text-[12px] font-medium ${isCurrent ? 'text-textPrimary' : 'text-textSecondary'}`}>
+                            {label}
+                          </span>
+                        </div>
+                      );
+                    })}
+                  </div>
                 </div>
               </div>
 
               {/* Step 1: Guest Count */}
               {step === 1 && (
-                <div className="bg-white rounded-2xl shadow-lg p-8">
-                  <h2 className="text-2xl font-bold text-textPrimary mb-6">Step 1: Number of Guests</h2>
-                  
-                  <div className="space-y-5">
-                    <div>
-                      <label className="block text-sm font-semibold text-textPrimary mb-2">Adults (16+) *</label>
-                      <input
-                        type="number"
-                        min="0"
-                        max={maxAllowedGuests}
-                        value={bookingData.adults}
-                        onChange={(e) => handleGuestChange('adults', e.target.value)}
-                        className="w-full px-4 py-2 border border-ocean-light/20 rounded-lg focus:outline-none focus:border-ocean-light"
-                      />
+                <div className="bg-white rounded-2xl shadow-lg border border-ocean-light/15 p-6 sm:p-8">
+                  <div className="mb-6">
+                    <h2 className="text-2xl font-bold text-textPrimary">Step 1: Number of Guests</h2>
+                    <p className="text-sm text-textSecondary mt-1">Set your party size first so we can validate available capacity.</p>
+                  </div>
+
+                  <div className="grid md:grid-cols-2 gap-4">
+                    <div className="rounded-xl border border-ocean-light/20 bg-gradient-to-br from-white to-ocean-ice/35 p-4">
+                      <label className="text-xs uppercase tracking-[0.16em] font-bold text-textSecondary">Adults (16+) *</label>
+                      <div className="mt-2 relative">
+                        <i className="fas fa-user absolute left-3 top-1/2 -translate-y-1/2 text-ocean-mid text-sm"></i>
+                        <input
+                          type="number"
+                          min="1"
+                          value={bookingData.adults}
+                          onChange={(e) => handleGuestChange('adults', e.target.value)}
+                          onFocus={(e) => e.target.select()}
+                          className="w-full h-12 pl-10 pr-3 rounded-xl border border-ocean-light/25 bg-white text-lg font-semibold text-textPrimary focus:outline-none focus:border-ocean-mid focus:ring-2 focus:ring-ocean-light/30"
+                        />
+                      </div>
                     </div>
-                    
-                    <div>
-                      <label className="block text-sm font-semibold text-textPrimary mb-2">Kids (15 and below)</label>
-                      <input
-                        type="number"
-                        min="0"
-                        max={Math.max(0, maxAllowedGuests - bookingData.adults - bookingData.seniors)}
-                        value={bookingData.kids}
-                        onChange={(e) => handleGuestChange('kids', e.target.value)}
-                        className="w-full px-4 py-2 border border-ocean-light/20 rounded-lg focus:outline-none focus:border-ocean-light"
-                      />
-                    </div>
-                    
-                    <div>
-                      <label className="block text-sm font-semibold text-textPrimary mb-2">Seniors</label>
-                      <input
-                        type="number"
-                        min="0"
-                        max={Math.max(0, maxAllowedGuests - bookingData.adults - bookingData.kids)}
-                        value={bookingData.seniors}
-                        onChange={(e) => handleGuestChange('seniors', e.target.value)}
-                        className="w-full px-4 py-2 border border-ocean-light/20 rounded-lg focus:outline-none focus:border-ocean-light"
-                      />
-                    </div>
-                    
-                    {errors.guests && (
-                      <p className="text-red-500 text-sm">{errors.guests}</p>
-                    )}
-                    
-                    <div className="p-5 bg-gradient-to-r from-ocean-ice to-blue-white rounded-xl">
-                      <h3 className="text-lg font-semibold text-textPrimary mb-3">Booking Summary</h3>
-                      <div className="space-y-2">
-                        <div className="flex justify-between">
-                          <span className="text-textSecondary">Total Guests:</span>
-                          <span className="font-semibold">{totalGuests}</span>
-                        </div>
-                        <div className="flex justify-between">
-                          <span className="text-textSecondary">Total Price:</span>
-                          <span className="font-bold text-ocean-mid">₱{totalPrice.toLocaleString()}</span>
-                        </div>
-                        <div className="flex justify-between pt-2 border-t border-ocean-light/20">
-                          <span className="text-textSecondary">Down Payment (50%):</span>
-                          <span className="font-bold text-amber-600">₱{downPaymentAmount.toLocaleString()}</span>
-                        </div>
+
+                    <div className="rounded-xl border border-ocean-light/20 bg-gradient-to-br from-white to-ocean-ice/35 p-4">
+                      <label className="text-xs uppercase tracking-[0.16em] font-bold text-textSecondary">Kids (15 and below)</label>
+                      <div className="mt-2 relative">
+                        <i className="fas fa-child absolute left-3 top-1/2 -translate-y-1/2 text-ocean-mid text-sm"></i>
+                        <input
+                          type="number"
+                          min="0"
+                          value={bookingData.kids}
+                          onChange={(e) => handleGuestChange('kids', e.target.value)}
+                          onFocus={(e) => e.target.select()}
+                          className="w-full h-12 pl-10 pr-3 rounded-xl border border-ocean-light/25 bg-white text-lg font-semibold text-textPrimary focus:outline-none focus:border-ocean-mid focus:ring-2 focus:ring-ocean-light/30"
+                        />
                       </div>
                     </div>
                   </div>
-                  
+
+                  {errors.guests && (
+                    <p className="text-[12px] text-rose-600/80 mt-3">{errors.guests}</p>
+                  )}
+
+                  <div className="mt-5 rounded-xl border border-ocean-light/20 bg-gradient-to-r from-ocean-ice/80 to-blue-white/80 p-4 sm:p-5">
+                    <h3 className="text-base font-semibold text-textPrimary mb-3">Booking Summary</h3>
+                    <div className="grid grid-cols-3 gap-3">
+                      <div className="rounded-lg bg-white/80 border border-ocean-light/15 p-3">
+                        <p className="text-[11px] uppercase tracking-wide text-textSecondary">Total Guests</p>
+                        <p className="text-xl font-bold text-textPrimary mt-1">{totalGuests}</p>
+                      </div>
+                      <div className="rounded-lg bg-white/80 border border-ocean-light/15 p-3">
+                        <p className="text-[11px] uppercase tracking-wide text-textSecondary">Total Price</p>
+                        <p className="text-xl font-bold text-ocean-mid mt-1">₱{totalPrice.toLocaleString()}</p>
+                      </div>
+                      <div className="rounded-lg bg-white/80 border border-ocean-light/15 p-3">
+                        <p className="text-[11px] uppercase tracking-wide text-textSecondary">Down Payment</p>
+                        <p className="text-xl font-bold text-amber-600 mt-1">₱{downPaymentAmount.toLocaleString()}</p>
+                      </div>
+                    </div>
+                  </div>
+
                   <div className="flex gap-3 mt-6">
                     <button
                       onClick={handlePreviousStep}
-                      className="flex-1 py-3 border border-ocean-light/20 rounded-xl text-textSecondary font-medium hover:bg-ocean-ice transition-all duration-300"
+                      className="flex-1 h-12 border border-ocean-light/25 rounded-xl text-textSecondary font-medium bg-white hover:bg-ocean-ice transition-all duration-300"
                     >
                       <i className="fas fa-arrow-left mr-2"></i>
                       Back
                     </button>
                     <button
                       onClick={handleNextStep}
-                      disabled={totalGuests < 1 || totalGuests > maxAllowedGuests || (remainingCapacity !== Infinity && totalGuests > remainingCapacity)}
-                      className={`flex-1 py-3 rounded-xl font-medium transition-all duration-300 ${
-                        totalGuests >= 1 && totalGuests <= maxAllowedGuests && (remainingCapacity === Infinity || totalGuests <= remainingCapacity)
+                      disabled={bookingData.adults === '' || bookingData.kids === '' || adultsCount < 1 || totalGuests < 1 || totalGuests > maxAllowedGuests || (remainingCapacity !== Infinity && totalGuests > remainingCapacity)}
+                      className={`flex-1 h-12 rounded-xl font-semibold transition-all duration-300 ${
+                        bookingData.adults !== '' && bookingData.kids !== '' && adultsCount >= 1 && totalGuests >= 1 && totalGuests <= maxAllowedGuests && (remainingCapacity === Infinity || totalGuests <= remainingCapacity)
                           ? 'bg-gradient-to-r from-ocean-mid to-ocean-light text-white hover:shadow-lg'
                           : 'bg-gray-200 text-gray-500 cursor-not-allowed'
                       }`}
                     >
-                      Continue to Guest Details
+                      Continue to Details
                     </button>
                   </div>
                 </div>
@@ -794,35 +1197,73 @@ const handleNotifyResort = async () => {
 
               {/* Step 3: Payment */}
               {step === 3 && (
-                <div className="bg-white rounded-2xl shadow-lg p-8">
-                  <h2 className="text-2xl font-bold text-textPrimary mb-6">Step 3: Payment</h2>
+                <div className="bg-white rounded-2xl shadow-lg border border-ocean-light/20 p-6 sm:p-8">
+                  <div className="mb-5">
+                    <h2 className="text-2xl font-bold text-textPrimary">Step 3: Payment</h2>
+                    <p className="text-sm text-textSecondary mt-1">Complete your down payment to secure this reservation.</p>
+                  </div>
+
+                  <div className="grid sm:grid-cols-3 gap-3 mb-6">
+                    <div className="rounded-xl border border-ocean-light/20 bg-ocean-ice/50 p-3">
+                      <p className="text-[11px] uppercase tracking-[0.14em] text-textSecondary">Total Price</p>
+                      <p className="text-lg font-bold text-textPrimary mt-1">₱{totalPrice.toLocaleString()}</p>
+                    </div>
+                    <div className="rounded-xl border border-amber-200 bg-amber-50 p-3">
+                      <p className="text-[11px] uppercase tracking-[0.14em] text-amber-700">Down Payment (50%)</p>
+                      <p className="text-lg font-bold text-amber-700 mt-1">₱{downPaymentAmount.toLocaleString()}</p>
+                    </div>
+                    <div className="rounded-xl border border-ocean-light/20 bg-white p-3">
+                      <p className="text-[11px] uppercase tracking-[0.14em] text-textSecondary">Remaining Balance</p>
+                      <p className="text-lg font-bold text-textPrimary mt-1">₱{(totalPrice - downPaymentAmount).toLocaleString()}</p>
+                    </div>
+                  </div>
                   
                   <div className="mb-6">
-                    <label className="block text-sm font-semibold text-textPrimary mb-3">Select Payment Method</label>
+                    <label className="block text-xs uppercase tracking-[0.18em] font-bold text-textSecondary mb-3">Select Payment Method</label>
                     <div className="grid grid-cols-2 gap-4">
                       <button
                         type="button"
                         onClick={() => setPaymentMethod('gcash')}
-                        className={`p-4 rounded-xl border-2 transition-all duration-200 flex flex-col items-center gap-2 ${
+                        className={`p-4 rounded-xl border-2 transition-all duration-200 text-left ${
                           paymentMethod === 'gcash'
-                            ? 'border-ocean-mid bg-ocean-ice'
+                            ? 'border-ocean-mid bg-ocean-ice shadow-[0_8px_20px_rgba(33,105,243,0.16)]'
                             : 'border-ocean-light/20 bg-white hover:border-ocean-light'
                         }`}
                       >
-                        <i className={`fab fa-gcash text-3xl ${paymentMethod === 'gcash' ? 'text-ocean-mid' : 'text-gray-400'}`}></i>
-                        <span className={`text-sm font-medium ${paymentMethod === 'gcash' ? 'text-ocean-mid' : 'text-textSecondary'}`}>GCash</span>
+                        <div className="flex items-center justify-between">
+                          <div className="flex items-center gap-3">
+                            <div className={`w-10 h-10 rounded-lg flex items-center justify-center ${paymentMethod === 'gcash' ? 'bg-ocean-mid text-white' : 'bg-gray-100 text-gray-500'}`}>
+                              <i className="fas fa-wallet text-sm"></i>
+                            </div>
+                            <div>
+                              <p className={`text-sm font-semibold ${paymentMethod === 'gcash' ? 'text-ocean-mid' : 'text-textPrimary'}`}>GCash</p>
+                              <p className="text-xs text-textSecondary">Scan QR and upload proof</p>
+                            </div>
+                          </div>
+                          {paymentMethod === 'gcash' && <i className="fas fa-check-circle text-ocean-mid"></i>}
+                        </div>
                       </button>
                       <button
                         type="button"
                         onClick={() => setPaymentMethod('bank_transfer')}
-                        className={`p-4 rounded-xl border-2 transition-all duration-200 flex flex-col items-center gap-2 ${
+                        className={`p-4 rounded-xl border-2 transition-all duration-200 text-left ${
                           paymentMethod === 'bank_transfer'
-                            ? 'border-ocean-mid bg-ocean-ice'
+                            ? 'border-ocean-mid bg-ocean-ice shadow-[0_8px_20px_rgba(33,105,243,0.16)]'
                             : 'border-ocean-light/20 bg-white hover:border-ocean-light'
                         }`}
                       >
-                        <i className={`fas fa-university text-3xl ${paymentMethod === 'bank_transfer' ? 'text-ocean-mid' : 'text-gray-400'}`}></i>
-                        <span className={`text-sm font-medium ${paymentMethod === 'bank_transfer' ? 'text-ocean-mid' : 'text-textSecondary'}`}>Bank Transfer</span>
+                        <div className="flex items-center justify-between">
+                          <div className="flex items-center gap-3">
+                            <div className={`w-10 h-10 rounded-lg flex items-center justify-center ${paymentMethod === 'bank_transfer' ? 'bg-ocean-mid text-white' : 'bg-gray-100 text-gray-500'}`}>
+                              <i className="fas fa-university text-sm"></i>
+                            </div>
+                            <div>
+                              <p className={`text-sm font-semibold ${paymentMethod === 'bank_transfer' ? 'text-ocean-mid' : 'text-textPrimary'}`}>Bank Transfer</p>
+                              <p className="text-xs text-textSecondary">Request bank details first</p>
+                            </div>
+                          </div>
+                          {paymentMethod === 'bank_transfer' && <i className="fas fa-check-circle text-ocean-mid"></i>}
+                        </div>
                       </button>
                     </div>
                   </div>
@@ -830,7 +1271,7 @@ const handleNotifyResort = async () => {
                   {/* GCash Payment Section */}
                   {paymentMethod === 'gcash' && (
                     <div className="space-y-6">
-                      <div className="p-5 bg-ocean-ice rounded-xl text-center">
+                      <div className="p-5 border border-ocean-light/20 bg-gradient-to-br from-ocean-ice/80 to-white rounded-xl text-center">
                         <h3 className="text-lg font-semibold text-textPrimary mb-3 flex items-center justify-center gap-2">
                           <i className="fab fa-gcash text-ocean-mid"></i>
                           GCash Payment
@@ -853,7 +1294,7 @@ const handleNotifyResort = async () => {
                         )}
                       </div>
                       
-                      <div className="p-5 bg-gradient-to-r from-ocean-ice to-blue-white rounded-xl">
+                      <div className="p-5 bg-gradient-to-r from-ocean-ice to-blue-white rounded-xl border border-ocean-light/20">
                         <p className="text-sm font-semibold text-textPrimary mb-1">Down Payment Required</p>
                         <p className="text-2xl font-bold text-amber-600">₱{downPaymentAmount.toLocaleString()}</p>
                         <p className="text-xs text-textSecondary mt-1">50% of total price</p>
@@ -905,7 +1346,7 @@ const handleNotifyResort = async () => {
                         )}
                       </div>
                       
-                      <div>
+                      <div className="rounded-xl border border-ocean-light/20 bg-white p-4">
                         <label className="block text-sm font-semibold text-textPrimary mb-2">Upload Proof of Payment (Down Payment) *</label>
                         <div className="relative">
                           <input
@@ -941,7 +1382,7 @@ const handleNotifyResort = async () => {
                   {/* Bank Transfer Section for Day Tour */}
                   {paymentMethod === 'bank_transfer' && (
                     <div className="space-y-6">
-                      <div className="p-5 bg-ocean-ice rounded-xl">
+                      <div className="p-5 border border-ocean-light/20 bg-gradient-to-br from-ocean-ice/80 to-white rounded-xl">
                         <h3 className="text-lg font-semibold text-textPrimary mb-3 flex items-center gap-2">
                           <i className="fas fa-university text-ocean-mid"></i>
                           Bank Transfer
@@ -1049,7 +1490,7 @@ const handleNotifyResort = async () => {
                         )}
                       </div>
                       
-                      <div className="p-5 bg-gradient-to-r from-ocean-ice to-blue-white rounded-xl">
+                      <div className="p-5 bg-gradient-to-r from-ocean-ice to-blue-white rounded-xl border border-ocean-light/20">
                         <p className="text-sm font-semibold text-textPrimary mb-1">Down Payment Required</p>
                         <p className="text-2xl font-bold text-amber-600">₱{downPaymentAmount.toLocaleString()}</p>
                         <p className="text-xs text-textSecondary mt-1">50% of total price</p>
@@ -1067,7 +1508,7 @@ const handleNotifyResort = async () => {
                         </ul>
                       </div>
 
-                                              <div className="bg-gradient-to-br from-white to-ocean-ice/30 rounded-xl border border-ocean-light/30 p-5 shadow-sm">
+                      <div className="bg-gradient-to-br from-white to-ocean-ice/30 rounded-xl border border-ocean-light/30 p-5 shadow-sm">
                         <div className="flex items-center gap-2 mb-3">
                           <i className="fas fa-id-card text-ocean-mid text-lg"></i>
                           <label className="text-sm font-semibold text-textPrimary">Upload Valid ID *</label>
@@ -1102,7 +1543,7 @@ const handleNotifyResort = async () => {
                       </div>
                       
                       {bankDetailsProvided && (
-                        <div>
+                        <div className="rounded-xl border border-ocean-light/20 bg-white p-4">
                           <label className="block text-sm font-semibold text-textPrimary mb-2">Upload Proof of Payment (Down Payment) *</label>
                           <div className="relative">
                             <input
@@ -1243,15 +1684,11 @@ const handleNotifyResort = async () => {
                     <div className="bg-white rounded-lg border border-ocean-light/20 p-3 space-y-2">
                       <div className="flex justify-between text-sm">
                         <span className="text-textSecondary">Adults</span>
-                        <span className="font-semibold text-textPrimary">{bookingData.adults}</span>
+                        <span className="font-semibold text-textPrimary">{adultsCount}</span>
                       </div>
                       <div className="flex justify-between text-sm">
                         <span className="text-textSecondary">Kids</span>
-                        <span className="font-semibold text-textPrimary">{bookingData.kids}</span>
-                      </div>
-                      <div className="flex justify-between text-sm">
-                        <span className="text-textSecondary">Seniors</span>
-                        <span className="font-semibold text-textPrimary">{bookingData.seniors}</span>
+                        <span className="font-semibold text-textPrimary">{kidsCount}</span>
                       </div>
                       <div className="flex justify-between text-sm pt-2 border-t border-ocean-light/10">
                         <span className="font-semibold text-textPrimary">Total Guests</span>

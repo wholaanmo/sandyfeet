@@ -13,8 +13,8 @@ export default function DayTourPage() {
   const router = useRouter();
   const HARD_MAX_PACKS = 38;
   const [date, setDate] = useState('');
-  const [adults, setAdults] = useState(1);
-  const [kids, setKids] = useState(0);
+  const [adults, setAdults] = useState('1');
+  const [kids, setKids] = useState('0');
   const [activities, setActivities] = useState([]);
   const [loadingActivities, setLoadingActivities] = useState(true);
   const [dayTour, setDayTour] = useState(null);
@@ -22,10 +22,13 @@ export default function DayTourPage() {
   const [unavailableDates, setUnavailableDates] = useState({});
   const [currentMonth, setCurrentMonth] = useState(new Date());
   const [isCalendarOpen, setIsCalendarOpen] = useState(false);
+  const [hoveredDateKey, setHoveredDateKey] = useState('');
   const [dateError, setDateError] = useState('');
   const calendarPopoverRef = useRef(null);
   const calendarTriggerRef = useRef(null);
   const maxAllowedGuests = HARD_MAX_PACKS;
+  const adultsCount = Number.isNaN(parseInt(adults, 10)) ? 0 : parseInt(adults, 10);
+  const kidsCount = Number.isNaN(parseInt(kids, 10)) ? 0 : parseInt(kids, 10);
 
   const monthNames = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
 
@@ -50,6 +53,17 @@ export default function DayTourPage() {
     return parsedDate.toLocaleDateString('en-US', {
       month: '2-digit',
       day: '2-digit',
+      year: 'numeric'
+    });
+  };
+
+  const formatLongDate = (value) => {
+    const parsedDate = parseDateKey(value);
+    if (!parsedDate) return '';
+    return parsedDate.toLocaleDateString('en-US', {
+      weekday: 'long',
+      month: 'long',
+      day: 'numeric',
       year: 'numeric'
     });
   };
@@ -127,23 +141,31 @@ export default function DayTourPage() {
   };
 
   const handleAdultsChange = (value) => {
-    const parsed = parseInt(value, 10);
-    const nextAdults = Math.max(1, Math.min(maxAllowedGuests, Number.isNaN(parsed) ? 1 : parsed));
-    const maxKidsForAdults = Math.max(0, maxAllowedGuests - nextAdults);
-    setAdults(nextAdults);
-    setKids((prev) => Math.min(prev, maxKidsForAdults));
+    if (value === '') {
+      setAdults('');
+      return;
+    }
+
+    if (/^\d+$/.test(value)) {
+      setAdults(value);
+    }
   };
 
   const handleKidsChange = (value) => {
-    const parsed = parseInt(value, 10);
-    const maxKidsForAdults = Math.max(0, maxAllowedGuests - adults);
-    const nextKids = Math.max(0, Math.min(maxKidsForAdults, Number.isNaN(parsed) ? 0 : parsed));
-    setKids(nextKids);
+    if (value === '') {
+      setKids('');
+      return;
+    }
+
+    if (/^\d+$/.test(value)) {
+      setKids(value);
+    }
   };
 
   const handleDateSelect = (targetDate) => {
     if (!isDateSelectable(targetDate)) return;
     setDate(toLocalDateKey(targetDate));
+    setHoveredDateKey('');
     setCurrentMonth(new Date(targetDate.getFullYear(), targetDate.getMonth(), 1));
     setDateError('');
     setIsCalendarOpen(false);
@@ -170,17 +192,11 @@ export default function DayTourPage() {
     const parsedAdults = parseInt(queryAdults || '', 10);
     const parsedKids = parseInt(queryKids || '', 10);
 
-    const nextAdults = Number.isNaN(parsedAdults)
-      ? 1
-      : Math.max(1, Math.min(maxAllowedGuests, parsedAdults));
+    const nextAdults = Number.isNaN(parsedAdults) ? 1 : Math.max(0, parsedAdults);
+    const nextKids = Number.isNaN(parsedKids) ? 0 : Math.max(0, parsedKids);
 
-    const maxKidsForAdults = Math.max(0, maxAllowedGuests - nextAdults);
-    const nextKids = Number.isNaN(parsedKids)
-      ? 0
-      : Math.max(0, Math.min(maxKidsForAdults, parsedKids));
-
-    setAdults(nextAdults);
-    setKids(nextKids);
+    setAdults(String(nextAdults));
+    setKids(String(nextKids));
 
     if (queryDate) {
       const parsedDate = parseDateKey(queryDate);
@@ -280,14 +296,30 @@ export default function DayTourPage() {
   }, [isCalendarOpen]);
 
   useEffect(() => {
+    if (!isCalendarOpen) {
+      setHoveredDateKey('');
+    }
+  }, [isCalendarOpen]);
+
+  useEffect(() => {
     if (!date) {
       setDateError('');
       return;
     }
 
-    const totalGuests = adults + kids;
-    if (totalGuests > maxAllowedGuests) {
-      setDateError(`Maximum packs is ${maxAllowedGuests}.`);
+    if (adults === '' || kids === '') {
+      setDateError('');
+      return;
+    }
+
+    if (adultsCount < 1) {
+      setDateError('At least 1 adult is required.');
+      return;
+    }
+
+    const totalGuests = adultsCount + kidsCount;
+    if (adultsCount > maxAllowedGuests || kidsCount > maxAllowedGuests || totalGuests > maxAllowedGuests) {
+      setDateError(`We only allow up to ${maxAllowedGuests} guests per booking.`);
       return;
     }
 
@@ -309,54 +341,62 @@ export default function DayTourPage() {
     }
 
     setDateError('');
-  }, [date, adults, kids, dayTour, bookedDates, unavailableDates, maxAllowedGuests]);
-
-  useEffect(() => {
-    if (adults > maxAllowedGuests) {
-      setAdults(maxAllowedGuests);
-      setKids(0);
-      return;
-    }
-
-    const totalGuests = adults + kids;
-    if (totalGuests > maxAllowedGuests) {
-      setKids(Math.max(0, maxAllowedGuests - adults));
-    }
-  }, [maxAllowedGuests, adults, kids]);
+  }, [date, adults, kids, adultsCount, kidsCount, dayTour, bookedDates, unavailableDates, maxAllowedGuests]);
 
   const handleBookingStart = (e) => {
     e.preventDefault();
     if (dateError) return;
 
-    const totalGuests = adults + kids;
-    if (totalGuests > maxAllowedGuests) {
-      setDateError(`Maximum packs is ${maxAllowedGuests}.`);
+    if (!date) {
+      setDateError('Please select a date to proceed.');
       return;
     }
 
-    if (date) {
-      const selectedDate = parseDateKey(date);
-      if (!selectedDate || !isDateSelectable(selectedDate)) {
-        setDateError('Selected date is unavailable from admin settings or existing bookings.');
-        return;
-      }
-
-      const remaining = getRemainingCapacity(selectedDate);
-      const totalGuests = adults + kids;
-      if (remaining !== Infinity && totalGuests > remaining) {
-        setDateError(`Only ${remaining} slot(s) left for the selected date.`);
-        return;
-      }
-
-      router.push(`/day-tour/calendar?date=${date}&adults=${adults}&kids=${kids}`);
-    } else {
-      router.push(`/day-tour/calendar`);
+    if (adults === '' || kids === '') {
+      setDateError('Please enter valid guest counts before proceeding.');
+      return;
     }
+
+    if (adultsCount < 1) {
+      setDateError('At least 1 adult is required.');
+      return;
+    }
+
+    const totalGuests = adultsCount + kidsCount;
+    if (adultsCount > maxAllowedGuests || kidsCount > maxAllowedGuests || totalGuests > maxAllowedGuests) {
+      setDateError(`We only allow up to ${maxAllowedGuests} guests per booking.`);
+      return;
+    }
+
+    const selectedDate = parseDateKey(date);
+    if (!selectedDate || !isDateSelectable(selectedDate)) {
+      setDateError('Selected date is unavailable from admin settings or existing bookings.');
+      return;
+    }
+
+    const remaining = getRemainingCapacity(selectedDate);
+    if (remaining !== Infinity && totalGuests > remaining) {
+      setDateError(`Only ${remaining} slot(s) left for the selected date.`);
+      return;
+    }
+
+    router.push(`/day-tour/booking?date=${date}&adults=${adultsCount}&kids=${kidsCount}`);
   };
 
   const filteredActivities = activities.filter(
     (activity) => !activity.name?.toLowerCase().includes('jet ski')
   );
+
+  const selectedDateObj = parseDateKey(date);
+  const hoveredDateObj = parseDateKey(hoveredDateKey);
+  const activePreviewDate = hoveredDateObj || selectedDateObj;
+  const activePreviewDateKey = activePreviewDate ? toLocalDateKey(activePreviewDate) : '';
+  const activePreviewRemaining = activePreviewDate ? getRemainingCapacity(activePreviewDate) : null;
+  const isPreviewPast = activePreviewDate ? isDatePast(activePreviewDate) : false;
+  const isPreviewTooSoon = activePreviewDate ? isDateTooSoon(activePreviewDate) : false;
+  const isPreviewSelectable = activePreviewDate ? isDateSelectable(activePreviewDate) : false;
+  const isPreviewFullyBooked = Boolean(activePreviewDate && !isPreviewPast && !isPreviewTooSoon && activePreviewRemaining <= 0);
+  const isHoverPreview = Boolean(hoveredDateKey && activePreviewDateKey === hoveredDateKey);
 
   // Comprehensive list of all requested images
   const galleryImages = [
@@ -474,6 +514,9 @@ export default function DayTourPage() {
                               key={index}
                               type="button"
                               onClick={() => handleDateSelect(dayItem)}
+                              onMouseEnter={() => setHoveredDateKey(toLocalDateKey(dayItem))}
+                              onFocus={() => setHoveredDateKey(toLocalDateKey(dayItem))}
+                              onMouseLeave={() => setHoveredDateKey('')}
                               disabled={!selectable}
                               title={titleText}
                               className={`h-9 rounded-md text-sm transition-colors ${styleClass} ${selectable && !isSelected ? 'hover:bg-ocean-ice' : ''} ${!selectable ? 'cursor-not-allowed' : 'cursor-pointer'}`}
@@ -484,10 +527,36 @@ export default function DayTourPage() {
                         })}
                       </div>
 
+                      <div className="mt-3 border-t border-gray-100 pt-3">
+                        {!activePreviewDate && (
+                          <p className="text-xs text-textSecondary">Hover or select a date to view remaining capacity.</p>
+                        )}
+                        {activePreviewDate && (
+                          <div className="rounded-xl bg-ocean-ice/40 px-3 py-2">
+                            <p className="text-[11px] uppercase tracking-[0.14em] font-semibold text-ocean-mid">
+                              {isHoverPreview ? 'Date Availability Preview' : 'Selected Date Availability'}
+                            </p>
+                            <p className="text-xs text-textSecondary mt-0.5">{formatLongDate(activePreviewDateKey)}</p>
+                            <p className="text-sm font-semibold text-textPrimary mt-1">
+                              {isPreviewPast
+                                ? 'Past date is not available.'
+                                : isPreviewTooSoon
+                                  ? 'Book at least 1 day in advance.'
+                                  : isPreviewFullyBooked
+                                    ? 'Fully booked. Remaining capacity: 0.'
+                                    : `Remaining capacity: ${activePreviewRemaining} guest(s).`}
+                            </p>
+                            {isPreviewSelectable && activePreviewRemaining <= 10 && (
+                              <p className="text-[11px] text-amber-700 mt-1">Limited slots left.</p>
+                            )}
+                          </div>
+                        )}
+                      </div>
+
                     </div>
                   )}
                 </div>
-                {dateError && <p className="text-red-500 text-xs mt-2 pl-1">{dateError}</p>}
+          
               </div>
 
               <div className="flex flex-col w-[90px]">
@@ -498,9 +567,9 @@ export default function DayTourPage() {
                     type="number"
                     id="adults-count"
                     min="1"
-                    max={maxAllowedGuests}
                     value={adults}
                     onChange={(e) => handleAdultsChange(e.target.value)}
+                    onFocus={(e) => e.target.select()}
                     className="w-full rounded-2xl border border-ocean-light/40 bg-white pl-11 pr-2 py-3.5 text-sm font-medium shadow-sm outline-none transition focus:border-ocean-mid focus:ring-1 focus:ring-ocean-mid"
                   />
                 </div>
@@ -514,13 +583,15 @@ export default function DayTourPage() {
                     type="number"
                     id="kids-count"
                     min="0"
-                    max={Math.max(0, maxAllowedGuests - adults)}
                     value={kids}
                     onChange={(e) => handleKidsChange(e.target.value)}
+                    onFocus={(e) => e.target.select()}
                     className="w-full rounded-2xl border border-ocean-light/40 bg-white pl-11 pr-2 py-3.5 text-sm font-medium shadow-sm outline-none transition focus:border-ocean-mid focus:ring-1 focus:ring-ocean-mid"
                   />
                 </div>
               </div>
+
+              {dateError && <p className="w-full text-[11px] leading-tight text-rose-500/80 pl-1 mt-0">{dateError}</p>}
 
               <button
                 type="submit"
