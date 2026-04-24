@@ -565,7 +565,7 @@ export default function DayTourPage() {
 
                               let styleClass = 'text-textPrimary border border-transparent';
                               if (isPast || isTooSoon) styleClass = 'text-gray-300 border border-transparent';
-                              if (isFullyBooked) styleClass = 'text-gray-300 border border-transparent';
+                              if (isFullyBooked) styleClass = 'text-red-300 border border-transparent bg-red-50';
                               if (isSelected) styleClass = 'text-white bg-ocean-mid border border-ocean-mid';
 
                               const titleText = isPast
