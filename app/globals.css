@@ -107,8 +107,30 @@
   animation-play-state: paused;
 }
 
+@keyframes testimonials-carousel {
+  0% {
+    transform: translateX(0);
+  }
+  100% {
+    transform: translateX(calc(-50% - 0.75rem));
+  }
+}
+
+.testimonials-track {
+  animation: testimonials-carousel 28s linear infinite;
+  will-change: transform;
+}
+
+.testimonials-track:hover {
+  animation-play-state: paused;
+}
+
 @media (prefers-reduced-motion: reduce) {
   .gallery-track {
+    animation: none;
+  }
+
+  .testimonials-track {
     animation: none;
   }
 }
