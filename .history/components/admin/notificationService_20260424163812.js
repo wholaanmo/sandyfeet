@@ -191,6 +191,7 @@ export const setupRoomStatusListener = (onUpdate) => {
 
   const unsubscribeRoom = onSnapshot(roomQuery, async (querySnapshot) => {
     const now = new Date();
+    let hasChanges = false;
     
     for (const docSnap of querySnapshot.docs) {
       const data = docSnap.data();
@@ -244,8 +245,10 @@ export const setupRoomStatusListener = (onUpdate) => {
         };
         generatedRoomCheckIns.set(bookingKey, notification);
         await saveNotification(notification);
+        hasChanges = true;
       }
       
+      // Handle check-out status change - immediate trigger for check-out
       if (status === 'check-out' && !generatedRoomCheckOuts.has(bookingKey)) {
         const notification = {
           id: `${bookingKey}_checkout`,
@@ -259,15 +262,24 @@ export const setupRoomStatusListener = (onUpdate) => {
         };
         generatedRoomCheckOuts.set(bookingKey, notification);
         await saveNotification(notification);
+        hasChanges = true;
       }
     }
     
-    emitStatusUpdates();
+    // Always emit status updates when there are changes
+    if (hasChanges) {
+      await emitStatusUpdates();
+    } else {
+      // Also emit on every snapshot to ensure UI is in sync
+      await emitStatusUpdates();
+    }
   }, (error) => {
     console.error('Error fetching room status notifications:', error);
   });
 
   const unsubscribeDayTour = onSnapshot(dayTourQuery, async (querySnapshot) => {
+    let hasChanges = false;
+    
     for (const docSnap of querySnapshot.docs) {
       const data = docSnap.data();
       const status = normalizeStatus(data.status);
@@ -289,13 +301,23 @@ export const setupRoomStatusListener = (onUpdate) => {
         };
         generatedDayTourCheckIns.set(bookingKey, notification);
         await saveNotification(notification);
+        hasChanges = true;
       }
     }
     
-    emitStatusUpdates();
+    if (hasChanges) {
+      await emitStatusUpdates();
+    } else {
+      await emitStatusUpdates();
+    }
   }, (error) => {
     console.error('Error fetching day tour status notifications:', error);
   });
+
+  // Initial emit to load existing notifications
+  setTimeout(() => {
+    emitStatusUpdates();
+  }, 100);
 
   return () => {
     unsubscribeRoom();

@@ -1,6 +1,6 @@
 // components/admin/notificationService.js
 import { db } from '../../lib/firebase';
-import { collection, query, orderBy, onSnapshot, updateDoc, writeBatch, getDocs, doc, where, setDoc, getDoc, deleteDoc } from 'firebase/firestore';
+import { collection, query, orderBy, onSnapshot, updateDoc, writeBatch, getDocs, doc, where, setDoc, getDoc } from 'firebase/firestore';
 
 export const asDate = (value) => {
   if (!value) return new Date(0);
@@ -100,33 +100,10 @@ const getDayTourGuestCount = (data) => {
   return 1;
 };
 
-// Helper to save a notification to the notifications collection
-const saveNotification = async (notification) => {
-  try {
-    const notificationId = `${notification.type}_${notification.id}`;
-    const notificationRef = doc(db, 'notifications', notificationId);
-    await setDoc(notificationRef, {
-      ...notification,
-      savedAt: new Date().toISOString()
-    }, { merge: true });
-  } catch (error) {
-    console.error('Error saving notification:', error);
-  }
-};
-
-// Helper to delete a notification from the notifications collection
-export const deleteNotification = async (notificationId, type) => {
-  try {
-    const fullId = `${type}_${notificationId}`;
-    const notificationRef = doc(db, 'notifications', fullId);
-    await deleteDoc(notificationRef);
-    console.log(`Notification ${fullId} deleted successfully`);
-    return true;
-  } catch (error) {
-    console.error('Error deleting notification:', error);
-    return false;
-  }
-};
+// Store generated notifications per user
+let generatedRoomCheckIns = new Map();
+let generatedRoomCheckOuts = new Map();
+let generatedDayTourCheckIns = new Map();
 
 // Helper to get user-specific read status from Firestore
 const getUserReadStatus = async (userId, notificationId, type) => {
@@ -158,11 +135,6 @@ const setUserReadStatus = async (userId, notificationId, type, read = true) => {
   }
 };
 
-// Store generated notifications per user (for deduplication)
-let generatedRoomCheckIns = new Map();
-let generatedRoomCheckOuts = new Map();
-let generatedDayTourCheckIns = new Map();
-
 // Set up listener for room check-in and check-out status changes
 export const setupRoomStatusListener = (onUpdate) => {
   const bookingsRef = collection(db, 'bookings');
@@ -175,6 +147,7 @@ export const setupRoomStatusListener = (onUpdate) => {
     const allCheckIns = [...Array.from(generatedRoomCheckIns.values()), ...Array.from(generatedDayTourCheckIns.values())];
     const allCheckOuts = Array.from(generatedRoomCheckOuts.values());
     
+    // Check read status for each notification from Firestore
     const checkInsWithReadStatus = await Promise.all(allCheckIns.map(async (item) => {
       const isRead = await getUserReadStatus(userId, item.id, item.type);
       return { ...item, read: isRead };
@@ -189,12 +162,12 @@ export const setupRoomStatusListener = (onUpdate) => {
     onUpdate(checkOutsWithReadStatus, 'check_out');
   };
 
-  const unsubscribeRoom = onSnapshot(roomQuery, async (querySnapshot) => {
+  const unsubscribeRoom = onSnapshot(roomQuery, (querySnapshot) => {
     const now = new Date();
     
-    for (const docSnap of querySnapshot.docs) {
+    querySnapshot.forEach((docSnap) => {
       const data = docSnap.data();
-      if (data.type !== 'room') continue;
+      if (data.type !== 'room') return;
 
       const status = normalizeStatus(data.status);
       const bookingKey = getRoomStatusBookingKey(docSnap.id, data);
@@ -231,7 +204,7 @@ export const setupRoomStatusListener = (onUpdate) => {
       }
       
       if (shouldShowCheckIn && !generatedRoomCheckIns.has(bookingKey)) {
-        const notification = {
+        generatedRoomCheckIns.set(bookingKey, {
           id: `${bookingKey}_checkin`,
           type: 'check_in',
           guestName,
@@ -241,13 +214,11 @@ export const setupRoomStatusListener = (onUpdate) => {
           createdAt: data.updatedAt || data.createdAt || new Date().toISOString(),
           isMultiRoom: !!(data.isMultiRoomBooking && data.parentBookingId),
           isEarlyTrigger: checkInReason === 'early'
-        };
-        generatedRoomCheckIns.set(bookingKey, notification);
-        await saveNotification(notification);
+        });
       }
       
       if (status === 'check-out' && !generatedRoomCheckOuts.has(bookingKey)) {
-        const notification = {
+        generatedRoomCheckOuts.set(bookingKey, {
           id: `${bookingKey}_checkout`,
           type: 'check_out',
           guestName,
@@ -256,19 +227,17 @@ export const setupRoomStatusListener = (onUpdate) => {
           eventDate: formatDateTimeForDisplay(data.checkOut),
           createdAt: data.updatedAt || data.createdAt || new Date().toISOString(),
           isMultiRoom: !!(data.isMultiRoomBooking && data.parentBookingId)
-        };
-        generatedRoomCheckOuts.set(bookingKey, notification);
-        await saveNotification(notification);
+        });
       }
-    }
+    });
     
     emitStatusUpdates();
   }, (error) => {
     console.error('Error fetching room status notifications:', error);
   });
 
-  const unsubscribeDayTour = onSnapshot(dayTourQuery, async (querySnapshot) => {
-    for (const docSnap of querySnapshot.docs) {
+  const unsubscribeDayTour = onSnapshot(dayTourQuery, (querySnapshot) => {
+    querySnapshot.forEach((docSnap) => {
       const data = docSnap.data();
       const status = normalizeStatus(data.status);
       const bookingKey = data.bookingId || docSnap.id;
@@ -277,7 +246,7 @@ export const setupRoomStatusListener = (onUpdate) => {
         const guestName = `${data.guestInfo?.firstName || ''} ${data.guestInfo?.lastName || ''}`.trim() || 'Guest';
         const guestCount = getDayTourGuestCount(data);
         
-        const notification = {
+        generatedDayTourCheckIns.set(bookingKey, {
           id: `${bookingKey}_daytour_checkin`,
           type: 'check_in',
           guestName: `${guestName} | Booking ID: ${bookingKey} | Guests: ${guestCount}`,
@@ -286,11 +255,9 @@ export const setupRoomStatusListener = (onUpdate) => {
           eventDate: formatDateForDisplay(data.selectedDate),
           createdAt: data.updatedAt || data.createdAt || new Date().toISOString(),
           isMultiRoom: false
-        };
-        generatedDayTourCheckIns.set(bookingKey, notification);
-        await saveNotification(notification);
+        });
       }
-    }
+    });
     
     emitStatusUpdates();
   }, (error) => {
@@ -324,7 +291,7 @@ export const setupBankRequestsListener = (onUpdate) => {
         roomTypeDisplay = 'Single Room Type';
       }
       
-      const notification = {
+      requests.push({
         id: doc.id,
         type: 'bank_transfer',
         guestName: data.guestName,
@@ -334,9 +301,7 @@ export const setupBankRequestsListener = (onUpdate) => {
         roomType: roomTypeDisplay,
         bookingId: data.bookingId,
         selectedBank: data.requestedBank?.bankName || 'N/A'
-      };
-      requests.push(notification);
-      await saveNotification(notification);
+      });
     }
     onUpdate(requests, 'bank_transfer');
   }, (error) => {
@@ -357,8 +322,7 @@ export const setupDayTourBankRequestsListener = (onUpdate) => {
     for (const docSnap of querySnapshot.docs) {
       const data = docSnap.data();
       const isRead = await getUserReadStatus(userId, docSnap.id, 'bank_transfer_daytour');
-      
-      const notification = {
+      requests.push({
         id: docSnap.id,
         type: 'bank_transfer_daytour',
         guestName: data.guestName,
@@ -367,9 +331,7 @@ export const setupDayTourBankRequestsListener = (onUpdate) => {
         bookingId: data.bookingId,
         selectedDate: formatDateForDisplay(data.selectedDate),
         selectedBank: data.requestedBank?.bankName || 'N/A'
-      };
-      requests.push(notification);
-      await saveNotification(notification);
+      });
     }
     onUpdate(requests, 'bank_transfer_daytour');
   }, (error) => {
@@ -403,7 +365,7 @@ export const setupRoomReservationsListener = (onUpdate) => {
             multiRoomDisplay = 'Entire Resort';
           }
           const isRead = await getUserReadStatus(userId, data.parentBookingId, 'reservation_room');
-          const notification = {
+          reservationNotifications.push({
             id: data.parentBookingId,
             type: 'reservation_room',
             guestName: `${data.guestInfo?.firstName || ''} ${data.guestInfo?.lastName || ''}`.trim() || 'Guest',
@@ -412,13 +374,11 @@ export const setupRoomReservationsListener = (onUpdate) => {
             createdAt: data.createdAt,
             read: isRead,
             isMultiRoom: true
-          };
-          reservationNotifications.push(notification);
-          await saveNotification(notification);
+          });
         }
       } else if (!data.isMultiRoomBooking) {
         const isRead = await getUserReadStatus(userId, docSnap.id, 'reservation_room');
-        const notification = {
+        reservationNotifications.push({
           id: docSnap.id,
           type: 'reservation_room',
           guestName: `${data.guestInfo?.firstName || ''} ${data.guestInfo?.lastName || ''}`.trim() || 'Guest',
@@ -427,9 +387,7 @@ export const setupRoomReservationsListener = (onUpdate) => {
           createdAt: data.createdAt,
           read: isRead,
           isMultiRoom: false
-        };
-        reservationNotifications.push(notification);
-        await saveNotification(notification);
+        });
       }
     }
     
@@ -452,8 +410,7 @@ export const setupDayTourReservationsListener = (onUpdate) => {
     for (const docSnap of querySnapshot.docs) {
       const data = docSnap.data();
       const isRead = await getUserReadStatus(userId, docSnap.id, 'reservation_daytour');
-      
-      const notification = {
+      reservationNotifications.push({
         id: docSnap.id,
         type: 'reservation_daytour',
         guestName: `${data.guestInfo?.firstName || ''} ${data.guestInfo?.lastName || ''}`.trim() || 'Guest',
@@ -461,9 +418,7 @@ export const setupDayTourReservationsListener = (onUpdate) => {
         reservationDate: formatDateForDisplay(data.selectedDate),
         createdAt: data.createdAt,
         read: isRead
-      };
-      reservationNotifications.push(notification);
-      await saveNotification(notification);
+      });
     }
     onUpdate(reservationNotifications, 'reservation_daytour');
   }, (error) => {
@@ -494,7 +449,7 @@ export const setupGuestCancellationsListener = (onUpdate) => {
             multiRoomDisplay = 'Entire Resort';
           }
           const isRead = await getUserReadStatus(userId, data.parentBookingId, 'cancellation');
-          const notification = {
+          cancellations.push({
             id: data.parentBookingId,
             type: 'cancellation',
             guestName: data.guestName,
@@ -504,9 +459,7 @@ export const setupGuestCancellationsListener = (onUpdate) => {
             createdAt: data.cancelledAt,
             read: isRead,
             isMultiRoom: true
-          };
-          cancellations.push(notification);
-          await saveNotification(notification);
+          });
         }
       } else if (data.bookingType === 'room') {
         let singleRoomDisplay = 'Single Room Type';
@@ -514,7 +467,7 @@ export const setupGuestCancellationsListener = (onUpdate) => {
           singleRoomDisplay = 'Entire Resort';
         }
         const isRead = await getUserReadStatus(userId, doc.id, 'cancellation');
-        const notification = {
+        cancellations.push({
           id: doc.id,
           type: 'cancellation',
           guestName: data.guestName,
@@ -524,13 +477,11 @@ export const setupGuestCancellationsListener = (onUpdate) => {
           createdAt: data.cancelledAt,
           read: isRead,
           isMultiRoom: false
-        };
-        cancellations.push(notification);
-        await saveNotification(notification);
+        });
       } else {
         const dateToShow = data.tourDate || data.selectedDate || data.reservationDate || data.date;
         const isRead = await getUserReadStatus(userId, doc.id, 'cancellation');
-        const notification = {
+        cancellations.push({
           id: doc.id,
           type: 'cancellation',
           guestName: data.guestName,
@@ -540,9 +491,7 @@ export const setupGuestCancellationsListener = (onUpdate) => {
           createdAt: data.cancelledAt,
           read: isRead,
           isMultiRoom: false
-        };
-        cancellations.push(notification);
-        await saveNotification(notification);
+        });
       }
     }
     
@@ -579,6 +528,7 @@ export const markAllNotificationsAsRead = async () => {
   if (!userId) return;
   
   try {
+    // Get all notification IDs from Firestore and mark them as read for this user
     const notificationTypes = ['bank_transfer', 'bank_transfer_daytour', 'reservation_room', 'reservation_daytour', 'cancellation'];
     
     for (const type of notificationTypes) {
@@ -608,6 +558,7 @@ export const markAllNotificationsAsRead = async () => {
       }
     }
     
+    // Also mark virtual check-in/check-out notifications
     const allCheckInIds = [...generatedRoomCheckIns.keys(), ...generatedDayTourCheckIns.keys()];
     const allCheckOutIds = [...generatedRoomCheckOuts.keys()];
     
@@ -619,22 +570,5 @@ export const markAllNotificationsAsRead = async () => {
     }
   } catch (error) {
     console.error('Error marking all notifications as read:', error);
-  }
-};
-
-// Function to get all saved notifications from the database
-export const getAllNotifications = async () => {
-  try {
-    const notificationsRef = collection(db, 'notifications');
-    const q = query(notificationsRef, orderBy('createdAt', 'desc'));
-    const snapshot = await getDocs(q);
-    const notifications = [];
-    snapshot.forEach((doc) => {
-      notifications.push({ ...doc.data(), firestoreId: doc.id });
-    });
-    return notifications;
-  } catch (error) {
-    console.error('Error fetching all notifications:', error);
-    return [];
   }
 };

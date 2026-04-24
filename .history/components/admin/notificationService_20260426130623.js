@@ -1,6 +1,7 @@
 // components/admin/notificationService.js
 import { db } from '../../lib/firebase';
 import { collection, query, orderBy, onSnapshot, updateDoc, writeBatch, getDocs, doc, where, setDoc, getDoc, deleteDoc } from 'firebase/firestore';
+import { asDate, setupBankRequestsListener, setupDayTourBankRequestsListener, setupRoomReservationsListener, setupDayTourReservationsListener, setupGuestCancellationsListener, setupRoomStatusListener, markNotificationAsRead, markAllNotificationsAsRead } from './notificationService';
 
 export const asDate = (value) => {
   if (!value) return new Date(0);
@@ -189,10 +190,13 @@ export const setupRoomStatusListener = (onUpdate) => {
     onUpdate(checkOutsWithReadStatus, 'check_out');
   };
 
-  const unsubscribeRoom = onSnapshot(roomQuery, async (querySnapshot) => {
+  // Function to check time-based conditions for all bookings
+  const checkTimeBasedConditions = async () => {
     const now = new Date();
     
-    for (const docSnap of querySnapshot.docs) {
+    // Get all room bookings
+    const roomBookingsSnapshot = await getDocs(roomQuery);
+    for (const docSnap of roomBookingsSnapshot.docs) {
       const data = docSnap.data();
       if (data.type !== 'room') continue;
 
@@ -222,14 +226,23 @@ export const setupRoomStatusListener = (onUpdate) => {
       let shouldShowCheckIn = false;
       let checkInReason = '';
       
+      // Check if already checked in via status
       if (status === 'check-in') {
         shouldShowCheckIn = true;
         checkInReason = 'status';
-      } else if (oneHourBeforeCheckIn && now >= oneHourBeforeCheckIn && now < checkInDate) {
+      }
+      // Check time-based condition (1 hour before check-in up to check-in time)
+      else if (oneHourBeforeCheckIn && now >= oneHourBeforeCheckIn && now < checkInDate) {
         shouldShowCheckIn = true;
         checkInReason = 'early';
       }
+      // Also check if it's exactly check-in day/time (within check-in hour)
+      else if (checkInDate && now >= checkInDate && now < new Date(checkInDate.getTime() + 60 * 60 * 1000)) {
+        shouldShowCheckIn = true;
+        checkInReason = 'on-time';
+      }
       
+      // Only create notification if not already exists
       if (shouldShowCheckIn && !generatedRoomCheckIns.has(bookingKey)) {
         const notification = {
           id: `${bookingKey}_checkin`,
@@ -246,6 +259,7 @@ export const setupRoomStatusListener = (onUpdate) => {
         await saveNotification(notification);
       }
       
+      // Check-out condition
       if (status === 'check-out' && !generatedRoomCheckOuts.has(bookingKey)) {
         const notification = {
           id: `${bookingKey}_checkout`,
@@ -262,18 +276,41 @@ export const setupRoomStatusListener = (onUpdate) => {
       }
     }
     
-    emitStatusUpdates();
-  }, (error) => {
-    console.error('Error fetching room status notifications:', error);
-  });
-
-  const unsubscribeDayTour = onSnapshot(dayTourQuery, async (querySnapshot) => {
-    for (const docSnap of querySnapshot.docs) {
+    // Check day tour bookings
+    const dayTourSnapshot = await getDocs(dayTourQuery);
+    for (const docSnap of dayTourSnapshot.docs) {
       const data = docSnap.data();
       const status = normalizeStatus(data.status);
       const bookingKey = data.bookingId || docSnap.id;
       
-      if (status === 'check-in' && !generatedDayTourCheckIns.has(bookingKey)) {
+      let tourDate = null;
+      if (data.selectedDate) {
+        if (data.selectedDate && typeof data.selectedDate.toDate === 'function') {
+          tourDate = data.selectedDate.toDate();
+        } else if (data.selectedDate && typeof data.selectedDate === 'object' && data.selectedDate.seconds) {
+          tourDate = new Date(data.selectedDate.seconds * 1000);
+        } else {
+          tourDate = new Date(data.selectedDate);
+        }
+      }
+      
+      if (tourDate && !isNaN(tourDate.getTime())) {
+        tourDate.setHours(8, 0, 0, 0); // Assuming tours start at 8 AM
+      }
+      
+      const twoHoursBeforeTour = tourDate ? new Date(tourDate.getTime() - 2 * 60 * 60 * 1000) : null;
+      
+      let shouldShowCheckIn = false;
+      
+      if (status === 'check-in') {
+        shouldShowCheckIn = true;
+      } else if (twoHoursBeforeTour && now >= twoHoursBeforeTour && now < tourDate) {
+        shouldShowCheckIn = true;
+      } else if (tourDate && now >= tourDate && now < new Date(tourDate.getTime() + 2 * 60 * 60 * 1000)) {
+        shouldShowCheckIn = true;
+      }
+      
+      if (shouldShowCheckIn && !generatedDayTourCheckIns.has(bookingKey)) {
         const guestName = `${data.guestInfo?.firstName || ''} ${data.guestInfo?.lastName || ''}`.trim() || 'Guest';
         const guestCount = getDayTourGuestCount(data);
         
@@ -292,16 +329,38 @@ export const setupRoomStatusListener = (onUpdate) => {
       }
     }
     
-    emitStatusUpdates();
+    await emitStatusUpdates();
+  };
+
+  // Set up the Firestore listeners
+  const unsubscribeRoom = onSnapshot(roomQuery, async () => {
+    await checkTimeBasedConditions();
+  }, (error) => {
+    console.error('Error fetching room status notifications:', error);
+  });
+
+  const unsubscribeDayTour = onSnapshot(dayTourQuery, async () => {
+    await checkTimeBasedConditions();
   }, (error) => {
     console.error('Error fetching day tour status notifications:', error);
   });
 
+  // Set up periodic check (every minute) for time-based conditions
+  const intervalId = setInterval(async () => {
+    await checkTimeBasedConditions();
+  }, 60000); // Check every minute
+
+  // Initial check
+  checkTimeBasedConditions();
+
+  // Return cleanup function that clears the interval
   return () => {
     unsubscribeRoom();
     unsubscribeDayTour();
+    clearInterval(intervalId);
   };
 };
+
 
 // Set up listener for bank transfer requests
 export const setupBankRequestsListener = (onUpdate) => {

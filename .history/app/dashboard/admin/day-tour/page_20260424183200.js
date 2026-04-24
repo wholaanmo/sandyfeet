@@ -29,16 +29,6 @@ export default function AdminDayTour() {
     const tabsContainerRef = useRef(null);
   const sliderRef = useRef(null);
   const buttonRefs = useRef({});
-  const [showInclusionDropdown, setShowInclusionDropdown] = useState(false);
-const inclusionOptions = [
-  'Access to Pool',
-  'Common Bathroom',
-  'Free Drinking (Mineral) Water',
-  'Free Parking',
-  'Free Use of Grill with Charcoal',
-  'Free Use of Kitchenwares & Stove',
-  'WiFi'
-];
 
     const updateSlider = useCallback(() => {
     const activeButton = buttonRefs.current[activeTab];
@@ -75,6 +65,7 @@ const inclusionOptions = [
   const [tourFormData, setTourFormData] = useState({
     adultPrice: '',
     kidPrice: '',
+    seniorPrice: '',
     maxCapacity: '',
     availability: 'available',
     images: [],
@@ -85,7 +76,7 @@ const inclusionOptions = [
   // Activity Form State
   const [activityFormData, setActivityFormData] = useState({
     name: '',
-    priceType: 'perHour',
+    priceType: 'perHour', // New field for pricing type
     priceValue: '',
     description: '',
     images: []
@@ -205,12 +196,12 @@ useEffect(() => {
     const { name, value } = e.target;
     
     // Handle numeric field validation to prevent negative numbers
-    if (name === 'adultPrice' || name === 'kidPrice' || name === 'maxCapacity') {
+    if (name === 'adultPrice' || name === 'kidPrice' || name === 'seniorPrice' || name === 'maxCapacity') {
       const numValue = parseFloat(value);
       if (value !== '' && (isNaN(numValue) || numValue < 0)) {
         setTourFormErrors(prev => ({
           ...prev,
-          [name]: `${name === 'adultPrice' ? 'Adult price' : name === 'kidPrice' ? 'Kid price' : 'Maximum capacity'} cannot be negative`
+          [name]: `${name === 'adultPrice' ? 'Adult price' : name === 'kidPrice' ? 'Kid price' : name === 'seniorPrice' ? 'Senior price' : 'Maximum capacity'} cannot be negative`
         }));
         setTourFormData(prev => ({
           ...prev,
@@ -297,6 +288,11 @@ useEffect(() => {
       errors.kidPrice = 'Kid price must be a positive number';
     }
     
+    if (!tourFormData.seniorPrice) errors.seniorPrice = 'Senior price is required';
+    else if (isNaN(tourFormData.seniorPrice) || parseFloat(tourFormData.seniorPrice) <= 0) {
+      errors.seniorPrice = 'Senior price must be a positive number';
+    }
+    
     if (tourFormData.maxCapacity) {
       if (isNaN(tourFormData.maxCapacity) || parseInt(tourFormData.maxCapacity) <= 0) {
         errors.maxCapacity = 'Maximum capacity must be a positive number';
@@ -309,7 +305,7 @@ useEffect(() => {
   };
   
   const isTourFormIncomplete = () => {
-    return !tourFormData.adultPrice || !tourFormData.kidPrice || !tourFormData.description.trim();
+    return !tourFormData.adultPrice || !tourFormData.kidPrice || !tourFormData.seniorPrice || !tourFormData.description.trim();
   };
   
  const handleAddTour = async (e) => {
@@ -338,6 +334,7 @@ if (!activeToursSnapshot.empty) {
     const tourData = {
       adultPrice: parseFloat(tourFormData.adultPrice),
       kidPrice: parseFloat(tourFormData.kidPrice),
+      seniorPrice: parseFloat(tourFormData.seniorPrice),
       maxCapacity: tourFormData.maxCapacity ? parseInt(tourFormData.maxCapacity) : null,
       availability: tourFormData.availability,
       images: tourFormData.images,
@@ -353,7 +350,7 @@ if (!activeToursSnapshot.empty) {
     await logAdminAction({
       action: 'Created Day Tour',
       module: 'Day Tour Management',
-      details: `Added new day tour (Adult: ₱${parseFloat(tourFormData.adultPrice).toLocaleString()}, Kid: ₱${parseFloat(tourFormData.kidPrice).toLocaleString()}, Capacity: ${tourFormData.maxCapacity || 'Unlimited'}, Status: ${tourFormData.availability})`
+      details: `Added new day tour (Adult: ₱${parseFloat(tourFormData.adultPrice).toLocaleString()}, Kid: ₱${parseFloat(tourFormData.kidPrice).toLocaleString()}, Senior: ₱${parseFloat(tourFormData.seniorPrice).toLocaleString()}, Capacity: ${tourFormData.maxCapacity || 'Unlimited'}, Status: ${tourFormData.availability})`
     });
     
     showNotification('Day tour added successfully!');
@@ -388,6 +385,7 @@ if (!activeToursSnapshot.empty) {
       const previousData = {
         adultPrice: selectedTour.adultPrice,
         kidPrice: selectedTour.kidPrice,
+        seniorPrice: selectedTour.seniorPrice,
         maxCapacity: selectedTour.maxCapacity,
         availability: selectedTour.availability,
         description: selectedTour.description,
@@ -397,6 +395,7 @@ if (!activeToursSnapshot.empty) {
       const newData = {
         adultPrice: parseFloat(tourFormData.adultPrice),
         kidPrice: parseFloat(tourFormData.kidPrice),
+        seniorPrice: parseFloat(tourFormData.seniorPrice),
         maxCapacity: tourFormData.maxCapacity ? parseInt(tourFormData.maxCapacity) : null,
         availability: tourFormData.availability,
         description: tourFormData.description,
@@ -406,6 +405,7 @@ if (!activeToursSnapshot.empty) {
       await updateDoc(tourRef, {
         adultPrice: parseFloat(tourFormData.adultPrice),
         kidPrice: parseFloat(tourFormData.kidPrice),
+        seniorPrice: parseFloat(tourFormData.seniorPrice),
         maxCapacity: tourFormData.maxCapacity ? parseInt(tourFormData.maxCapacity) : null,
         availability: tourFormData.availability,
         images: tourFormData.images,
@@ -418,6 +418,7 @@ if (!activeToursSnapshot.empty) {
       
       if (previousData.adultPrice !== newData.adultPrice) changes.push(`adult price from ₱${previousData.adultPrice?.toLocaleString()} to ₱${newData.adultPrice?.toLocaleString()}`);
       if (previousData.kidPrice !== newData.kidPrice) changes.push(`kid price from ₱${previousData.kidPrice?.toLocaleString()} to ₱${newData.kidPrice?.toLocaleString()}`);
+      if (previousData.seniorPrice !== newData.seniorPrice) changes.push(`senior price from ₱${previousData.seniorPrice?.toLocaleString()} to ₱${newData.seniorPrice?.toLocaleString()}`);
       if (previousData.maxCapacity !== newData.maxCapacity) changes.push(`max capacity from ${previousData.maxCapacity || 'Unlimited'} to ${newData.maxCapacity || 'Unlimited'}`);
       if (previousData.availability !== newData.availability) changes.push(`availability from "${previousData.availability}" to "${newData.availability}"`);
       if (previousData.description !== newData.description) changes.push(`updated the description`);
@@ -478,7 +479,7 @@ if (!activeToursSnapshot.empty) {
       await logAdminAction({
         action: 'Archived Day Tour',
         module: 'Day Tour Management',
-        details: `Archived day tour (Adult: ₱${tour.adultPrice?.toLocaleString()}, Kid: ₱${tour.kidPrice?.toLocaleString()}, Capacity: ${tour.maxCapacity || 'Unlimited'})`
+        details: `Archived day tour (Adult: ₱${tour.adultPrice?.toLocaleString()}, Kid: ₱${tour.kidPrice?.toLocaleString()}, Senior: ₱${tour.seniorPrice?.toLocaleString()}, Capacity: ${tour.maxCapacity || 'Unlimited'})`
       });
       
       showNotification(`Day tour has been archived successfully!`);
@@ -495,6 +496,7 @@ if (!activeToursSnapshot.empty) {
     const formData = {
       adultPrice: tour.adultPrice || '',
       kidPrice: tour.kidPrice || '',
+      seniorPrice: tour.seniorPrice || '',
       maxCapacity: tour.maxCapacity || '',
       availability: tour.availability || 'available',
       images: tour.images || [],
@@ -512,6 +514,7 @@ if (!activeToursSnapshot.empty) {
     const emptyForm = {
       adultPrice: '',
       kidPrice: '',
+      seniorPrice: '',
       maxCapacity: '',
       availability: 'available',
       images: [],
@@ -981,7 +984,7 @@ if (!activeToursSnapshot.empty) {
                       <i className="fas fa-tag text-ocean-light text-sm"></i>
                       Pricing (per person)
                     </h3>
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
                       <div className="bg-ocean-ice/30 rounded-lg p-2 text-center">
                         <p className="text-xs text-textSecondary mb-0.5">Adult (16+)</p>
                         <p className="text-lg font-bold text-ocean-mid">₱{dayTour.adultPrice?.toLocaleString()}</p>
@@ -989,6 +992,10 @@ if (!activeToursSnapshot.empty) {
                       <div className="bg-ocean-ice/30 rounded-lg p-2 text-center">
                         <p className="text-xs text-textSecondary mb-0.5">Kid (15-)</p>
                         <p className="text-lg font-bold text-ocean-mid">₱{dayTour.kidPrice?.toLocaleString()}</p>
+                      </div>
+                      <div className="bg-ocean-ice/30 rounded-lg p-2 text-center">
+                        <p className="text-xs text-textSecondary mb-0.5">Senior</p>
+                        <p className="text-lg font-bold text-ocean-mid">₱{dayTour.seniorPrice?.toLocaleString()}</p>
                       </div>
                     </div>
                   </div>
@@ -1197,6 +1204,10 @@ if (!activeToursSnapshot.empty) {
                 <p className="text-2xl font-bold text-ocean-mid">₱{selectedTour.kidPrice?.toLocaleString()}<span className="text-sm font-normal text-textSecondary">/person</span></p>
               </div>
               <div>
+                <label className="block text-xs font-semibold text-neutral uppercase tracking-wide mb-1">Senior Price</label>
+                <p className="text-2xl font-bold text-ocean-mid">₱{selectedTour.seniorPrice?.toLocaleString()}<span className="text-sm font-normal text-textSecondary">/person</span></p>
+              </div>
+              <div>
                 <label className="block text-xs font-semibold text-neutral uppercase tracking-wide mb-1">Max Capacity</label>
                 <p className="text-textPrimary flex items-center gap-2">
                   <i className="fas fa-users text-ocean-light"></i>
@@ -1362,37 +1373,52 @@ if (!activeToursSnapshot.empty) {
             
             <form onSubmit={tourModalType === 'add' ? handleAddTour : handleUpdateTour}>
               {/* Pricing Fields */}
-<div className="grid grid-cols-2 gap-4 mb-4">
-  <div>
-    <label className="block mb-1.5 text-sm font-medium text-textPrimary">Adult Price (₱) - 16+ *</label>
-    <input
-      type="number"
-      name="adultPrice"
-      value={tourFormData.adultPrice}
-      onChange={handleTourInputChange}
-      placeholder="Adult price"
-      className={`w-full px-3 py-2.5 border ${tourFormErrors.adultPrice ? 'border-red-500' : 'border-ocean-light/20'} rounded-xl text-sm focus:outline-none focus:border-ocean-light`}
-      step="0.01"
-      min="0"
-    />
-    {tourFormErrors.adultPrice && <p className="text-red-500 text-xs mt-1">{tourFormErrors.adultPrice}</p>}
-  </div>
-  
-  <div>
-    <label className="block mb-1.5 text-sm font-medium text-textPrimary">Kid Price (₱) - 15- *</label>
-    <input
-      type="number"
-      name="kidPrice"
-      value={tourFormData.kidPrice}
-      onChange={handleTourInputChange}
-      placeholder="Kid price"
-      className={`w-full px-3 py-2.5 border ${tourFormErrors.kidPrice ? 'border-red-500' : 'border-ocean-light/20'} rounded-xl text-sm focus:outline-none focus:border-ocean-light`}
-      step="0.01"
-      min="0"
-    />
-    {tourFormErrors.kidPrice && <p className="text-red-500 text-xs mt-1">{tourFormErrors.kidPrice}</p>}
-  </div>
-</div>
+              <div className="grid grid-cols-3 gap-4 mb-4">
+                <div>
+                  <label className="block mb-1.5 text-sm font-medium text-textPrimary">Adult Price (₱) - 16+ *</label>
+                  <input
+                    type="number"
+                    name="adultPrice"
+                    value={tourFormData.adultPrice}
+                    onChange={handleTourInputChange}
+                    placeholder="Adult price"
+                    className={`w-full px-3 py-2.5 border ${tourFormErrors.adultPrice ? 'border-red-500' : 'border-ocean-light/20'} rounded-xl text-sm focus:outline-none focus:border-ocean-light`}
+                    step="0.01"
+                    min="0"
+                  />
+                  {tourFormErrors.adultPrice && <p className="text-red-500 text-xs mt-1">{tourFormErrors.adultPrice}</p>}
+                </div>
+                
+                <div>
+                  <label className="block mb-1.5 text-sm font-medium text-textPrimary">Kid Price (₱) - 15- *</label>
+                  <input
+                    type="number"
+                    name="kidPrice"
+                    value={tourFormData.kidPrice}
+                    onChange={handleTourInputChange}
+                    placeholder="Kid price"
+                    className={`w-full px-3 py-2.5 border ${tourFormErrors.kidPrice ? 'border-red-500' : 'border-ocean-light/20'} rounded-xl text-sm focus:outline-none focus:border-ocean-light`}
+                    step="0.01"
+                    min="0"
+                  />
+                  {tourFormErrors.kidPrice && <p className="text-red-500 text-xs mt-1">{tourFormErrors.kidPrice}</p>}
+                </div>
+
+                <div>
+                  <label className="block mb-1.5 text-sm font-medium text-textPrimary">Senior Price (₱) *</label>
+                  <input
+                    type="number"
+                    name="seniorPrice"
+                    value={tourFormData.seniorPrice}
+                    onChange={handleTourInputChange}
+                    placeholder="Senior price"
+                    className={`w-full px-3 py-2.5 border ${tourFormErrors.seniorPrice ? 'border-red-500' : 'border-ocean-light/20'} rounded-xl text-sm focus:outline-none focus:border-ocean-light`}
+                    step="0.01"
+                    min="0"
+                  />
+                  {tourFormErrors.seniorPrice && <p className="text-red-500 text-xs mt-1">{tourFormErrors.seniorPrice}</p>}
+                </div>
+              </div>
               
               {/* Max Capacity */}
               <div className="mb-4">

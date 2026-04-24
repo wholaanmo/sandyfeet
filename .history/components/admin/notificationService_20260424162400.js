@@ -163,6 +163,32 @@ let generatedRoomCheckIns = new Map();
 let generatedRoomCheckOuts = new Map();
 let generatedDayTourCheckIns = new Map();
 
+// Helper function to check and emit check-in notifications immediately
+const checkAndEmitCheckInNotification = async (bookingKey, notification, onUpdate) => {
+  if (!generatedRoomCheckIns.has(bookingKey)) {
+    generatedRoomCheckIns.set(bookingKey, notification);
+    await saveNotification(notification);
+    
+    // Emit immediately to update UI
+    const userId = getCurrentUserId();
+    const isRead = await getUserReadStatus(userId, notification.id, notification.type);
+    onUpdate([{ ...notification, read: isRead }], 'check_in');
+  }
+};
+
+// Helper function to check and emit check-out notifications immediately
+const checkAndEmitCheckOutNotification = async (bookingKey, notification, onUpdate) => {
+  if (!generatedRoomCheckOuts.has(bookingKey)) {
+    generatedRoomCheckOuts.set(bookingKey, notification);
+    await saveNotification(notification);
+    
+    // Emit immediately to update UI
+    const userId = getCurrentUserId();
+    const isRead = await getUserReadStatus(userId, notification.id, notification.type);
+    onUpdate([{ ...notification, read: isRead }], 'check_out');
+  }
+};
+
 // Set up listener for room check-in and check-out status changes
 export const setupRoomStatusListener = (onUpdate) => {
   const bookingsRef = collection(db, 'bookings');
@@ -170,27 +196,32 @@ export const setupRoomStatusListener = (onUpdate) => {
   const roomQuery = query(bookingsRef, orderBy('createdAt', 'desc'));
   const dayTourQuery = query(dayTourRef, orderBy('createdAt', 'desc'));
 
-  const emitStatusUpdates = async () => {
+  // Function to emit all pending status updates
+  const emitAllStatusUpdates = async () => {
     const userId = getCurrentUserId();
     const allCheckIns = [...Array.from(generatedRoomCheckIns.values()), ...Array.from(generatedDayTourCheckIns.values())];
     const allCheckOuts = Array.from(generatedRoomCheckOuts.values());
     
-    const checkInsWithReadStatus = await Promise.all(allCheckIns.map(async (item) => {
-      const isRead = await getUserReadStatus(userId, item.id, item.type);
-      return { ...item, read: isRead };
-    }));
+    if (allCheckIns.length > 0) {
+      const checkInsWithReadStatus = await Promise.all(allCheckIns.map(async (item) => {
+        const isRead = await getUserReadStatus(userId, item.id, item.type);
+        return { ...item, read: isRead };
+      }));
+      onUpdate(checkInsWithReadStatus, 'check_in');
+    }
     
-    const checkOutsWithReadStatus = await Promise.all(allCheckOuts.map(async (item) => {
-      const isRead = await getUserReadStatus(userId, item.id, item.type);
-      return { ...item, read: isRead };
-    }));
-    
-    onUpdate(checkInsWithReadStatus, 'check_in');
-    onUpdate(checkOutsWithReadStatus, 'check_out');
+    if (allCheckOuts.length > 0) {
+      const checkOutsWithReadStatus = await Promise.all(allCheckOuts.map(async (item) => {
+        const isRead = await getUserReadStatus(userId, item.id, item.type);
+        return { ...item, read: isRead };
+      }));
+      onUpdate(checkOutsWithReadStatus, 'check_out');
+    }
   };
 
   const unsubscribeRoom = onSnapshot(roomQuery, async (querySnapshot) => {
     const now = new Date();
+    let hasNewNotifications = false;
     
     for (const docSnap of querySnapshot.docs) {
       const data = docSnap.data();
@@ -222,6 +253,7 @@ export const setupRoomStatusListener = (onUpdate) => {
       let shouldShowCheckIn = false;
       let checkInReason = '';
       
+      // Check if status is 'check-in' OR it's 1 hour before check-in time
       if (status === 'check-in') {
         shouldShowCheckIn = true;
         checkInReason = 'status';
@@ -230,6 +262,7 @@ export const setupRoomStatusListener = (onUpdate) => {
         checkInReason = 'early';
       }
       
+      // Handle check-in notification - emit immediately
       if (shouldShowCheckIn && !generatedRoomCheckIns.has(bookingKey)) {
         const notification = {
           id: `${bookingKey}_checkin`,
@@ -244,8 +277,15 @@ export const setupRoomStatusListener = (onUpdate) => {
         };
         generatedRoomCheckIns.set(bookingKey, notification);
         await saveNotification(notification);
+        
+        // Emit immediately to update UI
+        const userId = getCurrentUserId();
+        const isRead = await getUserReadStatus(userId, notification.id, notification.type);
+        onUpdate([{ ...notification, read: isRead }], 'check_in');
+        hasNewNotifications = true;
       }
       
+      // Handle check-out notification - emit immediately
       if (status === 'check-out' && !generatedRoomCheckOuts.has(bookingKey)) {
         const notification = {
           id: `${bookingKey}_checkout`,
@@ -259,15 +299,26 @@ export const setupRoomStatusListener = (onUpdate) => {
         };
         generatedRoomCheckOuts.set(bookingKey, notification);
         await saveNotification(notification);
+        
+        // Emit immediately to update UI
+        const userId = getCurrentUserId();
+        const isRead = await getUserReadStatus(userId, notification.id, notification.type);
+        onUpdate([{ ...notification, read: isRead }], 'check_out');
+        hasNewNotifications = true;
       }
     }
     
-    emitStatusUpdates();
+    // If no new notifications were added, still send current state to ensure UI is in sync
+    if (!hasNewNotifications) {
+      await emitAllStatusUpdates();
+    }
   }, (error) => {
     console.error('Error fetching room status notifications:', error);
   });
 
   const unsubscribeDayTour = onSnapshot(dayTourQuery, async (querySnapshot) => {
+    let hasNewNotifications = false;
+    
     for (const docSnap of querySnapshot.docs) {
       const data = docSnap.data();
       const status = normalizeStatus(data.status);
@@ -289,10 +340,18 @@ export const setupRoomStatusListener = (onUpdate) => {
         };
         generatedDayTourCheckIns.set(bookingKey, notification);
         await saveNotification(notification);
+        
+        // Emit immediately to update UI
+        const userId = getCurrentUserId();
+        const isRead = await getUserReadStatus(userId, notification.id, notification.type);
+        onUpdate([{ ...notification, read: isRead }], 'check_in');
+        hasNewNotifications = true;
       }
     }
     
-    emitStatusUpdates();
+    if (!hasNewNotifications) {
+      await emitAllStatusUpdates();
+    }
   }, (error) => {
     console.error('Error fetching day tour status notifications:', error);
   });

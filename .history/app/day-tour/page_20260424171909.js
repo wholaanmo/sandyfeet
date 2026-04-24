@@ -207,9 +207,11 @@ export default function DayTourPage() {
     }
   }, []);
 
-  // Fetch activities - SHOW ALL non-archived activities
+  // Fetch activities - SHOW ALL non-archived activities (no filtering)
   useEffect(() => {
     const activitiesRef = collection(db, 'activities');
+    // Query for activities that are NOT archived (archived != true or archived == false)
+    // Using 'archived', '==', false ensures only non-archived activities are shown
     const activitiesQuery = query(activitiesRef, where('archived', '==', false), orderBy('createdAt', 'desc'));
     
     const unsubscribeActivities = onSnapshot(activitiesQuery, (querySnapshot) => {
@@ -217,6 +219,7 @@ export default function DayTourPage() {
       querySnapshot.forEach((docSnap) => {
         activitiesList.push({ id: docSnap.id, ...docSnap.data() });
       });
+      console.log('Fetched activities:', activitiesList.length, activitiesList.map(a => a.name));
       setActivities(activitiesList);
       setLoadingActivities(false);
     }, (error) => {
@@ -228,7 +231,7 @@ export default function DayTourPage() {
 
   useEffect(() => {
     const toursRef = collection(db, 'dayTours');
-    const toursQuery = query(toursRef);
+    const toursQuery = query(toursRef, where('archived', '==', false));
 
     const unsubscribeTours = onSnapshot(toursQuery, (querySnapshot) => {
       const tours = [];
@@ -304,11 +307,6 @@ export default function DayTourPage() {
   }, [isCalendarOpen]);
 
   useEffect(() => {
-    if (!dayTour) {
-      setDateError('');
-      return;
-    }
-    
     if (!date) {
       setDateError('');
       return;
@@ -352,10 +350,6 @@ export default function DayTourPage() {
 
   const handleBookingStart = (e) => {
     e.preventDefault();
-    if (!dayTour) {
-      setDateError('Day tour is not available.');
-      return;
-    }
     if (dateError) return;
 
     if (!date) {
@@ -441,239 +435,177 @@ export default function DayTourPage() {
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 space-y-12">
           
           {/* HEADER & BOOKING SECTION */}
-          <div className="flex flex-col lg:flex-row bg-white p-8 sm:p-10 rounded-[2.5rem] shadow-[0_15px_40px_rgba(0,0,0,0.04)] border border-ocean-light/20 gap-8 lg:gap-12">
-            
-            {/* Left side - Description and Inclusions with balanced height */}
-            <div className="flex-1 flex flex-col">
-              <div className="mb-6">
-                <span className="inline-block py-1 px-4 rounded-full bg-ocean-ice border border-ocean-light/30 text-ocean-mid text-[10px] font-bold tracking-[0.25em] uppercase mb-3">Sandyfeet Resort</span>
-                <h1 className="text-4xl sm:text-5xl font-playfair font-bold text-textPrimary">Book Your Day Tour</h1>
-              </div>
-              
-              {/* Dynamic Description from Admin - Minimalist design */}
-              {dayTour && dayTour.description && (
-                <div className="mb-8">
-                  <div className="border-l-2 border-ocean-mid/40 pl-5">
-                    <p className="text-textSecondary text-sm sm:text-base leading-relaxed">
-                      {dayTour.description}
-                    </p>
-                  </div>
-                </div>
-              )}
-              
-              {/* Dynamic Inclusions from Admin - Minimalist design */}
-              {dayTour && dayTour.inclusions && dayTour.inclusions.length > 0 && (
-                <div className="mt-auto">
-                  <div className="flex items-center gap-2 mb-4">
-                    <i className="fas fa-check-circle text-ocean-mid/60 text-xs"></i>
-                    <p className="text-[11px] font-medium uppercase tracking-[0.2em] text-textSecondary">Inclusions</p>
-                  </div>
-                  <div className="flex flex-wrap gap-2">
-                    {dayTour.inclusions.map((inclusion, idx) => (
-                      <span key={idx} className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-white text-textSecondary rounded-full text-xs font-normal border border-ocean-light/30 shadow-sm">
-                        {inclusion}
-                      </span>
-                    ))}
-                  </div>
-                </div>
-              )}
+          <div className="flex flex-col lg:flex-row lg:items-end justify-between bg-white p-8 sm:p-10 rounded-[2.5rem] shadow-[0_15px_40px_rgba(0,0,0,0.04)] border border-ocean-light/20 gap-8">
+            <div className="max-w-xl">
+              <span className="inline-block py-1 px-4 rounded-full bg-ocean-ice border border-ocean-light/30 text-ocean-mid text-[10px] font-bold tracking-[0.25em] uppercase mb-4">Sandyfeet Resort</span>
+              <h1 className="text-4xl sm:text-5xl font-playfair font-bold text-textPrimary leading-tight">Book Your Day Tour</h1>
+              <p className="text-textSecondary mt-4 text-sm sm:text-base leading-relaxed">
+                Reserve your spot now and gain access to our pools, ATV trails, bonfire spaces, kitchen facilities, and magnificent waterfront views. Select a date to view availability.
+              </p>
             </div>
             
-            {/* Right side - Date Container (50% width) with equal height */}
-            <div className="w-full lg:w-1/2 flex">
-              {(!dayTour || dayTour.archived === true || dayTour.availability === 'unavailable') ? (
-                /* When day tour is archived, not found, or marked unavailable - hide the date selector */
-                <div className="w-full bg-gray-50/50 p-6 rounded-[2rem] border border-gray-200/50 text-center flex items-center justify-center">
-                  <div className="flex flex-col items-center gap-3">
-                    <div className="w-14 h-14 rounded-full bg-gray-100 flex items-center justify-center">
-                      <i className="fas fa-calendar-times text-gray-400 text-2xl"></i>
-                    </div>
-                    <p className="text-gray-500 font-medium text-lg">Booking is currently unavailable.</p>
-                    <p className="text-xs text-gray-400">Please check back later.</p>
-                  </div>
-                </div>
-              ) : (
-                <form onSubmit={handleBookingStart} className="w-full bg-ocean-ice/30 p-4 sm:p-6 rounded-[2rem] border border-ocean-light/30">
-                  {/* Date Picker */}
-                  <div className="mb-4">
-                    <label htmlFor="tour-date" className="text-[10px] uppercase tracking-[0.2em] font-bold text-textSecondary mb-2 block pl-2">Select Date</label>
-                    <div className="relative">
-                      <button
-                        type="button"
-                        id="tour-date"
-                        ref={calendarTriggerRef}
-                        onClick={() => setIsCalendarOpen((prev) => !prev)}
-                        className="w-full rounded-2xl border border-ocean-light/40 bg-white px-4 py-3.5 text-sm font-medium shadow-sm outline-none transition hover:border-ocean-mid flex items-center justify-between"
-                      >
-                        <span className="flex items-center gap-3">
-                          <i className="fas fa-calendar text-ocean-mid"></i>
-                          <span className={date ? 'text-textPrimary' : 'text-gray-400'}>{formatInputDate(date)}</span>
-                        </span>
-                        <i className="far fa-calendar-alt text-gray-600"></i>
-                      </button>
+            <form onSubmit={handleBookingStart} className="flex flex-wrap items-end gap-4 lg:gap-6 bg-ocean-ice/30 p-4 sm:p-6 rounded-[2rem] border border-ocean-light/30">
+              <div className="flex flex-col flex-1 min-w-[140px]">
+                <label htmlFor="tour-date" className="text-[10px] uppercase tracking-[0.2em] font-bold text-textSecondary mb-2 pl-2">Date</label>
+                <div className="relative">
+                  <button
+                    type="button"
+                    id="tour-date"
+                    ref={calendarTriggerRef}
+                    onClick={() => setIsCalendarOpen((prev) => !prev)}
+                    className="w-full rounded-2xl border border-ocean-light/40 bg-white px-4 py-3.5 text-sm font-medium shadow-sm outline-none transition hover:border-ocean-mid flex items-center justify-between"
+                  >
+                    <span className="flex items-center gap-3">
+                      <i className="fas fa-calendar text-ocean-mid"></i>
+                      <span className={date ? 'text-textPrimary' : 'text-gray-400'}>{formatInputDate(date)}</span>
+                    </span>
+                    <i className="far fa-calendar-alt text-gray-600"></i>
+                  </button>
 
-                      {isCalendarOpen && (
-                        <div
-                          ref={calendarPopoverRef}
-                          className="absolute left-0 top-[calc(100%+0.5rem)] z-[110] bg-white w-[340px] max-w-[calc(100vw-2rem)] rounded-2xl shadow-[0_12px_36px_rgba(0,0,0,0.15)] p-4 border border-gray-100"
-                        >
-                          <div className="flex justify-between items-center mb-3">
-                            <h3 className="text-base font-semibold text-textPrimary">
-                              {monthNames[currentMonth.getMonth()]} {currentMonth.getFullYear()}
-                            </h3>
-                            <div className="flex items-center gap-3 text-gray-600">
-                              <button type="button" onClick={goToPreviousMonth} className="hover:text-ocean-mid" aria-label="Previous month">
-                                <i className="fas fa-arrow-up"></i>
-                              </button>
-                              <button type="button" onClick={goToNextMonth} className="hover:text-ocean-mid" aria-label="Next month">
-                                <i className="fas fa-arrow-down"></i>
-                              </button>
-                            </div>
-                          </div>
-
-                          <div className="grid grid-cols-7 gap-1 mb-2">
-                            {['Su', 'Mo', 'Tu', 'We', 'Th', 'Fr', 'Sa'].map((dayLabel) => (
-                              <div key={dayLabel} className="text-center text-xs font-semibold text-textSecondary py-1">
-                                {dayLabel}
-                              </div>
-                            ))}
-                          </div>
-
-                          <div className="grid grid-cols-7 gap-1">
-                            {days.map((dayItem, index) => {
-                              if (!dayItem) return <div key={index} className="h-9"></div>;
-
-                              const isPast = isDatePast(dayItem);
-                              const isTooSoon = isDateTooSoon(dayItem);
-                              const remaining = getRemainingCapacity(dayItem);
-                              const isFullyBooked = !isPast && !isTooSoon && remaining <= 0;
-                              const isSelected = date && toLocalDateKey(dayItem) === date;
-                              const selectable = isDateSelectable(dayItem);
-
-                              let styleClass = 'text-textPrimary border border-transparent';
-                              if (isPast || isTooSoon) styleClass = 'text-gray-300 border border-transparent';
-                              if (isFullyBooked) styleClass = 'text-red-300 border border-transparent bg-red-50';
-                              if (isSelected) styleClass = 'text-white bg-ocean-mid border border-ocean-mid';
-
-                              const titleText = isPast
-                                ? 'Past date'
-                                : isTooSoon
-                                  ? 'Must be booked at least 1 day in advance'
-                                  : isFullyBooked
-                                    ? 'Unavailable from admin blocks or bookings'
-                                    : `${remaining} slot(s) available`;
-
-                              return (
-                                <button
-                                  key={index}
-                                  type="button"
-                                  onClick={() => handleDateSelect(dayItem)}
-                                  onMouseEnter={() => setHoveredDateKey(toLocalDateKey(dayItem))}
-                                  onFocus={() => setHoveredDateKey(toLocalDateKey(dayItem))}
-                                  onMouseLeave={() => setHoveredDateKey('')}
-                                  disabled={!selectable}
-                                  title={titleText}
-                                  className={`h-9 rounded-md text-sm transition-colors ${styleClass} ${selectable && !isSelected ? 'hover:bg-ocean-ice' : ''} ${!selectable ? 'cursor-not-allowed' : 'cursor-pointer'}`}
-                                >
-                                  {dayItem.getDate()}
-                                </button>
-                              );
-                            })}
-                          </div>
-
-                          <div className="mt-3 border-t border-gray-100 pt-3">
-                            {!activePreviewDate && (
-                              <p className="text-xs text-textSecondary">Hover or select a date to view remaining capacity.</p>
-                            )}
-                            {activePreviewDate && (
-                              <div className="rounded-xl bg-ocean-ice/40 px-3 py-2">
-                                <p className="text-[11px] uppercase tracking-[0.14em] font-semibold text-ocean-mid">
-                                  {isHoverPreview ? 'Date Availability Preview' : 'Selected Date Availability'}
-                                </p>
-                                <p className="text-xs text-textSecondary mt-0.5">{formatLongDate(activePreviewDateKey)}</p>
-                                <p className="text-sm font-semibold text-textPrimary mt-1">
-                                  {isPreviewPast
-                                    ? 'Past date is not available.'
-                                    : isPreviewTooSoon
-                                      ? 'Book at least 1 day in advance.'
-                                      : isPreviewFullyBooked
-                                        ? 'Fully booked. Remaining capacity: 0.'
-                                        : `Remaining capacity: ${activePreviewRemaining} guest(s).`}
-                                </p>
-                                {isPreviewSelectable && activePreviewRemaining <= 10 && (
-                                  <p className="text-[11px] text-amber-700 mt-1">Limited slots left.</p>
-                                )}
-                              </div>
-                            )}
-                          </div>
-                        </div>
-                      )}
-                    </div>
-                  </div>
-
-                  {/* Guest Count Row */}
-                  <div className="flex gap-4 mb-4">
-                    <div className="flex-1">
-                      <label htmlFor="adults-count" className="text-[10px] uppercase tracking-[0.2em] font-bold text-textSecondary mb-2 block pl-2">Adults</label>
-                      <div className="relative">
-                        <i className="fas fa-user absolute left-4 top-1/2 -translate-y-1/2 text-ocean-mid"></i>
-                        <input
-                          type="number"
-                          id="adults-count"
-                          min="1"
-                          value={adults}
-                          onChange={(e) => handleAdultsChange(e.target.value)}
-                          onFocus={(e) => e.target.select()}
-                          className="w-full rounded-2xl border border-ocean-light/40 bg-white pl-11 pr-2 py-3.5 text-sm font-medium shadow-sm outline-none transition focus:border-ocean-mid focus:ring-1 focus:ring-ocean-mid"
-                        />
-                      </div>
-                    </div>
-
-                    <div className="flex-1">
-                      <label htmlFor="kids-count" className="text-[10px] uppercase tracking-[0.2em] font-bold text-textSecondary mb-2 block pl-2">Kids</label>
-                      <div className="relative">
-                        <i className="fas fa-child absolute left-4 top-1/2 -translate-y-1/2 text-ocean-mid"></i>
-                        <input
-                          type="number"
-                          id="kids-count"
-                          min="0"
-                          value={kids}
-                          onChange={(e) => handleKidsChange(e.target.value)}
-                          onFocus={(e) => e.target.select()}
-                          className="w-full rounded-2xl border border-ocean-light/40 bg-white pl-11 pr-2 py-3.5 text-sm font-medium shadow-sm outline-none transition focus:border-ocean-mid focus:ring-1 focus:ring-ocean-mid"
-                        />
-                      </div>
-                    </div>
-                  </div>
-
-                  {dateError && <p className="text-[11px] leading-tight text-rose-500/80 pl-1 mt-0 mb-3">{dateError}</p>}
-
-                  {/* Price Display and Proceed Button */}
-                  <div className="flex items-center justify-between gap-4 mt-2">
-                    <button
-                      type="submit"
-                      disabled={Boolean(dateError)}
-                      className="group flex items-center justify-center gap-3 rounded-2xl bg-gradient-to-r from-ocean-mid to-ocean-light px-8 py-3.5 text-xs font-bold uppercase tracking-[0.15em] text-white shadow-[0_10px_20px_rgba(33,105,243,0.25)] transition-all hover:-translate-y-0.5 hover:shadow-[0_15px_30px_rgba(33,105,243,0.35)] disabled:opacity-50 disabled:cursor-not-allowed"
+                  {isCalendarOpen && (
+                    <div
+                      ref={calendarPopoverRef}
+                      className="absolute left-0 top-[calc(100%+0.5rem)] z-[110] bg-white w-[340px] max-w-[calc(100vw-2rem)] rounded-2xl shadow-[0_12px_36px_rgba(0,0,0,0.15)] p-4 border border-gray-100"
                     >
-                      Proceed
-                      <i className="fas fa-arrow-right transition-transform group-hover:translate-x-1"></i>
-                    </button>
-                    
-                    <div className="flex items-center gap-3 bg-gradient-to-r from-ocean-mid/10 to-ocean-light/10 rounded-xl px-4 py-2 shadow-sm">
-                      <div className="text-center">
-                        <p className="text-[10px] uppercase tracking-[0.1em] text-textSecondary">Adult</p>
-                        <p className="text-lg font-bold text-ocean-mid">₱{dayTour?.adultPrice?.toLocaleString()}</p>
+                      <div className="flex justify-between items-center mb-3">
+                        <h3 className="text-base font-semibold text-textPrimary">
+                          {monthNames[currentMonth.getMonth()]} {currentMonth.getFullYear()}
+                        </h3>
+                        <div className="flex items-center gap-3 text-gray-600">
+                          <button type="button" onClick={goToPreviousMonth} className="hover:text-ocean-mid" aria-label="Previous month">
+                            <i className="fas fa-arrow-up"></i>
+                          </button>
+                          <button type="button" onClick={goToNextMonth} className="hover:text-ocean-mid" aria-label="Next month">
+                            <i className="fas fa-arrow-down"></i>
+                          </button>
+                        </div>
                       </div>
-                      <div className="w-px h-8 bg-ocean-light/30"></div>
-                      <div className="text-center">
-                        <p className="text-[10px] uppercase tracking-[0.1em] text-textSecondary">Kid</p>
-                        <p className="text-lg font-bold text-ocean-mid">₱{dayTour?.kidPrice?.toLocaleString()}</p>
+
+                      <div className="grid grid-cols-7 gap-1 mb-2">
+                        {['Su', 'Mo', 'Tu', 'We', 'Th', 'Fr', 'Sa'].map((dayLabel) => (
+                          <div key={dayLabel} className="text-center text-xs font-semibold text-textSecondary py-1">
+                            {dayLabel}
+                          </div>
+                        ))}
                       </div>
+
+                      <div className="grid grid-cols-7 gap-1">
+                        {days.map((dayItem, index) => {
+                          if (!dayItem) return <div key={index} className="h-9"></div>;
+
+                          const isPast = isDatePast(dayItem);
+                          const isTooSoon = isDateTooSoon(dayItem);
+                          const remaining = getRemainingCapacity(dayItem);
+                          const isFullyBooked = !isPast && !isTooSoon && remaining <= 0;
+                          const isSelected = date && toLocalDateKey(dayItem) === date;
+                          const selectable = isDateSelectable(dayItem);
+
+                          let styleClass = 'text-textPrimary border border-transparent';
+                          if (isPast || isTooSoon) styleClass = 'text-gray-300 border border-transparent';
+                          if (isFullyBooked) styleClass = 'text-red-300 border border-transparent bg-red-50';
+                          if (isSelected) styleClass = 'text-white bg-ocean-mid border border-ocean-mid';
+
+                          const titleText = isPast
+                            ? 'Past date'
+                            : isTooSoon
+                              ? 'Must be booked at least 1 day in advance'
+                              : isFullyBooked
+                                ? 'Unavailable from admin blocks or bookings'
+                                : `${remaining} slot(s) available`;
+
+                          return (
+                            <button
+                              key={index}
+                              type="button"
+                              onClick={() => handleDateSelect(dayItem)}
+                              onMouseEnter={() => setHoveredDateKey(toLocalDateKey(dayItem))}
+                              onFocus={() => setHoveredDateKey(toLocalDateKey(dayItem))}
+                              onMouseLeave={() => setHoveredDateKey('')}
+                              disabled={!selectable}
+                              title={titleText}
+                              className={`h-9 rounded-md text-sm transition-colors ${styleClass} ${selectable && !isSelected ? 'hover:bg-ocean-ice' : ''} ${!selectable ? 'cursor-not-allowed' : 'cursor-pointer'}`}
+                            >
+                              {dayItem.getDate()}
+                            </button>
+                          );
+                        })}
+                      </div>
+
+                      <div className="mt-3 border-t border-gray-100 pt-3">
+                        {!activePreviewDate && (
+                          <p className="text-xs text-textSecondary">Hover or select a date to view remaining capacity.</p>
+                        )}
+                        {activePreviewDate && (
+                          <div className="rounded-xl bg-ocean-ice/40 px-3 py-2">
+                            <p className="text-[11px] uppercase tracking-[0.14em] font-semibold text-ocean-mid">
+                              {isHoverPreview ? 'Date Availability Preview' : 'Selected Date Availability'}
+                            </p>
+                            <p className="text-xs text-textSecondary mt-0.5">{formatLongDate(activePreviewDateKey)}</p>
+                            <p className="text-sm font-semibold text-textPrimary mt-1">
+                              {isPreviewPast
+                                ? 'Past date is not available.'
+                                : isPreviewTooSoon
+                                  ? 'Book at least 1 day in advance.'
+                                  : isPreviewFullyBooked
+                                    ? 'Fully booked. Remaining capacity: 0.'
+                                    : `Remaining capacity: ${activePreviewRemaining} guest(s).`}
+                            </p>
+                            {isPreviewSelectable && activePreviewRemaining <= 10 && (
+                              <p className="text-[11px] text-amber-700 mt-1">Limited slots left.</p>
+                            )}
+                          </div>
+                        )}
+                      </div>
+
                     </div>
-                  </div>
-                </form>
-              )}
-            </div>
+                  )}
+                </div>
+          
+              </div>
+
+              <div className="flex flex-col w-[90px]">
+                <label htmlFor="adults-count" className="text-[10px] uppercase tracking-[0.2em] font-bold text-textSecondary mb-2 pl-2">Adults</label>
+                <div className="relative">
+                  <i className="fas fa-user absolute left-4 top-1/2 -translate-y-1/2 text-ocean-mid"></i>
+                  <input
+                    type="number"
+                    id="adults-count"
+                    min="1"
+                    value={adults}
+                    onChange={(e) => handleAdultsChange(e.target.value)}
+                    onFocus={(e) => e.target.select()}
+                    className="w-full rounded-2xl border border-ocean-light/40 bg-white pl-11 pr-2 py-3.5 text-sm font-medium shadow-sm outline-none transition focus:border-ocean-mid focus:ring-1 focus:ring-ocean-mid"
+                  />
+                </div>
+              </div>
+
+              <div className="flex flex-col w-[90px]">
+                <label htmlFor="kids-count" className="text-[10px] uppercase tracking-[0.2em] font-bold text-textSecondary mb-2 pl-2">Kids</label>
+                <div className="relative">
+                  <i className="fas fa-child absolute left-4 top-1/2 -translate-y-1/2 text-ocean-mid"></i>
+                  <input
+                    type="number"
+                    id="kids-count"
+                    min="0"
+                    value={kids}
+                    onChange={(e) => handleKidsChange(e.target.value)}
+                    onFocus={(e) => e.target.select()}
+                    className="w-full rounded-2xl border border-ocean-light/40 bg-white pl-11 pr-2 py-3.5 text-sm font-medium shadow-sm outline-none transition focus:border-ocean-mid focus:ring-1 focus:ring-ocean-mid"
+                  />
+                </div>
+              </div>
+
+              {dateError && <p className="w-full text-[11px] leading-tight text-rose-500/80 pl-1 mt-0">{dateError}</p>}
+
+              <button
+                type="submit"
+                disabled={Boolean(dateError)}
+                className="group w-full sm:w-auto mt-2 sm:mt-0 flex items-center justify-center gap-3 rounded-2xl bg-gradient-to-r from-ocean-mid to-ocean-light px-8 py-3.5 text-xs font-bold uppercase tracking-[0.15em] text-white shadow-[0_10px_20px_rgba(33,105,243,0.25)] transition-all hover:-translate-y-0.5 hover:shadow-[0_15px_30px_rgba(33,105,243,0.35)]"
+              >
+                Proceed
+                <i className="fas fa-arrow-right transition-transform group-hover:translate-x-1"></i>
+              </button>
+            </form>
           </div>
 
           {/* ACTIVITIES SECTION - Display ALL activities */}

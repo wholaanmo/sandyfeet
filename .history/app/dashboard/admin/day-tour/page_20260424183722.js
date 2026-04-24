@@ -85,7 +85,7 @@ const inclusionOptions = [
   // Activity Form State
   const [activityFormData, setActivityFormData] = useState({
     name: '',
-    priceType: 'perHour',
+    priceType: 'perHour', // New field for pricing type
     priceValue: '',
     description: '',
     images: []
@@ -295,6 +295,11 @@ useEffect(() => {
     if (!tourFormData.kidPrice) errors.kidPrice = 'Kid price is required';
     else if (isNaN(tourFormData.kidPrice) || parseFloat(tourFormData.kidPrice) <= 0) {
       errors.kidPrice = 'Kid price must be a positive number';
+    }
+    
+    if (!tourFormData.seniorPrice) errors.seniorPrice = 'Senior price is required';
+    else if (isNaN(tourFormData.seniorPrice) || parseFloat(tourFormData.seniorPrice) <= 0) {
+      errors.seniorPrice = 'Senior price must be a positive number';
     }
     
     if (tourFormData.maxCapacity) {
@@ -981,7 +986,7 @@ if (!activeToursSnapshot.empty) {
                       <i className="fas fa-tag text-ocean-light text-sm"></i>
                       Pricing (per person)
                     </h3>
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
                       <div className="bg-ocean-ice/30 rounded-lg p-2 text-center">
                         <p className="text-xs text-textSecondary mb-0.5">Adult (16+)</p>
                         <p className="text-lg font-bold text-ocean-mid">₱{dayTour.adultPrice?.toLocaleString()}</p>
@@ -989,6 +994,10 @@ if (!activeToursSnapshot.empty) {
                       <div className="bg-ocean-ice/30 rounded-lg p-2 text-center">
                         <p className="text-xs text-textSecondary mb-0.5">Kid (15-)</p>
                         <p className="text-lg font-bold text-ocean-mid">₱{dayTour.kidPrice?.toLocaleString()}</p>
+                      </div>
+                      <div className="bg-ocean-ice/30 rounded-lg p-2 text-center">
+                        <p className="text-xs text-textSecondary mb-0.5">Senior</p>
+                        <p className="text-lg font-bold text-ocean-mid">₱{dayTour.seniorPrice?.toLocaleString()}</p>
                       </div>
                     </div>
                   </div>

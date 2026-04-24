@@ -1,4 +1,4 @@
-// components/guest/DayTourCard.js
+// components
 'use client';
 
 import Image from 'next/image';

@@ -296,9 +296,9 @@ export default function StaffNavbar({ toggleSidebar, sidebarOpen, isDesktop }) {
                                     Room Reservation
                                   </p>
                                   <p className="text-xs text-gray-600 mb-1">
-                                    <span className="font-semibold">{notification.guestName}</span> 
+                                    <span className="font-semibold">{notification.guestName}</span> Booking ID: <span className="font-mono">{notification.bookingId}</span>
                                   </p>
-                                  <p className="text-xs text-gray-600 mb-1"> <span className="font-semibold">  Booking ID: </span> <span className="font-mono">{notification.bookingId}</span></p>
+                                  <p className="text-xs text-gray-600 mb-1"> <span className="font-semibold">  Booking ID: </span></p>
                                   <div className="inline-flex items-center gap-1.5 mt-1 px-2 py-0.5 bg-blue-50 rounded-full">
                                     <i className="fas fa-bed text-blue-500 text-[10px]"></i>
                                     <span className="text-[11px] font-medium text-blue-700">{notification.roomType}</span>

@@ -441,36 +441,33 @@ export default function DayTourPage() {
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 space-y-12">
           
           {/* HEADER & BOOKING SECTION */}
-          <div className="flex flex-col lg:flex-row bg-white p-8 sm:p-10 rounded-[2.5rem] shadow-[0_15px_40px_rgba(0,0,0,0.04)] border border-ocean-light/20 gap-8 lg:gap-12">
+          <div className="flex flex-col lg:flex-row lg:items-start justify-between bg-white p-8 sm:p-10 rounded-[2.5rem] shadow-[0_15px_40px_rgba(0,0,0,0.04)] border border-ocean-light/20 gap-8">
             
-            {/* Left side - Description and Inclusions with balanced height */}
-            <div className="flex-1 flex flex-col">
-              <div className="mb-6">
-                <span className="inline-block py-1 px-4 rounded-full bg-ocean-ice border border-ocean-light/30 text-ocean-mid text-[10px] font-bold tracking-[0.25em] uppercase mb-3">Sandyfeet Resort</span>
-                <h1 className="text-4xl sm:text-5xl font-playfair font-bold text-textPrimary">Book Your Day Tour</h1>
-              </div>
+            {/* Left side - Text content only (Description and Inclusions always visible) */}
+            <div className="flex-1">
+              <span className="inline-block py-1 px-4 rounded-full bg-ocean-ice border border-ocean-light/30 text-ocean-mid text-[10px] font-bold tracking-[0.25em] uppercase mb-4">Sandyfeet Resort</span>
+              <h1 className="text-4xl sm:text-5xl font-playfair font-bold text-textPrimary leading-tight whitespace-nowrap">Book Your Day Tour</h1>
               
-              {/* Dynamic Description from Admin - Minimalist design */}
+              {/* Dynamic Description from Admin - Always visible if dayTour exists (even if archived/unavailable) */}
               {dayTour && dayTour.description && (
-                <div className="mb-8">
-                  <div className="border-l-2 border-ocean-mid/40 pl-5">
-                    <p className="text-textSecondary text-sm sm:text-base leading-relaxed">
-                      {dayTour.description}
-                    </p>
-                  </div>
+                <div className="mt-6 p-5 bg-gradient-to-br from-ocean-ice/40 to-white rounded-2xl border border-ocean-light/20">
+                  <p className="text-textSecondary text-sm sm:text-base leading-relaxed">
+                    {dayTour.description}
+                  </p>
                 </div>
               )}
               
-              {/* Dynamic Inclusions from Admin - Minimalist design */}
+              {/* Dynamic Inclusions from Admin - Always visible if dayTour exists (even if archived/unavailable) */}
               {dayTour && dayTour.inclusions && dayTour.inclusions.length > 0 && (
-                <div className="mt-auto">
-                  <div className="flex items-center gap-2 mb-4">
-                    <i className="fas fa-check-circle text-ocean-mid/60 text-xs"></i>
-                    <p className="text-[11px] font-medium uppercase tracking-[0.2em] text-textSecondary">Inclusions</p>
+                <div className="mt-5 p-5 bg-gradient-to-br from-amber-50/40 to-white rounded-2xl border border-amber-200/30">
+                  <div className="flex items-center gap-2 mb-3">
+                    <i className="fas fa-gift text-amber-600 text-sm"></i>
+                    <p className="text-xs font-semibold uppercase tracking-[0.2em] text-amber-700">Package Inclusions</p>
                   </div>
                   <div className="flex flex-wrap gap-2">
                     {dayTour.inclusions.map((inclusion, idx) => (
-                      <span key={idx} className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-white text-textSecondary rounded-full text-xs font-normal border border-ocean-light/30 shadow-sm">
+                      <span key={idx} className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-white/80 backdrop-blur-sm text-amber-800 rounded-full text-xs font-medium shadow-sm border border-amber-200/50">
+                        <i className="fas fa-check-circle text-amber-500 text-[10px]"></i>
                         {inclusion}
                       </span>
                     ))}
@@ -479,11 +476,11 @@ export default function DayTourPage() {
               )}
             </div>
             
-            {/* Right side - Date Container (50% width) with equal height */}
-            <div className="w-full lg:w-1/2 flex">
+            {/* Right side - Date Container (50% width) */}
+            <div className="w-full lg:w-1/2">
               {(!dayTour || dayTour.archived === true || dayTour.availability === 'unavailable') ? (
                 /* When day tour is archived, not found, or marked unavailable - hide the date selector */
-                <div className="w-full bg-gray-50/50 p-6 rounded-[2rem] border border-gray-200/50 text-center flex items-center justify-center">
+                <div className="bg-gray-50/50 p-6 rounded-[2rem] border border-gray-200/50 text-center min-h-[280px] flex items-center justify-center">
                   <div className="flex flex-col items-center gap-3">
                     <div className="w-14 h-14 rounded-full bg-gray-100 flex items-center justify-center">
                       <i className="fas fa-calendar-times text-gray-400 text-2xl"></i>
@@ -493,7 +490,7 @@ export default function DayTourPage() {
                   </div>
                 </div>
               ) : (
-                <form onSubmit={handleBookingStart} className="w-full bg-ocean-ice/30 p-4 sm:p-6 rounded-[2rem] border border-ocean-light/30">
+                <form onSubmit={handleBookingStart} className="bg-ocean-ice/30 p-4 sm:p-6 rounded-[2rem] border border-ocean-light/30">
                   {/* Date Picker */}
                   <div className="mb-4">
                     <label htmlFor="tour-date" className="text-[10px] uppercase tracking-[0.2em] font-bold text-textSecondary mb-2 block pl-2">Select Date</label>
@@ -674,7 +671,7 @@ export default function DayTourPage() {
                 </form>
               )}
             </div>
-          </div>
+</div>
 
           {/* ACTIVITIES SECTION - Display ALL activities */}
           {(!loadingActivities && displayedActivities.length > 0) && (
