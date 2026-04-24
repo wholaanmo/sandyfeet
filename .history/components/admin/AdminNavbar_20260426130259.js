@@ -322,7 +322,7 @@ const getNotificationStyle = (type) => {
       Guest Check-In
     </p>
     <p className="text-xs text-gray-600 mb-1">
-      <span className="font-semibold">{notification.guestName}</span> is scheduled to check in
+      <span className="font-semibold">{notification.guestName}</span> has checked in
     </p>
     <div className="inline-flex items-center gap-1.5 mt-1 px-2 py-0.5 bg-green-50 rounded-full">
       <i className="fas fa-bed text-green-500 text-[10px]"></i>

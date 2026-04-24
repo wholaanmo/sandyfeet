@@ -74,12 +74,32 @@ export default function AdminNavbar({ toggleSidebar, sidebarOpen, isDesktop }) {
   // Combined notification update handler
   const handleNotificationsUpdate = (newItems, type) => {
     setNotifications(prev => {
-      const filtered = prev.filter(n => n.type !== type);
       const isStatusType = type === 'check_in' || type === 'check_out';
-      const itemsWithReadState = isStatusType
-        ? newItems.map(item => ({ ...item, read: statusReadMapRef.current[`${item.type}-${item.id}`] === true }))
-        : newItems;
-      const combined = [...filtered, ...itemsWithReadState];
+
+      if (isStatusType) {
+        const nonStatusItems = prev.filter(n => n.type !== type);
+        const existingStatusItems = prev.filter(n => n.type === type);
+        const mergedStatusMap = new Map(
+          existingStatusItems.map((item) => [`${item.type}-${item.id}`, item])
+        );
+
+        newItems.forEach((item) => {
+          const key = `${item.type}-${item.id}`;
+          const existing = mergedStatusMap.get(key);
+          mergedStatusMap.set(key, {
+            ...(existing || {}),
+            ...item,
+            read: statusReadMapRef.current[key] === true || existing?.read === true
+          });
+        });
+
+        const combined = [...nonStatusItems, ...Array.from(mergedStatusMap.values())];
+        combined.sort((a, b) => asDate(b.createdAt) - asDate(a.createdAt));
+        return combined;
+      }
+
+      const filtered = prev.filter(n => n.type !== type);
+      const combined = [...filtered, ...newItems];
       combined.sort((a, b) => asDate(b.createdAt) - asDate(a.createdAt));
       return combined;
     });
@@ -322,7 +342,7 @@ const getNotificationStyle = (type) => {
       Guest Check-In
     </p>
     <p className="text-xs text-gray-600 mb-1">
-      <span className="font-semibold">{notification.guestName}</span> is scheduled to check in
+      <span className="font-semibold">{notification.guestName}</span> has checked in
     </p>
     <div className="inline-flex items-center gap-1.5 mt-1 px-2 py-0.5 bg-green-50 rounded-full">
       <i className="fas fa-bed text-green-500 text-[10px]"></i>
@@ -339,7 +359,7 @@ const getNotificationStyle = (type) => {
       Guest Check-Out
     </p>
     <p className="text-xs text-gray-600 mb-1">
-      <span className="font-semibold">{notification.guestName}</span> is scheduled to check out
+      <span className="font-semibold">{notification.guestName}</span> has checked out
     </p>
     <div className="inline-flex items-center gap-1.5 mt-1 px-2 py-0.5 bg-purple-50 rounded-full">
       <i className="fas fa-bed text-purple-500 text-[10px]"></i>
