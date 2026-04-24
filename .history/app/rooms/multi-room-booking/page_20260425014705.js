@@ -975,6 +975,13 @@ const handleSubmitBooking = async () => {
       </div>
 
       <div className="flex-1 space-y-3">
+        {modalNotification && (
+          <div className="w-full mb-2 text-[10px] font-medium">
+            <span className={`px-2 py-1 rounded inline-block shadow-sm ${modalNotification.type === 'error' ? 'bg-red-500 text-white' : 'bg-emerald-500 text-white'}`}>
+              {modalNotification.message}
+            </span>
+          </div>
+        )}
 
         {/* QR CODE CONTAINER - Separate section for QR code details */}
         {visibleGuestQrBank && (
@@ -998,14 +1005,6 @@ const handleSubmitBooking = async () => {
                 <p className="text-xs text-textSecondary">{visibleGuestQrBank.accountName}</p>
               </div>
             </div>
-          </div>
-        )}
-
-                       {modalNotification && (
-          <div className="w-full mb-2 text-[10px] font-medium">
-            <span className={`px-2 py-1 rounded inline-block shadow-sm ${modalNotification.type === 'error' ? 'bg-red-500 text-white' : 'bg-emerald-500 text-white'}`}>
-              {modalNotification.message}
-            </span>
           </div>
         )}
         
@@ -1058,8 +1057,9 @@ const handleSubmitBooking = async () => {
               <div className="flex h-7 w-7 items-center justify-center rounded-full bg-gray-100 text-gray-600">
                 <i className="fas fa-university text-xs"></i>
               </div>
-              <h3 className="text-sm font-semibold text-gray-800">Choose your other preferred bank:</h3>
+              <h3 className="text-sm font-semibold text-gray-800">Request Bank Details</h3>
             </div>
+            <p className="text-xs text-gray-500 mb-3">Choose your preferred bank:</p>
             {requestableBankAccounts.length > 0 ? (
               <select 
                 className="w-full p-2.5 text-sm border border-gray-200 rounded-lg focus:outline-none focus:border-blue-400 focus:ring-2 focus:ring-blue-500/20 bg-white"
@@ -1099,8 +1099,6 @@ const handleSubmitBooking = async () => {
               <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mt-2">Account Name</p>
               <p className="text-sm text-gray-700 mt-0.5">{selectedBankAccount?.accountName}</p>
             </div>
-
-            
             <div className="flex gap-2 pt-2">
               <button
                 onClick={() => setShowBankSelection(false)}
@@ -1118,11 +1116,8 @@ const handleSubmitBooking = async () => {
             </div>
           </div>
         ))}
-
-        
       </div>
     </div>
-    
 
     <div className="p-3 sm:p-4 bg-blue-50/50 rounded-xl border border-blue-100">
       <p className="text-xs sm:text-sm text-blue-800 mb-1.5 font-medium flex items-center">
@@ -1215,9 +1210,55 @@ const handleSubmitBooking = async () => {
           </p>
         )}
       </div>
-  
+    </div>
+  </div>
+)}
                         
-
+                        <div className={`bg-white rounded-xl border border-gray-200 p-4 sm:p-5 shadow-sm transition-colors ${(bankDetailsProvided || visibleGuestQrBank) ? 'hover:border-blue-200' : 'opacity-50'}`}>
+                          <div className="flex items-center gap-2 mb-2">
+                            <i className="fas fa-file-invoice-dollar text-blue-500 text-lg"></i>
+                            <label className="text-sm font-semibold text-gray-800">Receipt *</label>
+                          </div>
+                          <p className="text-[11px] text-gray-500 mb-3 leading-tight">
+                            Proof of down payment. Max size: 10MB.
+                          </p>
+                          <div className="relative">
+                            <input
+                              type="file"
+                              accept="image/*"
+                              onChange={handlePaymentProofUpload}
+                              className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
+                              id="payment-proof-upload"
+                              disabled={uploading || (!bankDetailsProvided && !visibleGuestQrBank)}
+                            />
+                            <label
+                              htmlFor="payment-proof-upload"
+                              className={`w-full inline-flex justify-center items-center gap-2 px-4 py-2.5 rounded-lg text-sm font-medium transition-all duration-200 ${
+                                uploading || (!bankDetailsProvided && !visibleGuestQrBank)
+                                  ? 'bg-gray-100 text-gray-400 cursor-not-allowed border border-gray-200'
+                                  : 'bg-blue-600 text-white hover:bg-blue-700 shadow-sm shadow-blue-200/50 cursor-pointer'
+                              }`}
+                            >
+                              {uploading ? (
+                                <><i className="fas fa-spinner fa-spin"></i> Processing...</>
+                              ) : (
+                                <><i className="fas fa-upload"></i> Upload Receipt</>
+                              )}
+                            </label>
+                          </div>
+                          {!bankDetailsProvided && !visibleGuestQrBank && (
+                            <p className="mt-2.5 text-[11px] text-amber-600 flex items-center gap-1.5">
+                              <i className="fas fa-exclamation-circle"></i>
+                              Waiting for bank details...
+                            </p>
+                          )}
+                          {bookingData.paymentProofUrl && (bankDetailsProvided || visibleGuestQrBank) && (
+                            <p className="mt-2.5 text-[11px] text-emerald-600 flex items-center gap-1.5">
+                              <i className="fas fa-check-circle text-emerald-500"></i>
+                              Successfully attached
+                            </p>
+                          )}
+                        </div>
                       </div>
                     </div>
                   )}

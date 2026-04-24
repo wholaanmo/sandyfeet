@@ -826,7 +826,7 @@ const handleNotifyResort = async () => {
             </div>
             <h3 className="mt-4 text-xl font-semibold text-textPrimary">Pay via QR Code or Bank Transfer</h3>
             <p className="mt-2 text-sm text-textSecondary">
-              You may scan the QR code for instant payment or request alternative bank details. Please upload your transfer receipt once completed.
+              Choose your preferred bank, request the resort details, then upload your transfer receipt once they respond.
             </p>
           </div>
 

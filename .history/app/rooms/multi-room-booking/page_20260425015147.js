@@ -1001,7 +1001,7 @@ const handleSubmitBooking = async () => {
           </div>
         )}
 
-                       {modalNotification && (
+                {modalNotification && (
           <div className="w-full mb-2 text-[10px] font-medium">
             <span className={`px-2 py-1 rounded inline-block shadow-sm ${modalNotification.type === 'error' ? 'bg-red-500 text-white' : 'bg-emerald-500 text-white'}`}>
               {modalNotification.message}
@@ -1099,8 +1099,6 @@ const handleSubmitBooking = async () => {
               <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mt-2">Account Name</p>
               <p className="text-sm text-gray-700 mt-0.5">{selectedBankAccount?.accountName}</p>
             </div>
-
-            
             <div className="flex gap-2 pt-2">
               <button
                 onClick={() => setShowBankSelection(false)}
@@ -1118,11 +1116,8 @@ const handleSubmitBooking = async () => {
             </div>
           </div>
         ))}
-
-        
       </div>
     </div>
-    
 
     <div className="p-3 sm:p-4 bg-blue-50/50 rounded-xl border border-blue-100">
       <p className="text-xs sm:text-sm text-blue-800 mb-1.5 font-medium flex items-center">
@@ -1217,10 +1212,6 @@ const handleSubmitBooking = async () => {
       </div>
   
                         
-
-                      </div>
-                    </div>
-                  )}
                   
                   <div className="flex gap-3 mt-6">
                     <button

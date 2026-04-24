@@ -1000,14 +1000,6 @@ const handleSubmitBooking = async () => {
             </div>
           </div>
         )}
-
-                       {modalNotification && (
-          <div className="w-full mb-2 text-[10px] font-medium">
-            <span className={`px-2 py-1 rounded inline-block shadow-sm ${modalNotification.type === 'error' ? 'bg-red-500 text-white' : 'bg-emerald-500 text-white'}`}>
-              {modalNotification.message}
-            </span>
-          </div>
-        )}
         
         {/* REQUESTED BANK DETAILS CONTAINER - Separate section for bank details */}
         {bankDetailsProvided ? (
@@ -1119,7 +1111,13 @@ const handleSubmitBooking = async () => {
           </div>
         ))}
 
-        
+                       {modalNotification && (
+          <div className="w-full mb-2 text-[10px] font-medium">
+            <span className={`px-2 py-1 rounded inline-block shadow-sm ${modalNotification.type === 'error' ? 'bg-red-500 text-white' : 'bg-emerald-500 text-white'}`}>
+              {modalNotification.message}
+            </span>
+          </div>
+        )}
       </div>
     </div>
     

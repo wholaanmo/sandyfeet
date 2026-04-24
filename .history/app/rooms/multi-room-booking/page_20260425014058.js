@@ -964,260 +964,210 @@ const handleSubmitBooking = async () => {
                     </div>
                   )}
                   
-             {/* Bank Transfer Section */}
-{paymentMethod === 'bank_transfer' && (
-  <div className="space-y-4 sm:space-y-5">
-    <div className="flex flex-col md:flex-row gap-4 sm:gap-5">
-      <div className="flex-1 p-4 sm:p-5 bg-gradient-to-r from-ocean-ice to-blue-white rounded-xl flex flex-col justify-center items-center md:items-start text-center md:text-left border border-blue-100/50">
-        <p className="text-sm font-semibold text-textPrimary mb-1">Down Payment Required</p>
-        <p className="text-2xl sm:text-3xl font-bold text-amber-600">₱{downPaymentAmount.toLocaleString()}</p>
-        <p className="text-xs text-textSecondary mt-1">50% of total price</p>
-      </div>
+                  {/* Bank Transfer Section */}
+                  {paymentMethod === 'bank_transfer' && (
+                    <div className="space-y-4 sm:space-y-5">
+                      <div className="flex flex-col md:flex-row gap-4 sm:gap-5">
+                        <div className="flex-1 p-4 sm:p-5 bg-gradient-to-r from-ocean-ice to-blue-white rounded-xl flex flex-col justify-center items-center md:items-start text-center md:text-left border border-blue-100/50">
+                          <p className="text-sm font-semibold text-textPrimary mb-1">Down Payment Required</p>
+                          <p className="text-2xl sm:text-3xl font-bold text-amber-600">₱{downPaymentAmount.toLocaleString()}</p>
+                          <p className="text-xs text-textSecondary mt-1">50% of total price</p>
+                        </div>
 
-      <div className="flex-1 space-y-3">
+                        <div className="flex-1 p-4 sm:p-5 bg-ocean-ice/50 rounded-xl text-center border border-ocean-light/20 flex flex-col">
+                          {modalNotification && (
+                            <div className="w-full mb-3 text-[10px] font-medium">
+                              <span className={`px-2 py-1 rounded inline-block shadow-sm ${modalNotification.type === 'error' ? 'bg-red-500 text-white' : 'bg-emerald-500 text-white'}`}>
+                                {modalNotification.message}
+                              </span>
+                            </div>
+                          )}
 
-        {/* QR CODE CONTAINER - Separate section for QR code details */}
-        {visibleGuestQrBank && (
-          <div className="rounded-xl border border-blue-200 bg-blue-50/40 p-4">
-            <div className="flex items-center gap-2 mb-3 border-b border-blue-200 pb-2">
-              <div className="flex h-7 w-7 items-center justify-center rounded-full bg-blue-100 text-blue-600">
-                <i className="fas fa-qrcode text-xs"></i>
-              </div>
-              <h3 className="text-sm font-semibold text-blue-900">QR Code Payment</h3>
-            </div>
-            <div className="flex flex-col items-center gap-3">
-              <div className="flex h-32 w-32 items-center justify-center overflow-hidden rounded-lg border border-blue-200 bg-white p-2 shadow-sm">
-                <img
-                  src={visibleGuestQrBank.qrCodeUrl}
-                  alt={`${visibleGuestQrBank.bankName} QR Code`}
-                  className="h-full w-full object-contain"
-                />
-              </div>
-              <div className="text-center">
-                <p className="font-semibold text-textPrimary text-sm">{visibleGuestQrBank.bankName}</p>
-                <p className="text-xs text-textSecondary">{visibleGuestQrBank.accountName}</p>
-              </div>
-            </div>
-          </div>
-        )}
+                          {visibleGuestQrBank && (
+                            <div className="mb-3 text-left rounded-xl border border-ocean-light/20 bg-white p-3">
+                              <h3 className="text-sm font-semibold text-textPrimary mb-2 flex items-center gap-1.5 border-b border-gray-200 pb-2">
+                                <i className="fas fa-qrcode text-ocean-mid"></i>
+                                {visibleGuestQrBank.bankName}
+                              </h3>
+                              <p className="text-xs text-gray-700 mt-1"><span className="font-semibold">Name:</span> {visibleGuestQrBank.accountName}</p>
+                              <div className="mt-2 w-24 h-24 bg-white rounded border border-ocean-light/20 overflow-hidden relative">
+                                <img
+                                  src={visibleGuestQrBank.qrCodeUrl}
+                                  alt={`${visibleGuestQrBank.bankName} QR Code`}
+                                  className="object-contain w-full h-full"
+                                />
+                              </div>
+                            </div>
+                          )}
+                          
+                          {bankDetailsProvided ? (
+                            <div className="text-left w-full h-full flex flex-col justify-center">
+                              <h3 className="text-sm font-semibold text-textPrimary mb-2 flex items-center gap-1.5 border-b border-gray-200 pb-2">
+                                <i className="fas fa-university text-ocean-mid"></i>
+                                {bankDetailsProvided.bankName}
+                              </h3>
+                              <p className="text-xs text-gray-700 mt-1"><span className="font-semibold">Name:</span> {bankDetailsProvided.accountName}</p>
+                              {bankDetailsProvided.accountNumber && bankDetailsProvided.accountNumber !== 'QR Code Provided' ? (
+                                <p className="text-xs text-gray-700 mt-1"><span className="font-semibold">Acct #:</span> {bankDetailsProvided.accountNumber}</p>
+                              ) : bankDetailsProvided.qrCodeUrl ? (
+                                <a href={bankDetailsProvided.qrCodeUrl} target="_blank" rel="noopener noreferrer" className="mt-2 text-xs text-blue-600 hover:underline flex items-center">
+                                  <i className="fas fa-qrcode mr-1"></i> View QR Code
+                                </a>
+                              ) : null}
+                            </div>
+                          ) : bankRequestSent ? (
+                            <div className="flex flex-col items-center justify-center">
+                              <i className="fas fa-clock text-blue-500 text-2xl mb-2 animate-pulse"></i>
+                              <p className="text-xs font-semibold text-gray-800">Request Sent!</p>
+                              <p className="text-[10px] text-gray-500 mt-1 px-2">Waiting for resort to provide {requestedBankInfo?.bankName || 'bank'} details...</p>
+                            </div>
+                          ) : (!showBankSelection ? (
+                              <div className="w-full">
+                                <h3 className="text-sm font-semibold text-textPrimary mb-2 flex items-center justify-center gap-1.5">
+                                  <i className="fas fa-university text-ocean-mid"></i>
+                                  Choose your other preferred bank
+                                </h3>
+                                {requestableBankAccounts.length > 0 ? (
+                                  <select 
+                                    className="w-full p-2 text-xs border border-gray-200 rounded-lg focus:outline-none focus:border-blue-400 bg-white"
+                                    onChange={(e) => {
+                                      if (e.target.value !== '') {
+                                        const bank = requestableBankAccounts.find(b => b.id === e.target.value || b.bankName === e.target.value);
+                                        if (bank) {
+                                          setSelectedBankAccount(bank);
+                                          setShowBankSelection(true);
+                                        }
+                                      }
+                                    }}
+                                    defaultValue=""
+                                  >
+                                    <option value="" disabled>-- Choose a bank --</option>
+                                    {requestableBankAccounts.map((bank) => (
+                                      <option key={bank.id || bank.bankName} value={bank.id || bank.bankName}>
+                                        {bank.bankName}
+                                      </option>
+                                    ))}
+                                  </select>
+                                ) : (
+                                  <p className="text-xs text-amber-600 mt-2">No bank accounts available.</p>
+                                )}
+                              </div>
+                            ) : (
+                              <div className="w-full flex flex-col justify-center h-full text-left">
+                                <p className="text-[11px] text-gray-500 uppercase tracking-wider font-bold mb-1">Selected Bank</p>
+                                <p className="text-sm font-bold text-gray-800 truncate">{selectedBankAccount?.bankName}</p>
+                                <div className="mt-auto flex gap-2 pt-3">
+                                  <button
+                                    onClick={() => setShowBankSelection(false)}
+                                    className="flex-1 py-1.5 px-2 bg-gray-100 hover:bg-gray-200 text-gray-600 rounded text-xs font-semibold transition"
+                                  >
+                                    Change
+                                  </button>
+                                  <button
+                                    onClick={handleNotifyResort}
+                                    disabled={notifyingResort}
+                                    className="flex-[2] py-1.5 px-2 bg-blue-600 hover:bg-blue-700 text-white rounded text-xs font-semibold transition flex items-center justify-center"
+                                  >
+                                    {notifyingResort ? <i className="fas fa-spinner fa-spin"></i> : 'Request Details'}
+                                  </button>
+                                </div>
+                              </div>
+                            )
+                          )}
+                        </div>
+                      </div>
 
-                       {modalNotification && (
-          <div className="w-full mb-2 text-[10px] font-medium">
-            <span className={`px-2 py-1 rounded inline-block shadow-sm ${modalNotification.type === 'error' ? 'bg-red-500 text-white' : 'bg-emerald-500 text-white'}`}>
-              {modalNotification.message}
-            </span>
-          </div>
-        )}
-        
-        {/* REQUESTED BANK DETAILS CONTAINER - Separate section for bank details */}
-        {bankDetailsProvided ? (
-          <div className="rounded-xl border border-green-200 bg-green-50/40 p-4">
-            <div className="flex items-center gap-2 mb-3 border-b border-green-200 pb-2">
-              <div className="flex h-7 w-7 items-center justify-center rounded-full bg-green-100 text-green-600">
-                <i className="fas fa-university text-xs"></i>
-              </div>
-              <h3 className="text-sm font-semibold text-green-900">Bank Details Provided</h3>
-            </div>
-            <div className="space-y-2">
-              <div>
-                <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Bank Name</p>
-                <p className="text-sm font-medium text-gray-800 mt-0.5">{bankDetailsProvided.bankName}</p>
-              </div>
-              <div>
-                <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Account Name</p>
-                <p className="text-sm font-medium text-gray-800 mt-0.5">{bankDetailsProvided.accountName}</p>
-              </div>
-              {bankDetailsProvided.accountNumber && bankDetailsProvided.accountNumber !== 'QR Code Provided' ? (
-                <div>
-                  <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Account Number</p>
-                  <p className="text-sm font-mono font-medium text-gray-800 mt-0.5">{bankDetailsProvided.accountNumber}</p>
-                </div>
-              ) : bankDetailsProvided.qrCodeUrl ? (
-                <div>
-                  <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">QR Code</p>
-                  <a href={bankDetailsProvided.qrCodeUrl} target="_blank" rel="noopener noreferrer" className="text-xs text-blue-600 hover:underline flex items-center gap-1">
-                    <i className="fas fa-qrcode mr-1"></i> View QR Code
-                  </a>
-                </div>
-              ) : null}
-            </div>
-          </div>
-        ) : bankRequestSent ? (
-          <div className="rounded-xl border border-blue-200 bg-blue-50/40 p-4 text-center">
-            <div className="flex flex-col items-center justify-center">
-              <div className="flex h-12 w-12 items-center justify-center rounded-full bg-blue-100 text-blue-600 mb-2">
-                <i className="fas fa-clock text-lg"></i>
-              </div>
-              <p className="text-sm font-semibold text-gray-800">Request Sent!</p>
-              <p className="text-xs text-gray-500 mt-1">Waiting for resort to provide bank details...</p>
-            </div>
-          </div>
-        ) : (!showBankSelection ? (
-          <div className="rounded-xl border border-gray-200 bg-white p-4">
-            <div className="flex items-center gap-2 mb-3 border-b border-gray-200 pb-2">
-              <div className="flex h-7 w-7 items-center justify-center rounded-full bg-gray-100 text-gray-600">
-                <i className="fas fa-university text-xs"></i>
-              </div>
-              <h3 className="text-sm font-semibold text-gray-800">Choose your other preferred bank:</h3>
-            </div>
-            {requestableBankAccounts.length > 0 ? (
-              <select 
-                className="w-full p-2.5 text-sm border border-gray-200 rounded-lg focus:outline-none focus:border-blue-400 focus:ring-2 focus:ring-blue-500/20 bg-white"
-                onChange={(e) => {
-                  if (e.target.value !== '') {
-                    const bank = requestableBankAccounts.find(b => b.id === e.target.value || b.bankName === e.target.value);
-                    if (bank) {
-                      setSelectedBankAccount(bank);
-                      setShowBankSelection(true);
-                    }
-                  }
-                }}
-                defaultValue=""
-              >
-                <option value="" disabled>-- Select a bank --</option>
-                {requestableBankAccounts.map((bank) => (
-                  <option key={bank.id || bank.bankName} value={bank.id || bank.bankName}>
-                    {bank.bankName}
-                  </option>
-                ))}
-              </select>
-            ) : (
-              <p className="text-xs text-amber-600">No bank accounts are available right now.</p>
-            )}
-          </div>
-        ) : (
-          <div className="rounded-xl border border-amber-200 bg-amber-50/40 p-4">
-            <div className="flex items-center gap-2 mb-3 border-b border-amber-200 pb-2">
-              <div className="flex h-7 w-7 items-center justify-center rounded-full bg-amber-100 text-amber-600">
-                <i className="fas fa-check-circle text-xs"></i>
-              </div>
-              <h3 className="text-sm font-semibold text-amber-900">Selected Bank</h3>
-            </div>
-            <div className="mb-3">
-              <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Bank Name</p>
-              <p className="text-sm font-semibold text-gray-800 mt-0.5">{selectedBankAccount?.bankName}</p>
-              <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mt-2">Account Name</p>
-              <p className="text-sm text-gray-700 mt-0.5">{selectedBankAccount?.accountName}</p>
-            </div>
+                      <div className="p-3 sm:p-4 bg-blue-50/50 rounded-xl border border-blue-100">
+                        <p className="text-xs sm:text-sm text-blue-800 mb-1.5 font-medium flex items-center">
+                          <i className="fas fa-info-circle mr-1.5"></i>
+                          Payment Notes
+                        </p>
+                        <ul className="text-xs text-blue-700/80 space-y-1 ml-5 list-disc leading-relaxed">
+                          <li>Pay only the <strong>down payment (50%)</strong> to confirm.</li>
+                          <li>Balance (₱{(totalPrice - downPaymentAmount).toLocaleString()}) is due upon check-in.</li>
+                          <li>Cancellations forfeit <strong>50%</strong> of the down payment.</li>
+                        </ul>
+                      </div>
 
-            
-            <div className="flex gap-2 pt-2">
-              <button
-                onClick={() => setShowBankSelection(false)}
-                className="flex-1 py-2 px-3 bg-white border border-gray-200 hover:bg-gray-50 text-gray-600 rounded-lg text-xs font-semibold transition"
-              >
-                Change
-              </button>
-              <button
-                onClick={handleNotifyResort}
-                disabled={notifyingResort}
-                className="flex-1 py-2 px-3 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-xs font-semibold transition flex items-center justify-center gap-1"
-              >
-                {notifyingResort ? <i className="fas fa-spinner fa-spin"></i> : <><i className="fas fa-paper-plane"></i> Request</>}
-              </button>
-            </div>
-          </div>
-        ))}
-
-        
-      </div>
-    </div>
-    
-
-    <div className="p-3 sm:p-4 bg-blue-50/50 rounded-xl border border-blue-100">
-      <p className="text-xs sm:text-sm text-blue-800 mb-1.5 font-medium flex items-center">
-        <i className="fas fa-info-circle mr-1.5"></i>
-        Payment Notes
-      </p>
-      <ul className="text-xs text-blue-700/80 space-y-1 ml-5 list-disc leading-relaxed">
-        <li>Pay only the <strong>down payment (50%)</strong> to confirm.</li>
-        <li>Balance (₱{(totalPrice - downPaymentAmount).toLocaleString()}) is due upon check-in.</li>
-        <li>Cancellations forfeit <strong>50%</strong> of the down payment.</li>
-      </ul>
-    </div>
-
-    <div className="grid grid-cols-1 md:grid-cols-2 gap-4 sm:gap-5">
-      <div className="bg-white rounded-xl border border-gray-200 p-4 sm:p-5 shadow-sm hover:border-blue-200 transition-colors">
-        <div className="flex items-center gap-2 mb-2">
-          <i className="fas fa-id-card text-blue-500 text-lg"></i>
-          <label className="text-sm font-semibold text-gray-800">Valid ID *</label>
-        </div>
-        <p className="text-[11px] text-gray-500 mb-3 leading-tight">
-          Clear front image only. Max size: 10MB.
-        </p>
-        <button
-          type="button"
-          onClick={() => {
-            setTempValidIdType(bookingData.validIdType || 'Passport');
-            setShowValidIdModal(true);
-          }}
-          className="w-full inline-flex justify-center items-center gap-2 px-4 py-2.5 rounded-lg border border-gray-200 text-sm font-medium text-gray-700 bg-gray-50 hover:bg-gray-100 hover:text-gray-900 transition-all duration-200"
-        >
-          <i className="fas fa-cloud-upload-alt text-gray-500"></i>
-          {bookingData.validIdUrl ? 'Change ID' : 'Upload ID'}
-        </button>
-        {bookingData.validIdType && (
-          <p className="mt-2.5 text-[11px] text-gray-600 flex items-center gap-1.5">
-            <i className="fas fa-check-circle text-blue-500"></i>
-            {bookingData.validIdType}
-          </p>
-        )}
-        {bookingData.validIdUrl && (
-          <p className="mt-1 text-[11px] text-emerald-600 flex items-center gap-1.5">
-            <i className="fas fa-check-circle text-emerald-500"></i>
-            Successfully attached
-          </p>
-        )}
-      </div>
-      
-      <div className={`bg-white rounded-xl border border-gray-200 p-4 sm:p-5 shadow-sm transition-colors ${(bankDetailsProvided || visibleGuestQrBank) ? 'hover:border-blue-200' : 'opacity-50'}`}>
-        <div className="flex items-center gap-2 mb-2">
-          <i className="fas fa-file-invoice-dollar text-blue-500 text-lg"></i>
-          <label className="text-sm font-semibold text-gray-800">Receipt *</label>
-        </div>
-        <p className="text-[11px] text-gray-500 mb-3 leading-tight">
-          Proof of down payment. Max size: 10MB.
-        </p>
-        <div className="relative">
-          <input
-            type="file"
-            accept="image/*"
-            onChange={handlePaymentProofUpload}
-            className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
-            id="payment-proof-upload-bank"
-            disabled={uploading || (!bankDetailsProvided && !visibleGuestQrBank)}
-          />
-          <label
-            htmlFor="payment-proof-upload-bank"
-            className={`w-full inline-flex justify-center items-center gap-2 px-4 py-2.5 rounded-lg text-sm font-medium transition-all duration-200 ${
-              uploading || (!bankDetailsProvided && !visibleGuestQrBank)
-                ? 'bg-gray-100 text-gray-400 cursor-not-allowed border border-gray-200'
-                : 'bg-blue-600 text-white hover:bg-blue-700 shadow-sm shadow-blue-200/50 cursor-pointer'
-            }`}
-          >
-            {uploading ? (
-              <><i className="fas fa-spinner fa-spin"></i> Processing...</>
-            ) : (
-              <><i className="fas fa-upload"></i> Upload Receipt</>
-            )}
-          </label>
-        </div>
-        {!bankDetailsProvided && !visibleGuestQrBank && (
-          <p className="mt-2.5 text-[11px] text-amber-600 flex items-center gap-1.5">
-            <i className="fas fa-exclamation-circle"></i>
-            Waiting for bank details...
-          </p>
-        )}
-        {bookingData.paymentProofUrl && (bankDetailsProvided || visibleGuestQrBank) && (
-          <p className="mt-2.5 text-[11px] text-emerald-600 flex items-center gap-1.5">
-            <i className="fas fa-check-circle text-emerald-500"></i>
-            Successfully attached
-          </p>
-        )}
-      </div>
-  
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4 sm:gap-5">
+                        <div className="bg-white rounded-xl border border-gray-200 p-4 sm:p-5 shadow-sm hover:border-blue-200 transition-colors">
+                          <div className="flex items-center gap-2 mb-2">
+                            <i className="fas fa-id-card text-blue-500 text-lg"></i>
+                            <label className="text-sm font-semibold text-gray-800">Valid ID *</label>
+                          </div>
+                          <p className="text-[11px] text-gray-500 mb-3 leading-tight">
+                            Clear front image only. Max size: 10MB.
+                          </p>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setTempValidIdType(bookingData.validIdType || 'Passport');
+                              setShowValidIdModal(true);
+                            }}
+                            className="w-full inline-flex justify-center items-center gap-2 px-4 py-2.5 rounded-lg border border-gray-200 text-sm font-medium text-gray-700 bg-gray-50 hover:bg-gray-100 hover:text-gray-900 transition-all duration-200"
+                          >
+                            <i className="fas fa-cloud-upload-alt text-gray-500"></i>
+                            {bookingData.validIdUrl ? 'Change ID' : 'Upload ID'}
+                          </button>
+                          {bookingData.validIdType && (
+                            <p className="mt-2.5 text-[11px] text-gray-600 flex items-center gap-1.5">
+                              <i className="fas fa-check-circle text-blue-500"></i>
+                              {bookingData.validIdType}
+                            </p>
+                          )}
+                          {bookingData.validIdUrl && (
+                            <p className="mt-1 text-[11px] text-emerald-600 flex items-center gap-1.5">
+                              <i className="fas fa-check-circle text-emerald-500"></i>
+                              Successfully attached
+                            </p>
+                          )}
+                        </div>
                         
-
+                        <div className={`bg-white rounded-xl border border-gray-200 p-4 sm:p-5 shadow-sm transition-colors ${(bankDetailsProvided || visibleGuestQrBank) ? 'hover:border-blue-200' : 'opacity-50'}`}>
+                          <div className="flex items-center gap-2 mb-2">
+                            <i className="fas fa-file-invoice-dollar text-blue-500 text-lg"></i>
+                            <label className="text-sm font-semibold text-gray-800">Receipt *</label>
+                          </div>
+                          <p className="text-[11px] text-gray-500 mb-3 leading-tight">
+                            Proof of down payment. Max size: 10MB.
+                          </p>
+                          <div className="relative">
+                            <input
+                              type="file"
+                              accept="image/*"
+                              onChange={handlePaymentProofUpload}
+                              className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
+                              id="payment-proof-upload"
+                              disabled={uploading || (!bankDetailsProvided && !visibleGuestQrBank)}
+                            />
+                            <label
+                              htmlFor="payment-proof-upload"
+                              className={`w-full inline-flex justify-center items-center gap-2 px-4 py-2.5 rounded-lg text-sm font-medium transition-all duration-200 ${
+                                uploading || (!bankDetailsProvided && !visibleGuestQrBank)
+                                  ? 'bg-gray-100 text-gray-400 cursor-not-allowed border border-gray-200'
+                                  : 'bg-blue-600 text-white hover:bg-blue-700 shadow-sm shadow-blue-200/50 cursor-pointer'
+                              }`}
+                            >
+                              {uploading ? (
+                                <><i className="fas fa-spinner fa-spin"></i> Processing...</>
+                              ) : (
+                                <><i className="fas fa-upload"></i> Upload Receipt</>
+                              )}
+                            </label>
+                          </div>
+                          {!bankDetailsProvided && !visibleGuestQrBank && (
+                            <p className="mt-2.5 text-[11px] text-amber-600 flex items-center gap-1.5">
+                              <i className="fas fa-exclamation-circle"></i>
+                              Waiting for bank details...
+                            </p>
+                          )}
+                          {bookingData.paymentProofUrl && (bankDetailsProvided || visibleGuestQrBank) && (
+                            <p className="mt-2.5 text-[11px] text-emerald-600 flex items-center gap-1.5">
+                              <i className="fas fa-check-circle text-emerald-500"></i>
+                              Successfully attached
+                            </p>
+                          )}
+                        </div>
                       </div>
                     </div>
                   )}

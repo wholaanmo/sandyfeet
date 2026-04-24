@@ -824,15 +824,16 @@ const handleNotifyResort = async () => {
               <i className="fas fa-building-columns"></i>
               Manual Verification
             </div>
-            <h3 className="mt-4 text-xl font-semibold text-textPrimary">Pay via QR Code or Bank Transfer</h3>
+            <h3 className="mt-4 text-xl font-semibold text-textPrimary">Pay by Bank Transfer</h3>
             <p className="mt-2 text-sm text-textSecondary">
-              You may scan the QR code for instant payment or request alternative bank details. Please upload your transfer receipt once completed.
+              Choose your preferred bank, request the resort details, then upload your transfer receipt once they respond.
             </p>
           </div>
 
           <div className="rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 lg:min-w-[220px]">
             <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-amber-700">Amount To Send</p>
             <p className="mt-1 text-3xl font-bold text-amber-700">₱{downPaymentAmount.toLocaleString()}</p>
+            <p className="mt-1 text-xs text-amber-700">Transfer only after bank details are provided.</p>
           </div>
         </div>
 
@@ -932,7 +933,7 @@ const handleNotifyResort = async () => {
         ) : !showBankSelection ? (
           <div className="space-y-3">
             <div className="flex items-center justify-between gap-3">
-              <p className="text-sm font-semibold text-textPrimary">Choose your other preferred bank</p>
+              <p className="text-sm font-semibold text-textPrimary">Choose your preferred bank</p>
               <span className="text-xs text-textSecondary">{requestableBankAccounts.length} option(s)</span>
             </div>
             {requestableBankAccounts.length > 0 ? (
@@ -961,7 +962,7 @@ const handleNotifyResort = async () => {
               </div>
             ) : (
               <div className="rounded-xl border border-dashed border-amber-300 bg-amber-50 px-4 py-3 text-sm text-amber-700">
-                No other bank accounts are available right now. 
+                No bank accounts are available right now. Please contact the resort.
               </div>
             )}
           </div>
