@@ -661,12 +661,6 @@ const handleSubmitBooking = async () => {
   const isExclusiveBooking = Boolean(bookingData.isExclusiveResortBooking);
   const stayNights = Math.max(1, Number(bookingData.numberOfNights || 1));
   const derivedNightlyRate = stayNights > 0 ? (totalPrice / stayNights) : totalPrice;
-  const visibleGuestQrBank = paymentSettings.bankAccounts.find(
-    (account) => account.qrCodeUrl && account.showToGuest === true
-  ) || null;
-  const requestableBankAccounts = paymentSettings.bankAccounts.filter(
-    (account) => account.accountNumber && String(account.accountNumber).trim().length > 0
-  );
   const exclusiveAdults = Math.max(0, Number(bookingData.exclusiveAdults || 0));
   const exclusiveKids = Math.max(0, Number(bookingData.exclusiveKids || 0));
   const exclusiveTotalGuests = Math.max(0, Number(bookingData.totalGuests || 0));
@@ -1006,50 +1000,85 @@ const handleSubmitBooking = async () => {
                             </div>
                           ) : (!showBankSelection ? (
                               <div className="w-full">
-                                {visibleGuestQrBank && (
-                                  <div className="mb-3 text-left">
-                                    <h3 className="text-sm font-semibold text-textPrimary mb-2 flex items-center gap-1.5 border-b border-gray-200 pb-2">
-                                      <i className="fas fa-qrcode text-ocean-mid"></i>
-                                      {visibleGuestQrBank.bankName}
-                                    </h3>
-                                    <p className="text-xs text-gray-700 mt-1"><span className="font-semibold">Name:</span> {visibleGuestQrBank.accountName}</p>
-                                    <div className="mt-2 w-24 h-24 bg-white rounded border border-ocean-light/20 overflow-hidden relative">
-                                      <img
-                                        src={visibleGuestQrBank.qrCodeUrl}
-                                        alt={`${visibleGuestQrBank.bankName} QR Code`}
-                                        className="object-contain w-full h-full"
-                                      />
-                                    </div>
-                                  </div>
-                                )}
                                 <h3 className="text-sm font-semibold text-textPrimary mb-2 flex items-center justify-center gap-1.5">
                                   <i className="fas fa-university text-ocean-mid"></i>
                                   Select Bank
                                 </h3>
-                                {requestableBankAccounts.length > 0 ? (
-                                  <select 
-                                    className="w-full p-2 text-xs border border-gray-200 rounded-lg focus:outline-none focus:border-blue-400 bg-white"
-                                    onChange={(e) => {
-                                      if (e.target.value !== '') {
-                                        const bank = requestableBankAccounts.find(b => b.id === e.target.value || b.bankName === e.target.value);
-                                        if (bank) {
-                                          setSelectedBankAccount(bank);
-                                          setShowBankSelection(true);
-                                        }
-                                      }
-                                    }}
-                                    defaultValue=""
-                                  >
-                                    <option value="" disabled>-- Choose a bank --</option>
-                                    {requestableBankAccounts.map((bank) => (
-                                      <option key={bank.id || bank.bankName} value={bank.id || bank.bankName}>
-                                        {bank.bankName}
-                                      </option>
-                                    ))}
-                                  </select>
-                                ) : (
-                                  <p className="text-xs text-amber-600 mt-2">No bank accounts available.</p>
-                                )}
+    {paymentSettings.bankAccounts.length > 0 ? (
+  <div className="space-y-3">
+    {/* Check if there's a QR code account set to show to guest */}
+    {(() => {
+      const visibleQrAccount = paymentSettings.bankAccounts.find(bank => bank.qrCodeUrl && bank.showToGuest === true);
+      if (visibleQrAccount) {
+        return (
+          <div className="rounded-2xl border border-blue-200 bg-blue-50/80 p-4 text-center">
+            <h3 className="text-sm font-semibold text-blue-900 mb-2 flex items-center justify-center gap-2">
+              <i className="fas fa-qrcode text-blue-600"></i>
+              {visibleQrAccount.bankName}
+            </h3>
+            <div className="flex justify-center mb-3">
+              <div className="w-40 h-40 bg-white rounded-xl flex items-center justify-center border border-blue-200 overflow-hidden shadow-sm">
+                <img
+                  src={visibleQrAccount.qrCodeUrl}
+                  alt={`${visibleQrAccount.bankName} QR Code`}
+                  className="object-contain w-full h-full"
+                />
+              </div>
+            </div>
+            <div className="rounded-xl bg-white/80 p-2 text-left">
+              <p className="text-xs text-gray-600">
+                <span className="font-medium">Account Name:</span> {visibleQrAccount.accountName}
+              </p>
+            </div>
+            <div className="mt-3 flex justify-center">
+              <button
+                onClick={() => {
+                  setSelectedBankAccount(visibleQrAccount);
+                  setShowBankSelection(true);
+                }}
+                className="px-4 py-2 bg-blue-600 text-white rounded-lg text-sm font-semibold hover:bg-blue-700 transition"
+              >
+                Use This QR Code
+              </button>
+            </div>
+          </div>
+        );
+      }
+      return null;
+    })()}
+    
+    {/* Regular bank accounts (with account numbers) that require request */}
+    {paymentSettings.bankAccounts.filter(bank => !bank.qrCodeUrl || bank.showToGuest !== true).length > 0 && (
+      <div>
+        <p className="text-xs text-gray-500 mb-2">Select a bank to request details:</p>
+        <select 
+          className="w-full p-2 text-xs border border-gray-200 rounded-lg focus:outline-none focus:border-blue-400 bg-white"
+          onChange={(e) => {
+            if (e.target.value !== '') {
+              const bank = paymentSettings.bankAccounts.find(b => b.id === e.target.value || b.bankName === e.target.value);
+              if (bank) {
+                setSelectedBankAccount(bank);
+                setShowBankSelection(true);
+              }
+            }
+          }}
+          defaultValue=""
+        >
+          <option value="" disabled>-- Choose a bank --</option>
+          {paymentSettings.bankAccounts
+            .filter(bank => !bank.qrCodeUrl || bank.showToGuest !== true)
+            .map((bank) => (
+              <option key={bank.id || bank.bankName} value={bank.id || bank.bankName}>
+                {bank.bankName}
+              </option>
+            ))}
+        </select>
+      </div>
+    )}
+  </div>
+) : (
+  <p className="text-xs text-amber-600 mt-2">No bank accounts available.</p>
+)}
                               </div>
                             ) : (
                               <div className="w-full flex flex-col justify-center h-full text-left">
@@ -1122,7 +1151,7 @@ const handleSubmitBooking = async () => {
                           )}
                         </div>
                         
-                        <div className={`bg-white rounded-xl border border-gray-200 p-4 sm:p-5 shadow-sm transition-colors ${(bankDetailsProvided || visibleGuestQrBank) ? 'hover:border-blue-200' : 'opacity-50'}`}>
+                        <div className={`bg-white rounded-xl border border-gray-200 p-4 sm:p-5 shadow-sm transition-colors ${bankDetailsProvided ? 'hover:border-blue-200' : 'opacity-50'}`}>
                           <div className="flex items-center gap-2 mb-2">
                             <i className="fas fa-file-invoice-dollar text-blue-500 text-lg"></i>
                             <label className="text-sm font-semibold text-gray-800">Receipt *</label>
@@ -1137,12 +1166,12 @@ const handleSubmitBooking = async () => {
                               onChange={handlePaymentProofUpload}
                               className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
                               id="payment-proof-upload"
-                              disabled={uploading || (!bankDetailsProvided && !visibleGuestQrBank)}
+                              disabled={uploading || !bankDetailsProvided}
                             />
                             <label
                               htmlFor="payment-proof-upload"
                               className={`w-full inline-flex justify-center items-center gap-2 px-4 py-2.5 rounded-lg text-sm font-medium transition-all duration-200 ${
-                                uploading || (!bankDetailsProvided && !visibleGuestQrBank)
+                                uploading || !bankDetailsProvided
                                   ? 'bg-gray-100 text-gray-400 cursor-not-allowed border border-gray-200'
                                   : 'bg-blue-600 text-white hover:bg-blue-700 shadow-sm shadow-blue-200/50 cursor-pointer'
                               }`}
@@ -1154,13 +1183,13 @@ const handleSubmitBooking = async () => {
                               )}
                             </label>
                           </div>
-                          {!bankDetailsProvided && !visibleGuestQrBank && (
+                          {!bankDetailsProvided && (
                             <p className="mt-2.5 text-[11px] text-amber-600 flex items-center gap-1.5">
                               <i className="fas fa-exclamation-circle"></i>
                               Waiting for bank details...
                             </p>
                           )}
-                          {bookingData.paymentProofUrl && (bankDetailsProvided || visibleGuestQrBank) && (
+                          {bookingData.paymentProofUrl && bankDetailsProvided && (
                             <p className="mt-2.5 text-[11px] text-emerald-600 flex items-center gap-1.5">
                               <i className="fas fa-check-circle text-emerald-500"></i>
                               Successfully attached
@@ -1185,13 +1214,13 @@ const handleSubmitBooking = async () => {
                         !bookingData.paymentProofUrl ||
                         !bookingData.validIdUrl ||
                         submitting ||
-                        (paymentMethod === 'bank_transfer' && !bankDetailsProvided && !visibleGuestQrBank)
+                        (paymentMethod === 'bank_transfer' && !bankDetailsProvided)
                       }
                       className={`flex-1 py-3 rounded-xl font-medium transition-all duration-300 ${
                         bookingData.paymentProofUrl &&
                         bookingData.validIdUrl &&
                         !submitting &&
-                        (paymentMethod !== 'bank_transfer' || bankDetailsProvided || visibleGuestQrBank)
+                        (paymentMethod !== 'bank_transfer' || bankDetailsProvided)
                           ? 'bg-gradient-to-r from-blue-500 to-blue-600 text-white hover:shadow-lg hover:shadow-blue-500/30'
                           : 'bg-gray-200 text-gray-500 cursor-not-allowed'
                       }`}

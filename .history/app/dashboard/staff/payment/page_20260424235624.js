@@ -25,12 +25,12 @@ export default function AdminPaymentPage() {
   const [bankToArchive, setBankToArchive] = useState(null);
   const [activeMainTab, setActiveMainTab] = useState('paymentSettings');
   const [activeRequestsTab, setActiveRequestsTab] = useState('room');
-  const [tempBankDetails, setTempBankDetails] = useState({
-    bankName: '',
-    accountName: '',
-    accountNumber: '',
-    showToGuest: false
-  });
+const [tempBankDetails, setTempBankDetails] = useState({
+  bankName: '',
+  accountName: '',
+  accountNumber: '',
+  showToGuest: false
+});
   const [showEditQRModal, setShowEditQRModal] = useState(false);
   const [tempQRFile, setTempQRFile] = useState(null);
   const [tempQRPreview, setTempQRPreview] = useState('');
@@ -41,6 +41,7 @@ export default function AdminPaymentPage() {
   const [showArchiveQRModal, setShowArchiveQRModal] = useState(false);
   const [archivingQR, setArchivingQR] = useState(false);
   const [requestsSearchTerm, setRequestsSearchTerm] = useState('');
+  const [showToGuest, setShowToGuest] = useState(false);
 
   // NEW STATE for QR Code upload in Add Bank Modal
   const [bankQRFile, setBankQRFile] = useState(null);
@@ -273,6 +274,24 @@ export default function AdminPaymentPage() {
     }
   };
 
+  // Function to check if another QR code is already set to show to guest
+const checkQrCodeVisibilityConflict = async (currentBankId = null) => {
+  const bankAccountsRef = collection(db, 'bank_accounts');
+  const q = query(bankAccountsRef, where('archived', '==', false));
+  const snapshot = await getDocs(q);
+  let conflictingBank = null;
+  
+  snapshot.forEach((doc) => {
+    const data = doc.data();
+    // If this bank has a QR code AND is set to show to guest AND it's not the current bank being edited
+    if (data.qrCodeUrl && data.showToGuest === true && data.id !== currentBankId) {
+      conflictingBank = data;
+    }
+  });
+  
+  return conflictingBank;
+};
+
     const isBankFormValid = () => {
     const { bankName, accountName, accountNumber } = tempBankDetails;
     // Check if either account number OR QR code is provided (mutually exclusive logic)
@@ -334,7 +353,6 @@ export default function AdminPaymentPage() {
       setBankQRFile(null);
       setBankQRPreview('');
       setBankQRUrl('');
-      setTempBankDetails((prev) => ({ ...prev, showToGuest: false }));
     }
     handleBankDetailsChange('accountNumber', numericValue);
   };
@@ -411,7 +429,6 @@ const handleAddBankAccount = async () => {
   // Validation: Must have either account number OR QR code, not both
   const hasAccountNumber = tempBankDetails.accountNumber.trim().length > 0;
   const hasQRCode = bankQRUrl !== '' || bankQRFile !== null;
-  const shouldShowQrToGuest = hasQRCode && tempBankDetails.showToGuest === true;
   
   if (!tempBankDetails.bankName || !tempBankDetails.accountName) {
     showNotification('Please fill in all bank details', 'error');
@@ -422,13 +439,12 @@ const handleAddBankAccount = async () => {
     showNotification('Please provide either Account Number OR QR Code, not both.', 'error');
     return;
   }
-
-  if (shouldShowQrToGuest) {
-    const alreadyVisibleQr = bankAccounts.find(
-      (account) => account.qrCodeUrl && account.showToGuest === true && !account.archived
-    );
-    if (alreadyVisibleQr) {
-      showNotification('Only one QR code can be displayed to the guest at a time.', 'error');
+  
+  // If this is a QR code account and showToGuest is true, check for conflicts
+  if (hasQRCode && tempBankDetails.showToGuest) {
+    const conflictingBank = await checkQrCodeVisibilityConflict();
+    if (conflictingBank) {
+      showNotification('Only one QR code can be displayed to the guest at a time. Please disable "Show this to the guest" on the other QR code account first.', 'error');
       return;
     }
   }
@@ -445,11 +461,11 @@ const handleAddBankAccount = async () => {
       id: `${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
       bankName: tempBankDetails.bankName,
       accountName: tempBankDetails.accountName,
-      accountNumber: hasAccountNumber ? tempBankDetails.accountNumber : '', // Empty if QR is used
-      qrCodeUrl: hasQRCode ? qrCodeUrl : '', // Empty if account number is used
-      showToGuest: shouldShowQrToGuest,
+      accountNumber: hasAccountNumber ? tempBankDetails.accountNumber : '',
+      qrCodeUrl: hasQRCode ? qrCodeUrl : '',
+      showToGuest: hasQRCode ? (tempBankDetails.showToGuest || false) : false,
       createdAt: new Date().toISOString(),
-      archived: false // Add archived flag
+      archived: false
     };
     
     // Save directly to the bank_accounts collection
@@ -486,7 +502,6 @@ const handleUpdateBankAccount = async () => {
   // Validation: Must have either account number OR QR code, not both
   const hasAccountNumber = tempBankDetails.accountNumber.trim().length > 0;
   const hasQRCode = bankQRUrl !== '' || bankQRFile !== null;
-  const shouldShowQrToGuest = hasQRCode && tempBankDetails.showToGuest === true;
   
   if (!tempBankDetails.bankName || !tempBankDetails.accountName) {
     showNotification('Please fill in all bank details', 'error');
@@ -497,20 +512,18 @@ const handleUpdateBankAccount = async () => {
     showNotification('Please provide either Account Number OR QR Code, not both.', 'error');
     return;
   }
-
-  if (shouldShowQrToGuest) {
-    const alreadyVisibleQr = bankAccounts.find(
-      (account) =>
-        account.id !== editingBank.id &&
-        account.qrCodeUrl &&
-        account.showToGuest === true &&
-        !account.archived
-    );
-    if (alreadyVisibleQr) {
-      showNotification('Only one QR code can be displayed to the guest at a time.', 'error');
+  
+  // If this is a QR code account and showToGuest is true, check for conflicts
+  if (hasQRCode && tempBankDetails.showToGuest) {
+    const conflictingBank = await checkQrCodeVisibilityConflict(editingBank.id);
+    if (conflictingBank) {
+      showNotification('Only one QR code can be displayed to the guest at a time. Please disable "Show this to the guest" on the other QR code account first.', 'error');
       return;
     }
   }
+  
+  // If this is a QR code account but showToGuest is being set to false, no conflict check needed
+  // If this is changing from account number to QR code with showToGuest true, check above handles it
   
   setSaving(true);
   try {
@@ -535,7 +548,7 @@ const handleUpdateBankAccount = async () => {
         accountName: tempBankDetails.accountName,
         accountNumber: hasAccountNumber ? tempBankDetails.accountNumber : '',
         qrCodeUrl: qrCodeUrl,
-        showToGuest: shouldShowQrToGuest,
+        showToGuest: hasQRCode ? (tempBankDetails.showToGuest || false) : false,
         updatedAt: new Date().toISOString()
       });
     }
@@ -543,7 +556,14 @@ const handleUpdateBankAccount = async () => {
     // Update local state
     const updatedBankAccounts = bankAccounts.map(account => 
       account.id === editingBank.id 
-        ? { ...account, ...tempBankDetails, accountNumber: hasAccountNumber ? tempBankDetails.accountNumber : '', qrCodeUrl: qrCodeUrl, showToGuest: shouldShowQrToGuest, updatedAt: new Date().toISOString() }
+        ? { ...account, 
+            bankName: tempBankDetails.bankName,
+            accountName: tempBankDetails.accountName,
+            accountNumber: hasAccountNumber ? tempBankDetails.accountNumber : '',
+            qrCodeUrl: qrCodeUrl,
+            showToGuest: hasQRCode ? (tempBankDetails.showToGuest || false) : false,
+            updatedAt: new Date().toISOString()
+          }
         : account
     );
     
@@ -615,49 +635,49 @@ const handleArchiveBankAccount = async () => {
   }
 };
 
-  const openEditBankModal = (account) => {
-    setEditingBank(account);
-    setOriginalBankDetails({
-      bankName: account.bankName,
-      accountName: account.accountName,
-      accountNumber: account.accountNumber,
-      showToGuest: account.showToGuest === true
-    });
-    setTempBankDetails({
-      bankName: account.bankName,
-      accountName: account.accountName,
-      accountNumber: account.accountNumber || '', // Ensure it's a string
-      showToGuest: account.showToGuest === true
-    });
-    // Set existing QR if present
-    if (account.qrCodeUrl) {
-      setBankQRUrl(account.qrCodeUrl);
-      setBankQRPreview(account.qrCodeUrl);
-    } else {
-      setBankQRUrl('');
-      setBankQRPreview('');
-    }
-    setBankQRFile(null);
-    setHasBankChanges(false);
-    setShowAddBankModal(true);
-  };
+const openEditBankModal = (account) => {
+  setEditingBank(account);
+  setOriginalBankDetails({
+    bankName: account.bankName,
+    accountName: account.accountName,
+    accountNumber: account.accountNumber,
+    showToGuest: account.showToGuest || false
+  });
+  setTempBankDetails({
+    bankName: account.bankName,
+    accountName: account.accountName,
+    accountNumber: account.accountNumber || '',
+    showToGuest: account.showToGuest || false
+  });
+  // Set existing QR if present
+  if (account.qrCodeUrl) {
+    setBankQRUrl(account.qrCodeUrl);
+    setBankQRPreview(account.qrCodeUrl);
+  } else {
+    setBankQRUrl('');
+    setBankQRPreview('');
+  }
+  setBankQRFile(null);
+  setHasBankChanges(false);
+  setShowAddBankModal(true);
+};
 
-  const handleBankDetailsChange = (field, value) => {
-    const newDetails = { ...tempBankDetails, [field]: value };
-    setTempBankDetails(newDetails);
-    
-    // Check if any changes were made
-    if (originalBankDetails) {
-      const hasChanges = 
-        newDetails.bankName !== originalBankDetails.bankName ||
-        newDetails.accountName !== originalBankDetails.accountName ||
-        newDetails.accountNumber !== originalBankDetails.accountNumber ||
-        newDetails.showToGuest !== originalBankDetails.showToGuest;
-      setHasBankChanges(hasChanges);
-    } else {
-      setHasBankChanges(true);
-    }
-  };
+const handleBankDetailsChange = (field, value) => {
+  const newDetails = { ...tempBankDetails, [field]: value };
+  setTempBankDetails(newDetails);
+  
+  // Check if any changes were made
+  if (originalBankDetails) {
+    const hasChanges = 
+      newDetails.bankName !== originalBankDetails.bankName ||
+      newDetails.accountName !== originalBankDetails.accountName ||
+      newDetails.accountNumber !== originalBankDetails.accountNumber ||
+      newDetails.showToGuest !== originalBankDetails.showToGuest;
+    setHasBankChanges(hasChanges);
+  } else {
+    setHasBankChanges(true);
+  }
+};
 
   const openArchiveModal = (account) => {
     setBankToArchive(account);
@@ -954,21 +974,21 @@ const handleArchiveBankAccount = async () => {
                 <i className="fas fa-university"></i>
                 Bank Accounts
               </h2>
-              <button
-                onClick={() => {
-                  setEditingBank(null);
-                  setOriginalBankDetails(null);
-                  setTempBankDetails({ bankName: '', accountName: '', accountNumber: '', showToGuest: false });
-                  setBankQRFile(null);
-                  setBankQRPreview('');
-                  setBankQRUrl('');
-                  setHasBankChanges(false);
-                  setShowAddBankModal(true);
-                }}
-                className="px-4 py-2 rounded-lg border border-[#7AAAF8]/30 bg-white/70 backdrop-blur-md text-[#1E3A8A] shadow-sm hover:bg-[#7AAAF8] hover:text-white hover:border-[#7AAAF8] hover:shadow-md hover:-translate-y-0.5 transition-all duration-200 text-sm font-medium flex items-center justify-center"
-              >
-                <i className="fas fa-plus mr-1"></i> Add Account
-              </button>
+<button
+  onClick={() => {
+    setEditingBank(null);
+    setOriginalBankDetails(null);
+    setTempBankDetails({ bankName: '', accountName: '', accountNumber: '', showToGuest: false });
+    setBankQRFile(null);
+    setBankQRPreview('');
+    setBankQRUrl('');
+    setHasBankChanges(false);
+    setShowAddBankModal(true);
+  }}
+  className="px-4 py-2 rounded-lg border border-[#7AAAF8]/30 bg-white/70 backdrop-blur-md text-[#1E3A8A] shadow-sm hover:bg-[#7AAAF8] hover:text-white hover:border-[#7AAAF8] hover:shadow-md hover:-translate-y-0.5 transition-all duration-200 text-sm font-medium flex items-center justify-center"
+>
+  <i className="fas fa-plus mr-1"></i> Add Account
+</button>
             </div>
             
             <div className="p-6">
@@ -980,7 +1000,7 @@ const handleArchiveBankAccount = async () => {
                     onClick={() => {
                       setEditingBank(null);
                       setOriginalBankDetails(null);
-                      setTempBankDetails({ bankName: '', accountName: '', accountNumber: '', showToGuest: false });
+                      setTempBankDetails({ bankName: '', accountName: '', accountNumber: '' });
                       setBankQRFile(null);
                       setBankQRPreview('');
                       setBankQRUrl('');
@@ -1479,7 +1499,6 @@ const handleArchiveBankAccount = async () => {
                             setBankQRFile(null);
                             setBankQRPreview('');
                             setBankQRUrl('');
-                            setTempBankDetails((prev) => ({ ...prev, showToGuest: false }));
                           }}
                           className="absolute -top-2 -right-2 bg-red-500 text-white rounded-full w-5 h-5 flex items-center justify-center text-xs"
                         >
@@ -1498,23 +1517,8 @@ const handleArchiveBankAccount = async () => {
                   </label>
                 </div>
               </div>
-
-              {(bankQRFile !== null || bankQRPreview !== '' || bankQRUrl !== '') && (
-                <div>
-                  <label className="block text-sm font-semibold text-textPrimary mb-2">
-                    QR Code Visibility
-                  </label>
-                  <select
-                    value={tempBankDetails.showToGuest ? 'show' : 'hide'}
-                    onChange={(e) => handleBankDetailsChange('showToGuest', e.target.value === 'show')}
-                    className="w-full px-4 py-2.5 border border-ocean-light/20 rounded-xl text-sm focus:outline-none focus:border-ocean-light"
-                  >
-                    <option value="show">Show this to the guest</option>
-                    <option value="hide">Don&apos;t show this to the guest</option>
-                  </select>
-                </div>
-              )}
             </div>
+            
             
             <div className="flex gap-3 justify-end mt-6">
               <button

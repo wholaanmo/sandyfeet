@@ -291,6 +291,12 @@ function DayTourBookingContent() {
     !submitting &&
     (paymentMethod !== 'bank_transfer' || bankDetailsProvided)
   );
+  const visibleGuestQrBank = paymentSettings.bankAccounts.find(
+    (account) => account.qrCodeUrl && account.showToGuest === true
+  ) || null;
+  const requestableBankAccounts = paymentSettings.bankAccounts.filter(
+    (account) => account.accountNumber && String(account.accountNumber).trim().length > 0
+  );
 
   // Format date for display
   const formatSelectedDate = () => {
@@ -896,13 +902,31 @@ const handleNotifyResort = async () => {
             </div>
           ) : !showBankSelection ? (
             <div className="space-y-3">
+              {visibleGuestQrBank && (
+                <div className="rounded-2xl border border-ocean-light/20 bg-white p-4">
+                  <div className="flex items-center gap-2 mb-3">
+                    <i className="fas fa-qrcode text-ocean-mid"></i>
+                    <p className="text-sm font-semibold text-textPrimary">{visibleGuestQrBank.bankName}</p>
+                  </div>
+                  <p className="text-xs text-textSecondary mb-3">{visibleGuestQrBank.accountName}</p>
+                  <div className="flex justify-center">
+                    <div className="flex h-48 w-48 items-center justify-center overflow-hidden rounded-[1rem] border border-ocean-light/20 bg-white">
+                      <img
+                        src={visibleGuestQrBank.qrCodeUrl}
+                        alt={`${visibleGuestQrBank.bankName} QR Code`}
+                        className="h-full w-full object-contain"
+                      />
+                    </div>
+                  </div>
+                </div>
+              )}
               <div className="flex items-center justify-between gap-3">
                 <p className="text-sm font-semibold text-textPrimary">Choose your preferred bank</p>
-                <span className="text-xs text-textSecondary">{paymentSettings.bankAccounts.length} option(s)</span>
+                <span className="text-xs text-textSecondary">{requestableBankAccounts.length} option(s)</span>
               </div>
-              {paymentSettings.bankAccounts.length > 0 ? (
+              {requestableBankAccounts.length > 0 ? (
                 <div className="grid gap-3 md:grid-cols-2">
-                  {paymentSettings.bankAccounts.map((bank) => (
+                  {requestableBankAccounts.map((bank) => (
                     <button
                       key={bank.id}
                       type="button"
