@@ -7,6 +7,7 @@ import GuestLayout from '@/app/guest/layout';
 import { db } from '@/lib/firebase';
 import { collection, query, where, getDocs, addDoc, doc, getDoc, serverTimestamp, onSnapshot } from 'firebase/firestore';
 import { uploadImage } from '@/lib/cloudinary';
+import { sendDayTourPendingEmail } from '@/lib/emailService';
 
 function DayTourBookingContent() {
   const searchParams = useSearchParams();
@@ -579,6 +580,12 @@ const handleNotifyResort = async () => {
       }
       
       await addDoc(collection(db, 'dayTourBookings'), booking);
+
+      const emailResult = await sendDayTourPendingEmail(booking);
+      if (!emailResult?.success) {
+        console.warn('Failed to send pending day tour email:', emailResult?.error);
+      }
+
       setStep(4);
       
     } catch (error) {
@@ -1654,12 +1661,12 @@ const handleNotifyResort = async () => {
                 <div className="rounded-[2rem] bg-white p-6 shadow-lg sm:p-8">
                   <div className="mx-auto max-w-3xl">
                     <div className="text-center">
-                      <div className="mx-auto mb-4 flex h-20 w-20 items-center justify-center rounded-full bg-green-100">
-                        <i className="fas fa-check text-3xl text-green-600"></i>
+                      <div className="mx-auto mb-4 flex h-20 w-20 items-center justify-center rounded-full bg-amber-100">
+                        <i className="fas fa-hourglass-half text-3xl text-amber-600"></i>
                       </div>
-                      <h2 className="text-2xl font-bold text-textPrimary mb-2">Booking Confirmed!</h2>
+                      <h2 className="text-2xl font-bold text-textPrimary mb-2">Reservation Received</h2>
                       <p className="text-textSecondary mb-6">
-                        Thank you for booking your day tour! A confirmation email will be sent to {bookingData.email}. You can also track and cancel your reservation anytime through the Reservation Tracker page.
+                        Your day tour reservation is pending admin confirmation. We sent your tracker details to {bookingData.email}. Once the resort confirms your reservation, you will receive a separate confirmation email.
                       </p>
                     </div>
 
@@ -1700,7 +1707,8 @@ const handleNotifyResort = async () => {
                         <div className="space-y-2">
                           <p className="text-[11px] uppercase tracking-[0.16em] text-textSecondary">Payment Method</p>
                           <p className="text-base font-semibold text-textPrimary">{paymentMethod === 'gcash' ? 'GCash' : 'Bank Transfer'}</p>
-                          <p className="text-sm text-textSecondary">Status: Down payment received</p>
+                          <p className="text-sm text-textSecondary">Reservation Status: Pending admin confirmation</p>
+                          <p className="text-sm text-textSecondary">Payment Status: Down payment received</p>
                           <p className="text-sm text-textSecondary">Valid ID: {bookingData.validIdType || 'Submitted'}</p>
                         </div>
                       </div>
@@ -1734,7 +1742,7 @@ const handleNotifyResort = async () => {
 
                       <div className="rounded-xl bg-amber-50 px-4 py-3 text-sm text-amber-800">
                         <i className="fas fa-info-circle mr-2"></i>
-                        Remaining balance is payable at the resort upon arrival.
+                        Use your reference number in the Reservation Tracker while this booking is pending. Remaining balance is payable at the resort upon arrival.
                       </div>
                     </div>
 
