@@ -1030,7 +1030,7 @@ const handleNotifyResort = async () => {
                 isCurrent
                   ? 'bg-ocean-mid text-white border-ocean-mid shadow-[0_6px_14px_rgba(33,105,243,0.28)]'
                   : isDone
-                    ? 'bg-blue-500 text-white border-blue-500'
+                    ? 'bg-blue-500 text-white border-blueer-500'
                     : 'bg-gray-100 text-gray-500 border-gray-200'
               }`}
             >

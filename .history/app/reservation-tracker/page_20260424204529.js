@@ -914,6 +914,9 @@ try {
                     </div>
                   </div>
                 )}
+                <div className="mt-4 rounded-xl border border-slate-200 bg-slate-50 p-3">
+                  <p className="text-[11px] text-slate-600">Tip: use the same email from your booking form.</p>
+                </div>
               </div>
             </div>
             </div>

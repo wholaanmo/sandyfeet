@@ -43,10 +43,9 @@ export default function ReservationTrackerPage() {
   const getBookingTypeColor = (type) => {
     switch(type) {
       case 'Single Room Type': return 'bg-blue-100 text-blue-700';
-      case 'Multi-Room Types': return 'bg-violet-100 text-violet-700';
+      case 'Multi-Room Types': return 'bg-purple-100 text-purple-700';
       case 'Entire Resort': return 'bg-amber-100 text-amber-700';
-      case 'Day Tour': return 'bg-emerald-100 text-emerald-700';
-      default: return 'bg-slate-100 text-slate-700';
+      default: return 'bg-ocean-ice text-ocean-mid';
     }
   };
 
@@ -402,7 +401,7 @@ const addCancellationNotification = async (booking, reason) => {
       }
       
       notificationData.roomTypesDisplay = Object.entries(booking.roomTypes || {})
-        .map(([type, data]) => `${data.quantity} x ${type}`)
+        .map(([type, data]) => `${data.quantity} × ${type}`)
         .join(', ');
     } else if (booking.type === 'daytour') {
       notificationData.bookingTypeLabel = 'Day Tour';
@@ -530,10 +529,10 @@ const handleCancelReservation = async () => {
         cancellationReason: cancellationReason
       });
       await addCancellationNotification(reservation, cancellationReason);
-      // For single room, show "1 x RoomType"
+      // For single room, show "1 × RoomType"
       const roomEmailResult = await sendCancellationEmail({
         ...reservation,
-        roomTypesDisplay: `1 x ${reservation.roomType}`
+        roomTypesDisplay: `1 × ${reservation.roomType}`
       }, cancellationReason, 'guest');
       if (!roomEmailResult?.success) {
         setError('Reservation cancelled, but cancellation email could not be sent right now. Please contact the resort if needed.');
@@ -582,8 +581,8 @@ try {
         <p><strong>Guest Name:</strong> ${guestName}</p>
         <p><strong>Booking ID:</strong> ${bookingIdValue}</p>
         <p><strong>Tour Date:</strong> ${tourDate}</p>
-        <p><strong>Total Price:</strong> PHP ${totalPriceValue?.toLocaleString() || '0'}</p>
-        <p><strong>Down Payment Paid:</strong> PHP ${downPaymentValue?.toLocaleString() || '0'}</p>
+        <p><strong>Total Price:</strong> ₱${totalPriceValue?.toLocaleString() || '0'}</p>
+        <p><strong>Down Payment Paid:</strong> ₱${downPaymentValue?.toLocaleString() || '0'}</p>
         <hr />
         <p><strong>Cancellation Reason:</strong> ${cancellationReason}</p>
       </div>
@@ -597,8 +596,8 @@ try {
         <p><strong>Room Types:</strong> ${roomTypesString}</p>
         <p><strong>Check-in Date:</strong> ${checkInDate}</p>
         <p><strong>Check-out Date:</strong> ${checkOutDate}</p>
-        <p><strong>Total Price:</strong> PHP ${totalPriceValue?.toLocaleString() || '0'}</p>
-        <p><strong>Down Payment Paid:</strong> PHP ${downPaymentValue?.toLocaleString() || '0'}</p>
+        <p><strong>Total Price:</strong> ₱${totalPriceValue?.toLocaleString() || '0'}</p>
+        <p><strong>Down Payment Paid:</strong> ₱${downPaymentValue?.toLocaleString() || '0'}</p>
         <hr />
         <p><strong>Cancellation Reason:</strong> ${cancellationReason}</p>
       </div>
@@ -751,17 +750,17 @@ try {
 
   const calculateBalance = (totalPrice, status) => {
     if (status === 'cancelled' || status === 'cancelled-by-guest') {
-      return 'PHP 0';
+      return '₱0';
     }
     const total = typeof totalPrice === 'number' ? totalPrice : Number(totalPrice) || 0;
     const downPayment = total * 0.5;
     if (status === 'pending' || status === 'confirmed') {
       const remainingBalance = total - downPayment;
-      return `PHP ${remainingBalance.toLocaleString()}`;
+      return `₱${remainingBalance.toLocaleString()}`;
     }
     if (status === 'check-in' || status === 'check-out') {
       const remainingBalance = total - downPayment;
-      return `PHP ${remainingBalance.toLocaleString()}`;
+      return `₱${remainingBalance.toLocaleString()}`;
     }
     return 'Not Confirmed';
   };
@@ -789,84 +788,52 @@ try {
   const getMultiRoomDisplay = () => {
     if (!reservation.roomTypesArray) return '';
     return reservation.roomTypesArray.map(room => 
-      `${room.quantity} x ${room.type}`
+      `${room.quantity} × ${room.type}`
     ).join(', ');
   };
 
   const getMultiRoomDisplaySimple = () => {
   if (!reservation.roomTypesArray) return '';
   return reservation.roomTypesArray.map(room => 
-    `${room.quantity} x ${room.type}`
+    `${room.quantity} × ${room.type}`
   ).join(', ');
 };
 
   const statusInfo = reservation ? getStatusBadge(reservation.status, reservation.cancelledBy) : { label: '', color: '' };
   const bookingTypeDisplay = reservation ? getBookingTypeDisplay() : '';
   const bookingTypeColor = bookingTypeDisplay ? getBookingTypeColor(bookingTypeDisplay) : '';
-  const totalPriceValue = reservation ? Number(reservation.totalPrice || 0) : 0;
-  const downPaymentValue = reservation ? calculateDownPayment(reservation.totalPrice) : 0;
-  const remainingBalanceValue = Math.max(0, totalPriceValue - downPaymentValue);
-  const paymentBalanceDisplay = reservation
-    ? (reservation.status === 'cancelled' || reservation.status === 'cancelled-by-guest'
-        ? 'PHP 0'
-        : `PHP ${remainingBalanceValue.toLocaleString()}`)
-    : 'PHP 0';
-  const totalPriceDisplay = `PHP ${totalPriceValue.toLocaleString()}`;
-  const downPaymentDisplay = `PHP ${downPaymentValue.toLocaleString()}`;
-  const reservationGuestTotal = reservation
-    ? (reservation.type === 'daytour'
-        ? getTotalGuests()
-        : reservation.isExclusiveResortBooking
-          ? (reservation.exclusiveAdults || 0) + (reservation.exclusiveKids || 0)
-          : reservation.isMultiRoom
-            ? reservation.totalGuests || 0
-            : reservation.guests || 1)
-    : 0;
-  const reservationStayLength = reservation && reservation.type === 'room'
-    ? reservation.isMultiRoom ? multiRoomNumberOfNights : numberOfNights
-    : 0;
 
   return (
     <GuestLayout>
-      <div suppressHydrationWarning className="relative min-h-screen overflow-x-hidden bg-[#f6f8fc] px-4 pb-8 pt-24 sm:px-6 sm:pt-28 lg:px-8">
-        <div className="absolute inset-x-0 top-0 h-[200px] bg-[radial-gradient(circle_at_top_left,_rgba(59,130,246,0.14),_transparent_45%),linear-gradient(180deg,_#ffffff_0%,_#f6f8fc_92%)]" />
-        <div className="relative mx-auto max-w-7xl">
-          <div className="mb-6 text-center">
-            <span className="mb-3 inline-flex items-center gap-2 rounded-full border border-blue-100 bg-white/90 px-4 py-1.5 text-[10px] font-bold uppercase tracking-[0.2em] text-[#3B82F6] shadow-sm">
-              <span className="h-2 w-2 rounded-full bg-[#F5A623]" />
-              Reservation Tracker
-            </span>
-            <h1 className="mb-2 font-playfair text-3xl font-bold text-blue-600 sm:text-4xl">
+      <div suppressHydrationWarning className="min-h-screen bg-gradient-to-br from-ocean-ice to-blue-white py-12 px-2 md:px-4">
+        <div className="max-w-7xl mx-auto">
+          <div className="text-center mb-8">
+            <h1 className="text-4xl font-bold text-textPrimary font-playfair mb-2">
               Track Your Reservation
             </h1>
-            <p className="mx-auto max-w-2xl text-sm leading-6 text-slate-600">
-              Enter your email and booking reference to see your reservation status.
+            <p className="text-textSecondary">
+              Enter your email address and reservation reference number to view your booking details
             </p>
           </div>
-          <div className="grid gap-4 lg:grid-cols-[340px_minmax(0,1fr)]">
-            <div>
-              <div className="overflow-hidden rounded-2xl border border-white/70 bg-white/95 shadow-[0_12px_30px_rgba(15,23,42,0.08)] backdrop-blur">
-                <div className="border-b border-slate-100 bg-[linear-gradient(135deg,_#3B82F6_0%,_#2563EB_100%)] px-5 py-4 text-white sm:px-6">
-                  <p className="text-[10px] font-bold uppercase tracking-[0.2em] text-white/70">Find Reservation</p>
-                  <h2 className="mt-1 font-playfair text-2xl">Lookup</h2>
-                </div>
-                <div className="p-5 sm:p-6">
-                <form onSubmit={handleSearch} className="space-y-4">
+          <div className="flex flex-col lg:flex-row gap-6">
+            <div className="lg:w-2/5">
+              <div className="bg-white rounded-2xl shadow-lg border-2 border-ocean-light/30 p-10 sticky top-6">
+                <form onSubmit={handleSearch} className="space-y-5">
                   <div>
-                    <label className="mb-1.5 block text-[11px] font-semibold uppercase tracking-[0.12em] text-slate-500">
+                    <label className="block text-base font-semibold text-textPrimary mb-2">
                       Email Address <span className="text-red-500">*</span>
                     </label>
                     <input
                       type="email"
                       value={email}
                       onChange={(e) => setEmail(e.target.value)}
-                      placeholder="you@example.com"
-                      className="w-full rounded-xl border border-slate-200 bg-slate-50 px-3.5 py-3 text-sm text-slate-800 outline-none transition-all placeholder:text-slate-400 focus:border-blue-300 focus:bg-white focus:ring-4 focus:ring-blue-100"
+                      placeholder="Enter your email address"
+                      className="w-full px-4 py-3 border-2 border-ocean-light/20 rounded-xl text-base focus:outline-none focus:border-ocean-light focus:ring-2 focus:ring-ocean-light/20 transition-all duration-300"
                       disabled={loading}
                     />
                   </div>
                   <div>
-                    <label className="mb-1.5 block text-[11px] font-semibold uppercase tracking-[0.12em] text-slate-500">
+                    <label className="block text-base font-semibold text-textPrimary mb-2">
                       Reservation Reference Number <span className="text-red-500">*</span>
                     </label>
                     <div className="relative">
@@ -874,25 +841,25 @@ try {
                         type="text"
                         value={referenceNumber}
                         onChange={(e) => setReferenceNumber(e.target.value.toUpperCase())}
-                        placeholder="BOOK-1734567890123-456"
-                        className="w-full rounded-xl border border-slate-200 bg-slate-50 px-3.5 py-3 pr-11 font-mono text-xs text-slate-800 outline-none transition-all placeholder:text-slate-400 focus:border-blue-300 focus:bg-white focus:ring-4 focus:ring-blue-100 sm:text-sm"
+                        placeholder="e.g., DAYTOUR-1734567890123-456 or BOOK-1734567890123-456"
+                        className="w-full px-4 py-3 border-2 border-ocean-light/20 rounded-xl text-base focus:outline-none focus:border-ocean-light focus:ring-2 focus:ring-ocean-light/20 transition-all duration-300 font-mono pr-12"
                         disabled={loading}
                       />
                       <button
                         type="button"
                         onClick={handlePasteReference}
-                        className="absolute right-3 top-1/2 -translate-y-1/2 rounded-full p-2 text-slate-400 transition-colors hover:text-[#2563EB]"
+                        className="absolute right-3 top-1/2 -translate-y-1/2 text-ocean-light hover:text-ocean-mid transition-colors"
                         title="Paste from clipboard"
                       >
                         <i className="fas fa-paste text-base"></i>
                       </button>
                     </div>
                   </div>
-                    <button
-                      type="submit"
-                      disabled={loading}
-                      className="inline-flex w-full items-center justify-center gap-2 rounded-xl bg-[linear-gradient(135deg,_#3B82F6_0%,_#2563EB_100%)] px-4 py-3 text-sm font-semibold text-white shadow-[0_12px_22px_rgba(37,99,235,0.25)] transition-all hover:-translate-y-0.5 hover:shadow-[0_16px_28px_rgba(37,99,235,0.32)] disabled:cursor-not-allowed disabled:opacity-60"
-                    >
+                  <button
+                    type="submit"
+                    disabled={loading}
+                    className="w-full bg-gradient-to-r from-ocean-mid to-ocean-light text-white font-semibold py-3 rounded-xl hover:shadow-lg hover:-translate-y-0.5 transition-all duration-300 disabled:opacity-50 disabled:cursor-not-allowed text-base"
+                  >
                     {loading ? (
                       <span className="flex items-center justify-center gap-2">
                         <i className="fas fa-spinner fa-spin"></i>
@@ -907,74 +874,37 @@ try {
                   </button>
                 </form>
                 {error && (
-                  <div className="mt-4 rounded-xl border border-red-200 bg-red-50 px-3.5 py-2.5 text-xs text-red-700">
-                    <div className="flex items-start gap-3">
-                      <i className="fas fa-circle-exclamation mt-0.5"></i>
-                      <p>{error}</p>
-                    </div>
+                  <div className="mt-4 p-3 bg-red-50 border-l-4 border-red-500 rounded-lg">
+                    <p className="text-red-700 text-sm">{error}</p>
                   </div>
                 )}
               </div>
             </div>
-            </div>
-            <div className="min-w-0">
+            <div className="lg:w-3/5">
               {reservation ? (
-                <div className="space-y-4 animate-[fadeIn_0.4s_ease-out]">
+                <div className="space-y-6 animate-fadeIn">
                   {/* Reservation Details Card */}
-                  <div className="overflow-hidden rounded-2xl border border-white/80 bg-white shadow-[0_14px_30px_rgba(15,23,42,0.08)]">
-                    <div className="border-b border-slate-100 bg-[linear-gradient(135deg,_rgba(59,130,246,0.98)_0%,_rgba(37,99,235,0.94)_100%)] px-5 py-4 text-white sm:px-6">
-                    <div className="flex flex-wrap items-start justify-between gap-4">
+                  <div className="bg-white rounded-2xl shadow-md border border-ocean-light/10 p-6">
+                    <div className="flex justify-between items-start mb-4 flex-wrap gap-3">
                       <div>
-                        <div className="flex items-center gap-2 flex-wrap">
-                          <span className={`rounded-full px-3 py-1 text-xs font-bold uppercase tracking-[0.18em] ${bookingTypeColor}`}>
-                            {bookingTypeDisplay}
-                          </span>
-                          <span className={`rounded-full px-3 py-1 text-xs font-semibold ${statusInfo.color}`}>
-                            {statusInfo.label}
-                          </span>
-                        </div>
-                        <h2 className="mt-3 font-playfair text-2xl text-white">
+                        <h2 className="text-2xl font-bold text-textPrimary font-playfair mb-1">
                           Reservation Details
                         </h2>
-                        <p className="mt-2 text-sm text-white/80">Booking ID: <span className="font-mono font-semibold text-white">{reservation.bookingId}</span></p>
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <p className="text-sm text-neutral">Booking ID: {reservation.bookingId}</p>
+                          <span className={`text-xs px-2 py-0.5 rounded-full ${bookingTypeColor}`}>
+                            {bookingTypeDisplay}
+                          </span>
+                        </div>
                       </div>
-                      {canCancel(reservation.status, reservation.isMultiRoom, reservation.cancelledBy) && (
-                        <button
-                          onClick={() => setShowCancelModal(true)}
-                          className="inline-flex items-center gap-2 rounded-full border border-white/20 bg-white/10 px-5 py-3 text-sm font-semibold text-white transition-all hover:bg-white/16"
-                        >
-                          <i className="fas fa-times-circle"></i>
-                          Cancel Reservation
-                        </button>
-                      )}
-                    </div>
-                    </div>
-                    <div className="grid gap-3 border-b border-slate-100 px-5 py-4 sm:grid-cols-2 xl:grid-cols-4 sm:px-6">
-                      <div className="rounded-xl border border-slate-100 bg-slate-50 p-3">
-                        <p className="text-[11px] font-bold uppercase tracking-[0.18em] text-slate-400">Booked On</p>
-                        <p className="mt-2 text-sm font-semibold text-slate-700">{formatDateTime(reservation.createdAt)}</p>
-                      </div>
-                      <div className="rounded-xl border border-slate-100 bg-slate-50 p-3">
-                        <p className="text-[11px] font-bold uppercase tracking-[0.18em] text-slate-400">Stay / Access</p>
-                        <p className="mt-2 text-sm font-semibold text-slate-700">
-                          {reservation.type === 'daytour'
-                            ? formatDateOnly(reservation.selectedDate)
-                            : `${reservationStayLength} ${reservationStayLength === 1 ? 'night' : 'nights'}`}
-                        </p>
-                      </div>
-                      <div className="rounded-xl border border-slate-100 bg-slate-50 p-3">
-                        <p className="text-[11px] font-bold uppercase tracking-[0.18em] text-slate-400">Guests</p>
-                        <p className="mt-2 text-sm font-semibold text-slate-700">{reservationGuestTotal}</p>
-                      </div>
-                      <div className="rounded-xl border border-slate-100 bg-slate-50 p-3">
-                        <p className="text-[11px] font-bold uppercase tracking-[0.18em] text-slate-400">Outstanding Balance</p>
-                        <p className="mt-2 text-sm font-semibold text-slate-700">{paymentBalanceDisplay}</p>
-                      </div>
+                      <span className={`px-3 py-1 rounded-full text-sm font-medium ${statusInfo.color}`}>
+                        {statusInfo.label}
+                      </span>
                     </div>
 
-                    <div className="space-y-2.5 px-5 py-4 sm:px-6">
+                    {/* Admin Note */}
                     {reservation.adminNote && reservation.status === 'confirmed' && (
-                      <div className="rounded-2xl border border-blue-200 bg-blue-50 p-4">
+                      <div className="mt-3 p-3 bg-blue-50 rounded-lg border border-blue-200">
                         <p className="text-blue-700 text-sm">
                           <i className="fas fa-info-circle mr-2"></i>
                           <strong>Admin Note:</strong> {reservation.adminNote}
@@ -984,7 +914,7 @@ try {
                     
                     {/* Cancelled by Guest - Show reason */}
                     {reservation.status === 'cancelled-by-guest' && reservation.cancellationReason && (
-                      <div className="rounded-2xl border border-red-200 bg-red-50 p-4">
+                      <div className="mt-3 p-3 bg-red-50 rounded-lg border border-red-200">
                         <p className="text-red-700 text-sm">
                           <i className="fas fa-info-circle mr-2"></i>
                           This reservation was cancelled by the guest. 
@@ -997,7 +927,7 @@ try {
                     
                     {/* Cancelled by Resort - Show reason */}
                     {reservation.status === 'cancelled' && reservation.cancelledBy === 'admin' && (
-                      <div className="rounded-2xl border border-red-200 bg-red-50 p-4">
+                      <div className="mt-3 p-3 bg-red-50 rounded-lg border border-red-200">
                         <p className="text-red-700 text-sm">
                           <i className="fas fa-info-circle mr-2"></i>
                           This reservation was cancelled by the resort. 
@@ -1012,22 +942,36 @@ try {
                     
                     {/* Cancelled (generic) - Show reason if available */}
                     {reservation.status === 'cancelled' && reservation.cancelledBy !== 'admin' && reservation.cancellationReason && (
-                      <div className="rounded-2xl border border-red-200 bg-red-50 p-4">
+                      <div className="mt-3 p-3 bg-red-50 rounded-lg border border-red-200">
                         <p className="text-red-700 text-sm">
                           <i className="fas fa-info-circle mr-2"></i>
                           Cancellation Reason: {reservation.cancellationReason}
                         </p>
                       </div>
                     )}
+
+                    {/* Footer: Cancel button + Booked on */}
+                    <div className="mt-6 flex justify-between items-center flex-wrap gap-3">
+                      {canCancel(reservation.status, reservation.isMultiRoom, reservation.cancelledBy) && (
+                        <button
+                          onClick={() => setShowCancelModal(true)}
+                          className="px-6 py-2.5 bg-gradient-to-r from-red-500 to-red-600 text-white font-semibold rounded-xl hover:shadow-lg hover:-translate-y-0.5 transition-all duration-300 flex items-center gap-2 text-sm"
+                        >
+                          <i className="fas fa-times-circle"></i>
+                          Cancel Reservation
+                        </button>
+                      )}
+                      <p className="text-sm text-neutral">
+                        <i className="fas fa-calendar-check mr-1"></i>
+                        Booked on: {formatDateTime(reservation.createdAt)}
+                      </p>
                     </div>
                   </div>
 
                   {/* Guest Information */}
-                  <div className="rounded-2xl border border-white/80 bg-white p-4 shadow-[0_14px_30px_rgba(15,23,42,0.08)]">
-                    <h3 className="mb-4 flex items-center gap-3 text-lg font-bold text-slate-900">
-                      <span className="flex h-10 w-10 items-center justify-center rounded-full bg-blue-50 text-[#2563EB]">
-                        <i className="fas fa-user"></i>
-                      </span>
+                  <div className="bg-white rounded-2xl shadow-md border border-ocean-light/10 p-6">
+                    <h3 className="text-lg font-bold text-textPrimary mb-4 flex items-center gap-2">
+                      <i className="fas fa-user text-ocean-light"></i>
                       Guest Information
                     </h3>
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -1053,11 +997,9 @@ try {
                   </div>
 
                   {/* Booking Schedule */}
-                  <div className="rounded-2xl border border-white/80 bg-white p-4 shadow-[0_14px_30px_rgba(15,23,42,0.08)]">
-                    <h3 className="mb-4 flex items-center gap-3 text-lg font-bold text-slate-900">
-                      <span className="flex h-10 w-10 items-center justify-center rounded-full bg-emerald-50 text-emerald-600">
-                        <i className="fas fa-calendar-alt"></i>
-                      </span>
+                  <div className="bg-white rounded-2xl shadow-md border border-ocean-light/10 p-6">
+                    <h3 className="text-lg font-bold text-textPrimary mb-4 flex items-center gap-2">
+                      <i className="fas fa-calendar-alt text-ocean-light"></i>
                       {reservation.type === 'daytour' ? 'Tour Schedule' : 'Booking Schedule'}
                     </h3>
                     {reservation.type === 'daytour' ? (
@@ -1098,13 +1040,11 @@ try {
                     )}
                   </div>
 
-                  {/* Room Details â€“ only room types, no guest counts */}
+                  {/* Room Details – only room types, no guest counts */}
                   {reservation.type === 'room' && (
-                    <div className="rounded-2xl border border-white/80 bg-white p-4 shadow-[0_14px_30px_rgba(15,23,42,0.08)]">
-                      <h3 className="mb-4 flex items-center gap-3 text-lg font-bold text-slate-900">
-                        <span className="flex h-10 w-10 items-center justify-center rounded-full bg-amber-50 text-amber-600">
-                          <i className="fas fa-bed"></i>
-                        </span>
+                    <div className="bg-white rounded-2xl shadow-md border border-ocean-light/10 p-6">
+                      <h3 className="text-lg font-bold text-textPrimary mb-4 flex items-center gap-2">
+                        <i className="fas fa-bed text-ocean-light"></i>
                         Room Details
                       </h3>
                       {reservation.isMultiRoom ? (
@@ -1113,7 +1053,7 @@ try {
                             <div className="space-y-2">
                               {reservation.roomTypesArray && reservation.roomTypesArray.map((room, idx) => (
                                 <div key={idx} className="flex justify-between items-center border-b border-ocean-light/10 pb-2">
-                                  <span className="font-medium text-textPrimary">{room.quantity} x {room.type}</span>
+                                  <span className="font-medium text-textPrimary">{room.quantity} × {room.type}</span>
                                 </div>
                               ))}
                             </div>
@@ -1141,13 +1081,11 @@ try {
                     </div>
                   )}
 
-                  {/* Guest Count â€“ separate container, matches admin sidebar */}
+                  {/* Guest Count – separate container, matches admin sidebar */}
                   {reservation.type === 'room' && (
-                    <div className="rounded-2xl border border-white/80 bg-white p-4 shadow-[0_14px_30px_rgba(15,23,42,0.08)]">
-                      <h3 className="mb-4 flex items-center gap-3 text-lg font-bold text-slate-900">
-                        <span className="flex h-10 w-10 items-center justify-center rounded-full bg-violet-50 text-violet-600">
-                          <i className="fas fa-users"></i>
-                        </span>
+                    <div className="bg-white rounded-2xl shadow-md border border-ocean-light/10 p-6">
+                      <h3 className="text-lg font-bold text-textPrimary mb-4 flex items-center gap-2">
+                        <i className="fas fa-users text-ocean-light"></i>
                         Guest per Room
                       </h3>
                       {reservation.isExclusiveResortBooking ? (
@@ -1167,7 +1105,7 @@ try {
                           </div>
                         </div>
                       ) : reservation.isMultiRoom && reservation.children && reservation.children.length > 0 ? (
-                        // Multiâ€‘room: list each room with Adults | Kids
+                        // Multi‑room: list each room with Adults | Kids
                         <div className="space-y-3">
                           {reservation.children.map((child, idx) => {
                             const adults = child.adults || 0;
@@ -1212,30 +1150,28 @@ try {
                   )}
 
                   {/* Payment Summary */}
-                  <div className="rounded-2xl border border-white/80 bg-white p-4 shadow-[0_14px_30px_rgba(15,23,42,0.08)]">
-                    <h3 className="mb-4 flex items-center gap-3 text-lg font-bold text-slate-900">
-                      <span className="flex h-10 w-10 items-center justify-center rounded-full bg-slate-100 text-slate-700">
-                        <i className="fas fa-credit-card"></i>
-                      </span>
+                  <div className="bg-white rounded-2xl shadow-md border border-ocean-light/10 p-6">
+                    <h3 className="text-lg font-bold text-textPrimary mb-4 flex-items-center gap-2">
+                      <i className="fas fa-credit-card text-ocean-light"></i>
                       Payment Summary
                     </h3>
                     <div className="space-y-3">
                       <div className="flex justify-between items-center pb-2 border-b border-ocean-light/10">
                         <span className="text-textSecondary">Total Price</span>
                         <span className="font-bold text-ocean-mid text-lg">
-                          {totalPriceDisplay}
+                          ₱{Number(reservation.totalPrice).toLocaleString()}
                         </span>
                       </div>
                       <div className="flex justify-between items-center pb-2 border-b border-ocean-light/10">
                         <span className="text-textSecondary">Down Payment (50%)</span>
                         <span className="font-semibold text-green-600">
-                          {downPaymentDisplay}
+                          ₱{calculateDownPayment(reservation.totalPrice).toLocaleString()}
                         </span>
                       </div>
                       <div className="flex justify-between items-center">
                         <span className="text-textSecondary">Remaining Balance</span>
                         <span className="font-bold text-ocean-mid text-lg">
-                          {paymentBalanceDisplay}
+                          {calculateBalance(reservation.totalPrice, reservation.status)}
                         </span>
                       </div>
                     </div>
@@ -1243,14 +1179,9 @@ try {
                 </div>
               ) : (
                 !loading && (
-                  <div className="flex min-h-[260px] items-center justify-center rounded-2xl border border-white/80 bg-white/95 p-6 text-center shadow-[0_14px_30px_rgba(15,23,42,0.08)]">
-                    <div className="max-w-md">
-                      <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-full bg-slate-100 text-2xl text-slate-400">
-                        <i className="fas fa-receipt"></i>
-                      </div>
-                      <h2 className="mt-4 font-playfair text-2xl text-blue-600">Ready when you are</h2>
-                      <p className="mt-2 text-sm leading-6 text-slate-600">Enter your details to load your reservation summary.</p>
-                    </div>
+                  <div className="bg-white rounded-2xl shadow-md border border-ocean-light/10 p-12 text-center">
+                    <i className="fas fa-search text-5xl text-neutral mb-3 block"></i>
+                    <p className="text-textSecondary">Enter your details above to view your reservation</p>
                   </div>
                 )
               )}
@@ -1259,8 +1190,8 @@ try {
 
 {/* Cancel Reservation Modal */}
 {showCancelModal && (
-  <div className="fixed inset-0 z-[70] flex items-center justify-center bg-black/50 p-4 backdrop-blur-sm">
-    <div className="bg-white rounded-2xl w-full max-w-md p-6 shadow-2xl animate-[scaleIn_0.2s_ease-out]">
+  <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+    <div className="bg-white rounded-2xl w-full max-w-md p-6 shadow-2xl animate-scaleIn">
       <div className="text-center mb-5">
         <div className="w-14 h-14 mx-auto mb-3 rounded-full bg-red-100 flex items-center justify-center">
           <i className="fas fa-exclamation-triangle text-red-500 text-2xl"></i>
@@ -1325,8 +1256,8 @@ try {
 
 {/* Success Modal */}
 {showSuccessModal && (
-  <div className="fixed inset-0 z-[70] flex items-center justify-center bg-black/50 p-4 backdrop-blur-sm">
-    <div className="bg-white rounded-2xl w-full max-w-md p-6 shadow-2xl animate-[scaleIn_0.2s_ease-out]">
+  <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+    <div className="bg-white rounded-2xl w-full max-w-md p-6 shadow-2xl animate-scaleIn">
       <div className="text-center mb-5">
         <div className="w-14 h-14 mx-auto mb-3 rounded-full bg-green-100 flex items-center justify-center">
           <i className="fas fa-check-circle text-green-500 text-2xl"></i>
@@ -1339,7 +1270,7 @@ try {
       <div className="flex justify-center">
         <button
           onClick={() => setShowSuccessModal(false)}
-          className="px-6 py-2 bg-gradient-to-r from-blue-500 to-blue-600 text-white font-semibold rounded-xl hover:shadow-lg hover:-translate-y-0.5 transition-all duration-300"
+          className="px-6 py-2 bg-gradient-to-r from-ocean-mid to-ocean-light text-white font-semibold rounded-xl hover:shadow-lg hover:-translate-y-0.5 transition-all duration-300"
         >
           Close
         </button>
@@ -1348,8 +1279,35 @@ try {
   </div>
 )}
         </div>
+        <style jsx>{`
+          @keyframes fadeIn {
+            from {
+              opacity: 0;
+              transform: translateY(10px);
+            }
+            to {
+              opacity: 1;
+              transform: translateY(0);
+            }
+          }
+          .animate-fadeIn {
+            animation: fadeIn 0.4s ease-out;
+          }
+          @keyframes scaleIn {
+            from {
+              transform: scale(0.95);
+              opacity: 0;
+            }
+            to {
+              transform: scale(1);
+              opacity: 1;
+            }
+          }
+          .animate-scaleIn {
+            animation: scaleIn 0.2s ease-out;
+          }
+        `}</style>
       </div>
     </GuestLayout>
   );
 }
-

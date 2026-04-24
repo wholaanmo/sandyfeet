@@ -1005,7 +1005,7 @@ const handleNotifyResort = async () => {
           <div className="flex flex-col gap-8">
             {/* Main Column - Booking Form */}
             <div className="w-full">
-  {/* Progress Steps */}
+      {/* Progress Steps */}
 <div className="mb-8 rounded-2xl border border-ocean-light/20 bg-white/70 px-3 py-4 sm:px-5">
   <div className="relative">
     <div className="absolute left-[12%] right-[12%] top-5 h-0.5 bg-gray-200"></div>
@@ -1021,7 +1021,7 @@ const handleNotifyResort = async () => {
         const label = s === 1 ? 'Guests' : s === 2 ? 'Details' : s === 3 ? 'Payment' : 'Confirmation';
         const isCurrent = step === s;
         // Step is completed if: step > s OR (s === 4 and step === 4)
-        const isDone = step > s || (s === 4 && step === 4);
+        const isDone = step > s;
 
         return (
           <div key={s} className="relative z-10 flex flex-col items-center">
@@ -1030,7 +1030,7 @@ const handleNotifyResort = async () => {
                 isCurrent
                   ? 'bg-ocean-mid text-white border-ocean-mid shadow-[0_6px_14px_rgba(33,105,243,0.28)]'
                   : isDone
-                    ? 'bg-blue-500 text-white border-blue-500'
+                    ? 'bg-amber-500 border-amber-500 text-white'
                     : 'bg-gray-100 text-gray-500 border-gray-200'
               }`}
             >

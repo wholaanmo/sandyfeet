@@ -715,13 +715,14 @@ export async function sendRoomPendingEmail(booking) {
         
         <div style="background-color: #eff6ff; padding: 15px; border-radius: 8px; margin: 15px 0;">
           <p style="color: #1d4ed8; margin: 0; font-size: 14px;">
-            Use your Booking ID together with your email address in the reservation tracker to view or manage this reservation while it is pending.
+            <strong>What happens next?</strong><br />
+            Our team will review your reservation and valid ID. Once confirmed, we will send you a confirmation email with all the details.
           </p>
         </div>
         
         <p style="margin: 15px 0;">
           <a href="${trackerUrl}" style="background-color: #2C7A7A; color: white; padding: 12px 24px; text-decoration: none; border-radius: 8px; display: inline-block;">
-            Open Reservation Tracker
+            Track Your Reservation
           </a>
         </p>
       </div>

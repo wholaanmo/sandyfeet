@@ -9,7 +9,6 @@ import { collection, addDoc, serverTimestamp, updateDoc, doc, getDoc, query, whe
 import Image from 'next/image';
 import { uploadImage } from '@/lib/cloudinary';
 import { compressImage } from '@/lib/imageUtils';
-import { sendRoomPendingEmail } from '@/lib/emailService';
 
 export default function MultiRoomBookingPage() {
   const router = useRouter();
@@ -40,7 +39,6 @@ export default function MultiRoomBookingPage() {
   const [tempValidIdType, setTempValidIdType] = useState('Passport');
   const [tempValidIdFile, setTempValidIdFile] = useState(null);
   const [validIdUploading, setValidIdUploading] = useState(false);
-  const [isConfirmed, setIsConfirmed] = useState(false);
 
   const FIXED_CHECK_IN_HOUR = 14;
   const FIXED_CHECK_OUT_HOUR = 12;
@@ -180,14 +178,6 @@ export default function MultiRoomBookingPage() {
   const validatePhone = (phone) => {
     const phoneRegex = /^\d{11}$/;
     return phoneRegex.test(phone);
-  };
-
-  const handlePhoneChange = (value) => {
-    // Only allow numeric values
-    const numericValue = value.replace(/[^0-9]/g, '');
-    // Limit to 11 digits
-    const limitedValue = numericValue.slice(0, 11);
-    handleInputChange('phone', limitedValue);
   };
 
   const validateStep2 = () => {
@@ -405,9 +395,6 @@ const handleSubmitBooking = async () => {
       }
     }
 
-    // Store created booking IDs for email
-    const createdBookings = [];
-
     if (allRoomIds.length <= 1) {
       const roomTypeObj = bookingData.roomTypes?.[0];
       const singleRoomId = allRoomIds[0] || roomTypeObj?.roomIds?.[0];
@@ -470,8 +457,7 @@ const handleSubmitBooking = async () => {
         booking.bankDetailsProvided = bankDetailsProvided;
       }
 
-      const docRef = await addDoc(collection(db, 'bookings'), booking);
-      createdBookings.push({ ...booking, id: docRef.id });
+      await addDoc(collection(db, 'bookings'), booking);
     } else {
       // Create individual bookings for each room
       let unitIndex = 0;
@@ -545,54 +531,13 @@ const handleSubmitBooking = async () => {
             booking.bankDetailsProvided = bankDetailsProvided;
           }
 
-          const docRef = await addDoc(collection(db, 'bookings'), booking);
-          createdBookings.push({ ...booking, id: docRef.id });
+          await addDoc(collection(db, 'bookings'), booking);
           unitIndex++;
         }
       }
     }
     
     sessionStorage.setItem('resetRoomsPage', 'true');
-    
-    // Send email notification to guest
-    try {
-      // Prepare booking data for email
-      const selectedRoomsList = Object.entries(bookingData.selectedRooms || {})
-        .filter(([_, qty]) => qty > 0)
-        .map(([type, qty]) => `${qty} × ${type}`);
-      
-      const roomTypesDisplay = selectedRoomsList.join(', ') || 'Room';
-      const totalRoomsCount = Object.values(bookingData.selectedRooms || {}).reduce((a, b) => a + b, 0);
-      
-      const emailBookingData = {
-        bookingId: generatedBookingId,
-        guestInfo: {
-          firstName: bookingData.firstName,
-          lastName: bookingData.lastName,
-          email: bookingData.email,
-          phone: bookingData.phone
-        },
-        checkIn: bookingData.checkIn,
-        checkOut: bookingData.checkOut,
-        totalPrice: packageTotalPrice,
-        downPayment: packageDownPayment,
-        roomTypesDisplay: roomTypesDisplay,
-        totalRooms: totalRoomsCount,
-        roomTypes: bookingData.roomTypes?.filter(rt => (bookingData.selectedRooms?.[rt.type] || 0) > 0),
-        isExclusiveResortBooking: isExclusiveResortBooking,
-        tentCount: bookingData.tentCount || 0,
-        specialRequest: bookingData.specialRequest || null
-      };
-      
-      await sendRoomPendingEmail(emailBookingData);
-      console.log('Pending confirmation email sent to guest');
-    } catch (emailError) {
-      console.error('Failed to send pending confirmation email:', emailError);
-      // Don't block the booking flow if email fails
-    }
-    
-    // Mark as confirmed and auto-check confirmation number 4
-    setIsConfirmed(true);
     setStep(4);
   } catch (error) {
     console.error('Error creating booking:', error);
@@ -612,7 +557,6 @@ const handleSubmitBooking = async () => {
     });
   };
 
-  // Filter selected rooms to only show those with quantity > 0
   const getSelectedRoomsSummary = () => {
     if (!bookingData?.selectedRooms) return 'No rooms selected';
     const selected = Object.entries(bookingData.selectedRooms).filter(([_, qty]) => qty > 0);
@@ -621,12 +565,6 @@ const handleSubmitBooking = async () => {
       const totalGuests = bookingData.totalGuestsPerType?.[type] || 1;
       return `${qty} × ${type} (${totalGuests} total guest${totalGuests !== 1 ? 's' : ''})`;
     }).join(', ');
-  };
-
-  // Get filtered room types for display (only those with quantity > 0)
-  const getFilteredRoomTypes = () => {
-    if (!bookingData?.roomTypes) return [];
-    return bookingData.roomTypes.filter(room => (bookingData.selectedRooms?.[room.type] || 0) > 0);
   };
 
   if (loading) {
@@ -697,38 +635,36 @@ const handleSubmitBooking = async () => {
                     <div className={`w-1/3 h-full transition-all duration-300 ${step >= 4 ? 'bg-blue-500' : 'bg-gray-200'}`}></div>
                   </div>
 
-{[
-  { id: 1, label: 'Select Rooms' },
-  { id: 2, label: 'Guest Details' },
-  { id: 3, label: 'Payment' },
-  { id: 4, label: 'Confirmation' }
-].map((item) => {
-  const isCompleted = item.id < step;
-  const isActive = item.id === step;
-  const isUpcoming = item.id > step;
-  // Show check icon for confirmation step when step reaches 4
-  const showCheckIcon = isCompleted || (item.id === 4 && step === 4);
+                  {[
+                    { id: 1, label: 'Select Rooms' },
+                    { id: 2, label: 'Guest Details' },
+                    { id: 3, label: 'Payment' },
+                    { id: 4, label: 'Confirmation' }
+                  ].map((item) => {
+                    const isCompleted = item.id < step;
+                    const isActive = item.id === step;
+                    const isUpcoming = item.id > step;
 
-  return (
-    <div key={item.id} className="flex flex-col items-center relative z-10 w-1/4">
-      <div className={`w-10 h-10 rounded-full flex items-center justify-center text-sm font-bold border-2 transition-colors ${
-        isActive
-          ? 'bg-blue-600 border-blue-600 text-white shadow-md shadow-blue-200'
-          : showCheckIcon
-            ? 'bg-blue-500 border-blue-500 text-white'
-            : 'bg-white border-gray-300 text-gray-400'
-      }`}>
-        {showCheckIcon ? <i className="fas fa-check text-xs"></i> : item.id}
-      </div>
+                    return (
+                      <div key={item.id} className="flex flex-col items-center relative z-10 w-1/4">
+                        <div className={`w-10 h-10 rounded-full flex items-center justify-center text-sm font-bold border-2 transition-colors ${
+                          isActive
+                            ? 'bg-blue-600 border-blue-600 text-white shadow-md shadow-blue-200'
+                            : isCompleted || item.id === 1
+                              ? 'bg-emerald-500 border-emerald-500 text-white'
+                              : 'bg-white border-gray-300 text-gray-400'
+                        }`}>
+                          {item.id === 1 || isCompleted ? <i className="fas fa-check text-xs"></i> : item.id}
+                        </div>
 
-      <div className={`text-center text-[10px] sm:text-[11px] mt-2 font-bold uppercase tracking-wider w-full ${
-        isActive ? 'text-blue-700' : isUpcoming ? 'text-gray-400' : 'text-gray-600'
-      }`}>
-        {item.label}
-      </div>
-    </div>
-  );
-})}
+                        <div className={`text-center text-[10px] sm:text-[11px] mt-2 font-bold uppercase tracking-wider w-full ${
+                          isActive ? 'text-blue-700' : isUpcoming ? 'text-gray-400' : 'text-gray-600'
+                        }`}>
+                          {item.label}
+                        </div>
+                      </div>
+                    );
+                  })}
                 </div>
               </div>
 
@@ -776,7 +712,7 @@ const handleSubmitBooking = async () => {
                       <input
                         type="tel"
                         value={bookingData.phone}
-                        onChange={(e) => handlePhoneChange(e.target.value)}
+                        onChange={(e) => handleInputChange('phone', e.target.value)}
                         placeholder="09123456789"
                         className={`w-full px-4 py-2.5 border ${errors.phone ? 'border-red-500' : 'border-gray-200'} rounded-xl focus:outline-none focus:border-blue-400`}
                       />
@@ -918,7 +854,7 @@ const handleSubmitBooking = async () => {
                         <div className="bg-white rounded-xl border border-gray-200 p-4 sm:p-5 shadow-sm hover:border-blue-200 transition-colors">
                           <div className="flex items-center gap-2 mb-2">
                             <i className="fas fa-file-invoice-dollar text-blue-500 text-lg"></i>
-                            <label className="text-sm font-semibold text-gray-800">Receipt *</label>
+                            <label className="text-sm font-semibold text-gray-800">Reciept *</label>
                           </div>
                           <p className="text-[11px] text-gray-500 mb-3 leading-tight">
                             Proof of down payment. Max size: 10MB.
@@ -1183,8 +1119,8 @@ const handleSubmitBooking = async () => {
               {/* Step 4: Confirmation */}
               {step === 4 && (
                 <div className="bg-white rounded-2xl border border-gray-200 shadow-[0_10px_30px_rgb(0,0,0,0.05)] p-6 sm:p-8 text-center">
-                  <div className="w-20 h-20 bg-emerald-100 rounded-full flex items-center justify-center mx-auto mb-4">
-                    <i className="fas fa-check text-3xl text-emerald-600"></i>
+                  <div className="w-20 h-20 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-4">
+                    <i className="fas fa-check text-3xl text-green-600"></i>
                   </div>
                   <h2 className="text-2xl font-bold text-textPrimary mb-2">Booking Confirmed!</h2>
                   <p className="text-textSecondary mb-4">
@@ -1241,7 +1177,7 @@ const handleSubmitBooking = async () => {
               <div className="bg-white rounded-[2rem] border border-gray-100 shadow-[0_12px_40px_rgb(0,0,0,0.06)] overflow-hidden sticky top-32">
                 <div className="px-5 py-4 border-b border-gray-100 bg-[#F8FCFF]">
                   <h3 className="font-bold text-gray-900 text-base flex items-center gap-2 uppercase tracking-wider">
-                    <i className="fas fa-receipt text-blue-500 "></i>
+                    <i className="fas fa-receipt text-blue-500"></i>
                     Booking Summary
                   </h3>
                 </div>
@@ -1265,37 +1201,49 @@ const handleSubmitBooking = async () => {
                         <p className="text-xs text-blue-700">Adults: {exclusiveAdults} | Kids: {exclusiveKids}</p>
                       </div>
                     ) : (
-                      // Non‑exclusive: show filtered rooms (only those with quantity > 0)
+                      // Non‑exclusive: show per‑room breakdown if perRoomGuests exists, otherwise aggregated
                       <div className="bg-white rounded-xl border border-gray-200 p-3 space-y-2">
-                        {getFilteredRoomTypes().length > 0 ? (
-                          getFilteredRoomTypes().map((roomType, idx) => {
-                            const quantity = bookingData.selectedRooms?.[roomType.type] || 0;
+                        {bookingData.perRoomGuests && Object.keys(bookingData.perRoomGuests).length > 0 ? (
+                          // Per‑room guest breakdown
+                          Object.entries(bookingData.perRoomGuests).map(([roomType, guestsArray]) => {
+                            const quantity = bookingData.selectedRooms?.[roomType] || 0;
+                            const pricePerNight = bookingData.roomTypes?.find(t => t.type === roomType)?.price || 0;
                             return (
-                              <div key={`${roomType.type}-${idx}`} className="text-xs text-gray-700 leading-relaxed border-b border-gray-100 last:border-b-0 pb-1.5 last:pb-0">
+                              <div key={roomType} className="border-b border-gray-100 last:border-b-0 pb-2 mb-2 last:pb-0">
                                 <div className="flex justify-between items-start">
-                                  <span className="font-medium">{quantity} × {roomType.type}</span>
-                                  <span className="text-gray-500">₱{roomType.price.toLocaleString()}/night</span>
+                                  <span className="font-medium text-sm">{quantity} × {roomType}</span>
+                                  <span className="text-gray-500 text-xs">₱{pricePerNight.toLocaleString()}/night</span>
                                 </div>
-                                {bookingData.perRoomGuests && bookingData.perRoomGuests[roomType.type]?.length > 0 && (
-                                  <div className="mt-1 space-y-0.5">
-                                    {bookingData.perRoomGuests[roomType.type].map((guest, guestIdx) => (
-                                      <div key={guestIdx} className="text-[10px] text-gray-500 flex justify-between pl-2">
-                                        <span>Unit {guestIdx + 1}:</span>
-                                        <span>Adults: {guest.adults} | Kids: {guest.kids}</span>
-                                      </div>
-                                    ))}
-                                  </div>
-                                )}
-                                {bookingData.totalGuestsPerType?.[roomType.type] && !bookingData.perRoomGuests?.[roomType.type] && (
-                                  <div className="mt-1 text-gray-500">
-                                    Total Guests: {bookingData.totalGuestsPerType[roomType.type]}
-                                  </div>
-                                )}
+                                <div className="mt-2 space-y-1">
+                                  {guestsArray.map((guest, idx) => (
+                                    <div key={idx} className="text-xs text-gray-600 flex justify-between pl-2">
+                                      <span>Unit {idx + 1}:</span>
+                                      <span>Adults: {guest.adults} | Kids: {guest.kids}</span>
+                                    </div>
+                                  ))}
+                                </div>
                               </div>
                             );
                           })
                         ) : (
-                          <p className="text-xs text-gray-500">No room selections found.</p>
+                          // Fallback to aggregated totals (for backward compatibility)
+                          bookingData.roomTypes && bookingData.roomTypes.length > 0 ? bookingData.roomTypes.map((type, idx) => {
+                            const adultsCount = bookingData.adultsPerType?.[type.type] || (type.totalGuests || 1);
+                            const kidsCount = bookingData.kidsPerType?.[type.type] || 0;
+                            return (
+                              <div key={`${type.type}-${idx}`} className="text-xs text-gray-700 leading-relaxed border-b border-gray-100 last:border-b-0 pb-1.5 last:pb-0">
+                                <div className="flex justify-between items-start">
+                                  <span className="font-medium">{type.quantity} × {type.type}</span>
+                                  <span className="text-gray-500">₱{type.price.toLocaleString()}/night</span>
+                                </div>
+                                <div className="mt-1 text-gray-500">
+                                  Adults: {adultsCount} | Kids: {kidsCount}
+                                </div>
+                              </div>
+                            );
+                          }) : (
+                            <p className="text-xs text-gray-500">No room selections found.</p>
+                          )
                         )}
                       </div>
                     )}
@@ -1359,12 +1307,7 @@ const handleSubmitBooking = async () => {
                       onChange={(e) => setBookingData(prev => ({ ...prev, specialRequest: e.target.value }))}
                       placeholder="e.g., Request early check-in, room preferences, special occasion, etc."
                       rows="3"
-                      readOnly={step === 4}
-                      className={`w-full px-3 py-2 border rounded-xl text-sm focus:outline-none resize-none ${
-                        step === 4 
-                          ? 'bg-gray-50 border-gray-200 text-gray-500 cursor-not-allowed' 
-                          : 'border-blue-200 focus:border-blue-400 bg-white'
-                      }`}
+                      className="w-full px-3 py-2 border border-blue-200 rounded-xl text-sm focus:outline-none focus:border-blue-400 resize-none bg-white"
                     />
                     <p className="text-xs text-blue-700/80 mt-1">
                       <i className="fas fa-clock mr-1"></i>

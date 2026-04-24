@@ -1005,7 +1005,7 @@ const handleNotifyResort = async () => {
           <div className="flex flex-col gap-8">
             {/* Main Column - Booking Form */}
             <div className="w-full">
-  {/* Progress Steps */}
+        {/* Progress Steps */}
 <div className="mb-8 rounded-2xl border border-ocean-light/20 bg-white/70 px-3 py-4 sm:px-5">
   <div className="relative">
     <div className="absolute left-[12%] right-[12%] top-5 h-0.5 bg-gray-200"></div>
@@ -1017,27 +1017,31 @@ const handleNotifyResort = async () => {
     </div>
 
     <div className="grid grid-cols-4 gap-1">
-      {[1, 2, 3, 4].map((s) => {
-        const label = s === 1 ? 'Guests' : s === 2 ? 'Details' : s === 3 ? 'Payment' : 'Confirmation';
-        const isCurrent = step === s;
-        // Step is completed if: step > s OR (s === 4 and step === 4)
-        const isDone = step > s || (s === 4 && step === 4);
-
+      {[
+        { id: 1, label: 'Guests' },
+        { id: 2, label: 'Details' },
+        { id: 3, label: 'Payment' },
+        { id: 4, label: 'Confirmation' }
+      ].map((item) => {
+        const isCurrent = step === item.id;
+        // Step is completed if current step is greater than this step number, or if step is 4 (Confirmation) and it's the current step
+        const isCompleted = step > item.id || (item.id === 4 && step === 4);
+        
         return (
-          <div key={s} className="relative z-10 flex flex-col items-center">
+          <div key={item.id} className="relative z-10 flex flex-col items-center">
             <div
               className={`w-10 h-10 rounded-full flex items-center justify-center text-sm font-bold border transition-all duration-300 ${
                 isCurrent
                   ? 'bg-ocean-mid text-white border-ocean-mid shadow-[0_6px_14px_rgba(33,105,243,0.28)]'
-                  : isDone
-                    ? 'bg-blue-500 text-white border-blue-500'
+                  : isCompleted
+                    ? 'bg-amber-500 border-amber-500 text-white'
                     : 'bg-gray-100 text-gray-500 border-gray-200'
               }`}
             >
-              {isDone ? <i className="fas fa-check text-xs"></i> : s}
+              {isCompleted ? <i className="fas fa-check text-xs"></i> : item.id}
             </div>
             <span className={`mt-2 text-[12px] font-medium ${isCurrent ? 'text-textPrimary' : 'text-textSecondary'}`}>
-              {label}
+              {item.label}
             </span>
           </div>
         );

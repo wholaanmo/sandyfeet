@@ -681,14 +681,14 @@ export async function sendRoomPendingEmail(booking) {
   const emailContent = `
     <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; background-color: #f0f9ff; border-radius: 16px;">
       <div style="text-align: center; margin-bottom: 20px;">
-        <h1 style="color: #0B3B4F; font-family: 'Playfair Display', serif;">Room Reservation Received</h1>
+        <h1 style="color: #0B3B4F; font-family: 'Playfair Display', serif;">Reservation Received</h1>
         <div style="width: 50px; height: 3px; background-color: #f59e0b; margin: 10px auto;"></div>
       </div>
       
       <div style="background-color: white; border-radius: 12px; padding: 20px; margin-bottom: 20px;">
         <p style="color: #0B3B4F; font-size: 16px;">Dear <strong>${guestName}</strong>,</p>
         <p style="color: #0B3B4F; font-size: 16px;">
-          We received your room reservation. Your booking is currently 
+          We received your reservation. Your booking is currently 
           <strong style="color: #d97706;">PENDING ADMIN CONFIRMATION</strong>.
         </p>
         
@@ -715,13 +715,14 @@ export async function sendRoomPendingEmail(booking) {
         
         <div style="background-color: #eff6ff; padding: 15px; border-radius: 8px; margin: 15px 0;">
           <p style="color: #1d4ed8; margin: 0; font-size: 14px;">
-            Use your Booking ID together with your email address in the reservation tracker to view or manage this reservation while it is pending.
+            <strong>What happens next?</strong><br />
+            Our team will review your reservation and valid ID. Once confirmed, we will send you a confirmation email with all the details.
           </p>
         </div>
         
         <p style="margin: 15px 0;">
           <a href="${trackerUrl}" style="background-color: #2C7A7A; color: white; padding: 12px 24px; text-decoration: none; border-radius: 8px; display: inline-block;">
-            Open Reservation Tracker
+            Track Your Reservation
           </a>
         </p>
       </div>

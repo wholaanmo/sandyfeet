@@ -9,7 +9,6 @@ import { collection, addDoc, serverTimestamp, updateDoc, doc, getDoc, query, whe
 import Image from 'next/image';
 import { uploadImage } from '@/lib/cloudinary';
 import { compressImage } from '@/lib/imageUtils';
-import { sendRoomPendingEmail } from '@/lib/emailService';
 
 export default function MultiRoomBookingPage() {
   const router = useRouter();
@@ -405,9 +404,6 @@ const handleSubmitBooking = async () => {
       }
     }
 
-    // Store created booking IDs for email
-    const createdBookings = [];
-
     if (allRoomIds.length <= 1) {
       const roomTypeObj = bookingData.roomTypes?.[0];
       const singleRoomId = allRoomIds[0] || roomTypeObj?.roomIds?.[0];
@@ -470,8 +466,7 @@ const handleSubmitBooking = async () => {
         booking.bankDetailsProvided = bankDetailsProvided;
       }
 
-      const docRef = await addDoc(collection(db, 'bookings'), booking);
-      createdBookings.push({ ...booking, id: docRef.id });
+      await addDoc(collection(db, 'bookings'), booking);
     } else {
       // Create individual bookings for each room
       let unitIndex = 0;
@@ -545,52 +540,13 @@ const handleSubmitBooking = async () => {
             booking.bankDetailsProvided = bankDetailsProvided;
           }
 
-          const docRef = await addDoc(collection(db, 'bookings'), booking);
-          createdBookings.push({ ...booking, id: docRef.id });
+          await addDoc(collection(db, 'bookings'), booking);
           unitIndex++;
         }
       }
     }
     
     sessionStorage.setItem('resetRoomsPage', 'true');
-    
-    // Send email notification to guest
-    try {
-      // Prepare booking data for email
-      const selectedRoomsList = Object.entries(bookingData.selectedRooms || {})
-        .filter(([_, qty]) => qty > 0)
-        .map(([type, qty]) => `${qty} × ${type}`);
-      
-      const roomTypesDisplay = selectedRoomsList.join(', ') || 'Room';
-      const totalRoomsCount = Object.values(bookingData.selectedRooms || {}).reduce((a, b) => a + b, 0);
-      
-      const emailBookingData = {
-        bookingId: generatedBookingId,
-        guestInfo: {
-          firstName: bookingData.firstName,
-          lastName: bookingData.lastName,
-          email: bookingData.email,
-          phone: bookingData.phone
-        },
-        checkIn: bookingData.checkIn,
-        checkOut: bookingData.checkOut,
-        totalPrice: packageTotalPrice,
-        downPayment: packageDownPayment,
-        roomTypesDisplay: roomTypesDisplay,
-        totalRooms: totalRoomsCount,
-        roomTypes: bookingData.roomTypes?.filter(rt => (bookingData.selectedRooms?.[rt.type] || 0) > 0),
-        isExclusiveResortBooking: isExclusiveResortBooking,
-        tentCount: bookingData.tentCount || 0,
-        specialRequest: bookingData.specialRequest || null
-      };
-      
-      await sendRoomPendingEmail(emailBookingData);
-      console.log('Pending confirmation email sent to guest');
-    } catch (emailError) {
-      console.error('Failed to send pending confirmation email:', emailError);
-      // Don't block the booking flow if email fails
-    }
-    
     // Mark as confirmed and auto-check confirmation number 4
     setIsConfirmed(true);
     setStep(4);
@@ -715,7 +671,7 @@ const handleSubmitBooking = async () => {
         isActive
           ? 'bg-blue-600 border-blue-600 text-white shadow-md shadow-blue-200'
           : showCheckIcon
-            ? 'bg-blue-500 border-blue-500 text-white'
+            ? 'bg-blue-500 border-amber-500 text-white'
             : 'bg-white border-gray-300 text-gray-400'
       }`}>
         {showCheckIcon ? <i className="fas fa-check text-xs"></i> : item.id}
