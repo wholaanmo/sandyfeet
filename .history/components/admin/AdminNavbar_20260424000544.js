@@ -1,7 +1,7 @@
 // components/admin/AdminNavbar.js
 'use client';
 
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect } from 'react';
 import Image from 'next/image';
 import { auth, db } from '../../lib/firebase';
 import { doc, getDoc } from 'firebase/firestore';
@@ -18,14 +18,11 @@ import {
 } from './notificationService';
 
 export default function AdminNavbar({ toggleSidebar, sidebarOpen, isDesktop }) {
-  const STATUS_READ_STORAGE_KEY = 'admin_status_notifications_read';
   const [userName, setUserName] = useState('');
   const [userRole, setUserRole] = useState('');
   const [unreadCount, setUnreadCount] = useState(0);
   const [showNotifications, setShowNotifications] = useState(false);
   const [notifications, setNotifications] = useState([]);
-  const [statusReadMap, setStatusReadMap] = useState({});
-  const statusReadMapRef = useRef({});
 
   useEffect(() => {
     const fetchUserData = async () => {
@@ -47,39 +44,11 @@ export default function AdminNavbar({ toggleSidebar, sidebarOpen, isDesktop }) {
     fetchUserData();
   }, []);
 
-  useEffect(() => {
-    try {
-      const raw = localStorage.getItem(STATUS_READ_STORAGE_KEY);
-      if (!raw) return;
-      const parsed = JSON.parse(raw);
-      if (parsed && typeof parsed === 'object') {
-        setStatusReadMap(parsed);
-        statusReadMapRef.current = parsed;
-      }
-    } catch (error) {
-      console.error('Error loading notification read state:', error);
-    }
-  }, []);
-
-  const persistStatusReadMap = (nextMap) => {
-    setStatusReadMap(nextMap);
-    statusReadMapRef.current = nextMap;
-    try {
-      localStorage.setItem(STATUS_READ_STORAGE_KEY, JSON.stringify(nextMap));
-    } catch (error) {
-      console.error('Error saving notification read state:', error);
-    }
-  };
-
   // Combined notification update handler
   const handleNotificationsUpdate = (newItems, type) => {
     setNotifications(prev => {
       const filtered = prev.filter(n => n.type !== type);
-      const isStatusType = type === 'check_in' || type === 'check_out';
-      const itemsWithReadState = isStatusType
-        ? newItems.map(item => ({ ...item, read: statusReadMapRef.current[`${item.type}-${item.id}`] === true }))
-        : newItems;
-      const combined = [...filtered, ...itemsWithReadState];
+      const combined = [...filtered, ...newItems];
       combined.sort((a, b) => asDate(b.createdAt) - asDate(a.createdAt));
       return combined;
     });
@@ -113,13 +82,6 @@ export default function AdminNavbar({ toggleSidebar, sidebarOpen, isDesktop }) {
   const handleToggleNotifications = async () => {
     if (!showNotifications && unreadCount > 0) {
       await markAllNotificationsAsRead();
-      const nextReadMap = { ...statusReadMap };
-      notifications.forEach((n) => {
-        if ((n.type === 'check_in' || n.type === 'check_out') && !n.read) {
-          nextReadMap[`${n.type}-${n.id}`] = true;
-        }
-      });
-      persistStatusReadMap(nextReadMap);
       // Update local read status
       setNotifications(prev => prev.map(n => ({ ...n, read: true })));
     }
@@ -128,12 +90,6 @@ export default function AdminNavbar({ toggleSidebar, sidebarOpen, isDesktop }) {
 
   const handleMarkAsRead = async (notification) => {
     await markNotificationAsRead(notification);
-    if (notification.type === 'check_in' || notification.type === 'check_out') {
-      persistStatusReadMap({
-        ...statusReadMap,
-        [`${notification.type}-${notification.id}`]: true
-      });
-    }
     setNotifications(prev => prev.map(n => 
       n.id === notification.id && n.type === notification.type ? { ...n, read: true } : n
     ));

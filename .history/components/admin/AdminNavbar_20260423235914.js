@@ -1,7 +1,7 @@
 // components/admin/AdminNavbar.js
 'use client';
 
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect } from 'react';
 import Image from 'next/image';
 import { auth, db } from '../../lib/firebase';
 import { doc, getDoc } from 'firebase/firestore';
@@ -14,18 +14,16 @@ import {
   setupGuestCancellationsListener,
   setupRoomStatusListener, 
   markNotificationAsRead,
-  markAllNotificationsAsRead
+  markAllNotificationsAsRead,
+  markPersistentNotificationAsRead
 } from './notificationService';
 
 export default function AdminNavbar({ toggleSidebar, sidebarOpen, isDesktop }) {
-  const STATUS_READ_STORAGE_KEY = 'admin_status_notifications_read';
   const [userName, setUserName] = useState('');
   const [userRole, setUserRole] = useState('');
   const [unreadCount, setUnreadCount] = useState(0);
   const [showNotifications, setShowNotifications] = useState(false);
   const [notifications, setNotifications] = useState([]);
-  const [statusReadMap, setStatusReadMap] = useState({});
-  const statusReadMapRef = useRef({});
 
   useEffect(() => {
     const fetchUserData = async () => {
@@ -47,39 +45,11 @@ export default function AdminNavbar({ toggleSidebar, sidebarOpen, isDesktop }) {
     fetchUserData();
   }, []);
 
-  useEffect(() => {
-    try {
-      const raw = localStorage.getItem(STATUS_READ_STORAGE_KEY);
-      if (!raw) return;
-      const parsed = JSON.parse(raw);
-      if (parsed && typeof parsed === 'object') {
-        setStatusReadMap(parsed);
-        statusReadMapRef.current = parsed;
-      }
-    } catch (error) {
-      console.error('Error loading notification read state:', error);
-    }
-  }, []);
-
-  const persistStatusReadMap = (nextMap) => {
-    setStatusReadMap(nextMap);
-    statusReadMapRef.current = nextMap;
-    try {
-      localStorage.setItem(STATUS_READ_STORAGE_KEY, JSON.stringify(nextMap));
-    } catch (error) {
-      console.error('Error saving notification read state:', error);
-    }
-  };
-
   // Combined notification update handler
   const handleNotificationsUpdate = (newItems, type) => {
     setNotifications(prev => {
       const filtered = prev.filter(n => n.type !== type);
-      const isStatusType = type === 'check_in' || type === 'check_out';
-      const itemsWithReadState = isStatusType
-        ? newItems.map(item => ({ ...item, read: statusReadMapRef.current[`${item.type}-${item.id}`] === true }))
-        : newItems;
-      const combined = [...filtered, ...itemsWithReadState];
+      const combined = [...filtered, ...newItems];
       combined.sort((a, b) => asDate(b.createdAt) - asDate(a.createdAt));
       return combined;
     });
@@ -113,27 +83,24 @@ export default function AdminNavbar({ toggleSidebar, sidebarOpen, isDesktop }) {
   const handleToggleNotifications = async () => {
     if (!showNotifications && unreadCount > 0) {
       await markAllNotificationsAsRead();
-      const nextReadMap = { ...statusReadMap };
-      notifications.forEach((n) => {
-        if ((n.type === 'check_in' || n.type === 'check_out') && !n.read) {
-          nextReadMap[`${n.type}-${n.id}`] = true;
+      // Update local read status for all non-persistent notifications
+      setNotifications(prev => prev.map(n => {
+        // For persistent notifications (check_in/check_out), mark as read in localStorage
+        if (n.type === 'check_in' || n.type === 'check_out') {
+          const notificationId = n.id.replace('_checkin', '').replace('_checkout', '').replace('_daytour_checkin', '');
+          const notificationType = n.type === 'check_in' 
+            ? (n.id.includes('daytour') ? 'daytour_checkin' : 'check_in')
+            : 'check_out';
+          markPersistentNotificationAsRead(notificationId, notificationType);
         }
-      });
-      persistStatusReadMap(nextReadMap);
-      // Update local read status
-      setNotifications(prev => prev.map(n => ({ ...n, read: true })));
+        return { ...n, read: true };
+      }));
     }
     setShowNotifications(!showNotifications);
   };
 
   const handleMarkAsRead = async (notification) => {
     await markNotificationAsRead(notification);
-    if (notification.type === 'check_in' || notification.type === 'check_out') {
-      persistStatusReadMap({
-        ...statusReadMap,
-        [`${notification.type}-${notification.id}`]: true
-      });
-    }
     setNotifications(prev => prev.map(n => 
       n.id === notification.id && n.type === notification.type ? { ...n, read: true } : n
     ));
@@ -323,6 +290,9 @@ const getNotificationStyle = (type) => {
     </p>
     <p className="text-xs text-gray-600 mb-1">
       <span className="font-semibold">{notification.guestName}</span> has checked in
+      {notification.isEarlyNotification && (
+        <span className="ml-1 text-amber-600 text-[10px]">(Early notification - 1 hour before)</span>
+      )}
     </p>
     <div className="inline-flex items-center gap-1.5 mt-1 px-2 py-0.5 bg-green-50 rounded-full">
       <i className="fas fa-bed text-green-500 text-[10px]"></i>
@@ -363,6 +333,12 @@ const getNotificationStyle = (type) => {
       <i className="fas fa-door-open text-red-500 text-[10px]"></i>
       <span className="text-[11px] font-medium text-red-700">{notification.roomType || 'Day Tour'}</span>
     </div>
+    {notification.selectedDate && (
+      <div className="inline-flex items-center gap-1.5 mt-1 ml-1 px-2 py-0.5 bg-gray-50 rounded-full">
+        <i className="fas fa-calendar text-gray-500 text-[10px]"></i>
+        <span className="text-[11px] font-medium text-gray-700">{notification.selectedDate}</span>
+      </div>
+    )}
   </>
 )}
                               {/* Timestamp */}

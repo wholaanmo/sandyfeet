@@ -60,6 +60,30 @@ const formatDateTimeForDisplay = (dateValue) => {
   }
 };
 
+// Helper function to format date without time for check-in early notification
+const formatDateWithoutTime = (dateValue) => {
+  if (!dateValue) return 'N/A';
+  try {
+    let date;
+    if (dateValue && typeof dateValue.toDate === 'function') {
+      date = dateValue.toDate();
+    } else if (dateValue && typeof dateValue === 'object' && dateValue.seconds) {
+      date = new Date(dateValue.seconds * 1000);
+    } else {
+      date = new Date(dateValue);
+    }
+    if (isNaN(date.getTime())) return 'N/A';
+    return date.toLocaleDateString('en-US', {
+      year: 'numeric',
+      month: 'short',
+      day: 'numeric'
+    });
+  } catch (error) {
+    console.error('Error formatting date:', error);
+    return 'N/A';
+  }
+};
+
 // Helper function to determine room type display for notifications
 // Returns: 'Single Room Type', 'Multi-Room Types', or 'Entire Resort'
 const getRoomTypeDisplay = (bookingData) => {
@@ -103,24 +127,48 @@ const getDayTourGuestCount = (data) => {
   return 1;
 };
 
-const getDateValue = (value) => {
-  if (!value) return null;
-  const date = asDate(value);
-  if (Number.isNaN(date.getTime())) return null;
-  return date;
+// Storage key for persistent notification read status
+const PERSISTENT_NOTIFICATION_READ_KEY = 'admin_persistent_notifications_read';
+
+// Helper to load persistent notification read status from localStorage
+const loadPersistentReadStatus = () => {
+  if (typeof window === 'undefined') return {};
+  try {
+    const saved = localStorage.getItem(PERSISTENT_NOTIFICATION_READ_KEY);
+    if (saved) {
+      return JSON.parse(saved);
+    }
+  } catch (e) {
+    console.error('Error loading persistent notification read status:', e);
+  }
+  return {};
 };
 
-const shouldShowEarlyRoomCheckIn = (bookingData, now) => {
-  const status = normalizeStatus(bookingData?.status);
-  if (status === 'check-out' || status === 'completed' || status === 'cancelled' || status === 'cancelled-by-guest') {
-    return false;
+// Helper to save persistent notification read status to localStorage
+const savePersistentReadStatus = (status) => {
+  if (typeof window === 'undefined') return;
+  try {
+    localStorage.setItem(PERSISTENT_NOTIFICATION_READ_KEY, JSON.stringify(status));
+  } catch (e) {
+    console.error('Error saving persistent notification read status:', e);
   }
+};
 
-  const checkInDate = getDateValue(bookingData?.checkIn);
-  if (!checkInDate) return false;
+// Helper to mark a persistent notification as read
+export const markPersistentNotificationAsRead = async (notificationId, notificationType) => {
+  const readStatus = loadPersistentReadStatus();
+  const key = `${notificationType}_${notificationId}`;
+  if (!readStatus[key]) {
+    readStatus[key] = true;
+    savePersistentReadStatus(readStatus);
+  }
+};
 
-  const triggerAt = new Date(checkInDate.getTime() - (60 * 60 * 1000));
-  return now >= triggerAt;
+// Helper to check if a persistent notification is read
+const isPersistentNotificationRead = (notificationId, notificationType) => {
+  const readStatus = loadPersistentReadStatus();
+  const key = `${notificationType}_${notificationId}`;
+  return readStatus[key] === true;
 };
 
 // Set up listener for room check-in and check-out status changes
@@ -149,9 +197,42 @@ export const setupRoomStatusListener = (onUpdate) => {
       if (data.type !== 'room') return;
 
       const status = normalizeStatus(data.status);
-      const shouldAddCheckIn = shouldShowEarlyRoomCheckIn(data, now);
-      const shouldAddCheckOut = status === 'check-out';
-      if (!shouldAddCheckIn && !shouldAddCheckOut) return;
+      
+      // Get check-in time (2:00 PM on check-in day)
+      let checkInRaw = data.checkIn;
+      let checkInDate;
+      if (checkInRaw && typeof checkInRaw.toDate === 'function') {
+        checkInDate = checkInRaw.toDate();
+      } else if (checkInRaw && typeof checkInRaw === 'object' && checkInRaw.seconds) {
+        checkInDate = new Date(checkInRaw.seconds * 1000);
+      } else if (checkInRaw) {
+        checkInDate = new Date(checkInRaw);
+      } else {
+        return;
+      }
+      
+      // Set check-in time to 2:00 PM
+      const checkInTime = new Date(checkInDate);
+      checkInTime.setHours(14, 0, 0, 0);
+      
+      // Calculate 1 hour before check-in for early notification
+      const oneHourBeforeCheckIn = new Date(checkInTime.getTime() - 60 * 60 * 1000);
+      
+      // Get check-out time (12:00 PM on check-out day)
+      let checkOutRaw = data.checkOut;
+      let checkOutDate;
+      if (checkOutRaw && typeof checkOutRaw.toDate === 'function') {
+        checkOutDate = checkOutRaw.toDate();
+      } else if (checkOutRaw && typeof checkOutRaw === 'object' && checkOutRaw.seconds) {
+        checkOutDate = new Date(checkOutRaw.seconds * 1000);
+      } else if (checkOutRaw) {
+        checkOutDate = new Date(checkOutRaw);
+      } else {
+        return;
+      }
+      
+      const checkOutTime = new Date(checkOutDate);
+      checkOutTime.setHours(12, 0, 0, 0);
 
       const bookingKey = getRoomStatusBookingKey(docSnap.id, data);
       const roomTypeDisplay = getRoomTypeDisplay(data);
@@ -159,7 +240,17 @@ export const setupRoomStatusListener = (onUpdate) => {
       const guestName = `${data.guestInfo?.firstName || ''} ${data.guestInfo?.lastName || ''}`.trim() || 'Guest';
       const createdAt = data.updatedAt || data.createdAt || new Date().toISOString();
 
-      if (shouldAddCheckIn && !checkInByBooking.has(bookingKey)) {
+      // Check-in notification logic - now with early notification 1 hour before check-in
+      // Show check-in notification if:
+      // 1. Status is 'check-in' (already checked in)
+      // 2. OR current time is >= 1 hour before check-in time (early notification)
+      const shouldShowCheckIn = status === 'check-in' || now >= oneHourBeforeCheckIn;
+      
+      if (shouldShowCheckIn && !checkInByBooking.has(bookingKey)) {
+        // Determine if this is an early notification vs actual check-in
+        const isEarlyNotification = status !== 'check-in' && now >= oneHourBeforeCheckIn && now < checkInTime;
+        const notificationTime = isEarlyNotification ? oneHourBeforeCheckIn : checkInTime;
+        
         checkInByBooking.set(bookingKey, {
           id: `${bookingKey}_checkin`,
           type: 'check_in',
@@ -167,13 +258,15 @@ export const setupRoomStatusListener = (onUpdate) => {
           bookingId: bookingKey,
           roomType: (data.isMultiRoomBooking && data.parentBookingId) ? multiRoomDisplay : (roomTypeDisplay || 'Single Room Type'),
           eventDate: formatDateTimeForDisplay(data.checkIn),
-          createdAt,
-          read: false,
-          isMultiRoom: !!(data.isMultiRoomBooking && data.parentBookingId)
+          createdAt: notificationTime,
+          read: isPersistentNotificationRead(bookingKey, 'check_in'),
+          isMultiRoom: !!(data.isMultiRoomBooking && data.parentBookingId),
+          isEarlyNotification: isEarlyNotification
         });
       }
 
-      if (shouldAddCheckOut && !checkOutByBooking.has(bookingKey)) {
+      // Check-out notification - only show when status is 'check-out' (persistent)
+      if (status === 'check-out' && !checkOutByBooking.has(bookingKey)) {
         checkOutByBooking.set(bookingKey, {
           id: `${bookingKey}_checkout`,
           type: 'check_out',
@@ -182,7 +275,7 @@ export const setupRoomStatusListener = (onUpdate) => {
           roomType: (data.isMultiRoomBooking && data.parentBookingId) ? multiRoomDisplay : (roomTypeDisplay || 'Single Room Type'),
           eventDate: formatDateTimeForDisplay(data.checkOut),
           createdAt,
-          read: false,
+          read: isPersistentNotificationRead(bookingKey, 'check_out'),
           isMultiRoom: !!(data.isMultiRoomBooking && data.parentBookingId)
         });
       }
@@ -201,25 +294,52 @@ export const setupRoomStatusListener = (onUpdate) => {
     querySnapshot.forEach((docSnap) => {
       const data = docSnap.data();
       const status = normalizeStatus(data.status);
-      if (status !== 'check-in') return;
+      
+      // Day tour check-in notification - persistent (never removed)
+      // Show when status is 'check-in' OR when current time passes the selected date
+      let shouldShowCheckIn = status === 'check-in';
+      
+      // Also show if we're on or after the selected date (for early visibility)
+      if (data.selectedDate && status !== 'completed' && status !== 'cancelled' && status !== 'cancelled-by-guest') {
+        let selectedDate;
+        if (typeof data.selectedDate === 'string') {
+          const [year, month, day] = data.selectedDate.split('-').map(Number);
+          selectedDate = new Date(year, month - 1, day);
+        } else if (data.selectedDate && typeof data.selectedDate.toDate === 'function') {
+          selectedDate = data.selectedDate.toDate();
+        } else if (data.selectedDate && data.selectedDate.seconds) {
+          selectedDate = new Date(data.selectedDate.seconds * 1000);
+        }
+        
+        if (selectedDate) {
+          const today = new Date();
+          today.setHours(0, 0, 0, 0);
+          selectedDate.setHours(0, 0, 0, 0);
+          
+          // Show notification if selected date is today or in the past (but not completed/cancelled)
+          if (selectedDate <= today) {
+            shouldShowCheckIn = true;
+          }
+        }
+      }
 
       const bookingKey = data.bookingId || docSnap.id;
-      if (checkInByBooking.has(bookingKey)) return;
+      if (shouldShowCheckIn && !checkInByBooking.has(bookingKey)) {
+        const guestName = `${data.guestInfo?.firstName || ''} ${data.guestInfo?.lastName || ''}`.trim() || 'Guest';
+        const guestCount = getDayTourGuestCount(data);
 
-      const guestName = `${data.guestInfo?.firstName || ''} ${data.guestInfo?.lastName || ''}`.trim() || 'Guest';
-      const guestCount = getDayTourGuestCount(data);
-
-      checkInByBooking.set(bookingKey, {
-        id: `${bookingKey}_daytour_checkin`,
-        type: 'check_in',
-        guestName: `${guestName} | Booking ID: ${bookingKey} | Guests: ${guestCount}`,
-        bookingId: bookingKey,
-        roomType: 'Day Tour',
-        eventDate: formatDateForDisplay(data.selectedDate),
-        createdAt: data.updatedAt || data.createdAt || new Date().toISOString(),
-        read: false,
-        isMultiRoom: false
-      });
+        checkInByBooking.set(bookingKey, {
+          id: `${bookingKey}_daytour_checkin`,
+          type: 'check_in',
+          guestName: `${guestName} | Booking ID: ${bookingKey} | Guests: ${guestCount}`,
+          bookingId: bookingKey,
+          roomType: 'Day Tour',
+          eventDate: formatDateForDisplay(data.selectedDate),
+          createdAt: data.updatedAt || data.createdAt || new Date().toISOString(),
+          read: isPersistentNotificationRead(bookingKey, 'daytour_checkin'),
+          isMultiRoom: false
+        });
+      }
     });
 
     dayTourCheckIns = Array.from(checkInByBooking.values());
@@ -476,10 +596,14 @@ export const markNotificationAsRead = async (notification) => {
   if (notification.read) return;
 
   try {
-    // For check-in/check-out notifications, we don't need to mark anything in Firestore
-    // as they are generated dynamically
+    // For check-in/check-out notifications (persistent), use localStorage
     if (notification.type === 'check_in' || notification.type === 'check_out') {
-      // These notifications are virtual - just return
+      // These are persistent notifications - mark as read in localStorage
+      const notificationId = notification.id.replace('_checkin', '').replace('_checkout', '').replace('_daytour_checkin', '');
+      const notificationType = notification.type === 'check_in' 
+        ? (notification.id.includes('daytour') ? 'daytour_checkin' : 'check_in')
+        : 'check_out';
+      await markPersistentNotificationAsRead(notificationId, notificationType);
       return;
     }
     

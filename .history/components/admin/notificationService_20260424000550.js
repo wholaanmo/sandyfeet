@@ -103,26 +103,6 @@ const getDayTourGuestCount = (data) => {
   return 1;
 };
 
-const getDateValue = (value) => {
-  if (!value) return null;
-  const date = asDate(value);
-  if (Number.isNaN(date.getTime())) return null;
-  return date;
-};
-
-const shouldShowEarlyRoomCheckIn = (bookingData, now) => {
-  const status = normalizeStatus(bookingData?.status);
-  if (status === 'check-out' || status === 'completed' || status === 'cancelled' || status === 'cancelled-by-guest') {
-    return false;
-  }
-
-  const checkInDate = getDateValue(bookingData?.checkIn);
-  if (!checkInDate) return false;
-
-  const triggerAt = new Date(checkInDate.getTime() - (60 * 60 * 1000));
-  return now >= triggerAt;
-};
-
 // Set up listener for room check-in and check-out status changes
 export const setupRoomStatusListener = (onUpdate) => {
   const bookingsRef = collection(db, 'bookings');
@@ -142,16 +122,13 @@ export const setupRoomStatusListener = (onUpdate) => {
   const unsubscribeRoom = onSnapshot(roomQuery, (querySnapshot) => {
     const checkInByBooking = new Map();
     const checkOutByBooking = new Map();
-    const now = new Date();
 
     querySnapshot.forEach((docSnap) => {
       const data = docSnap.data();
       if (data.type !== 'room') return;
 
       const status = normalizeStatus(data.status);
-      const shouldAddCheckIn = shouldShowEarlyRoomCheckIn(data, now);
-      const shouldAddCheckOut = status === 'check-out';
-      if (!shouldAddCheckIn && !shouldAddCheckOut) return;
+      if (status !== 'check-in' && status !== 'check-out') return;
 
       const bookingKey = getRoomStatusBookingKey(docSnap.id, data);
       const roomTypeDisplay = getRoomTypeDisplay(data);
@@ -159,7 +136,7 @@ export const setupRoomStatusListener = (onUpdate) => {
       const guestName = `${data.guestInfo?.firstName || ''} ${data.guestInfo?.lastName || ''}`.trim() || 'Guest';
       const createdAt = data.updatedAt || data.createdAt || new Date().toISOString();
 
-      if (shouldAddCheckIn && !checkInByBooking.has(bookingKey)) {
+      if (status === 'check-in' && !checkInByBooking.has(bookingKey)) {
         checkInByBooking.set(bookingKey, {
           id: `${bookingKey}_checkin`,
           type: 'check_in',
@@ -173,7 +150,7 @@ export const setupRoomStatusListener = (onUpdate) => {
         });
       }
 
-      if (shouldAddCheckOut && !checkOutByBooking.has(bookingKey)) {
+      if (status === 'check-out' && !checkOutByBooking.has(bookingKey)) {
         checkOutByBooking.set(bookingKey, {
           id: `${bookingKey}_checkout`,
           type: 'check_out',
