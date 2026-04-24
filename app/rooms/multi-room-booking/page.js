@@ -974,12 +974,29 @@ const handleSubmitBooking = async () => {
                           <p className="text-xs text-textSecondary mt-1">50% of total price</p>
                         </div>
 
-                        <div className="flex-1 p-4 sm:p-5 bg-ocean-ice/50 rounded-xl text-center border border-ocean-light/20 flex flex-col justify-center relative overflow-hidden">
+                        <div className="flex-1 p-4 sm:p-5 bg-ocean-ice/50 rounded-xl text-center border border-ocean-light/20 flex flex-col">
                           {modalNotification && (
-                            <div className="absolute top-0 left-0 w-full p-2 text-[10px] z-10 font-medium">
+                            <div className="w-full mb-3 text-[10px] font-medium">
                               <span className={`px-2 py-1 rounded inline-block shadow-sm ${modalNotification.type === 'error' ? 'bg-red-500 text-white' : 'bg-emerald-500 text-white'}`}>
                                 {modalNotification.message}
                               </span>
+                            </div>
+                          )}
+
+                          {visibleGuestQrBank && (
+                            <div className="mb-3 text-left rounded-xl border border-ocean-light/20 bg-white p-3">
+                              <h3 className="text-sm font-semibold text-textPrimary mb-2 flex items-center gap-1.5 border-b border-gray-200 pb-2">
+                                <i className="fas fa-qrcode text-ocean-mid"></i>
+                                {visibleGuestQrBank.bankName}
+                              </h3>
+                              <p className="text-xs text-gray-700 mt-1"><span className="font-semibold">Name:</span> {visibleGuestQrBank.accountName}</p>
+                              <div className="mt-2 w-24 h-24 bg-white rounded border border-ocean-light/20 overflow-hidden relative">
+                                <img
+                                  src={visibleGuestQrBank.qrCodeUrl}
+                                  alt={`${visibleGuestQrBank.bankName} QR Code`}
+                                  className="object-contain w-full h-full"
+                                />
+                              </div>
                             </div>
                           )}
                           
@@ -1006,22 +1023,6 @@ const handleSubmitBooking = async () => {
                             </div>
                           ) : (!showBankSelection ? (
                               <div className="w-full">
-                                {visibleGuestQrBank && (
-                                  <div className="mb-3 text-left">
-                                    <h3 className="text-sm font-semibold text-textPrimary mb-2 flex items-center gap-1.5 border-b border-gray-200 pb-2">
-                                      <i className="fas fa-qrcode text-ocean-mid"></i>
-                                      {visibleGuestQrBank.bankName}
-                                    </h3>
-                                    <p className="text-xs text-gray-700 mt-1"><span className="font-semibold">Name:</span> {visibleGuestQrBank.accountName}</p>
-                                    <div className="mt-2 w-24 h-24 bg-white rounded border border-ocean-light/20 overflow-hidden relative">
-                                      <img
-                                        src={visibleGuestQrBank.qrCodeUrl}
-                                        alt={`${visibleGuestQrBank.bankName} QR Code`}
-                                        className="object-contain w-full h-full"
-                                      />
-                                    </div>
-                                  </div>
-                                )}
                                 <h3 className="text-sm font-semibold text-textPrimary mb-2 flex items-center justify-center gap-1.5">
                                   <i className="fas fa-university text-ocean-mid"></i>
                                   Select Bank

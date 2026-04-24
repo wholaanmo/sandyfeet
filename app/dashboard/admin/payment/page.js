@@ -1377,7 +1377,7 @@ const handleArchiveBankAccount = async () => {
       {/* Add/Edit Bank Account Modal */}
       {showAddBankModal && (
         <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4" onClick={() => setShowAddBankModal(false)}>
-          <div className="bg-white rounded-2xl w-full max-w-md p-6 shadow-2xl" onClick={(e) => e.stopPropagation()}>
+          <div className="bg-white rounded-2xl w-full max-w-sm p-6 shadow-2xl" onClick={(e) => e.stopPropagation()}>
             <div className="flex justify-between items-center mb-5">
               <h2 className="text-xl font-bold text-textPrimary font-playfair">
                 {editingBank ? 'Edit Bank Account' : 'Add Bank Account'}

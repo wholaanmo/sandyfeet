@@ -868,6 +868,20 @@ const handleNotifyResort = async () => {
                   <p className="text-xs uppercase tracking-[0.16em] text-textSecondary">Account Name</p>
                   <p className="mt-1 font-semibold text-textPrimary">{bankDetailsProvided.accountName}</p>
                 </div>
+                {visibleGuestQrBank && (
+                  <div className="rounded-xl bg-white p-4 shadow-sm lg:col-span-2">
+                    <p className="text-xs uppercase tracking-[0.16em] text-textSecondary mb-3">Guest QR Code</p>
+                    <div className="flex flex-col items-center gap-3">
+                      <div className="flex h-56 w-56 items-center justify-center overflow-hidden rounded-[1.25rem] border border-ocean-light/20 bg-white">
+                        <img
+                          src={visibleGuestQrBank.qrCodeUrl}
+                          alt={`${visibleGuestQrBank.bankName} QR Code`}
+                          className="h-full w-full object-contain"
+                        />
+                      </div>
+                    </div>
+                  </div>
+                )}
                 {bankDetailsProvided.accountNumber && bankDetailsProvided.accountNumber !== 'QR Code Provided' ? (
                   <div className="rounded-xl bg-white p-4 shadow-sm lg:col-span-2">
                     <p className="text-xs uppercase tracking-[0.16em] text-textSecondary">Account Number</p>
