@@ -2,301 +2,309 @@
 'use client';
 
 import Image from 'next/image';
-import { useState, useEffect } from 'react';
+import { useEffect, useMemo, useState } from 'react';
+
+const PRICE_TYPE_META = {
+  perHour: { short: '/hr', full: 'per hour' },
+  per30Mins: { short: '/30m', full: 'per 30 minutes' },
+  per2Hrs: { short: '/2h', full: 'per 2 hours' },
+  per1Hr30Mins: { short: '/1.5h', full: 'per 1.5 hours' }
+};
+
+function formatPeso(value) {
+  if (value === null || value === undefined) {
+    return 'TBA';
+  }
+
+  return `PHP ${Number(value).toLocaleString()}`;
+}
+
+function getPriceMeta(priceType) {
+  return PRICE_TYPE_META[priceType] || { short: '', full: '' };
+}
 
 export default function ActivityCard({ activity }) {
-  const [imageError, setImageError] = useState(false);
   const [showDetailsModal, setShowDetailsModal] = useState(false);
-  const [currentImageIndex, setCurrentImageIndex] = useState(0);
-  const [isZoomed, setIsZoomed] = useState(false);
   const [isAnimating, setIsAnimating] = useState(false);
+  const [activeImageIndex, setActiveImageIndex] = useState(0);
+  const [coverImageFailed, setCoverImageFailed] = useState(false);
+  const [detailImageFailed, setDetailImageFailed] = useState(false);
 
-  // Helper function to get price display text
-  const getPriceDisplay = () => {
-    const price = activity.priceValue?.toLocaleString();
-    switch (activity.priceType) {
-      case 'perHour':
-        return { label: `/hour`, full: `per hour` };
-      case 'per30Mins':
-        return { label: `/30 min`, full: `per 30 minutes` };
-      case 'per2Hrs':
-        return { label: `/2 hrs`, full: `per 2 hours` };
-      case 'per1Hr30Mins':
-        return { label: `/1.5 hrs`, full: `per 1.5 hours` };
-      default:
-        return { label: ``, full: `` };
-    }
-  };
+  const images = Array.isArray(activity.images) ? activity.images.filter(Boolean) : [];
+  const hasImages = images.length > 0;
+  const priceMeta = useMemo(() => getPriceMeta(activity.priceType), [activity.priceType]);
 
-  const priceDisplay = getPriceDisplay();
-
-  const nextImage = () => {
-    if (activity.images && activity.images.length > 0) {
-      setCurrentImageIndex((prev) => (prev + 1) % activity.images.length);
-    }
-  };
-
-  const prevImage = () => {
-    if (activity.images && activity.images.length > 0) {
-      setCurrentImageIndex((prev) => (prev - 1 + activity.images.length) % activity.images.length);
-    }
-  };
-
-  const openSidebar = () => {
+  const openModal = () => {
+    setActiveImageIndex(0);
+    setDetailImageFailed(false);
     setIsAnimating(true);
     setShowDetailsModal(true);
+    
+    const scrollbarWidth = window.innerWidth - document.documentElement.clientWidth;
+    document.body.style.paddingRight = `${scrollbarWidth}px`;
+    
+    const navContainer = document.getElementById('guest-navbar');
+    if (navContainer) {
+      const computedPadding = window.getComputedStyle(navContainer).paddingRight;
+      navContainer.dataset.originalPadding = computedPadding;
+      navContainer.style.paddingRight = `calc(${computedPadding} + ${scrollbarWidth}px)`;
+    }
+
     document.body.style.overflow = 'hidden';
   };
 
-  const closeSidebar = () => {
+  const closeModal = () => {
     setIsAnimating(false);
     setTimeout(() => {
       setShowDetailsModal(false);
       document.body.style.overflow = 'unset';
-    }, 300);
+      document.body.style.paddingRight = '';
+      
+      const navContainer = document.getElementById('guest-navbar');
+      if (navContainer && navContainer.dataset.originalPadding) {
+        navContainer.style.paddingRight = navContainer.dataset.originalPadding;
+      } else if (navContainer) {
+        navContainer.style.paddingRight = '';
+      }
+    }, 260);
+  };
+
+  const nextImage = () => {
+    if (!hasImages || images.length < 2) return;
+    setDetailImageFailed(false);
+    setActiveImageIndex((prev) => (prev + 1) % images.length);
+  };
+
+  const previousImage = () => {
+    if (!hasImages || images.length < 2) return;
+    setDetailImageFailed(false);
+    setActiveImageIndex((prev) => (prev - 1 + images.length) % images.length);
   };
 
   useEffect(() => {
     return () => {
       document.body.style.overflow = 'unset';
+      document.body.style.paddingRight = '';
+      const navContainer = document.querySelector('div.fixed.top-0.left-0.right-0');
+      if (navContainer) navContainer.style.paddingRight = '';
     };
   }, []);
 
   return (
     <>
-      <div className="group overflow-hidden rounded-2xl border border-ocean-light/15 bg-white shadow-[0_10px_24px_rgb(0,0,0,0.06)] transition-all duration-300 hover:-translate-y-1 hover:shadow-[0_16px_34px_rgb(0,0,0,0.1)] flex flex-col sm:flex-row">
-        {/* Activity Image - Left side (30-35% width) */}
-        <div 
-          className="relative sm:w-[35%] md:w-[30%] h-48 sm:h-auto min-h-[180px] bg-gradient-to-br from-ocean-pale to-ocean-ice overflow-hidden cursor-pointer"
-          onClick={openSidebar}
-        >
-          {activity.images && activity.images[0] && !imageError ? (
-            <Image
-              src={activity.images[0]}
-              alt={activity.name}
-              fill
-              className="object-cover transition-transform duration-500 group-hover:scale-[1.04]"
-              onError={() => setImageError(true)}
-            />
-          ) : (
-            <div className="flex items-center justify-center h-full">
-              <i className="fas fa-bicycle text-5xl text-ocean-light/30"></i>
-            </div>
-          )}
+      <article className="group relative overflow-hidden rounded-[28px] border border-ocean-light/20 bg-white shadow-[0_14px_30px_rgb(0,0,0,0.08)] transition-all duration-300 hover:-translate-y-1 hover:shadow-[0_20px_42px_rgb(0,0,0,0.12)]">
+        <div className="absolute left-0 top-0 h-1 w-full bg-gradient-to-r from-ocean-mid via-ocean-light to-ocean-lighter" />
 
-          <div className="pointer-events-none absolute inset-x-0 bottom-0 h-16 bg-gradient-to-t from-black/35 to-transparent" />
-          <div className="absolute left-3 top-3 rounded-full bg-white/90 px-2.5 py-1 text-[11px] font-semibold text-ocean-mid backdrop-blur-sm">
-            Activity
-          </div>
-        </div>
-        
-        {/* Activity Details - Right side (65-70% width) */}
-        <div className="flex-1 p-5 flex flex-col">
-          <div className="mb-3 flex items-start justify-between gap-3">
-            <div>
-              <h3 className="font-playfair text-xl font-bold text-textPrimary line-clamp-1">{activity.name}</h3>
-              <p className="mt-0.5 text-xs uppercase tracking-wider text-textSecondary">Outdoor experience</p>
-            </div>
-          </div>
-          
-          <div className="mb-3 rounded-xl border border-ocean-light/10 bg-ocean-ice/45 px-3 py-2">
-            <p className="text-2xl font-bold text-ocean-mid">
-              ₱{activity.priceValue?.toLocaleString()}
-              <span className="text-sm font-normal text-textSecondary ml-1">{priceDisplay.label}</span>
-            </p>
-          </div>
-          
-          <p className="text-sm leading-relaxed text-textSecondary line-clamp-2 mb-4 flex-1">
-            {activity.description}
-          </p>
-          
+        <div className="grid md:grid-cols-[0.42fr_0.58fr]">
           <button
-            onClick={openSidebar}
-            className="w-full sm:w-auto rounded-lg border border-ocean-mid/35 px-4 py-2 text-sm font-semibold text-ocean-mid transition-all duration-300 hover:border-ocean-mid hover:bg-ocean-mid hover:text-white text-center"
+            type="button"
+            onClick={openModal}
+            className="relative min-h-[230px] overflow-hidden bg-gradient-to-br from-ocean-pale to-ocean-ice text-left"
           >
-            View Details
-          </button>
-        </div>
-      </div>
-
-      {/* Right Sidebar Modal with 50% Transparent Background */}
-      {showDetailsModal && (
-        <>
-          {/* Overlay with 50% transparency */}
-          <div 
-            className={`fixed inset-0 bg-black/50 transition-opacity duration-300 z-40 ${
-              isAnimating ? 'opacity-100' : 'opacity-0'
-            }`}
-            onClick={closeSidebar}
-          />
-          
-          {/* Sidebar Modal - Slides from right */}
-          <div 
-            className={`fixed top-0 right-0 h-full w-full max-w-md bg-white/95 backdrop-blur-md shadow-2xl z-50 transform transition-transform duration-300 ease-out ${
-              isAnimating ? 'translate-x-0' : 'translate-x-full'
-            }`}
-          >
-            <div className="flex flex-col h-full overflow-hidden">
-              {/* Modal Header */}
-              <div className="sticky top-0 bg-white/90 backdrop-blur-sm border-b border-gray-100 px-5 py-4 flex justify-between items-center z-10 flex-shrink-0">
-                <h2 className="text-lg font-bold text-textPrimary font-playfair truncate flex-1">
-                  {activity.name}
-                </h2>
-                <button
-                  onClick={closeSidebar}
-                  className="w-8 h-8 rounded-full bg-gray-100 hover:bg-gray-200 text-gray-600 hover:text-gray-900 transition-all duration-200 flex items-center justify-center ml-3 flex-shrink-0"
-                >
-                  <i className="fas fa-times text-sm"></i>
-                </button>
+            {hasImages && !coverImageFailed ? (
+              <Image
+                src={images[0]}
+                alt={activity.name || 'Activity image'}
+                fill
+                className="object-cover transition-transform duration-500 group-hover:scale-[1.05]"
+                onError={() => setCoverImageFailed(true)}
+              />
+            ) : (
+              <div className="flex h-full items-center justify-center">
+                <i className="fas fa-bicycle text-6xl text-ocean-light/35"></i>
               </div>
-              
-              {/* Scrollable Content Area */}
-              <div className="flex-1 overflow-y-auto px-5 py-4">
-                {/* Image Gallery */}
-                {activity.images && activity.images.length > 0 && (
-                  <div className="mb-5">
-                    <div className="relative">
-                      <div 
-                        className={`relative overflow-hidden rounded-xl bg-ocean-pale/30 ${isZoomed ? 'cursor-zoom-out' : 'cursor-zoom-in'}`}
-                        style={{ height: '250px' }}
-                        onClick={() => setIsZoomed(!isZoomed)}
-                      >
-                        <div
-                          className={`w-full h-full transition-transform duration-300 ${
-                            isZoomed ? 'scale-150' : 'scale-100'
-                          }`}
-                        >
-                          <Image
-                            src={activity.images[currentImageIndex]}
-                            alt={`${activity.name} - Image ${currentImageIndex + 1}`}
-                            fill
-                            className="object-contain"
-                          />
-                        </div>
-                        
-                        <button
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            setIsZoomed(!isZoomed);
-                          }}
-                          className="absolute top-2 right-2 bg-black/50 hover:bg-black/70 text-white rounded-full w-7 h-7 flex items-center justify-center transition-all duration-200 backdrop-blur-sm z-10"
-                        >
-                          <i className={`fas fa-${isZoomed ? 'search-minus' : 'search-plus'} text-xs`}></i>
-                        </button>
-                      </div>
+            )}
 
-                      {activity.images.length > 1 && (
-                        <>
-                          <button
-                            onClick={prevImage}
-                            className="absolute left-2 top-1/2 -translate-y-1/2 bg-black/50 hover:bg-black/70 text-white rounded-full w-7 h-7 flex items-center justify-center transition-all duration-200 backdrop-blur-sm z-10"
-                          >
-                            <i className="fas fa-chevron-left text-xs"></i>
-                          </button>
-                          <button
-                            onClick={nextImage}
-                            className="absolute right-2 top-1/2 -translate-y-1/2 bg-black/50 hover:bg-black/70 text-white rounded-full w-7 h-7 flex items-center justify-center transition-all duration-200 backdrop-blur-sm z-10"
-                          >
-                            <i className="fas fa-chevron-right text-xs"></i>
-                          </button>
-                        </>
-                      )}
+            <div className="pointer-events-none absolute inset-x-0 bottom-0 h-24 bg-gradient-to-t from-black/45 to-transparent" />
+            <div className="absolute left-3 top-3 rounded-full bg-white/90 px-2.5 py-1 text-[11px] font-semibold uppercase tracking-wider text-ocean-mid">
+              Activity Story
+            </div>
+            {images.length > 1 && (
+              <div className="absolute bottom-3 right-3 rounded-full bg-black/45 px-2 py-1 text-xs font-medium text-white backdrop-blur-sm">
+                {images.length} photos
+              </div>
+            )}
+          </button>
 
-                      <div className="absolute bottom-2 right-2 bg-black/50 text-white px-2 py-0.5 rounded-full text-xs backdrop-blur-sm z-10">
-                        {currentImageIndex + 1} / {activity.images.length}
-                      </div>
+          <div className="p-5 sm:p-6">
+            <div className="flex items-start justify-between gap-3">
+              <h3 className="line-clamp-2 font-playfair text-2xl font-bold leading-tight text-textPrimary">
+                {activity.name || 'Untitled Activity'}
+              </h3>
+              <span className="rounded-full bg-ocean-ice px-2.5 py-1 text-[11px] font-semibold uppercase tracking-wider text-ocean-mid">
+                Explore
+              </span>
+            </div>
+
+            <div className="mt-4 inline-flex items-end gap-2 rounded-2xl border border-ocean-light/20 bg-ocean-ice/65 px-3 py-2">
+              <p className="text-2xl font-bold text-ocean-mid">{formatPeso(activity.priceValue)}</p>
+              <span className="pb-1 text-xs font-semibold uppercase tracking-wider text-textSecondary">
+                {priceMeta.short}
+              </span>
+            </div>
+
+            <p className="line-clamp-3 mt-4 text-sm leading-relaxed text-textSecondary">
+              {activity.description || 'No activity description is available yet.'}
+            </p>
+
+            <button
+              type="button"
+              onClick={openModal}
+              className="mt-6 inline-flex items-center gap-2 rounded-xl border border-ocean-mid/30 px-4 py-2.5 text-sm font-semibold text-ocean-mid transition-all duration-300 hover:border-ocean-mid hover:bg-ocean-mid hover:text-white"
+            >
+              <i className="fas fa-compass"></i>
+              Open Details
+            </button>
+          </div>
+        </div>
+      </article>
+
+      {showDetailsModal && (
+        <div
+          className={`fixed inset-0 z-50 transition-opacity duration-300 ${
+            isAnimating ? 'opacity-100' : 'opacity-0'
+          }`}
+        >
+          <div className="absolute inset-0 bg-black/55" onClick={closeModal} />
+
+          <div className="relative z-10 mx-auto flex min-h-screen w-full max-w-6xl items-center p-4 sm:p-6">
+            <div
+              className={`w-full overflow-hidden rounded-[30px] border border-ocean-light/20 bg-white shadow-[0_26px_54px_rgb(0,0,0,0.22)] transition-transform duration-300 ${
+                isAnimating ? 'translate-y-0 scale-100' : 'translate-y-2 scale-[0.98]'
+              }`}
+            >
+              <div className="grid lg:grid-cols-[1.1fr_0.9fr]">
+                <div className="relative min-h-[320px] bg-gradient-to-br from-ocean-pale/60 to-ocean-ice/70 sm:min-h-[360px]">
+                  {hasImages && !detailImageFailed ? (
+                    <Image
+                      src={images[activeImageIndex]}
+                      alt={`${activity.name || 'Activity'} preview ${activeImageIndex + 1}`}
+                      fill
+                      className="object-cover"
+                      onError={() => setDetailImageFailed(true)}
+                    />
+                  ) : (
+                    <div className="flex h-full items-center justify-center">
+                      <i className="fas fa-bicycle text-7xl text-ocean-light/35"></i>
                     </div>
-                    
-                    {activity.images.length > 1 && (
-                      <div className="flex gap-2 mt-3 overflow-x-auto pb-2 justify-center">
-                        {activity.images.map((img, idx) => (
-                          <button
-                            key={idx}
-                            onClick={() => {
-                              setCurrentImageIndex(idx);
-                              setIsZoomed(false);
-                            }}
-                            className={`relative flex-shrink-0 w-14 h-14 rounded-lg overflow-hidden transition-all duration-200 ${
-                              currentImageIndex === idx
-                                ? 'ring-2 ring-ocean-mid ring-offset-2'
-                                : 'opacity-60 hover:opacity-100'
-                            }`}
-                          >
-                            <Image
-                              src={img}
-                              alt={`Thumbnail ${idx + 1}`}
-                              fill
-                              className="object-cover"
-                            />
-                          </button>
-                        ))}
+                  )}
+
+                  {images.length > 1 && (
+                    <>
+                      <button
+                        type="button"
+                        onClick={previousImage}
+                        className="absolute left-3 top-1/2 -translate-y-1/2 rounded-full bg-black/45 px-3 py-2 text-white transition-colors duration-200 hover:bg-black/60"
+                      >
+                        <i className="fas fa-chevron-left text-sm"></i>
+                      </button>
+                      <button
+                        type="button"
+                        onClick={nextImage}
+                        className="absolute right-3 top-1/2 -translate-y-1/2 rounded-full bg-black/45 px-3 py-2 text-white transition-colors duration-200 hover:bg-black/60"
+                      >
+                        <i className="fas fa-chevron-right text-sm"></i>
+                      </button>
+                    </>
+                  )}
+
+                  {images.length > 1 && (
+                    <div className="absolute bottom-3 right-3 rounded-full bg-black/45 px-2.5 py-1 text-xs font-medium text-white backdrop-blur-sm z-10">
+                      {activeImageIndex + 1} / {images.length}
+                    </div>
+                  )}
+                  
+                  <button
+                    type="button"
+                    onClick={closeModal}
+                    className="absolute right-4 top-4 z-20 flex lg:hidden h-10 w-10 items-center justify-center rounded-full bg-black/50 text-white backdrop-blur-md transition-all duration-200 hover:bg-black/70 hover:scale-105"
+                  >
+                    <i className="fas fa-times text-lg"></i>
+                  </button>
+                </div>
+
+                <div className="flex max-h-[80vh] flex-col relative">
+                  <button
+                    type="button"
+                    onClick={closeModal}
+                    className="absolute right-4 top-4 z-20 hidden lg:flex h-9 w-9 items-center justify-center rounded-full bg-gray-100 text-gray-600 transition-all duration-200 hover:bg-gray-200 hover:scale-105"
+                  >
+                    <i className="fas fa-times"></i>
+                  </button>
+                  <div className="flex items-center justify-between border-b border-ocean-light/15 px-5 py-4 sm:px-6 pr-14 lg:pr-16">
+                    <h3 className="line-clamp-2 font-playfair text-2xl font-bold text-textPrimary">
+                      {activity.name || 'Activity details'}
+                    </h3>
+                  </div>
+
+                  <div className="space-y-4 overflow-y-auto px-5 py-5 sm:px-6">
+                    <div className="rounded-2xl border border-ocean-light/20 bg-ocean-ice/70 p-4">
+                      <p className="text-xs font-semibold uppercase tracking-[0.15em] text-textSecondary">
+                        Activity Rate
+                      </p>
+                      <p className="mt-2 text-3xl font-bold text-ocean-mid">{formatPeso(activity.priceValue)}</p>
+                      <p className="text-sm text-textSecondary">{priceMeta.full || 'flat rate'}</p>
+                    </div>
+
+                    <div className="rounded-2xl border border-ocean-light/20 bg-white p-4">
+                      <p className="text-xs font-semibold uppercase tracking-[0.15em] text-textSecondary">
+                        Description
+                      </p>
+                      <p className="mt-2 whitespace-pre-wrap text-sm leading-relaxed text-textSecondary">
+                        {activity.description || 'No activity description is available yet.'}
+                      </p>
+                    </div>
+
+                    {images.length > 1 && (
+                      <div className="rounded-2xl border border-ocean-light/20 bg-white p-3">
+                        <p className="mb-2 text-xs font-semibold uppercase tracking-[0.15em] text-textSecondary">
+                          Gallery
+                        </p>
+                        <div className="flex gap-2 overflow-x-auto pb-1">
+                          {images.map((image, idx) => (
+                            <button
+                              key={`${image}-${idx}`}
+                              type="button"
+                              onClick={() => {
+                                setDetailImageFailed(false);
+                                setActiveImageIndex(idx);
+                              }}
+                              className={`relative h-16 w-16 flex-shrink-0 overflow-hidden rounded-xl border transition-all duration-200 ${
+                                activeImageIndex === idx
+                                  ? 'border-ocean-mid ring-2 ring-ocean-mid/25'
+                                  : 'border-ocean-light/20 opacity-75 hover:opacity-100'
+                              }`}
+                            >
+                              <Image
+                                src={image}
+                                alt={`Activity thumbnail ${idx + 1}`}
+                                fill
+                                className="object-cover"
+                              />
+                            </button>
+                          ))}
+                        </div>
                       </div>
                     )}
                   </div>
-                )}
-                
-                {/* Activity Details Sections */}
-                <div className="space-y-4">
-                  {/* Key Information Section */}
-                  <div className="bg-gradient-to-r from-blue-50 to-gray-50 rounded-xl p-4">
-                    <h3 className="text-xs font-semibold text-ocean-mid uppercase tracking-wide mb-3 flex items-center gap-2">
-                      <i className="fas fa-info-circle"></i>
-                      Activity Information
-                    </h3>
-                    <div className="space-y-3">
-                      <div>
-                        <label className="block text-xs font-medium text-gray-500 mb-1">Activity Name</label>
-                        <p className="text-sm font-semibold text-textPrimary">{activity.name}</p>
-                      </div>
-                      <div>
-                        <label className="block text-xs font-medium text-gray-500 mb-1">Price</label>
-                        <p className="text-xl font-bold text-ocean-mid">
-                          ₱{activity.priceValue?.toLocaleString()}
-                          <span className="text-sm font-normal text-textSecondary ml-1">{priceDisplay.full}</span>
-                        </p>
-                      </div>
-                    </div>
-                  </div>
-                  
-                  {/* Description Section */}
-                  <div className="bg-white rounded-xl p-4 border border-gray-100">
-                    <h3 className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-3 flex items-center gap-2">
-                      <i className="fas fa-align-left"></i>
-                      Description
-                    </h3>
-                    <div className="bg-gray-50 rounded-lg p-3">
-                      <p className="text-textSecondary leading-relaxed whitespace-pre-wrap text-sm">
-                        {activity.description}
-                      </p>
-                    </div>
-                  </div>
                 </div>
-              </div>
-              
-              {/* Modal Footer */}
-              <div className="sticky bottom-0 bg-white/90 backdrop-blur-sm border-t border-gray-100 px-5 py-4 flex gap-3 justify-end flex-shrink-0">
-                <button
-                  onClick={closeSidebar}
-                  className="flex-1 px-4 py-2 border border-gray-300 rounded-lg text-gray-700 text-sm font-medium hover:bg-gray-50 transition-all duration-200"
-                >
-                  Close
-                </button>
               </div>
             </div>
           </div>
-        </>
+        </div>
       )}
 
       <style jsx>{`
-        .line-clamp-1 {
-          display: -webkit-box;
-          -webkit-line-clamp: 1;
-          -webkit-box-orient: vertical;
-          overflow: hidden;
-        }
         .line-clamp-2 {
           display: -webkit-box;
           -webkit-line-clamp: 2;
+          -webkit-box-orient: vertical;
+          overflow: hidden;
+        }
+
+        .line-clamp-3 {
+          display: -webkit-box;
+          -webkit-line-clamp: 3;
           -webkit-box-orient: vertical;
           overflow: hidden;
         }
