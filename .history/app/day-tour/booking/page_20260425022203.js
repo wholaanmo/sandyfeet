@@ -9,9 +9,116 @@ import { collection, query, where, getDocs, addDoc, doc, getDoc, serverTimestamp
 import { uploadImage } from '@/lib/cloudinary';
 import { sendDayTourPendingEmail } from '@/lib/emailService';
 
-// Storage key for persisting booking data
-const STORAGE_KEY = 'daytour_booking_data';
-const STEP_STORAGE_KEY = 'daytour_booking_step';
+// Storage keys
+const STORAGE_KEY_BOOKING_DATA = 'daytour_booking_data';
+const STORAGE_KEY_STEP = 'daytour_booking_step';
+const STORAGE_KEY_PAYMENT_METHOD = 'daytour_payment_method';
+const STORAGE_KEY_BANK_REQUEST_SENT = 'daytour_bank_request_sent';
+const STORAGE_KEY_BANK_REQUEST_ID = 'daytour_bank_request_id';
+const STORAGE_KEY_SELECTED_BANK_ACCOUNT = 'daytour_selected_bank_account';
+const STORAGE_KEY_SHOW_BANK_SELECTION = 'daytour_show_bank_selection';
+
+// Save booking data to localStorage
+const saveBookingDataToStorage = (data) => {
+  if (typeof window !== 'undefined') {
+    const dataToSave = {
+      ...data,
+      paymentProof: data.paymentProof,
+      validIdImage: data.validIdImage,
+      validIdType: data.validIdType
+    };
+    localStorage.setItem(STORAGE_KEY_BOOKING_DATA, JSON.stringify(dataToSave));
+  }
+};
+
+// Save step to localStorage
+const saveStepToStorage = (stepValue) => {
+  if (typeof window !== 'undefined') {
+    localStorage.setItem(STORAGE_KEY_STEP, stepValue.toString());
+  }
+};
+
+// Save payment method to localStorage
+const savePaymentMethodToStorage = (method) => {
+  if (typeof window !== 'undefined') {
+    localStorage.setItem(STORAGE_KEY_PAYMENT_METHOD, method);
+  }
+};
+
+// Load saved data from localStorage
+const loadSavedBookingData = () => {
+  if (typeof window !== 'undefined') {
+    const savedData = localStorage.getItem(STORAGE_KEY_BOOKING_DATA);
+    if (savedData) {
+      try {
+        return JSON.parse(savedData);
+      } catch (e) {
+        console.error('Error parsing saved booking data:', e);
+        return null;
+      }
+    }
+  }
+  return null;
+};
+
+const loadSavedStep = () => {
+  if (typeof window !== 'undefined') {
+    const savedStep = localStorage.getItem(STORAGE_KEY_STEP);
+    if (savedStep) {
+      const stepNum = parseInt(savedStep, 10);
+      if (!isNaN(stepNum) && stepNum >= 1 && stepNum <= 4) {
+        return stepNum;
+      }
+    }
+  }
+  return null;
+};
+
+const loadSavedPaymentMethod = () => {
+  if (typeof window !== 'undefined') {
+    const savedMethod = localStorage.getItem(STORAGE_KEY_PAYMENT_METHOD);
+    if (savedMethod === 'gcash' || savedMethod === 'bank_transfer') {
+      return savedMethod;
+    }
+  }
+  return null;
+};
+
+const loadSavedBankRequestSent = () => {
+  if (typeof window !== 'undefined') {
+    const saved = localStorage.getItem(STORAGE_KEY_BANK_REQUEST_SENT);
+    return saved === 'true';
+  }
+  return false;
+};
+
+const loadSavedBankRequestId = () => {
+  if (typeof window !== 'undefined') {
+    return localStorage.getItem(STORAGE_KEY_BANK_REQUEST_ID);
+  }
+  return null;
+};
+
+const loadSavedSelectedBankAccount = () => {
+  if (typeof window !== 'undefined') {
+    const saved = localStorage.getItem(STORAGE_KEY_SELECTED_BANK_ACCOUNT);
+    if (saved) {
+      try {
+        return JSON.parse(saved);
+      } catch (e) {
+        return null;
+      }
+    }
+  }
+  return null;
+};
+
+const loadSavedShowBankSelection = () => {
+  if (typeof window !== 'undefined') {
+    return localStorage.getItem(STORAGE_KEY_SHOW_BANK_SELECTION) === 'true';
+  }
+  return false;
+};
 
 function DayTourBookingContent() {
   const searchParams = useSearchParams();
@@ -19,14 +126,11 @@ function DayTourBookingContent() {
   const HARD_MAX_PACKS = 38;
   const LEAD_TIME_DAYS = 2;
   const dateParam = searchParams.get('date');
-  const adultsParam = searchParams.get('adults');
-  const kidsParam = searchParams.get('kids');
   
   const [loading, setLoading] = useState(true);
   const [dayTour, setDayTour] = useState(null);
   const [selectedDate, setSelectedDate] = useState(null);
   const [remainingCapacity, setRemainingCapacity] = useState(0);
-  const [step, setStep] = useState(1);
   const [submitting, setSubmitting] = useState(false);
   const [uploading, setUploading] = useState(false);
   const [generatedBookingId, setGeneratedBookingId] = useState('');
@@ -34,33 +138,59 @@ function DayTourBookingContent() {
     gcashQRCode: '',
     bankAccounts: []
   });
-  const [paymentMethod, setPaymentMethod] = useState('gcash');
-  const [bankRequestSent, setBankRequestSent] = useState(false);
-  const [bankRequestId, setBankRequestId] = useState(null);
-  const [bankDetailsProvided, setBankDetailsProvided] = useState(null);
   const [notifyingResort, setNotifyingResort] = useState(false);
-  const [selectedBankAccount, setSelectedBankAccount] = useState(null);
-  const [showBankSelection, setShowBankSelection] = useState(false);
   const [requestedBankInfo, setRequestedBankInfo] = useState(null);
   const [modalNotification, setModalNotification] = useState(null);
   const [copiedMessage, setCopiedMessage] = useState(false);
   
-  const initialAdultsRaw = parseInt(adultsParam) || 1;
-  const initialKidsRaw = parseInt(kidsParam) || 0;
+  const initialAdultsRaw = parseInt(searchParams.get('adults')) || 1;
+  const initialKidsRaw = parseInt(searchParams.get('kids')) || 0;
   const initialAdults = Math.max(1, Math.min(HARD_MAX_PACKS, initialAdultsRaw));
   const initialKids = Math.max(0, Math.min(HARD_MAX_PACKS - initialAdults, initialKidsRaw));
 
-  const [bookingData, setBookingData] = useState({
-    adults: String(initialAdults),
-    kids: String(initialKids),
-    firstName: '',
-    lastName: '',
-    email: '',
-    phone: '',
-    paymentProof: null,
-    validIdType: '',
-    validIdImage: null
+  const [bookingData, setBookingData] = useState(() => {
+    const savedData = loadSavedBookingData();
+    if (savedData) {
+      return {
+        adults: savedData.adults || String(initialAdults),
+        kids: savedData.kids || String(initialKids),
+        firstName: savedData.firstName || '',
+        lastName: savedData.lastName || '',
+        email: savedData.email || '',
+        phone: savedData.phone || '',
+        paymentProof: savedData.paymentProof || null,
+        validIdType: savedData.validIdType || '',
+        validIdImage: savedData.validIdImage || null
+      };
+    }
+    return {
+      adults: String(initialAdults),
+      kids: String(initialKids),
+      firstName: '',
+      lastName: '',
+      email: '',
+      phone: '',
+      paymentProof: null,
+      validIdType: '',
+      validIdImage: null
+    };
   });
+  
+  const [step, setStep] = useState(() => {
+    const savedStep = loadSavedStep();
+    return savedStep !== null ? savedStep : 1;
+  });
+  
+  const [paymentMethod, setPaymentMethod] = useState(() => {
+    const savedMethod = loadSavedPaymentMethod();
+    return savedMethod !== null ? savedMethod : 'gcash';
+  });
+  
+  const [bankRequestSent, setBankRequestSent] = useState(() => loadSavedBankRequestSent());
+  const [bankRequestId, setBankRequestId] = useState(() => loadSavedBankRequestId());
+  const [bankDetailsProvided, setBankDetailsProvided] = useState(null);
+  const [selectedBankAccount, setSelectedBankAccount] = useState(() => loadSavedSelectedBankAccount());
+  const [showBankSelection, setShowBankSelection] = useState(() => loadSavedShowBankSelection());
   
   const [errors, setErrors] = useState({});
 
@@ -80,94 +210,64 @@ function DayTourBookingContent() {
     'Other Government IDs'
   ];
 
-  // Load persisted data from localStorage on mount
+  // Save booking data whenever it changes
   useEffect(() => {
-    try {
-      // Load persisted step
-      const savedStep = localStorage.getItem(STEP_STORAGE_KEY);
-      if (savedStep && !isNaN(parseInt(savedStep))) {
-        const stepNum = parseInt(savedStep);
-        if (stepNum >= 1 && stepNum <= 4) {
-          setStep(stepNum);
-        }
-      }
-      
-      // Load persisted booking data
-      const savedData = localStorage.getItem(STORAGE_KEY);
-      if (savedData) {
-        const parsed = JSON.parse(savedData);
-        setBookingData(prev => ({
-          ...prev,
-          ...parsed,
-          // Don't override URL params for adults/kids if they exist
-          adults: adultsParam ? prev.adults : (parsed.adults || prev.adults),
-          kids: kidsParam ? prev.kids : (parsed.kids || prev.kids)
-        }));
-        
-        // Load payment method
-        if (parsed.paymentMethod) {
-          setPaymentMethod(parsed.paymentMethod);
-        }
-        
-        // Load bank request state if needed
-        if (parsed.bankRequestSent) {
-          setBankRequestSent(parsed.bankRequestSent);
-        }
-        if (parsed.bankRequestId) {
-          setBankRequestId(parsed.bankRequestId);
-        }
-        if (parsed.bankDetailsProvided) {
-          setBankDetailsProvided(parsed.bankDetailsProvided);
-        }
-      }
-    } catch (error) {
-      console.error('Error loading persisted booking data:', error);
-    }
-  }, [adultsParam, kidsParam]);
+    saveBookingDataToStorage(bookingData);
+  }, [bookingData]);
 
-  // Save booking data to localStorage whenever it changes
+  // Save step whenever it changes
   useEffect(() => {
-    try {
-      const dataToSave = {
-        adults: bookingData.adults,
-        kids: bookingData.kids,
-        firstName: bookingData.firstName,
-        lastName: bookingData.lastName,
-        email: bookingData.email,
-        phone: bookingData.phone,
-        paymentProof: bookingData.paymentProof,
-        validIdType: bookingData.validIdType,
-        validIdImage: bookingData.validIdImage,
-        paymentMethod: paymentMethod,
-        bankRequestSent: bankRequestSent,
-        bankRequestId: bankRequestId,
-        bankDetailsProvided: bankDetailsProvided
-      };
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(dataToSave));
-    } catch (error) {
-      console.error('Error saving booking data to localStorage:', error);
-    }
-  }, [bookingData, paymentMethod, bankRequestSent, bankRequestId, bankDetailsProvided]);
-
-  // Save step to localStorage whenever it changes
-  useEffect(() => {
-    try {
-      localStorage.setItem(STEP_STORAGE_KEY, String(step));
-    } catch (error) {
-      console.error('Error saving step to localStorage:', error);
-    }
+    saveStepToStorage(step);
   }, [step]);
 
-  // Clear persisted data when booking is completed (step 4)
+  // Save payment method whenever it changes
   useEffect(() => {
-    if (step === 4) {
-      // Clear the persisted data after successful completion
-      try {
-        localStorage.removeItem(STORAGE_KEY);
-        localStorage.removeItem(STEP_STORAGE_KEY);
-      } catch (error) {
-        console.error('Error clearing persisted data:', error);
+    savePaymentMethodToStorage(paymentMethod);
+  }, [paymentMethod]);
+
+  // Save bank request status
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      localStorage.setItem(STORAGE_KEY_BANK_REQUEST_SENT, bankRequestSent.toString());
+    }
+  }, [bankRequestSent]);
+
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      if (bankRequestId) {
+        localStorage.setItem(STORAGE_KEY_BANK_REQUEST_ID, bankRequestId);
+      } else {
+        localStorage.removeItem(STORAGE_KEY_BANK_REQUEST_ID);
       }
+    }
+  }, [bankRequestId]);
+
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      if (selectedBankAccount) {
+        localStorage.setItem(STORAGE_KEY_SELECTED_BANK_ACCOUNT, JSON.stringify(selectedBankAccount));
+      } else {
+        localStorage.removeItem(STORAGE_KEY_SELECTED_BANK_ACCOUNT);
+      }
+    }
+  }, [selectedBankAccount]);
+
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      localStorage.setItem(STORAGE_KEY_SHOW_BANK_SELECTION, showBankSelection.toString());
+    }
+  }, [showBankSelection]);
+
+  // Clear storage when booking is completed (step 4)
+  useEffect(() => {
+    if (step === 4 && typeof window !== 'undefined') {
+      localStorage.removeItem(STORAGE_KEY_BOOKING_DATA);
+      localStorage.removeItem(STORAGE_KEY_STEP);
+      localStorage.removeItem(STORAGE_KEY_PAYMENT_METHOD);
+      localStorage.removeItem(STORAGE_KEY_BANK_REQUEST_SENT);
+      localStorage.removeItem(STORAGE_KEY_BANK_REQUEST_ID);
+      localStorage.removeItem(STORAGE_KEY_SELECTED_BANK_ACCOUNT);
+      localStorage.removeItem(STORAGE_KEY_SHOW_BANK_SELECTION);
     }
   }, [step]);
 
@@ -291,7 +391,6 @@ function DayTourBookingContent() {
 
       setRemainingCapacity(capacity);
 
-      // Re-validate guests if capacity changed
       const currentTotalGuests = toGuestNumber(bookingData.adults) + toGuestNumber(bookingData.kids);
       if (capacity !== Infinity && currentTotalGuests > capacity) {
         setErrors(prev => ({ ...prev, guests: `Only ${capacity} slot(s) remaining for this date` }));
@@ -330,7 +429,7 @@ function DayTourBookingContent() {
     };
   }, [selectedDate, dayTour, bookingData.adults, bookingData.kids]);
 
-  // Parse selected date from URL params
+  // Parse selected date
   useEffect(() => {
     if (dateParam) {
       const date = new Date(dateParam);
@@ -686,6 +785,17 @@ function DayTourBookingContent() {
         console.warn('Failed to send pending day tour email:', emailResult?.error);
       }
 
+      // Clear storage on successful booking
+      if (typeof window !== 'undefined') {
+        localStorage.removeItem(STORAGE_KEY_BOOKING_DATA);
+        localStorage.removeItem(STORAGE_KEY_STEP);
+        localStorage.removeItem(STORAGE_KEY_PAYMENT_METHOD);
+        localStorage.removeItem(STORAGE_KEY_BANK_REQUEST_SENT);
+        localStorage.removeItem(STORAGE_KEY_BANK_REQUEST_ID);
+        localStorage.removeItem(STORAGE_KEY_SELECTED_BANK_ACCOUNT);
+        localStorage.removeItem(STORAGE_KEY_SHOW_BANK_SELECTION);
+      }
+
       setStep(4);
       
     } catch (error) {
@@ -995,7 +1105,7 @@ function DayTourBookingContent() {
                           src={bankDetailsProvided.qrCodeUrl}
                           alt="Bank QR Code"
                           className="h-full w-full object-contain"
-                      />
+                        />
                       </div>
                       <p className="text-xs text-textSecondary">Scan to pay</p>
                     </div>

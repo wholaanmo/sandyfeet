@@ -12,11 +12,15 @@
     "@opentelemetry/api": "^1.9.1",
     "firebase": "^12.10.0",
     "firebase-admin": "^13.7.0",
+    "html2canvas": "^1.4.1",
+    "jspdf": "^4.2.1",
+    "jspdf-autotable": "^5.0.7",
     "next": "16.1.6",
     "nodemailer": "^8.0.5",
     "react": "19.2.3",
     "react-dom": "19.2.3",
-    "recharts": "^3.8.1"
+    "recharts": "^3.8.1",
+    "xlsx": "^0.18.5"
   },
   "devDependencies": {
     "@tailwindcss/postcss": "^4",

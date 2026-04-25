@@ -19,9 +19,6 @@ import {
   Pie,
   Cell
 } from 'recharts';
-import * as XLSX from 'xlsx';
-import html2canvas from 'html2canvas';
-import jsPDF from 'jspdf';
 
 export default function AdminReports() {
   const [activeTab, setActiveTab] = useState('roomTypes');
@@ -66,13 +63,6 @@ export default function AdminReports() {
   // Available years
   const [availableYears, setAvailableYears] = useState([]);
   
-  // Refs for capturing charts
-  const roomTypesChartRef = useRef(null);
-  const revenueChartRef = useRef(null);
-  const bookingSplitChartRef = useRef(null);
-  const roomBookingsTrendRef = useRef(null);
-  const dayTourTrendRef = useRef(null);
-  
   // Tab refs
   const tabsContainerRef = useRef(null);
   const sliderRef = useRef(null);
@@ -88,132 +78,6 @@ export default function AdminReports() {
   };
   
   const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
-  
-  // Helper function to download PDF
-  const downloadPDF = async (sectionName, chartRefs, tableData, tableHeaders) => {
-    const pdf = new jsPDF('landscape');
-    let yOffset = 20;
-    
-    // Add title
-    pdf.setFontSize(18);
-    pdf.setFont('helvetica', 'bold');
-    pdf.text(`${sectionName} - Report`, 14, yOffset);
-    yOffset += 15;
-    
-    // Add date
-    pdf.setFontSize(10);
-    pdf.setFont('helvetica', 'normal');
-    pdf.text(`Generated: ${new Date().toLocaleString()}`, 14, yOffset);
-    yOffset += 15;
-    
-    // Add table data
-    if (tableData && tableData.length > 0) {
-      pdf.setFontSize(12);
-      pdf.setFont('helvetica', 'bold');
-      pdf.text('Data Table:', 14, yOffset);
-      yOffset += 10;
-      
-      // Prepare table
-      const headers = tableHeaders;
-      const data = tableData.map(row => headers.map(h => row[h.toLowerCase().replace(/ /g, '')] || row[h] || ''));
-      
-      // AutoTable for better table rendering
-      const { default: autoTable } = await import('jspdf-autotable');
-      autoTable(pdf, {
-        head: [headers],
-        body: data,
-        startY: yOffset,
-        margin: { left: 14, right: 14 },
-        styles: { fontSize: 8, cellPadding: 2 },
-        headStyles: { fillColor: [77, 140, 245], textColor: 255, fontStyle: 'bold' }
-      });
-      yOffset = pdf.lastAutoTable.finalY + 15;
-    }
-    
-    // Add charts/images
-    for (const chartRef of chartRefs) {
-      if (chartRef.current) {
-        try {
-          const canvas = await html2canvas(chartRef.current, {
-            scale: 2,
-            backgroundColor: '#ffffff'
-          });
-          const imgData = canvas.toDataURL('image/png');
-          const imgWidth = 250;
-          const imgHeight = (canvas.height * imgWidth) / canvas.width;
-          
-          if (yOffset + imgHeight > pdf.internal.pageSize.height - 20) {
-            pdf.addPage();
-            yOffset = 20;
-          }
-          
-          pdf.addImage(imgData, 'PNG', 14, yOffset, imgWidth, imgHeight);
-          yOffset += imgHeight + 15;
-        } catch (error) {
-          console.error(`Error capturing chart for ${sectionName}:`, error);
-        }
-      }
-    }
-    
-    pdf.save(`${sectionName.toLowerCase().replace(/ /g, '_')}_report.pdf`);
-  };
-  
-  // Helper function to download Excel
-  const downloadExcel = (sectionName, tableData, tableHeaders) => {
-    if (!tableData || tableData.length === 0) {
-      alert('No data available to export.');
-      return;
-    }
-    
-    // Prepare worksheet data
-    const wsData = [tableHeaders, ...tableData.map(row => tableHeaders.map(h => row[h.toLowerCase().replace(/ /g, '')] || row[h] || ''))];
-    const ws = XLSX.utils.aoa_to_sheet(wsData);
-    const wb = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(wb, ws, sectionName);
-    XLSX.writeFile(wb, `${sectionName.toLowerCase().replace(/ /g, '_')}_data.xlsx`);
-  };
-  
-  // Prepare table data for Most Booked Room Types
-  const getRoomTypesTableData = () => {
-    if (!selectedYear || !yearlyMonthlyRoomData[selectedYear]) return [];
-    return yearlyMonthlyRoomData[selectedYear].map(monthData => ({
-      month: monthData.month,
-      tent: monthData.Tent,
-      groundFloorRoom: monthData['Ground Floor Room'],
-      groupRoom: monthData['Group Room'],
-      coupleRoom: monthData['Couple Room'],
-      total: monthData.Tent + monthData['Ground Floor Room'] + monthData['Group Room'] + monthData['Couple Room']
-    }));
-  };
-  
-  // Prepare table data for Revenue Summary
-  const getRevenueTableData = () => {
-    if (!selectedYear || !yearlyMonthlyRevenueData[selectedYear]) return [];
-    return yearlyMonthlyRevenueData[selectedYear].map(monthData => ({
-      month: monthData.month,
-      roomRevenue: monthData.roomRevenue,
-      dayTourRevenue: monthData.dayTourRevenue,
-      totalRevenue: monthData.roomRevenue + monthData.dayTourRevenue
-    }));
-  };
-  
-  // Prepare table data for Booking Split
-  const getBookingSplitTableData = () => {
-    return bookingSplitData.map(item => ({
-      bookingType: item.name,
-      count: item.value
-    }));
-  };
-  
-  // Prepare table data for Monthly/Seasonal Trend
-  const getTrendTableData = () => {
-    if (!selectedYear || !yearlyMonthlyTrendData[selectedYear]) return [];
-    return yearlyMonthlyTrendData[selectedYear].map(monthData => ({
-      month: monthData.month,
-      roomBookings: monthData.roomBookings,
-      dayTourGuests: monthData.dayTourGuests
-    }));
-  };
   
   const updateSlider = useCallback(() => {
     const activeButton = buttonRefs.current[activeTab];
@@ -837,28 +701,12 @@ export default function AdminReports() {
                 <h2 className="text-2xl font-bold text-[#1E3A8A] font-playfair">Most Booked Room Types</h2>
                 <p className="text-sm text-gray-500 mt-1">Track booking popularity across different room categories</p>
               </div>
-              <div className="flex items-center gap-3">
-                <div className="flex items-center gap-3 bg-gradient-to-r from-gray-50 to-white px-4 py-2 rounded-xl shadow-sm border border-gray-100">
-                  <i className="fas fa-calendar-alt text-[#4D8CF5] text-sm"></i>
-                  <label className="text-sm font-medium text-gray-700">Select Year:</label>
-                  <select value={selectedYear} onChange={(e) => setSelectedYear(e.target.value)} className="px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#4D8CF5] focus:border-transparent bg-white">
-                    {availableYears.map(year => (<option key={year} value={year}>{year}</option>))}
-                  </select>
-                </div>
-                <div className="flex gap-2">
-                  <button
-                    onClick={() => downloadPDF('Most Booked Room Types', [roomTypesChartRef], getRoomTypesTableData(), ['Month', 'Tent', 'Ground Floor Room', 'Group Room', 'Couple Room', 'Total'])}
-                    className="px-4 py-2 rounded-lg bg-gradient-to-r from-emerald-500 to-emerald-600 text-white text-sm font-medium hover:shadow-lg transition-all duration-200 flex items-center gap-2"
-                  >
-                    <i className="fas fa-file-pdf"></i> PDF
-                  </button>
-                  <button
-                    onClick={() => downloadExcel('Most Booked Room Types', getRoomTypesTableData(), ['Month', 'Tent', 'Ground Floor Room', 'Group Room', 'Couple Room', 'Total'])}
-                    className="px-4 py-2 rounded-lg bg-gradient-to-r from-green-500 to-green-600 text-white text-sm font-medium hover:shadow-lg transition-all duration-200 flex items-center gap-2"
-                  >
-                    <i className="fas fa-file-excel"></i> Excel
-                  </button>
-                </div>
+              <div className="flex items-center gap-3 bg-gradient-to-r from-gray-50 to-white px-4 py-2 rounded-xl shadow-sm border border-gray-100">
+                <i className="fas fa-calendar-alt text-[#4D8CF5] text-sm"></i>
+                <label className="text-sm font-medium text-gray-700">Select Year:</label>
+                <select value={selectedYear} onChange={(e) => setSelectedYear(e.target.value)} className="px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#4D8CF5] focus:border-transparent bg-white">
+                  {availableYears.map(year => (<option key={year} value={year}>{year}</option>))}
+                </select>
               </div>
             </div>
             
@@ -911,7 +759,7 @@ export default function AdminReports() {
             
             <p className="text-sm text-gray-500 mb-6">Monthly booking frequency by room type for <span className="font-semibold text-[#1E3A8A]">{selectedYear}</span></p>
             {selectedYear && yearlyMonthlyRoomData[selectedYear] && (
-              <div ref={roomTypesChartRef} className="bg-gradient-to-br from-gray-50 to-white rounded-xl p-6 border border-gray-100 shadow-sm hover:shadow-md transition-shadow duration-300">
+              <div className="bg-gradient-to-br from-gray-50 to-white rounded-xl p-6 border border-gray-100 shadow-sm hover:shadow-md transition-shadow duration-300">
                 <ResponsiveContainer width="100%" height={400}>
                   <BarChart data={yearlyMonthlyRoomData[selectedYear]} margin={{ top: 20, right: 30, left: 20, bottom: 5 }}>
                     <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
@@ -938,28 +786,12 @@ export default function AdminReports() {
                 <h2 className="text-2xl font-bold text-[#1E3A8A] font-playfair">Revenue Summary</h2>
                 <p className="text-sm text-gray-500 mt-1">Track revenue trends from room bookings and day tours</p>
               </div>
-              <div className="flex items-center gap-3">
-                <div className="flex items-center gap-3 bg-gradient-to-r from-gray-50 to-white px-4 py-2 rounded-xl shadow-sm border border-gray-100">
-                  <i className="fas fa-calendar-alt text-[#4D8CF5] text-sm"></i>
-                  <label className="text-sm font-medium text-gray-700">Select Year:</label>
-                  <select value={selectedYear} onChange={(e) => setSelectedYear(e.target.value)} className="px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#4D8CF5] focus:border-transparent bg-white">
-                    {availableYears.map(year => (<option key={year} value={year}>{year}</option>))}
-                  </select>
-                </div>
-                <div className="flex gap-2">
-                  <button
-                    onClick={() => downloadPDF('Revenue Summary', [revenueChartRef], getRevenueTableData(), ['Month', 'Room Revenue', 'Day Tour Revenue', 'Total Revenue'])}
-                    className="px-4 py-2 rounded-lg bg-gradient-to-r from-emerald-500 to-emerald-600 text-white text-sm font-medium hover:shadow-lg transition-all duration-200 flex items-center gap-2"
-                  >
-                    <i className="fas fa-file-pdf"></i> PDF
-                  </button>
-                  <button
-                    onClick={() => downloadExcel('Revenue Summary', getRevenueTableData(), ['Month', 'Room Revenue', 'Day Tour Revenue', 'Total Revenue'])}
-                    className="px-4 py-2 rounded-lg bg-gradient-to-r from-green-500 to-green-600 text-white text-sm font-medium hover:shadow-lg transition-all duration-200 flex items-center gap-2"
-                  >
-                    <i className="fas fa-file-excel"></i> Excel
-                  </button>
-                </div>
+              <div className="flex items-center gap-3 bg-gradient-to-r from-gray-50 to-white px-4 py-2 rounded-xl shadow-sm border border-gray-100">
+                <i className="fas fa-calendar-alt text-[#4D8CF5] text-sm"></i>
+                <label className="text-sm font-medium text-gray-700">Select Year:</label>
+                <select value={selectedYear} onChange={(e) => setSelectedYear(e.target.value)} className="px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#4D8CF5] focus:border-transparent bg-white">
+                  {availableYears.map(year => (<option key={year} value={year}>{year}</option>))}
+                </select>
               </div>
             </div>
             
@@ -1001,7 +833,7 @@ export default function AdminReports() {
             
             <p className="text-sm text-gray-500 mb-6">Monthly revenue breakdown for <span className="font-semibold text-[#1E3A8A]">{selectedYear}</span></p>
             {selectedYear && yearlyMonthlyRevenueData[selectedYear] && (
-              <div ref={revenueChartRef} className="bg-gradient-to-br from-gray-50 to-white rounded-xl p-6 border border-gray-100 shadow-sm hover:shadow-md transition-shadow duration-300">
+              <div className="bg-gradient-to-br from-gray-50 to-white rounded-xl p-6 border border-gray-100 shadow-sm hover:shadow-md transition-shadow duration-300">
                 <ResponsiveContainer width="100%" height={400}>
                   <BarChart data={yearlyMonthlyRevenueData[selectedYear]} margin={{ top: 20, right: 30, left: 20, bottom: 5 }}>
                     <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
@@ -1026,16 +858,24 @@ export default function AdminReports() {
                 <h2 className="text-2xl font-bold text-[#1E3A8A] font-playfair">Room Booking Type Split</h2>
                 <p className="text-sm text-gray-500 mt-1">Distribution of booking types across your property</p>
               </div>
-              <div className="flex items-center gap-3">
-                <div className="flex flex-wrap gap-4">
+              <div className="flex flex-wrap gap-4">
+                <div className="flex items-center gap-3 bg-gradient-to-r from-gray-50 to-white px-4 py-2 rounded-xl shadow-sm border border-gray-100">
+                  <i className="fas fa-sliders-h text-[#4D8CF5] text-sm"></i>
+                  <label className="text-sm font-medium text-gray-700">Filter by:</label>
+                  <select value={selectedSplitFilter} onChange={(e) => setSelectedSplitFilter(e.target.value)} className="px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#4D8CF5] focus:border-transparent bg-white">
+                    <option value="year">Year</option><option value="month">Month</option>
+                  </select>
+                </div>
+                {selectedSplitFilter === 'year' ? (
                   <div className="flex items-center gap-3 bg-gradient-to-r from-gray-50 to-white px-4 py-2 rounded-xl shadow-sm border border-gray-100">
-                    <i className="fas fa-sliders-h text-[#4D8CF5] text-sm"></i>
-                    <label className="text-sm font-medium text-gray-700">Filter by:</label>
-                    <select value={selectedSplitFilter} onChange={(e) => setSelectedSplitFilter(e.target.value)} className="px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#4D8CF5] focus:border-transparent bg-white">
-                      <option value="year">Year</option><option value="month">Month</option>
+                    <i className="fas fa-calendar-alt text-[#4D8CF5] text-sm"></i>
+                    <label className="text-sm font-medium text-gray-700">Year:</label>
+                    <select value={selectedSplitYear} onChange={(e) => setSelectedSplitYear(e.target.value)} className="px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#4D8CF5] focus:border-transparent bg-white">
+                      {availableYears.map(year => (<option key={year} value={year}>{year}</option>))}
                     </select>
                   </div>
-                  {selectedSplitFilter === 'year' ? (
+                ) : (
+                  <div className="flex flex-wrap gap-3">
                     <div className="flex items-center gap-3 bg-gradient-to-r from-gray-50 to-white px-4 py-2 rounded-xl shadow-sm border border-gray-100">
                       <i className="fas fa-calendar-alt text-[#4D8CF5] text-sm"></i>
                       <label className="text-sm font-medium text-gray-700">Year:</label>
@@ -1043,39 +883,15 @@ export default function AdminReports() {
                         {availableYears.map(year => (<option key={year} value={year}>{year}</option>))}
                       </select>
                     </div>
-                  ) : (
-                    <div className="flex flex-wrap gap-3">
-                      <div className="flex items-center gap-3 bg-gradient-to-r from-gray-50 to-white px-4 py-2 rounded-xl shadow-sm border border-gray-100">
-                        <i className="fas fa-calendar-alt text-[#4D8CF5] text-sm"></i>
-                        <label className="text-sm font-medium text-gray-700">Year:</label>
-                        <select value={selectedSplitYear} onChange={(e) => setSelectedSplitYear(e.target.value)} className="px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#4D8CF5] focus:border-transparent bg-white">
-                          {availableYears.map(year => (<option key={year} value={year}>{year}</option>))}
-                        </select>
-                      </div>
-                      <div className="flex items-center gap-3 bg-gradient-to-r from-gray-50 to-white px-4 py-2 rounded-xl shadow-sm border border-gray-100">
-                        <i className="fas fa-calendar-week text-[#4D8CF5] text-sm"></i>
-                        <label className="text-sm font-medium text-gray-700">Month:</label>
-                        <select value={selectedSplitMonth} onChange={(e) => setSelectedSplitMonth(e.target.value)} className="px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#4D8CF5] focus:border-transparent bg-white">
-                          {MONTHS.map((month, idx) => (<option key={idx} value={idx}>{month}</option>))}
-                        </select>
-                      </div>
+                    <div className="flex items-center gap-3 bg-gradient-to-r from-gray-50 to-white px-4 py-2 rounded-xl shadow-sm border border-gray-100">
+                      <i className="fas fa-calendar-week text-[#4D8CF5] text-sm"></i>
+                      <label className="text-sm font-medium text-gray-700">Month:</label>
+                      <select value={selectedSplitMonth} onChange={(e) => setSelectedSplitMonth(e.target.value)} className="px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#4D8CF5] focus:border-transparent bg-white">
+                        {MONTHS.map((month, idx) => (<option key={idx} value={idx}>{month}</option>))}
+                      </select>
                     </div>
-                  )}
-                </div>
-                <div className="flex gap-2">
-                  <button
-                    onClick={() => downloadPDF('Room Booking Type Split', [bookingSplitChartRef], getBookingSplitTableData(), ['Booking Type', 'Count'])}
-                    className="px-4 py-2 rounded-lg bg-gradient-to-r from-emerald-500 to-emerald-600 text-white text-sm font-medium hover:shadow-lg transition-all duration-200 flex items-center gap-2"
-                  >
-                    <i className="fas fa-file-pdf"></i> PDF
-                  </button>
-                  <button
-                    onClick={() => downloadExcel('Room Booking Type Split', getBookingSplitTableData(), ['Booking Type', 'Count'])}
-                    className="px-4 py-2 rounded-lg bg-gradient-to-r from-green-500 to-green-600 text-white text-sm font-medium hover:shadow-lg transition-all duration-200 flex items-center gap-2"
-                  >
-                    <i className="fas fa-file-excel"></i> Excel
-                  </button>
-                </div>
+                  </div>
+                )}
               </div>
             </div>
             <p className="text-sm text-gray-500 mb-8">Distribution of booking types for {selectedSplitFilter === 'year' ? `year ${selectedSplitYear}` : `${MONTHS[parseInt(selectedSplitMonth)]} ${selectedSplitYear}`}</p>
@@ -1087,7 +903,7 @@ export default function AdminReports() {
                 <p className="text-sm text-gray-400 mt-1">Try selecting a different month or year.</p>
               </div>
             ) : (
-              <div ref={bookingSplitChartRef} className="flex flex-col lg:flex-row items-center justify-center gap-8">
+              <div className="flex flex-col lg:flex-row items-center justify-center gap-8">
                 <div className="bg-gradient-to-br from-gray-50 to-white rounded-xl p-6 border border-gray-100 shadow-sm w-full hover:shadow-md transition-shadow duration-300">
                   <ResponsiveContainer width="100%" height={400}>
                     <PieChart>
@@ -1119,28 +935,12 @@ export default function AdminReports() {
                 <h2 className="text-2xl font-bold text-[#1E3A8A] font-playfair">Monthly / Seasonal Trend</h2>
                 <p className="text-sm text-gray-500 mt-1">Analyze booking patterns and seasonal fluctuations</p>
               </div>
-              <div className="flex items-center gap-3">
-                <div className="flex items-center gap-3 bg-gradient-to-r from-gray-50 to-white px-4 py-2 rounded-xl shadow-sm border border-gray-100">
-                  <i className="fas fa-calendar-alt text-[#4D8CF5] text-sm"></i>
-                  <label className="text-sm font-medium text-gray-700">Select Year:</label>
-                  <select value={selectedYear} onChange={(e) => setSelectedYear(e.target.value)} className="px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#4D8CF5] focus:border-transparent bg-white">
-                    {availableYears.map(year => (<option key={year} value={year}>{year}</option>))}
-                  </select>
-                </div>
-                <div className="flex gap-2">
-                  <button
-                    onClick={() => downloadPDF('Monthly Seasonal Trend', [roomBookingsTrendRef, dayTourTrendRef], getTrendTableData(), ['Month', 'Room Bookings', 'Day Tour Guests'])}
-                    className="px-4 py-2 rounded-lg bg-gradient-to-r from-emerald-500 to-emerald-600 text-white text-sm font-medium hover:shadow-lg transition-all duration-200 flex items-center gap-2"
-                  >
-                    <i className="fas fa-file-pdf"></i> PDF
-                  </button>
-                  <button
-                    onClick={() => downloadExcel('Monthly Seasonal Trend', getTrendTableData(), ['Month', 'Room Bookings', 'Day Tour Guests'])}
-                    className="px-4 py-2 rounded-lg bg-gradient-to-r from-green-500 to-green-600 text-white text-sm font-medium hover:shadow-lg transition-all duration-200 flex items-center gap-2"
-                  >
-                    <i className="fas fa-file-excel"></i> Excel
-                  </button>
-                </div>
+              <div className="flex items-center gap-3 bg-gradient-to-r from-gray-50 to-white px-4 py-2 rounded-xl shadow-sm border border-gray-100">
+                <i className="fas fa-calendar-alt text-[#4D8CF5] text-sm"></i>
+                <label className="text-sm font-medium text-gray-700">Select Year:</label>
+                <select value={selectedYear} onChange={(e) => setSelectedYear(e.target.value)} className="px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#4D8CF5] focus:border-transparent bg-white">
+                  {availableYears.map(year => (<option key={year} value={year}>{year}</option>))}
+                </select>
               </div>
             </div>
             
@@ -1171,7 +971,7 @@ export default function AdminReports() {
             
             <p className="text-sm text-gray-500 mb-8">Monthly booking patterns for <span className="font-semibold text-[#1E3A8A]">{selectedYear}</span></p>
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-              <div ref={roomBookingsTrendRef} className="bg-gradient-to-br from-gray-50 to-white rounded-xl p-6 border border-gray-100 shadow-sm hover:shadow-md transition-shadow duration-300">
+              <div className="bg-gradient-to-br from-gray-50 to-white rounded-xl p-6 border border-gray-100 shadow-sm hover:shadow-md transition-shadow duration-300">
                 <div className="flex items-center gap-3 mb-5 pb-3 border-b border-gray-200">
                   <div className="w-10 h-10 rounded-lg bg-gradient-to-br from-[#4D8CF5]/20 to-[#4D8CF5]/5 flex items-center justify-center">
                     <i className="fas fa-bed text-[#4D8CF5] text-lg"></i>
@@ -1194,7 +994,7 @@ export default function AdminReports() {
                   </ResponsiveContainer>
                 )}
               </div>
-              <div ref={dayTourTrendRef} className="bg-gradient-to-br from-gray-50 to-white rounded-xl p-6 border border-gray-100 shadow-sm hover:shadow-md transition-shadow duration-300">
+              <div className="bg-gradient-to-br from-gray-50 to-white rounded-xl p-6 border border-gray-100 shadow-sm hover:shadow-md transition-shadow duration-300">
                 <div className="flex items-center gap-3 mb-5 pb-3 border-b border-gray-200">
                   <div className="w-10 h-10 rounded-lg bg-gradient-to-br from-[#F59E0B]/20 to-[#F59E0B]/5 flex items-center justify-center">
                     <i className="fas fa-users text-[#F59E0B] text-lg"></i>

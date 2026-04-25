@@ -1069,7 +1069,14 @@ const handleSubmitBooking = async () => {
 
       <div className="flex-1 space-y-3">
 
-      
+        
+                       {modalNotification && (
+          <div className="w-full mb-2 text-[10px] font-medium">
+            <span className={`px-2 py-1 rounded inline-block shadow-sm ${modalNotification.type === 'error' ? 'bg-red-500 text-white' : 'bg-emerald-500 text-white'}`}>
+              {modalNotification.message}
+            </span>
+          </div>
+        )}
 
         {/* QR CODE CONTAINER - Separate section for QR code details */}
         {visibleGuestQrBank && (

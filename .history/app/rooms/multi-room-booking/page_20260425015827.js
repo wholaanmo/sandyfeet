@@ -11,10 +11,6 @@ import { uploadImage } from '@/lib/cloudinary';
 import { compressImage } from '@/lib/imageUtils';
 import { sendRoomPendingEmail } from '@/lib/emailService';
 
-// Storage keys for persisting data
-const MULTI_ROOM_STORAGE_KEY = 'multi_room_booking_data';
-const MULTI_ROOM_STEP_KEY = 'multi_room_booking_step';
-
 export default function MultiRoomBookingPage() {
   const router = useRouter();
   const [bookingData, setBookingData] = useState(null);
@@ -62,7 +58,7 @@ export default function MultiRoomBookingPage() {
     'Other Government IDs'
   ];
 
-  // Load booking data from session storage (room selection) AND localStorage (persisted form data)
+  // Load booking data from session storage
   useEffect(() => {
     const storedData = sessionStorage.getItem('multiRoomBooking');
     if (!storedData) {
@@ -71,60 +67,17 @@ export default function MultiRoomBookingPage() {
     }
 
     const data = JSON.parse(storedData);
-    
-    // Try to load persisted form data from localStorage
-    let persistedFormData = {};
-    try {
-      const savedData = localStorage.getItem(MULTI_ROOM_STORAGE_KEY);
-      if (savedData) {
-        const parsed = JSON.parse(savedData);
-        persistedFormData = parsed;
-      }
-    } catch (error) {
-      console.error('Error loading persisted booking data:', error);
-    }
-    
-    // Try to load persisted step
-    try {
-      const savedStep = localStorage.getItem(MULTI_ROOM_STEP_KEY);
-      if (savedStep && !isNaN(parseInt(savedStep))) {
-        const stepNum = parseInt(savedStep);
-        if (stepNum >= 2 && stepNum <= 4) {
-          setStep(stepNum);
-        }
-      }
-    } catch (error) {
-      console.error('Error loading persisted step:', error);
-    }
-    
-    // Try to load persisted payment method
-    if (persistedFormData.paymentMethod) {
-      setPaymentMethod(persistedFormData.paymentMethod);
-    }
-    
-    // Try to load persisted bank request state
-    if (persistedFormData.bankRequestSent) {
-      setBankRequestSent(persistedFormData.bankRequestSent);
-    }
-    if (persistedFormData.bankRequestId) {
-      setBankRequestId(persistedFormData.bankRequestId);
-    }
-    if (persistedFormData.bankDetailsProvided) {
-      setBankDetailsProvided(persistedFormData.bankDetailsProvided);
-    }
-    
     setBookingData({
       ...data,
       checkIn: new Date(data.checkInDate),
       checkOut: new Date(data.checkOutDate),
-      firstName: persistedFormData.firstName || '',
-      lastName: persistedFormData.lastName || '',
-      email: persistedFormData.email || '',
-      phone: persistedFormData.phone || '',
-      paymentProofUrl: persistedFormData.paymentProofUrl || null,
-      validIdType: persistedFormData.validIdType || '',
-      validIdUrl: persistedFormData.validIdUrl || null,
-      specialRequest: persistedFormData.specialRequest || '',
+      firstName: '',
+      lastName: '',
+      email: '',
+      phone: '',
+      paymentProofUrl: null,
+      validIdType: '',
+      validIdUrl: null,
       nights: 1
     });
     const initialTotalPrice = Number(data.exclusivePackagePrice || data.totalPrice || 0);
@@ -132,52 +85,6 @@ export default function MultiRoomBookingPage() {
     setDownPaymentAmount(initialTotalPrice * 0.5);
     setLoading(false);
   }, [router]);
-
-  // Save booking data to localStorage whenever it changes
-  useEffect(() => {
-    if (!bookingData) return;
-    
-    try {
-      const dataToSave = {
-        firstName: bookingData.firstName,
-        lastName: bookingData.lastName,
-        email: bookingData.email,
-        phone: bookingData.phone,
-        paymentProofUrl: bookingData.paymentProofUrl,
-        validIdType: bookingData.validIdType,
-        validIdUrl: bookingData.validIdUrl,
-        specialRequest: bookingData.specialRequest,
-        paymentMethod: paymentMethod,
-        bankRequestSent: bankRequestSent,
-        bankRequestId: bankRequestId,
-        bankDetailsProvided: bankDetailsProvided
-      };
-      localStorage.setItem(MULTI_ROOM_STORAGE_KEY, JSON.stringify(dataToSave));
-    } catch (error) {
-      console.error('Error saving booking data to localStorage:', error);
-    }
-  }, [bookingData, paymentMethod, bankRequestSent, bankRequestId, bankDetailsProvided]);
-
-  // Save step to localStorage whenever it changes
-  useEffect(() => {
-    try {
-      localStorage.setItem(MULTI_ROOM_STEP_KEY, String(step));
-    } catch (error) {
-      console.error('Error saving step to localStorage:', error);
-    }
-  }, [step]);
-
-  // Clear persisted data when booking is completed (step 4)
-  useEffect(() => {
-    if (step === 4) {
-      try {
-        localStorage.removeItem(MULTI_ROOM_STORAGE_KEY);
-        localStorage.removeItem(MULTI_ROOM_STEP_KEY);
-      } catch (error) {
-        console.error('Error clearing persisted data:', error);
-      }
-    }
-  }, [step]);
 
   // Generate booking reference
   const generateBookingReference = () => {
@@ -1069,7 +976,14 @@ const handleSubmitBooking = async () => {
 
       <div className="flex-1 space-y-3">
 
-      
+        
+                       {modalNotification && (
+          <div className="w-full mb-2 text-[10px] font-medium">
+            <span className={`px-2 py-1 rounded inline-block shadow-sm ${modalNotification.type === 'error' ? 'bg-red-500 text-white' : 'bg-emerald-500 text-white'}`}>
+              {modalNotification.message}
+            </span>
+          </div>
+        )}
 
         {/* QR CODE CONTAINER - Separate section for QR code details */}
         {visibleGuestQrBank && (
