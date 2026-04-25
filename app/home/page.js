@@ -5,7 +5,7 @@ import GuestLayout from '../guest/layout';
 import Image from 'next/image';
 import Link from 'next/link';
 import { db } from '@/lib/firebase';
-import { collection, onSnapshot, query, where } from 'firebase/firestore';
+import { addDoc, collection, getDocs, limit, onSnapshot, query, serverTimestamp, where } from 'firebase/firestore';
 
 const galleryImages = [
   { src: '/assets/View/Front view.jpg', alt: 'Sandyfeet front view' },
@@ -15,6 +15,35 @@ const galleryImages = [
   { src: '/assets/Tent/Tents.jpg', alt: 'Camping tents' },
   { src: '/assets/Facilities/Bonfire.jpg', alt: 'Bonfire night setup' },
 ];
+
+const testimonials = [
+  {
+    name: 'Aira M.',
+    role: 'WEEKEND GUEST',
+    review:
+      'Super easy booking process and the place looked exactly like the photos. The pool vibe at sunset is 10/10.',
+  },
+  {
+    name: 'Jules P.',
+    role: 'BIRTHDAY CELEBRANT',
+    review:
+      'We reserved for a small celebration and everything felt smooth from payment upload to confirmation update.',
+  },
+  {
+    name: 'Mark & Elle',
+    role: 'COUPLE ROOM STAY',
+    review:
+      'The room was cozy and clean, staff was responsive, and tracking our booking status gave us peace of mind.',
+  },
+  {
+    name: 'Nika R.',
+    role: 'DAY TOUR GUEST',
+    review:
+      'The reservation flow is clear and fast. We arrived with everything ready and enjoyed the whole day without hassle.',
+  },
+];
+
+const completedStatuses = new Set(['completed']);
 
 const toRoomSlug = (value) => {
   return String(value || '')
@@ -65,6 +94,14 @@ const getFallbackFeaturedImage = (roomType) => {
 export default function HomePage() {
   const [featuredRooms, setFeaturedRooms] = useState([]);
   const [featuredRoomsLoading, setFeaturedRoomsLoading] = useState(true);
+  const [showFeedbackModal, setShowFeedbackModal] = useState(false);
+  const [feedbackStep, setFeedbackStep] = useState('verify');
+  const [feedbackCredentials, setFeedbackCredentials] = useState({ email: '', reference: '' });
+  const [feedbackForm, setFeedbackForm] = useState({ rating: 5, comment: '' });
+  const [feedbackMessage, setFeedbackMessage] = useState({ text: '', type: '' });
+  const [verifiedFeedbackBooking, setVerifiedFeedbackBooking] = useState(null);
+  const [verifyingBooking, setVerifyingBooking] = useState(false);
+  const [submittingFeedback, setSubmittingFeedback] = useState(false);
 
   useEffect(() => {
     const roomsRef = collection(db, 'rooms');
@@ -130,6 +167,162 @@ export default function HomePage() {
 
     return () => unsubscribe();
   }, []);
+
+  useEffect(() => {
+    if (!showFeedbackModal) return;
+
+    const onEscape = (event) => {
+      if (event.key === 'Escape') {
+        setShowFeedbackModal(false);
+      }
+    };
+
+    document.addEventListener('keydown', onEscape);
+    return () => document.removeEventListener('keydown', onEscape);
+  }, [showFeedbackModal]);
+
+  const resetFeedbackModal = () => {
+    setFeedbackStep('verify');
+    setFeedbackCredentials({ email: '', reference: '' });
+    setFeedbackForm({ rating: 5, comment: '' });
+    setFeedbackMessage({ text: '', type: '' });
+    setVerifiedFeedbackBooking(null);
+    setVerifyingBooking(false);
+    setSubmittingFeedback(false);
+  };
+
+  const closeFeedbackModal = () => {
+    setShowFeedbackModal(false);
+    resetFeedbackModal();
+  };
+
+  const fetchBookingByReference = async (collectionName, bookingId) => {
+    const bookingsRef = collection(db, collectionName);
+    const bookingQuery = query(bookingsRef, where('bookingId', '==', bookingId), limit(1));
+    const bookingSnapshot = await getDocs(bookingQuery);
+
+    if (bookingSnapshot.empty) return null;
+
+    return {
+      docId: bookingSnapshot.docs[0].id,
+      collectionName,
+      data: bookingSnapshot.docs[0].data(),
+    };
+  };
+
+  const handleVerifyFeedbackBooking = async (event) => {
+    event.preventDefault();
+
+    // Temporary preview mode: bypass verification and open the rating form directly.
+    setVerifiedFeedbackBooking({
+      bookingId: (feedbackCredentials.reference || 'PREVIEW-BOOKING').trim().toUpperCase(),
+      guestEmail: (feedbackCredentials.email || 'preview@sandyfeet.local').trim().toLowerCase(),
+      guestName: 'Preview Guest',
+      sourceCollection: 'preview',
+      sourceDocId: 'preview',
+    });
+    setFeedbackMessage({ text: 'Preview mode enabled. Verification is temporarily bypassed.', type: 'info' });
+    setFeedbackStep('form');
+    return;
+
+    const normalizedEmail = feedbackCredentials.email.trim().toLowerCase();
+    const normalizedReference = feedbackCredentials.reference.trim().toUpperCase();
+
+    if (!normalizedEmail || !normalizedReference) {
+      setFeedbackMessage({ text: 'Please enter both email and reference number.', type: 'error' });
+      return;
+    }
+
+    setVerifyingBooking(true);
+    setFeedbackMessage({ text: '', type: '' });
+
+    try {
+      const roomBooking = await fetchBookingByReference('bookings', normalizedReference);
+      const dayTourBooking = roomBooking ? null : await fetchBookingByReference('dayTourBookings', normalizedReference);
+      const foundBooking = roomBooking || dayTourBooking;
+
+      if (!foundBooking) {
+        setFeedbackMessage({ text: 'No booking found for that reference number.', type: 'error' });
+        return;
+      }
+
+      const guestEmail = String(foundBooking.data?.guestInfo?.email || '').trim().toLowerCase();
+      if (!guestEmail || guestEmail !== normalizedEmail) {
+        setFeedbackMessage({ text: 'Email does not match this booking reference.', type: 'error' });
+        return;
+      }
+
+      const bookingStatus = String(foundBooking.data?.status || '').toLowerCase();
+      if (!completedStatuses.has(bookingStatus)) {
+        setFeedbackMessage({ text: 'Only completed bookings can submit feedback.', type: 'error' });
+        return;
+      }
+
+      const duplicateQuery = query(collection(db, 'feedbacks'), where('bookingId', '==', normalizedReference), limit(1));
+      const duplicateSnapshot = await getDocs(duplicateQuery);
+      if (!duplicateSnapshot.empty) {
+        setFeedbackMessage({ text: 'Feedback for this booking has already been submitted.', type: 'error' });
+        return;
+      }
+
+      const guestName = `${foundBooking.data?.guestInfo?.firstName || ''} ${foundBooking.data?.guestInfo?.lastName || ''}`.trim();
+
+      setVerifiedFeedbackBooking({
+        bookingId: normalizedReference,
+        guestEmail: normalizedEmail,
+        guestName: guestName || 'Guest',
+        sourceCollection: foundBooking.collectionName,
+        sourceDocId: foundBooking.docId,
+      });
+      setFeedbackStep('form');
+      setFeedbackMessage({ text: 'Booking verified. You can now write your feedback.', type: 'success' });
+    } catch (error) {
+      console.error('Error verifying booking:', error);
+      setFeedbackMessage({ text: 'Failed to verify booking. Please try again.', type: 'error' });
+    } finally {
+      setVerifyingBooking(false);
+    }
+  };
+
+  const handleFeedbackSubmit = async (event) => {
+    event.preventDefault();
+
+    if (!verifiedFeedbackBooking) {
+      setFeedbackMessage({ text: 'Please verify your booking first.', type: 'error' });
+      setFeedbackStep('verify');
+      return;
+    }
+
+    const trimmedComment = feedbackForm.comment.trim();
+    if (trimmedComment.length < 10) {
+      setFeedbackMessage({ text: 'Please enter at least 10 characters for your feedback.', type: 'error' });
+      return;
+    }
+
+    setSubmittingFeedback(true);
+    setFeedbackMessage({ text: '', type: '' });
+
+    try {
+      await addDoc(collection(db, 'feedbacks'), {
+        bookingId: verifiedFeedbackBooking.bookingId,
+        guestEmail: verifiedFeedbackBooking.guestEmail,
+        guestName: verifiedFeedbackBooking.guestName,
+        rating: Number(feedbackForm.rating),
+        comment: trimmedComment,
+        sourceCollection: verifiedFeedbackBooking.sourceCollection,
+        sourceDocId: verifiedFeedbackBooking.sourceDocId,
+        createdAt: serverTimestamp(),
+      });
+
+      setFeedbackMessage({ text: 'Thank you. Your feedback has been submitted.', type: 'success' });
+      setFeedbackForm({ rating: 5, comment: '' });
+    } catch (error) {
+      console.error('Error submitting feedback:', error);
+      setFeedbackMessage({ text: 'Failed to submit feedback. Please try again.', type: 'error' });
+    } finally {
+      setSubmittingFeedback(false);
+    }
+  };
 
   return (
     <GuestLayout>
@@ -408,7 +601,7 @@ export default function HomePage() {
         {/* --- TESTIMONIALS --- */}
            <section className="py-16 bg-white border-t border-gray-50 pb-24">
            <div className="max-w-7xl mx-auto px-6">
-             <div className="text-center mb-12">
+             <div className="mb-12 text-center">
                <span className="text-gray-500 font-bold text-[10px] tracking-[0.2em] uppercase mb-4 block">
                  GUEST STORIES
                </span>
@@ -417,68 +610,202 @@ export default function HomePage() {
                </h2>
              </div>
 
-             <div className="grid grid-cols-1 md:grid-cols-3 gap-6 relative">
+             <div className="relative">
                 {/* Decorative palm tree */}
                 <div className="absolute -left-12 -top-12 z-0 opacity-80 decoration-clip hidden md:block">
                  <Image src="/assets/Icon/Coconut tree.png" alt="Palm tree" width={100} height={100} />
                 </div>
 
-               <div className="bg-white rounded-3xl p-8 border border-gray-100 shadow-[0_8px_30px_rgb(0,0,0,0.03)] relative z-10 flex flex-col h-full">
-                 <div className="flex items-center gap-4 mb-6">
-                   <div className="w-12 h-12 rounded-full bg-blue-50 text-[#3B82F6] flex items-center justify-center font-bold text-lg">A</div>
-                   <div>
-                     <h4 className="font-bold text-[#0f2824]">Aira M.</h4>
-                     <p className="text-gray-400 text-[10px] tracking-widest uppercase">WEEKEND GUEST</p>
-                   </div>
-                 </div>
-                 <p className="text-gray-600 leading-relaxed mb-8 flex-grow text-[15px]">
-                   &quot;Super easy booking process and the place looked exactly like the photos. The pool vibe at sunset is 10/10.&quot;
-                 </p>
-                 <div className="flex gap-1 mt-auto">
-                   {[1,2,3,4,5].map(i => (
-                     <div key={i} className="w-2.5 h-2.5 rounded-full bg-[#fbc674]"></div>
+               <div className="relative overflow-hidden px-1">
+                 <div className="pointer-events-none absolute left-0 top-0 z-10 h-full w-12 bg-gradient-to-r from-white to-transparent" />
+                 <div className="pointer-events-none absolute right-0 top-0 z-10 h-full w-12 bg-gradient-to-l from-white to-transparent" />
+
+                 <div className="testimonials-track flex w-max gap-6 pb-2">
+                   {[...testimonials, ...testimonials].map((item, index) => (
+                     <div
+                       key={`${item.name}-${index}`}
+                       className="w-[320px] flex-none rounded-3xl border border-gray-100 bg-white p-8 shadow-[0_8px_30px_rgb(0,0,0,0.03)] md:w-[360px]"
+                     >
+                       <div className="mb-6 flex items-center gap-4">
+                         <div className="flex h-12 w-12 items-center justify-center rounded-full bg-blue-50 text-lg font-bold text-[#3B82F6]">
+                           {item.name.charAt(0)}
+                         </div>
+                         <div>
+                           <h4 className="font-bold text-[#0f2824]">{item.name}</h4>
+                           <p className="text-[10px] uppercase tracking-widest text-gray-400">{item.role}</p>
+                         </div>
+                       </div>
+                       <p className="mb-8 text-[15px] leading-relaxed text-gray-600">
+                         &quot;{item.review}&quot;
+                       </p>
+                       <div className="mt-auto flex gap-1">
+                         {[1, 2, 3, 4, 5].map((i) => (
+                           <div key={i} className="h-2.5 w-2.5 rounded-full bg-[#fbc674]" />
+                         ))}
+                       </div>
+                     </div>
                    ))}
                  </div>
                </div>
 
-               <div className="bg-white rounded-3xl p-8 border border-gray-100 shadow-[0_8px_30px_rgb(0,0,0,0.03)] relative z-10 flex flex-col h-full">
-                 <div className="flex items-center gap-4 mb-6">
-                   <div className="w-12 h-12 rounded-full bg-blue-50 text-[#3B82F6] flex items-center justify-center font-bold text-lg">J</div>
-                   <div>
-                     <h4 className="font-bold text-[#0f2824]">Jules P.</h4>
-                     <p className="text-gray-400 text-[10px] tracking-widest uppercase">BIRTHDAY CELEBRANT</p>
-                   </div>
-                 </div>
-                 <p className="text-gray-600 leading-relaxed mb-8 flex-grow text-[15px]">
-                   &quot;We reserved for a small celebration and everything felt smooth from payment upload to confirmation update.&quot;
-                 </p>
-                 <div className="flex gap-1 mt-auto">
-                   {[1,2,3,4,5].map(i => (
-                     <div key={i} className="w-2.5 h-2.5 rounded-full bg-[#fbc674]"></div>
-                   ))}
-                 </div>
-               </div>
-
-               <div className="bg-white rounded-3xl p-8 border border-gray-100 shadow-[0_8px_30px_rgb(0,0,0,0.03)] relative z-10 flex flex-col h-full">
-                 <div className="flex items-center gap-4 mb-6">
-                   <div className="w-12 h-12 rounded-full bg-blue-50 text-[#3B82F6] flex items-center justify-center font-bold text-lg">M</div>
-                   <div>
-                     <h4 className="font-bold text-[#0f2824]">Mark & Elle</h4>
-                     <p className="text-gray-400 text-[10px] tracking-widest uppercase">COUPLE ROOM STAY</p>
-                   </div>
-                 </div>
-                 <p className="text-gray-600 leading-relaxed mb-8 flex-grow text-[15px]">
-                   &quot;The room was cozy and clean, staff was responsive, and tracking our booking status gave us peace of mind.&quot;
-                 </p>
-                 <div className="flex gap-1 mt-auto">
-                   {[1,2,3,4,5].map(i => (
-                     <div key={i} className="w-2.5 h-2.5 rounded-full bg-[#fbc674]"></div>
-                   ))}
-                 </div>
+               <div className="mt-8 flex justify-center">
+                 <button
+                   type="button"
+                   onClick={() => setShowFeedbackModal(true)}
+                   className="rounded-full bg-[#3B82F6] px-6 py-3 text-sm font-semibold text-white shadow-md shadow-blue-500/20 transition-all hover:-translate-y-0.5 hover:bg-[#2563EB]"
+                 >
+                   Add Feedback
+                 </button>
                </div>
              </div>
            </div>
         </section>
+
+        {showFeedbackModal ? (
+          <div
+            className="fixed inset-0 z-[80] flex items-end justify-center bg-black/45 p-3 sm:items-center sm:p-6"
+            onClick={closeFeedbackModal}
+          >
+            <div
+              className="w-full max-w-2xl rounded-2xl bg-white shadow-2xl sm:rounded-3xl"
+              onClick={(event) => event.stopPropagation()}
+            >
+              <div className="flex items-start justify-between border-b border-gray-100 px-4 py-4 sm:px-6">
+                <div>
+                  <h3 className="font-playfair text-2xl text-[#0f2824] sm:text-3xl">Add Feedback</h3>
+                  <p className="mt-1 text-xs text-gray-500 sm:text-sm">
+                    Completed bookings only. Verify your email and reference number first.
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  onClick={closeFeedbackModal}
+                  className="rounded-full border border-gray-200 px-3 py-1 text-sm font-semibold text-gray-600 transition hover:bg-gray-50"
+                >
+                  Close
+                </button>
+              </div>
+
+              <div className="max-h-[75vh] overflow-y-auto px-4 py-5 sm:px-6 sm:py-6">
+                {feedbackStep === 'verify' ? (
+                  <form onSubmit={handleVerifyFeedbackBooking} className="space-y-4">
+                    <div>
+                      <label htmlFor="feedback-email" className="mb-2 block text-sm font-semibold text-[#0f2824]">
+                        Email
+                      </label>
+                      <input
+                        id="feedback-email"
+                        type="email"
+                        value={feedbackCredentials.email}
+                        onChange={(event) =>
+                          setFeedbackCredentials((prev) => ({ ...prev, email: event.target.value }))
+                        }
+                        placeholder="you@example.com"
+                        required
+                        className="w-full rounded-xl border border-gray-200 px-4 py-3 text-sm text-gray-700 outline-none transition focus:border-[#3B82F6]"
+                      />
+                    </div>
+
+                    <div>
+                      <label htmlFor="feedback-reference" className="mb-2 block text-sm font-semibold text-[#0f2824]">
+                        Reference Number
+                      </label>
+                      <input
+                        id="feedback-reference"
+                        type="text"
+                        value={feedbackCredentials.reference}
+                        onChange={(event) =>
+                          setFeedbackCredentials((prev) => ({
+                            ...prev,
+                            reference: event.target.value.toUpperCase(),
+                          }))
+                        }
+                        placeholder="BOOK-... or DAYTOUR-..."
+                        required
+                        className="w-full rounded-xl border border-gray-200 px-4 py-3 text-sm uppercase text-gray-700 outline-none transition focus:border-[#3B82F6]"
+                      />
+                    </div>
+
+                    <button
+                      type="submit"
+                      disabled={verifyingBooking}
+                      className="w-full rounded-full bg-[#3B82F6] px-6 py-3 text-sm font-semibold text-white shadow-md shadow-blue-500/20 transition hover:bg-[#2563EB] disabled:cursor-not-allowed disabled:opacity-60"
+                    >
+                      {verifyingBooking ? 'Verifying...' : 'Verify Booking'}
+                    </button>
+                  </form>
+                ) : (
+                  <form onSubmit={handleFeedbackSubmit} className="space-y-4">
+                    <div className="rounded-xl border border-emerald-100 bg-emerald-50 px-4 py-3 text-sm text-emerald-700">
+                      Verified booking: <strong>{verifiedFeedbackBooking?.bookingId}</strong>
+                    </div>
+
+                    <div>
+                      <label htmlFor="feedback-rating" className="mb-2 block text-sm font-semibold text-[#0f2824]">
+                        Rating
+                      </label>
+                      <select
+                        id="feedback-rating"
+                        value={feedbackForm.rating}
+                        onChange={(event) =>
+                          setFeedbackForm((prev) => ({ ...prev, rating: Number(event.target.value) }))
+                        }
+                        className="w-full rounded-xl border border-gray-200 px-4 py-3 text-sm text-gray-700 outline-none transition focus:border-[#3B82F6]"
+                      >
+                        <option value={5}>5 - Excellent</option>
+                        <option value={4}>4 - Very Good</option>
+                        <option value={3}>3 - Good</option>
+                        <option value={2}>2 - Fair</option>
+                        <option value={1}>1 - Poor</option>
+                      </select>
+                    </div>
+
+                    <div>
+                      <label htmlFor="feedback-comment" className="mb-2 block text-sm font-semibold text-[#0f2824]">
+                        Your Feedback
+                      </label>
+                      <textarea
+                        id="feedback-comment"
+                        rows={5}
+                        value={feedbackForm.comment}
+                        onChange={(event) =>
+                          setFeedbackForm((prev) => ({ ...prev, comment: event.target.value }))
+                        }
+                        placeholder="Tell us about your stay..."
+                        required
+                        className="w-full rounded-xl border border-gray-200 px-4 py-3 text-sm text-gray-700 outline-none transition focus:border-[#3B82F6]"
+                      />
+                    </div>
+
+                    <div>
+                      <button
+                        type="submit"
+                        disabled={submittingFeedback}
+                        className="w-full rounded-full bg-[#3B82F6] px-6 py-3 text-sm font-semibold text-white shadow-md shadow-blue-500/20 transition hover:bg-[#2563EB] disabled:cursor-not-allowed disabled:opacity-60"
+                      >
+                        {submittingFeedback ? 'Submitting...' : 'Submit Feedback'}
+                      </button>
+                    </div>
+                  </form>
+                )}
+
+                {feedbackMessage.text ? (
+                  <div
+                    className={`mt-4 rounded-xl border px-4 py-3 text-sm ${
+                      feedbackMessage.type === 'error'
+                        ? 'border-red-100 bg-red-50 text-red-700'
+                        : feedbackMessage.type === 'success'
+                        ? 'border-emerald-100 bg-emerald-50 text-emerald-700'
+                        : 'border-blue-100 bg-blue-50 text-blue-700'
+                    }`}
+                  >
+                    {feedbackMessage.text}
+                  </div>
+                ) : null}
+              </div>
+            </div>
+          </div>
+        ) : null}
 
         {/* --- HOW IT WORKS --- */}
         <section className="py-16 bg-white">
