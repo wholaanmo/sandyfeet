@@ -1,4 +1,4 @@
-// app/dashboard/admin/calendar/page.js
+// app/dashboard/staff/calendar/page.js
 'use client';
 
 import { useState, useEffect, useMemo } from 'react';

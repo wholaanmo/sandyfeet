@@ -573,7 +573,7 @@ export default function DayTourPage() {
                                 : isTooSoon
                                   ? 'Must be booked at least 1 day in advance'
                                   : isFullyBooked
-                                    ? 'Unavailable from admin blocks or bookings'
+                                    ? 'Fully Booked'
                                     : `${remaining} slot(s) available`;
 
                               return (

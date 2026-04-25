@@ -1,4 +1,4 @@
-// app/dashboard/admin/calendar-daytour/page.js
+// app/dashboard/staff/calendar-daytour/page.js
 'use client';
 
 import { useState, useEffect } from 'react';

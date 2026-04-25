@@ -132,36 +132,37 @@ export default function Login() {
     };
     
 const completeLogin = async (uid) => {
-    const userDoc = await getDoc(doc(db, "users", uid));
-    const userData = userDoc.data();
-    const role = userData.role;
-    const status = userData.status;
-    
-    const sessionToken = generateSessionToken();
-    const sessionExpiry = new Date().getTime() + (24 * 60 * 60 * 1000); // 24 hours
-    
-    // Store in localStorage (for client-side checks)
-    localStorage.setItem('userType', role);
-    localStorage.setItem('userEmail', userData.email);
-    localStorage.setItem('uid', uid);
-    localStorage.setItem('sessionToken', sessionToken);
-    localStorage.setItem('sessionExpiry', sessionExpiry.toString());
-    
-    if (rememberMe) {
-        localStorage.setItem('rememberMe', 'true');
-    }
-    
-    // Also set cookies for middleware (httponly-equivalent via document.cookie)
-    // These will be sent with every request
-    document.cookie = `sessionToken=${sessionToken}; path=/; max-age=86400; SameSite=Lax`;
-    document.cookie = `userType=${role}; path=/; max-age=86400; SameSite=Lax`;
-    document.cookie = `sessionExpiry=${sessionExpiry}; path=/; max-age=86400; SameSite=Lax`;
-    
+  const userDoc = await getDoc(doc(db, "users", uid));
+  const userData = userDoc.data();
+  const role = userData.role;
+  
+  const sessionToken = generateSessionToken();
+  const sessionExpiry = new Date().getTime() + (24 * 60 * 60 * 1000);
+  
+  // Store in localStorage
+  localStorage.setItem('userType', role);
+  localStorage.setItem('userEmail', userData.email);
+  localStorage.setItem('uid', uid);
+  localStorage.setItem('sessionToken', sessionToken);
+  localStorage.setItem('sessionExpiry', sessionExpiry.toString());
+  
+  if (rememberMe) {
+    localStorage.setItem('rememberMe', 'true');
+  }
+  
+  // Set cookies
+  document.cookie = `sessionToken=${sessionToken}; path=/; max-age=86400; SameSite=Lax`;
+  document.cookie = `userType=${role}; path=/; max-age=86400; SameSite=Lax`;
+  document.cookie = `sessionExpiry=${sessionExpiry}; path=/; max-age=86400; SameSite=Lax`;
+  
+  // Small delay to ensure cookies are set
+  setTimeout(() => {
     if (role === 'admin') {
-        router.push('/dashboard/admin/overview');
+      router.push('/dashboard/admin/overview');
     } else if (role === 'staff') {
-        router.push('/dashboard/staff/overview');
+      router.push('/dashboard/staff/overview');
     }
+  }, 100);
 };
 
 const loginUser = async (e) => {

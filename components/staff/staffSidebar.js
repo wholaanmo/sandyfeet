@@ -82,7 +82,7 @@ export default function StaffSidebar({ isOpen, onToggle, isDesktop }) {
 
   const menuItems = [
     { path: '/dashboard/staff/overview', icon: 'dashboard', label: 'Overview', materialIcon: 'dashboard' },
-    { path: '/dashboard/staff/room-status', icon: 'meeting_room', label: 'Room Status', materialIcon: 'meeting_room' },
+    { path: '/dashboard/staff/availability', icon: 'event_available', label: 'Availability', materialIcon: 'event_available' },
     { path: '/dashboard/staff/reservations', icon: 'event', label: 'Reservations', materialIcon: 'event' },
     { path: '/dashboard/staff/calendars', icon: 'event', label: 'Calendar', materialIcon: 'event' },
     { path: '/dashboard/staff/payment', icon: 'payment', label: 'Payment', materialIcon: 'payment' },
