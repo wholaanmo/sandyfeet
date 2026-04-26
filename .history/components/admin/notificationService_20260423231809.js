@@ -88,127 +88,126 @@ const getRoomTypeDisplay = (bookingData) => {
   return 'Single Room Type';
 };
 
-const normalizeStatus = (status) => {
-  if (!status) return '';
-  return String(status).trim().toLowerCase().replace(/[_\s]+/g, '-');
-};
-
-const getRoomStatusBookingKey = (docId, data) => {
-  return data.parentBookingId || data.bookingId || docId;
-};
-
-const getDayTourGuestCount = (data) => {
-  if (typeof data.totalGuests === 'number') return data.totalGuests;
-  if (typeof data.guests === 'number') return data.guests;
-  return 1;
-};
+// Track previous statuses for check-in/check-out notifications
+let previousStatuses = new Map();
 
 // Set up listener for room check-in and check-out status changes
 export const setupRoomStatusListener = (onUpdate) => {
   const bookingsRef = collection(db, 'bookings');
-  const dayTourRef = collection(db, 'dayTourBookings');
-  const roomQuery = query(bookingsRef, orderBy('createdAt', 'desc'));
-  const dayTourQuery = query(dayTourRef, orderBy('createdAt', 'desc'));
-
-  let roomCheckIns = [];
-  let roomCheckOuts = [];
-  let dayTourCheckIns = [];
-
-  const emitStatusUpdates = () => {
-    onUpdate([...roomCheckIns, ...dayTourCheckIns], 'check_in');
-    onUpdate(roomCheckOuts, 'check_out');
-  };
-
-  const unsubscribeRoom = onSnapshot(roomQuery, (querySnapshot) => {
-    const checkInByBooking = new Map();
-    const checkOutByBooking = new Map();
-
+  const q = query(bookingsRef, orderBy('createdAt', 'desc'));
+  
+  const unsubscribe = onSnapshot(q, (querySnapshot) => {
+    const statusNotifications = [];
+    const processedParents = new Set();
+    
     querySnapshot.forEach((docSnap) => {
       const data = docSnap.data();
       if (data.type !== 'room') return;
-
-      const status = normalizeStatus(data.status);
-      if (status !== 'check-in' && status !== 'check-out') return;
-
-      const bookingKey = getRoomStatusBookingKey(docSnap.id, data);
-      const roomTypeDisplay = getRoomTypeDisplay(data);
-      const multiRoomDisplay = data.isExclusiveResortBooking ? 'Entire Resort' : 'Multi-Room Types';
-      const guestName = `${data.guestInfo?.firstName || ''} ${data.guestInfo?.lastName || ''}`.trim() || 'Guest';
-      const createdAt = data.updatedAt || data.createdAt || new Date().toISOString();
-
-      if (status === 'check-in' && !checkInByBooking.has(bookingKey)) {
-        checkInByBooking.set(bookingKey, {
-          id: `${bookingKey}_checkin`,
-          type: 'check_in',
-          guestName,
-          bookingId: bookingKey,
-          roomType: (data.isMultiRoomBooking && data.parentBookingId) ? multiRoomDisplay : (roomTypeDisplay || 'Single Room Type'),
-          eventDate: formatDateTimeForDisplay(data.checkIn),
-          createdAt,
-          read: false,
-          isMultiRoom: !!(data.isMultiRoomBooking && data.parentBookingId)
-        });
+      
+      const docId = docSnap.id;
+      const currentStatus = data.status;
+      const previousStatus = previousStatuses.get(docId);
+      
+      // Check if status changed to 'check-in'
+      if (previousStatus !== 'check-in' && currentStatus === 'check-in') {
+        // Determine room type display
+        let roomTypeDisplay = getRoomTypeDisplay(data);
+        let eventDate = '';
+        
+        if (data.isMultiRoomBooking && data.parentBookingId) {
+          if (!processedParents.has(data.parentBookingId)) {
+            processedParents.add(data.parentBookingId);
+            let multiRoomDisplay = 'Multi-Room Types';
+            if (data.isExclusiveResortBooking) {
+              multiRoomDisplay = 'Entire Resort';
+            }
+            // Get the check-in date and time from the booking
+            eventDate = formatDateTimeForDisplay(data.checkIn);
+            
+            statusNotifications.push({
+              id: `${data.parentBookingId}_checkin`,
+              type: 'check_in',
+              guestName: `${data.guestInfo?.firstName || ''} ${data.guestInfo?.lastName || ''}`.trim() || 'Guest',
+              bookingId: data.parentBookingId,
+              roomType: multiRoomDisplay,
+              eventDate: eventDate,
+              createdAt: new Date().toISOString(),
+              read: false,
+              isMultiRoom: true
+            });
+          }
+        } else if (!data.isMultiRoomBooking) {
+          eventDate = formatDateTimeForDisplay(data.checkIn);
+          statusNotifications.push({
+            id: `${docId}_checkin`,
+            type: 'check_in',
+            guestName: `${data.guestInfo?.firstName || ''} ${data.guestInfo?.lastName || ''}`.trim() || 'Guest',
+            bookingId: data.bookingId,
+            roomType: roomTypeDisplay || 'Single Room Type',
+            eventDate: eventDate,
+            createdAt: new Date().toISOString(),
+            read: false,
+            isMultiRoom: false
+          });
+        }
       }
-
-      if (status === 'check-out' && !checkOutByBooking.has(bookingKey)) {
-        checkOutByBooking.set(bookingKey, {
-          id: `${bookingKey}_checkout`,
-          type: 'check_out',
-          guestName,
-          bookingId: bookingKey,
-          roomType: (data.isMultiRoomBooking && data.parentBookingId) ? multiRoomDisplay : (roomTypeDisplay || 'Single Room Type'),
-          eventDate: formatDateTimeForDisplay(data.checkOut),
-          createdAt,
-          read: false,
-          isMultiRoom: !!(data.isMultiRoomBooking && data.parentBookingId)
-        });
+      
+      // Check if status changed to 'check-out'
+      if (previousStatus !== 'check-out' && currentStatus === 'check-out') {
+        // Determine room type display
+        let roomTypeDisplay = getRoomTypeDisplay(data);
+        let eventDate = '';
+        
+        if (data.isMultiRoomBooking && data.parentBookingId) {
+          if (!processedParents.has(data.parentBookingId)) {
+            processedParents.add(data.parentBookingId);
+            let multiRoomDisplay = 'Multi-Room Types';
+            if (data.isExclusiveResortBooking) {
+              multiRoomDisplay = 'Entire Resort';
+            }
+            // Get the check-out date and time from the booking
+            eventDate = formatDateTimeForDisplay(data.checkOut);
+            
+            statusNotifications.push({
+              id: `${data.parentBookingId}_checkout`,
+              type: 'check_out',
+              guestName: `${data.guestInfo?.firstName || ''} ${data.guestInfo?.lastName || ''}`.trim() || 'Guest',
+              bookingId: data.parentBookingId,
+              roomType: multiRoomDisplay,
+              eventDate: eventDate,
+              createdAt: new Date().toISOString(),
+              read: false,
+              isMultiRoom: true
+            });
+          }
+        } else if (!data.isMultiRoomBooking) {
+          eventDate = formatDateTimeForDisplay(data.checkOut);
+          statusNotifications.push({
+            id: `${docId}_checkout`,
+            type: 'check_out',
+            guestName: `${data.guestInfo?.firstName || ''} ${data.guestInfo?.lastName || ''}`.trim() || 'Guest',
+            bookingId: data.bookingId,
+            roomType: roomTypeDisplay || 'Single Room Type',
+            eventDate: eventDate,
+            createdAt: new Date().toISOString(),
+            read: false,
+            isMultiRoom: false
+          });
+        }
       }
+      
+      // Update previous status
+      previousStatuses.set(docId, currentStatus);
     });
-
-    roomCheckIns = Array.from(checkInByBooking.values());
-    roomCheckOuts = Array.from(checkOutByBooking.values());
-    emitStatusUpdates();
+    
+    if (statusNotifications.length > 0) {
+      onUpdate(statusNotifications, 'status_change');
+    }
   }, (error) => {
     console.error('Error fetching room status notifications:', error);
   });
-
-  const unsubscribeDayTour = onSnapshot(dayTourQuery, (querySnapshot) => {
-    const checkInByBooking = new Map();
-
-    querySnapshot.forEach((docSnap) => {
-      const data = docSnap.data();
-      const status = normalizeStatus(data.status);
-      if (status !== 'check-in') return;
-
-      const bookingKey = data.bookingId || docSnap.id;
-      if (checkInByBooking.has(bookingKey)) return;
-
-      const guestName = `${data.guestInfo?.firstName || ''} ${data.guestInfo?.lastName || ''}`.trim() || 'Guest';
-      const guestCount = getDayTourGuestCount(data);
-
-      checkInByBooking.set(bookingKey, {
-        id: `${bookingKey}_daytour_checkin`,
-        type: 'check_in',
-        guestName: `${guestName} | Booking ID: ${bookingKey} | Guests: ${guestCount}`,
-        bookingId: bookingKey,
-        roomType: 'Day Tour',
-        eventDate: formatDateForDisplay(data.selectedDate),
-        createdAt: data.updatedAt || data.createdAt || new Date().toISOString(),
-        read: false,
-        isMultiRoom: false
-      });
-    });
-
-    dayTourCheckIns = Array.from(checkInByBooking.values());
-    emitStatusUpdates();
-  }, (error) => {
-    console.error('Error fetching day tour status notifications:', error);
-  });
-
-  return () => {
-    unsubscribeRoom();
-    unsubscribeDayTour();
-  };
+  
+  return unsubscribe;
 };
 
 // Set up listener for bank transfer requests
