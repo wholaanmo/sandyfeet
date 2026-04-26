@@ -386,87 +386,82 @@ if (isExclusiveResortBooking) {
     return () => unsubscribe();
   }, []);
 
-useEffect(() => {
-  if (!groupedBookings.length) return;
-  let isProcessing = false;
-  const tick = async () => {
-    if (isProcessing) return;
-    isProcessing = true;
-    try {
-      const now = new Date();
-      for (const booking of groupedBookings) {
-        if (!booking?.id || !booking?.status) continue;
-        if (['pending', 'cancelled', 'cancelled-by-guest', 'completed'].includes(booking.status)) continue;
-        
-        let checkInRaw, checkOutRaw;
-        
-        if (booking.isMultiRoomGroup && booking.originalChildBookings) {
-          // Use first child booking for dates
-          const firstChild = booking.originalChildBookings[0];
-          checkInRaw = firstChild.checkIn?.toDate ? firstChild.checkIn.toDate() : new Date(firstChild.checkIn);
-          checkOutRaw = firstChild.checkOut?.toDate ? firstChild.checkOut.toDate() : new Date(firstChild.checkOut);
-        } else {
-          checkInRaw = booking.checkIn?.toDate ? booking.checkIn.toDate() : new Date(booking.checkIn);
-          checkOutRaw = booking.checkOut?.toDate ? booking.checkOut.toDate() : new Date(booking.checkOut);
-        }
-        
-        if (isNaN(checkInRaw?.getTime?.()) || isNaN(checkOutRaw?.getTime?.())) continue;
-        
-        // Create check-in time at 2:00 PM on check-in day
-        const checkInTime = new Date(checkInRaw);
-        checkInTime.setHours(14, 0, 0, 0);
-        
-        // Create check-out time at 12:00 PM on check-out day
-        const checkOutTime = new Date(checkOutRaw);
-        checkOutTime.setHours(12, 0, 0, 0);
-        
-        // Create completed time at 1:00 PM on check-out day (1 hour after check-out)
-        const completedTime = new Date(checkOutRaw);
-        completedTime.setHours(13, 0, 0, 0);
-        
-        let targetStatus = null;
-        
-        // Check for completed (1 hour after check-out time)
-        if (now >= completedTime) {
-          targetStatus = 'completed';
-        } 
-        // Check for check-out (exactly at check-out time)
-        else if (now >= checkOutTime && now < completedTime) {
-          targetStatus = 'check-out';
-        }
-        // Check for check-in
-        else if (now >= checkInTime) {
-          targetStatus = 'check-in';
-        }
-        
-        // Only change status if targetStatus is different from current status
-        if (targetStatus && booking.status !== targetStatus) {
+  // Automatic room booking status transitions:
+  // confirmed -> check-in at check-in time
+  // check-in/confirmed -> check-out from 1 hour before check-out until check-out time
+  // check-out/check-in/confirmed -> completed after check-out time
+  useEffect(() => {
+    if (!groupedBookings.length) return;
+    let isProcessing = false;
+    const tick = async () => {
+      if (isProcessing) return;
+      isProcessing = true;
+      try {
+        const now = new Date();
+        for (const booking of groupedBookings) {
+          if (!booking?.id || !booking?.status) continue;
+          if (['pending', 'cancelled', 'cancelled-by-guest', 'completed'].includes(booking.status)) continue;
+          
+          let checkInRaw, checkOutRaw;
+          
           if (booking.isMultiRoomGroup && booking.originalChildBookings) {
-            // Update all child bookings
-            for (const childBooking of booking.originalChildBookings) {
-              await updateDoc(doc(db, 'bookings', childBooking.id), {
+            // Use first child booking for dates
+            const firstChild = booking.originalChildBookings[0];
+            checkInRaw = firstChild.checkIn?.toDate ? firstChild.checkIn.toDate() : new Date(firstChild.checkIn);
+            checkOutRaw = firstChild.checkOut?.toDate ? firstChild.checkOut.toDate() : new Date(firstChild.checkOut);
+          } else {
+            checkInRaw = booking.checkIn?.toDate ? booking.checkIn.toDate() : new Date(booking.checkIn);
+            checkOutRaw = booking.checkOut?.toDate ? booking.checkOut.toDate() : new Date(booking.checkOut);
+          }
+          
+          if (isNaN(checkInRaw?.getTime?.()) || isNaN(checkOutRaw?.getTime?.())) continue;
+          
+          // Create check-in time at 2:00 PM on check-in day
+          const checkInTime = new Date(checkInRaw);
+          checkInTime.setHours(14, 0, 0, 0);
+          
+          // Create check-out time at 12:00 PM on check-out day
+          const checkOutTime = new Date(checkOutRaw);
+          checkOutTime.setHours(12, 0, 0, 0);
+          
+          const oneHourBeforeCheckOut = new Date(checkOutTime.getTime() - 60 * 60 * 1000);
+          let targetStatus = null;
+          
+          if (now > checkOutTime) {
+            targetStatus = 'completed';
+          } else if (now >= oneHourBeforeCheckOut && now <= checkOutTime) {
+            targetStatus = 'check-out';
+          } else if (now >= checkInTime) {
+            targetStatus = 'check-in';
+          }
+          
+          if (targetStatus && booking.status !== targetStatus) {
+            if (booking.isMultiRoomGroup && booking.originalChildBookings) {
+              // Update all child bookings
+              for (const childBooking of booking.originalChildBookings) {
+                await updateDoc(doc(db, 'bookings', childBooking.id), {
+                  status: targetStatus,
+                  updatedAt: new Date().toISOString()
+                });
+              }
+            } else {
+              await updateDoc(doc(db, 'bookings', booking.id), {
                 status: targetStatus,
                 updatedAt: new Date().toISOString()
               });
             }
-          } else {
-            await updateDoc(doc(db, 'bookings', booking.id), {
-              status: targetStatus,
-              updatedAt: new Date().toISOString()
-            });
           }
         }
+      } catch (error) {
+        console.error('Error auto-updating room reservation statuses:', error);
+      } finally {
+        isProcessing = false;
       }
-    } catch (error) {
-      console.error('Error auto-updating room reservation statuses:', error);
-    } finally {
-      isProcessing = false;
-    }
-  };
-  tick();
-  const id = setInterval(tick, 1000);
-  return () => clearInterval(id);
-}, [groupedBookings]);
+    };
+    tick();
+    const id = setInterval(tick, 1000);
+    return () => clearInterval(id);
+  }, [groupedBookings]);
 
   // Automatic day-tour status transitions:
   // confirmed -> check-in when selected day starts

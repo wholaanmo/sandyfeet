@@ -34,32 +34,6 @@ const formatDateForDisplay = (dateValue) => {
   }
 };
 
-// Helper function to format date with time for display
-const formatDateTimeForDisplay = (dateValue) => {
-  if (!dateValue) return 'N/A';
-  try {
-    let date;
-    if (dateValue && typeof dateValue.toDate === 'function') {
-      date = dateValue.toDate();
-    } else if (dateValue && typeof dateValue === 'object' && dateValue.seconds) {
-      date = new Date(dateValue.seconds * 1000);
-    } else {
-      date = new Date(dateValue);
-    }
-    if (isNaN(date.getTime())) return 'N/A';
-    return date.toLocaleString('en-US', {
-      year: 'numeric',
-      month: 'short',
-      day: 'numeric',
-      hour: '2-digit',
-      minute: '2-digit'
-    });
-  } catch (error) {
-    console.error('Error formatting date with time:', error);
-    return 'N/A';
-  }
-};
-
 // Helper function to determine room type display for notifications
 // Returns: 'Single Room Type', 'Multi-Room Types', or 'Entire Resort'
 const getRoomTypeDisplay = (bookingData) => {
@@ -86,107 +60,6 @@ const getRoomTypeDisplay = (bookingData) => {
   
   // Single room type
   return 'Single Room Type';
-};
-
-// Track previous statuses for check-in/check-out notifications
-// Map key: bookingId (parentBookingId for multi-room, document id for single)
-let previousStatuses = new Map();
-
-// Helper to get the effective booking ID for status tracking
-const getEffectiveBookingId = (data, docId) => {
-  // For multi-room child bookings, use the parentBookingId
-  if (data.isMultiRoomBooking && data.parentBookingId) {
-    return data.parentBookingId;
-  }
-  // For single bookings, use the document ID
-  return docId;
-};
-
-// Set up listener for room check-in and check-out status changes
-export const setupRoomStatusListener = (onUpdate) => {
-  const bookingsRef = collection(db, 'bookings');
-  const q = query(bookingsRef, orderBy('createdAt', 'desc'));
-  
-  const unsubscribe = onSnapshot(q, (querySnapshot) => {
-    const statusNotifications = [];
-    // Track which booking IDs have already triggered a notification in this snapshot cycle
-    const triggeredCheckIn = new Set();
-    const triggeredCheckOut = new Set();
-    
-    querySnapshot.forEach((docSnap) => {
-      const data = docSnap.data();
-      if (data.type !== 'room') return;
-      
-      const docId = docSnap.id;
-      const effectiveId = getEffectiveBookingId(data, docId);
-      const currentStatus = data.status;
-      const previousStatus = previousStatuses.get(effectiveId);
-      
-      // Determine if this is a multi-room or single booking for notification purposes
-      const isMultiRoom = !!(data.isMultiRoomBooking && data.parentBookingId);
-      const bookingIdForDisplay = isMultiRoom ? data.parentBookingId : data.bookingId;
-      
-      // Determine room type display for the notification
-      let roomTypeDisplay = getRoomTypeDisplay(data);
-      if (isMultiRoom) {
-        // For multi-room, determine if it's Entire Resort or Multi-Room Types
-        if (data.isExclusiveResortBooking) {
-          roomTypeDisplay = 'Entire Resort';
-        } else {
-          roomTypeDisplay = 'Multi-Room Types';
-        }
-      } else if (!roomTypeDisplay) {
-        roomTypeDisplay = 'Single Room Type';
-      }
-      
-      // Check if status changed to 'check-in' - only if we haven't triggered for this booking ID yet
-      if (previousStatus !== 'check-in' && currentStatus === 'check-in' && !triggeredCheckIn.has(effectiveId)) {
-        triggeredCheckIn.add(effectiveId);
-        const eventDate = formatDateTimeForDisplay(data.checkIn);
-        
-        statusNotifications.push({
-          id: `${effectiveId}_checkin`,
-          type: 'check_in',
-          guestName: `${data.guestInfo?.firstName || ''} ${data.guestInfo?.lastName || ''}`.trim() || 'Guest',
-          bookingId: bookingIdForDisplay,
-          roomType: roomTypeDisplay,
-          eventDate: eventDate,
-          createdAt: new Date().toISOString(),
-          read: false,
-          isMultiRoom: isMultiRoom
-        });
-      }
-      
-      // Check if status changed to 'check-out' - only if we haven't triggered for this booking ID yet
-      if (previousStatus !== 'check-out' && currentStatus === 'check-out' && !triggeredCheckOut.has(effectiveId)) {
-        triggeredCheckOut.add(effectiveId);
-        const eventDate = formatDateTimeForDisplay(data.checkOut);
-        
-        statusNotifications.push({
-          id: `${effectiveId}_checkout`,
-          type: 'check_out',
-          guestName: `${data.guestInfo?.firstName || ''} ${data.guestInfo?.lastName || ''}`.trim() || 'Guest',
-          bookingId: bookingIdForDisplay,
-          roomType: roomTypeDisplay,
-          eventDate: eventDate,
-          createdAt: new Date().toISOString(),
-          read: false,
-          isMultiRoom: isMultiRoom
-        });
-      }
-      
-      // Update previous status using the effective booking ID
-      previousStatuses.set(effectiveId, currentStatus);
-    });
-    
-    if (statusNotifications.length > 0) {
-      onUpdate(statusNotifications, 'status_change');
-    }
-  }, (error) => {
-    console.error('Error fetching room status notifications:', error);
-  });
-  
-  return unsubscribe;
 };
 
 // Set up listener for bank transfer requests
@@ -431,13 +304,6 @@ export const markNotificationAsRead = async (notification) => {
   if (notification.read) return;
 
   try {
-    // For check-in/check-out notifications, we don't need to mark anything in Firestore
-    // as they are generated dynamically
-    if (notification.type === 'check_in' || notification.type === 'check_out') {
-      // These notifications are virtual - just return
-      return;
-    }
-    
     let collectionName = 'guest_cancellations';
     if (notification.type === 'bank_transfer') collectionName = 'bank_requests';
     if (notification.type === 'bank_transfer_daytour') collectionName = 'daytour_bank_requests';

@@ -128,7 +128,45 @@ const getNotificationStyle = (type) => {
   }
 };
 
+} else if (notification.type === 'check_in') {
   return (
+    <>
+      <p className="text-sm font-bold text-gray-800 mb-1">
+        Guest Check-In
+      </p>
+      <p className="text-xs text-gray-600 mb-1">
+        <span className="font-semibold">{notification.guestName}</span> has checked in
+      </p>
+      <div className="inline-flex items-center gap-1.5 mt-1 px-2 py-0.5 bg-green-50 rounded-full">
+        <i className="fas fa-bed text-green-500 text-[10px]"></i>
+        <span className="text-[11px] font-medium text-green-700">{notification.roomType}</span>
+      </div>
+      <div className="inline-flex items-center gap-1.5 mt-1 ml-1 px-2 py-0.5 bg-blue-50 rounded-full">
+        <i className="fas fa-calendar-check text-blue-500 text-[10px]"></i>
+        <span className="text-[11px] font-medium text-blue-700">Check-in: {notification.eventDate}</span>
+      </div>
+    </>
+  );
+} else if (notification.type === 'check_out') {
+  return (
+    <>
+      <p className="text-sm font-bold text-gray-800 mb-1">
+        Guest Check-Out
+      </p>
+      <p className="text-xs text-gray-600 mb-1">
+        <span className="font-semibold">{notification.guestName}</span> has checked out
+      </p>
+      <div className="inline-flex items-center gap-1.5 mt-1 px-2 py-0.5 bg-purple-50 rounded-full">
+        <i className="fas fa-bed text-purple-500 text-[10px]"></i>
+        <span className="text-[11px] font-medium text-purple-700">{notification.roomType}</span>
+      </div>
+      <div className="inline-flex items-center gap-1.5 mt-1 ml-1 px-2 py-0.5 bg-orange-50 rounded-full">
+        <i className="fas fa-calendar-day text-orange-500 text-[10px]"></i>
+        <span className="text-[11px] font-medium text-orange-700">Check-out: {notification.eventDate}</span>
+      </div>
+    </>
+  );
+}
     <nav 
       className="fixed right-0 h-16 bg-white/80 backdrop-blur-md z-50 shadow-lg flex items-center border-b border-[#4D8CF5]/10"
       style={navbarStyle}
@@ -220,107 +258,72 @@ const getNotificationStyle = (type) => {
                             
                             {/* Content */}
                             <div className="flex-1 min-w-0">
-                            {notification.type === 'bank_transfer' ? (
-  <>
-    <p className="text-sm font-bold text-gray-800 mb-1">
-      Room Bank Transfer Request
-    </p>
-    <p className="text-xs text-gray-600 mb-1">
-      <span className="font-semibold">{notification.guestName}</span> requested bank transfer for {notification.roomType || 'room'}
-    </p>
-    <div className="inline-flex items-center gap-1.5 mt-1 px-2 py-0.5 bg-amber-50 rounded-full">
-      <i className="fas fa-building text-amber-500 text-[10px]"></i>
-      <span className="text-[11px] font-medium text-amber-700">{notification.selectedBank}</span>
-    </div>
-  </>
-) : notification.type === 'bank_transfer_daytour' ? (
-  <>
-    <p className="text-sm font-bold text-gray-800 mb-1">
-      Day Tour Bank Transfer Request
-    </p>
-    <p className="text-xs text-gray-600 mb-1">
-      <span className="font-semibold">{notification.guestName}</span> | Booking ID: <span className="font-mono">{notification.bookingId}</span>
-    </p>
-    <div className="inline-flex items-center gap-1.5 mt-1 px-2 py-0.5 bg-amber-50 rounded-full">
-      <i className="fas fa-building text-amber-500 text-[10px]"></i>
-      <span className="text-[11px] font-medium text-amber-700">{notification.selectedBank}</span>
-    </div>
-  </>
-) : notification.type === 'reservation_room' ? (
-  <>
-    <p className="text-sm font-bold text-gray-800 mb-1">
-      Room Reservation
-    </p>
-    <p className="text-xs text-gray-600 mb-1">
-      <span className="font-semibold">{notification.guestName}</span> | Booking ID: <span className="font-mono">{notification.bookingId}</span>
-    </p>
-    <div className="inline-flex items-center gap-1.5 mt-1 px-2 py-0.5 bg-blue-50 rounded-full">
-      <i className="fas fa-bed text-blue-500 text-[10px]"></i>
-      <span className="text-[11px] font-medium text-blue-700">{notification.roomType}</span>
-    </div>
-  </>
-) : notification.type === 'reservation_daytour' ? (
-  <>
-    <p className="text-sm font-bold text-gray-800 mb-1">
-      Day Tour Reservation
-    </p>
-    <p className="text-xs text-gray-600 mb-1">
-      <span className="font-semibold">{notification.guestName}</span> | Booking ID: <span className="font-mono">{notification.bookingId}</span>
-    </p>
-    <div className="inline-flex items-center gap-1.5 mt-1 px-2 py-0.5 bg-emerald-50 rounded-full">
-      <i className="fas fa-calendar-alt text-emerald-500 text-[10px]"></i>
-      <span className="text-[11px] font-medium text-emerald-700">{notification.reservationDate}</span>
-    </div>
-  </>
-) : notification.type === 'check_in' ? (
-  <>
-    <p className="text-sm font-bold text-gray-800 mb-1">
-      Guest Check-In
-    </p>
-    <p className="text-xs text-gray-600 mb-1">
-      <span className="font-semibold">{notification.guestName}</span> has checked in
-    </p>
-    <div className="inline-flex items-center gap-1.5 mt-1 px-2 py-0.5 bg-green-50 rounded-full">
-      <i className="fas fa-bed text-green-500 text-[10px]"></i>
-      <span className="text-[11px] font-medium text-green-700">{notification.roomType}</span>
-    </div>
-    <div className="inline-flex items-center gap-1.5 mt-1 ml-1 px-2 py-0.5 bg-blue-50 rounded-full">
-      <i className="fas fa-calendar-check text-blue-500 text-[10px]"></i>
-      <span className="text-[11px] font-medium text-blue-700">Check-in: {notification.eventDate}</span>
-    </div>
-  </>
-) : notification.type === 'check_out' ? (
-  <>
-    <p className="text-sm font-bold text-gray-800 mb-1">
-      Guest Check-Out
-    </p>
-    <p className="text-xs text-gray-600 mb-1">
-      <span className="font-semibold">{notification.guestName}</span> has checked out
-    </p>
-    <div className="inline-flex items-center gap-1.5 mt-1 px-2 py-0.5 bg-purple-50 rounded-full">
-      <i className="fas fa-bed text-purple-500 text-[10px]"></i>
-      <span className="text-[11px] font-medium text-purple-700">{notification.roomType}</span>
-    </div>
-    <div className="inline-flex items-center gap-1.5 mt-1 ml-1 px-2 py-0.5 bg-orange-50 rounded-full">
-      <i className="fas fa-calendar-day text-orange-500 text-[10px]"></i>
-      <span className="text-[11px] font-medium text-orange-700">Check-out: {notification.eventDate}</span>
-    </div>
-  </>
-) : (
-  // Default cancellation case
-  <>
-    <p className="text-sm font-bold text-gray-800 mb-1">
-      Guest Cancellation
-    </p>
-    <p className="text-xs text-gray-600 mb-1">
-      <span className="font-semibold">{notification.guestName}</span> cancelled reservation <span className="font-mono">{notification.bookingId}</span>
-    </p>
-    <div className="inline-flex items-center gap-1.5 mt-1 px-2 py-0.5 bg-red-50 rounded-full">
-      <i className="fas fa-door-open text-red-500 text-[10px]"></i>
-      <span className="text-[11px] font-medium text-red-700">{notification.roomType || 'Day Tour'}</span>
-    </div>
-  </>
-)}
+                              {notification.type === 'bank_transfer' ? (
+                                <>
+                                  <p className="text-sm font-bold text-gray-800 mb-1">
+                                    Room Bank Transfer Request
+                                  </p>
+                                  <p className="text-xs text-gray-600 mb-1">
+                                    <span className="font-semibold">{notification.guestName}</span> requested bank transfer for {notification.roomType || 'room'}
+                                  </p>
+                                  <div className="inline-flex items-center gap-1.5 mt-1 px-2 py-0.5 bg-amber-50 rounded-full">
+                                    <i className="fas fa-building text-amber-500 text-[10px]"></i>
+                                    <span className="text-[11px] font-medium text-amber-700">{notification.selectedBank}</span>
+                                  </div>
+                                </>
+                              ) : notification.type === 'bank_transfer_daytour' ? (
+                                <>
+                                  <p className="text-sm font-bold text-gray-800 mb-1">
+                                    Day Tour Bank Transfer Request
+                                  </p>
+                                  <p className="text-xs text-gray-600 mb-1">
+                                    <span className="font-semibold">{notification.guestName}</span> | Booking ID: <span className="font-mono">{notification.bookingId}</span>
+                                  </p>
+                                  <div className="inline-flex items-center gap-1.5 mt-1 px-2 py-0.5 bg-amber-50 rounded-full">
+                                    <i className="fas fa-building text-amber-500 text-[10px]"></i>
+                                    <span className="text-[11px] font-medium text-amber-700">{notification.selectedBank}</span>
+                                  </div>
+                                </>
+                              ) : notification.type === 'reservation_room' ? (
+                                <>
+                                  <p className="text-sm font-bold text-gray-800 mb-1">
+                                    Room Reservation
+                                  </p>
+                                  <p className="text-xs text-gray-600 mb-1">
+                                    <span className="font-semibold">{notification.guestName}</span> | Booking ID: <span className="font-mono">{notification.bookingId}</span>
+                                  </p>
+                                  <div className="inline-flex items-center gap-1.5 mt-1 px-2 py-0.5 bg-blue-50 rounded-full">
+                                    <i className="fas fa-bed text-blue-500 text-[10px]"></i>
+                                    <span className="text-[11px] font-medium text-blue-700">{notification.roomType}</span>
+                                  </div>
+                                </>
+                              ) : notification.type === 'reservation_daytour' ? (
+                                <>
+                                  <p className="text-sm font-bold text-gray-800 mb-1">
+                                    Day Tour Reservation
+                                  </p>
+                                  <p className="text-xs text-gray-600 mb-1">
+                                    <span className="font-semibold">{notification.guestName}</span> | Booking ID: <span className="font-mono">{notification.bookingId}</span>
+                                  </p>
+                                  <div className="inline-flex items-center gap-1.5 mt-1 px-2 py-0.5 bg-emerald-50 rounded-full">
+                                    <i className="fas fa-calendar-alt text-emerald-500 text-[10px]"></i>
+                                    <span className="text-[11px] font-medium text-emerald-700">{notification.reservationDate}</span>
+                                  </div>
+                                </>
+                              ) : (
+                                <>
+                                  <p className="text-sm font-bold text-gray-800 mb-1">
+                                    Guest Cancellation
+                                  </p>
+                                  <p className="text-xs text-gray-600 mb-1">
+                                    <span className="font-semibold">{notification.guestName}</span> cancelled reservation <span className="font-mono">{notification.bookingId}</span>
+                                  </p>
+                                  <div className="inline-flex items-center gap-1.5 mt-1 px-2 py-0.5 bg-red-50 rounded-full">
+                                    <i className="fas fa-door-open text-red-500 text-[10px]"></i>
+                                    <span className="text-[11px] font-medium text-red-700">{notification.roomType || 'Day Tour'}</span>
+                                  </div>
+                                </>
+                              )}
                               {/* Timestamp */}
                               <p className="text-[10px] text-gray-400 mt-2 flex items-center gap-1">
                                 <i className="fas fa-clock text-[8px]"></i>

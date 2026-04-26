@@ -47,15 +47,13 @@ const formatDateTimeForDisplay = (dateValue) => {
       date = new Date(dateValue);
     }
     if (isNaN(date.getTime())) return 'N/A';
-    return date.toLocaleString('en-US', {
+    return date.toLocaleDateString('en-US', {
       year: 'numeric',
       month: 'short',
-      day: 'numeric',
-      hour: '2-digit',
-      minute: '2-digit'
+      day: 'numeric'
     });
   } catch (error) {
-    console.error('Error formatting date with time:', error);
+    console.error('Error formatting date:', error);
     return 'N/A';
   }
 };
@@ -89,18 +87,7 @@ const getRoomTypeDisplay = (bookingData) => {
 };
 
 // Track previous statuses for check-in/check-out notifications
-// Map key: bookingId (parentBookingId for multi-room, document id for single)
 let previousStatuses = new Map();
-
-// Helper to get the effective booking ID for status tracking
-const getEffectiveBookingId = (data, docId) => {
-  // For multi-room child bookings, use the parentBookingId
-  if (data.isMultiRoomBooking && data.parentBookingId) {
-    return data.parentBookingId;
-  }
-  // For single bookings, use the document ID
-  return docId;
-};
 
 // Set up listener for room check-in and check-out status changes
 export const setupRoomStatusListener = (onUpdate) => {
@@ -109,74 +96,106 @@ export const setupRoomStatusListener = (onUpdate) => {
   
   const unsubscribe = onSnapshot(q, (querySnapshot) => {
     const statusNotifications = [];
-    // Track which booking IDs have already triggered a notification in this snapshot cycle
-    const triggeredCheckIn = new Set();
-    const triggeredCheckOut = new Set();
+    const processedParents = new Set();
     
     querySnapshot.forEach((docSnap) => {
       const data = docSnap.data();
       if (data.type !== 'room') return;
       
       const docId = docSnap.id;
-      const effectiveId = getEffectiveBookingId(data, docId);
       const currentStatus = data.status;
-      const previousStatus = previousStatuses.get(effectiveId);
+      const previousStatus = previousStatuses.get(docId);
       
-      // Determine if this is a multi-room or single booking for notification purposes
-      const isMultiRoom = !!(data.isMultiRoomBooking && data.parentBookingId);
-      const bookingIdForDisplay = isMultiRoom ? data.parentBookingId : data.bookingId;
-      
-      // Determine room type display for the notification
-      let roomTypeDisplay = getRoomTypeDisplay(data);
-      if (isMultiRoom) {
-        // For multi-room, determine if it's Entire Resort or Multi-Room Types
-        if (data.isExclusiveResortBooking) {
-          roomTypeDisplay = 'Entire Resort';
-        } else {
-          roomTypeDisplay = 'Multi-Room Types';
+      // Check if status changed to 'check-in'
+      if (previousStatus !== 'check-in' && currentStatus === 'check-in') {
+        // Determine room type display
+        let roomTypeDisplay = getRoomTypeDisplay(data);
+        let checkInDate = '';
+        
+        if (data.isMultiRoomBooking && data.parentBookingId) {
+          if (!processedParents.has(data.parentBookingId)) {
+            processedParents.add(data.parentBookingId);
+            let multiRoomDisplay = 'Multi-Room Types';
+            if (data.isExclusiveResortBooking) {
+              multiRoomDisplay = 'Entire Resort';
+            }
+            // Get the check-in date from the booking
+            checkInDate = formatDateTimeForDisplay(data.checkIn);
+            
+            statusNotifications.push({
+              id: `${data.parentBookingId}_checkin`,
+              type: 'check_in',
+              guestName: `${data.guestInfo?.firstName || ''} ${data.guestInfo?.lastName || ''}`.trim() || 'Guest',
+              bookingId: data.parentBookingId,
+              roomType: multiRoomDisplay,
+              eventDate: checkInDate,
+              createdAt: new Date().toISOString(),
+              read: false,
+              isMultiRoom: true
+            });
+          }
+        } else if (!data.isMultiRoomBooking) {
+          checkInDate = formatDateTimeForDisplay(data.checkIn);
+          statusNotifications.push({
+            id: `${docId}_checkin`,
+            type: 'check_in',
+            guestName: `${data.guestInfo?.firstName || ''} ${data.guestInfo?.lastName || ''}`.trim() || 'Guest',
+            bookingId: data.bookingId,
+            roomType: roomTypeDisplay || 'Single Room Type',
+            eventDate: checkInDate,
+            createdAt: new Date().toISOString(),
+            read: false,
+            isMultiRoom: false
+          });
         }
-      } else if (!roomTypeDisplay) {
-        roomTypeDisplay = 'Single Room Type';
       }
       
-      // Check if status changed to 'check-in' - only if we haven't triggered for this booking ID yet
-      if (previousStatus !== 'check-in' && currentStatus === 'check-in' && !triggeredCheckIn.has(effectiveId)) {
-        triggeredCheckIn.add(effectiveId);
-        const eventDate = formatDateTimeForDisplay(data.checkIn);
+      // Check if status changed to 'check-out'
+      if (previousStatus !== 'check-out' && currentStatus === 'check-out') {
+        // Determine room type display
+        let roomTypeDisplay = getRoomTypeDisplay(data);
+        let checkOutDate = '';
         
-        statusNotifications.push({
-          id: `${effectiveId}_checkin`,
-          type: 'check_in',
-          guestName: `${data.guestInfo?.firstName || ''} ${data.guestInfo?.lastName || ''}`.trim() || 'Guest',
-          bookingId: bookingIdForDisplay,
-          roomType: roomTypeDisplay,
-          eventDate: eventDate,
-          createdAt: new Date().toISOString(),
-          read: false,
-          isMultiRoom: isMultiRoom
-        });
+        if (data.isMultiRoomBooking && data.parentBookingId) {
+          if (!processedParents.has(data.parentBookingId)) {
+            processedParents.add(data.parentBookingId);
+            let multiRoomDisplay = 'Multi-Room Types';
+            if (data.isExclusiveResortBooking) {
+              multiRoomDisplay = 'Entire Resort';
+            }
+            // Get the check-out date from the booking
+            checkOutDate = formatDateTimeForDisplay(data.checkOut);
+            
+            statusNotifications.push({
+              id: `${data.parentBookingId}_checkout`,
+              type: 'check_out',
+              guestName: `${data.guestInfo?.firstName || ''} ${data.guestInfo?.lastName || ''}`.trim() || 'Guest',
+              bookingId: data.parentBookingId,
+              roomType: multiRoomDisplay,
+              eventDate: checkOutDate,
+              createdAt: new Date().toISOString(),
+              read: false,
+              isMultiRoom: true
+            });
+          }
+        } else if (!data.isMultiRoomBooking) {
+          checkOutDate = formatDateTimeForDisplay(data.checkOut);
+          statusNotifications.push({
+            id: `${docId}_checkout`,
+            type: 'check_out',
+            guestName: `${data.guestInfo?.firstName || ''} ${data.guestInfo?.lastName || ''}`.trim() || 'Guest',
+            bookingId: data.bookingId,
+            roomType: roomTypeDisplay || 'Single Room Type',
+            eventDate: checkOutDate,
+            createdAt: new Date().toISOString(),
+            read: false,
+            isMultiRoom: false
+          });
+        }
       }
       
-      // Check if status changed to 'check-out' - only if we haven't triggered for this booking ID yet
-      if (previousStatus !== 'check-out' && currentStatus === 'check-out' && !triggeredCheckOut.has(effectiveId)) {
-        triggeredCheckOut.add(effectiveId);
-        const eventDate = formatDateTimeForDisplay(data.checkOut);
-        
-        statusNotifications.push({
-          id: `${effectiveId}_checkout`,
-          type: 'check_out',
-          guestName: `${data.guestInfo?.firstName || ''} ${data.guestInfo?.lastName || ''}`.trim() || 'Guest',
-          bookingId: bookingIdForDisplay,
-          roomType: roomTypeDisplay,
-          eventDate: eventDate,
-          createdAt: new Date().toISOString(),
-          read: false,
-          isMultiRoom: isMultiRoom
-        });
-      }
-      
-      // Update previous status using the effective booking ID
-      previousStatuses.set(effectiveId, currentStatus);
+      // Update previous status
+      previousStatuses.set(docId, currentStatus);
     });
     
     if (statusNotifications.length > 0) {

@@ -386,6 +386,14 @@ if (isExclusiveResortBooking) {
     return () => unsubscribe();
   }, []);
 
+  // Automatic room booking status transitions:
+  // confirmed -> check-in at check-in time
+  // check-in/confirmed -> check-out from 1 hour before check-out until check-out time
+  // check-out/check-in/confirmed -> completed after check-out time
+ // Automatic room booking status transitions:
+// confirmed -> check-in at check-in time (2:00 PM)
+// check-in -> check-out exactly at check-out time (12:00 PM)
+// check-out -> completed after check-out time
 useEffect(() => {
   if (!groupedBookings.length) return;
   let isProcessing = false;
@@ -420,18 +428,14 @@ useEffect(() => {
         const checkOutTime = new Date(checkOutRaw);
         checkOutTime.setHours(12, 0, 0, 0);
         
-        // Create completed time at 1:00 PM on check-out day (1 hour after check-out)
-        const completedTime = new Date(checkOutRaw);
-        completedTime.setHours(13, 0, 0, 0);
-        
         let targetStatus = null;
         
-        // Check for completed (1 hour after check-out time)
-        if (now >= completedTime) {
+        // Check for completed (after check-out time)
+        if (now > checkOutTime) {
           targetStatus = 'completed';
         } 
-        // Check for check-out (exactly at check-out time)
-        else if (now >= checkOutTime && now < completedTime) {
+        // Check for check-out (exactly at check-out time, not before)
+        else if (now >= checkOutTime && now <= checkOutTime) {
           targetStatus = 'check-out';
         }
         // Check for check-in
@@ -441,6 +445,17 @@ useEffect(() => {
         
         // Only change status if targetStatus is different from current status
         if (targetStatus && booking.status !== targetStatus) {
+          // Prevent going from check-in back to confirmed
+          if (booking.status === 'confirmed' && targetStatus === 'check-in') {
+            // Allowed - proceed
+          } else if (booking.status === 'check-in' && targetStatus === 'check-out') {
+            // Allowed - proceed
+          } else if (booking.status === 'check-out' && targetStatus === 'completed') {
+            // Allowed - proceed
+          } else if (booking.status !== targetStatus && targetStatus !== 'check-out') {
+            // For other transitions
+          }
+          
           if (booking.isMultiRoomGroup && booking.originalChildBookings) {
             // Update all child bookings
             for (const childBooking of booking.originalChildBookings) {
