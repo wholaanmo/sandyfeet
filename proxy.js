@@ -1,4 +1,3 @@
-// middleware.js
 import { NextResponse } from 'next/server';
 
 // Define protected admin routes
@@ -27,33 +26,31 @@ const staffRoutes = [
 
 // Check if a path matches any of the routes (exact or starts with)
 const matchesRoute = (path, routes) => {
-  return routes.some(route => 
-    path === route || path.startsWith(`${route}/`)
-  );
+  return routes.some((route) => path === route || path.startsWith(`${route}/`));
 };
 
-export function middleware(request) {
+export function proxy(request) {
   const { pathname } = request.nextUrl;
-  
+
   // Check if this is an admin route
   const isAdminRoute = matchesRoute(pathname, adminRoutes);
   // Check if this is a staff route
   const isStaffRoute = matchesRoute(pathname, staffRoutes);
-  
+
   // If not a protected route, allow access
   if (!isAdminRoute && !isStaffRoute) {
     return NextResponse.next();
   }
-  
+
   // Get session data from cookies (set during login)
   const sessionToken = request.cookies.get('sessionToken')?.value;
   const userType = request.cookies.get('userType')?.value;
   const sessionExpiry = request.cookies.get('sessionExpiry')?.value;
-  
+
   // Check if session exists and is not expired
-  const isValidSession = sessionToken && userType && sessionExpiry && 
-    parseInt(sessionExpiry) > Date.now();
-  
+  const isValidSession =
+    sessionToken && userType && sessionExpiry && parseInt(sessionExpiry, 10) > Date.now();
+
   // If no valid session, redirect to login
   if (!isValidSession) {
     const loginUrl = new URL('/login', request.url);
@@ -61,7 +58,7 @@ export function middleware(request) {
     loginUrl.searchParams.set('redirect', pathname);
     return NextResponse.redirect(loginUrl);
   }
-  
+
   // For admin routes, verify user has admin role
   if (isAdminRoute && userType !== 'admin') {
     // If user is staff trying to access admin route, redirect to staff dashboard
@@ -69,25 +66,23 @@ export function middleware(request) {
       const staffDashboard = new URL('/dashboard/staff/front-desk', request.url);
       return NextResponse.redirect(staffDashboard);
     }
+
     // Otherwise redirect to login
     const loginUrl = new URL('/login', request.url);
     return NextResponse.redirect(loginUrl);
   }
-  
+
   // For staff routes, verify user has staff or admin role
   if (isStaffRoute && userType !== 'admin' && userType !== 'staff') {
     const loginUrl = new URL('/login', request.url);
     return NextResponse.redirect(loginUrl);
   }
-  
+
   // Session is valid, allow access
   return NextResponse.next();
 }
 
-// Configure which paths to run middleware on
+// Configure which paths to run proxy on
 export const config = {
-  matcher: [
-    '/dashboard/:path*',
-    '/login'
-  ],
+  matcher: ['/dashboard/:path*', '/login'],
 };
