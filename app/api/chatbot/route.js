@@ -1,9 +1,11 @@
-import { OpenAI } from 'openai';
 import { readFileSync } from 'fs';
 import { join } from 'path';
 
 const QUOTA_COOLDOWN_MS = 15 * 60 * 1000;
-let quotaCircuitOpenUntil = 0;
+let openAICircuitOpenUntil = 0;
+let geminiCircuitOpenUntil = 0;
+const OPENAI_MODELS = ['gpt-4o-mini', 'gpt-4.1-mini'];
+const GEMINI_MODELS = ['gemini-2.5-flash', 'gemini-2.0-flash'];
 
 // Load the knowledge base once at module level
 let knowledgeBase = '';
@@ -50,6 +52,183 @@ function isQuotaOrRateLimitError(error) {
     errorMessage.includes('quota') ||
     errorMessage.includes('rate limit')
   );
+}
+
+function isRetryableModelError(error) {
+  const errorMessage = (error?.message || '').toLowerCase();
+  const status = error?.status;
+
+  return (
+    status === 404 ||
+    status === 429 ||
+    status >= 500 ||
+    errorMessage.includes('model') ||
+    errorMessage.includes('not found') ||
+    errorMessage.includes('unsupported') ||
+    errorMessage.includes('overloaded')
+  );
+}
+
+function buildConversationMessages(history, trimmedMessage) {
+  const messages = [{ role: 'system', content: SYSTEM_PROMPT }];
+
+  if (Array.isArray(history)) {
+    for (const msg of history.slice(-10)) {
+      if (msg.role === 'user' && typeof msg.content === 'string') {
+        messages.push({ role: 'user', content: msg.content });
+      } else if (msg.role === 'bot' && typeof msg.content === 'string') {
+        messages.push({ role: 'assistant', content: msg.content });
+      }
+    }
+  }
+
+  messages.push({ role: 'user', content: trimmedMessage });
+  return messages;
+}
+
+async function tryOpenAI(messages) {
+  const apiKey = process.env.OPENAI_API_KEY;
+  if (!apiKey) {
+    return null;
+  }
+
+  if (Date.now() < openAICircuitOpenUntil) {
+    return null;
+  }
+
+  for (const model of OPENAI_MODELS) {
+    try {
+      const response = await fetch('https://api.openai.com/v1/chat/completions', {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${apiKey}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          model,
+          messages,
+          temperature: 0.7,
+          max_tokens: 300,
+        }),
+      });
+
+      const payload = await response.json().catch(() => ({}));
+      if (!response.ok) {
+        const err = new Error(payload?.error?.message || 'OpenAI request failed');
+        err.status = response.status;
+        err.code = payload?.error?.code;
+        err.type = payload?.error?.type;
+        throw err;
+      }
+
+      const reply = payload?.choices?.[0]?.message?.content?.trim();
+      if (reply) {
+        return reply;
+      }
+    } catch (error) {
+      if (isQuotaOrRateLimitError(error)) {
+        openAICircuitOpenUntil = Date.now() + QUOTA_COOLDOWN_MS;
+        console.warn('OpenAI quota/rate limit reached; opening OpenAI circuit.', {
+          status: error?.status,
+          code: error?.code,
+          type: error?.type,
+          cooldownMs: QUOTA_COOLDOWN_MS,
+        });
+        break;
+      }
+
+      if (!isRetryableModelError(error)) {
+        console.error('OpenAI hard failure:', {
+          message: error?.message,
+          status: error?.status,
+          code: error?.code,
+          type: error?.type,
+        });
+        break;
+      }
+    }
+  }
+
+  return null;
+}
+
+async function tryGemini(messages) {
+  const primaryGeminiKey = process.env.GEMINI_API_KEY;
+  const fallbackGeminiKey = process.env.FALLBACK_API_KEY;
+  const candidateKeys = [primaryGeminiKey, fallbackGeminiKey].filter(Boolean);
+
+  if (candidateKeys.length === 0) {
+    return null;
+  }
+
+  if (Date.now() < geminiCircuitOpenUntil) {
+    return null;
+  }
+
+  const geminiText = messages
+    .map((m) => `${m.role.toUpperCase()}: ${m.content}`)
+    .join('\n\n');
+
+  for (const key of candidateKeys) {
+    for (const model of GEMINI_MODELS) {
+      try {
+        const endpoint = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${key}`;
+        const response = await fetch(endpoint, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            contents: [
+              {
+                role: 'user',
+                parts: [{ text: geminiText }],
+              },
+            ],
+            generationConfig: {
+              temperature: 0.7,
+              maxOutputTokens: 300,
+            },
+          }),
+        });
+
+        const payload = await response.json().catch(() => ({}));
+        if (!response.ok) {
+          const err = new Error(payload?.error?.message || 'Gemini request failed');
+          err.status = response.status;
+          err.code = payload?.error?.status;
+          err.type = payload?.error?.details?.[0]?.reason;
+          throw err;
+        }
+
+        const reply = payload?.candidates?.[0]?.content?.parts?.[0]?.text?.trim();
+        if (reply) {
+          return reply;
+        }
+      } catch (error) {
+        if (isQuotaOrRateLimitError(error)) {
+          geminiCircuitOpenUntil = Date.now() + QUOTA_COOLDOWN_MS;
+          console.warn('Gemini quota/rate limit reached; opening Gemini circuit.', {
+            status: error?.status,
+            code: error?.code,
+            type: error?.type,
+            cooldownMs: QUOTA_COOLDOWN_MS,
+          });
+          break;
+        }
+
+        if (!isRetryableModelError(error)) {
+          console.error('Gemini hard failure:', {
+            message: error?.message,
+            status: error?.status,
+            code: error?.code,
+            type: error?.type,
+          });
+          break;
+        }
+      }
+    }
+  }
+
+  return null;
 }
 
 function tokenize(input) {
@@ -118,75 +297,24 @@ export async function POST(request) {
       return Response.json({ reply: "It looks like you sent an empty message. How can I help you today? 😊" }, { status: 200 });
     }
 
-    const apiKey = process.env.OPENAI_API_KEY;
-    if (!apiKey) {
-      console.warn('OPENAI_API_KEY is not set. Using local chatbot fallback.');
-      return Response.json({ reply: localKnowledgeReply(trimmedMessage) }, { status: 200 });
+    const messages = buildConversationMessages(history, trimmedMessage);
+
+    const openAIReply = await tryOpenAI(messages);
+    if (openAIReply) {
+      return Response.json({ reply: openAIReply }, { status: 200 });
     }
 
-    if (Date.now() < quotaCircuitOpenUntil) {
-      return Response.json(
-        {
-          reply: `${localKnowledgeReply(trimmedMessage)}\n\nHeads up: live AI responses are temporarily unavailable, so I'm using our local resort guide for now.`
-        },
-        { status: 200 }
-      );
+    const geminiReply = await tryGemini(messages);
+    if (geminiReply) {
+      return Response.json({ reply: geminiReply }, { status: 200 });
     }
 
-    const openai = new OpenAI({ apiKey });
-
-    // Build conversation history for OpenAI
-    const messages = [
-      { role: 'system', content: SYSTEM_PROMPT }
-    ];
-
-    if (Array.isArray(history)) {
-      for (const msg of history.slice(-10)) { // Keep last 10 messages for context
-        if (msg.role === 'user') {
-          messages.push({ role: 'user', content: msg.content });
-        } else if (msg.role === 'bot') {
-          messages.push({ role: 'assistant', content: msg.content });
-        }
-      }
-    }
-
-    // Add the current user message
-    messages.push({ role: 'user', content: trimmedMessage });
-
-    try {
-      const completion = await openai.chat.completions.create({
-        model: "gpt-4o-mini",
-        messages: messages,
-        temperature: 0.7,
-        max_tokens: 300,
-      });
-
-      const reply = completion.choices?.[0]?.message?.content;
-      return Response.json(
-        { reply: reply || localKnowledgeReply(trimmedMessage) },
-        { status: 200 }
-      );
-    } catch (error) {
-      if (isQuotaOrRateLimitError(error)) {
-        quotaCircuitOpenUntil = Date.now() + QUOTA_COOLDOWN_MS;
-        console.warn('Chatbot API quota/rate limit reached. Enabling local fallback mode.', {
-          status: error?.status,
-          code: error?.code,
-          type: error?.type,
-          requestID: error?.requestID,
-          cooldownMs: QUOTA_COOLDOWN_MS,
-        });
-
-        return Response.json(
-          {
-            reply: `${localKnowledgeReply(trimmedMessage)}\n\nLive AI is temporarily unavailable, but I can still help with information from our resort guide. 🌊`
-          },
-          { status: 200 }
-        );
-      }
-
-      throw error;
-    }
+    return Response.json(
+      {
+        reply: `${localKnowledgeReply(trimmedMessage)}\n\nLive AI is temporarily unavailable right now, so I'm using our local resort guide for the moment.`
+      },
+      { status: 200 }
+    );
 
   } catch (error) {
     console.error('Chatbot API unexpected error:', {
