@@ -1036,69 +1036,74 @@ const handleArchiveBankAccount = async () => {
       )}
 
       {/* Bank Transfer Requests Tab Content */}
-      {activeMainTab === 'bankTransferRequests' && (
-        <div className="bg-white rounded-2xl shadow-md border border-ocean-light/10 overflow-hidden">
-          {/* Tabs for Room vs Day Tour - IMPROVED ACTIVE STATE */}
-          <div className="relative flex items-center border-b border-[#4D8CF5]/20 px-6">
-            <div className="relative flex gap-8" ref={requestsTabsContainerRef}>
-              {/* Sliding background */}
-              <div
-                ref={requestsSliderRef}
-                className="absolute bottom-0 left-0 h-0.5 bg-[#1E3A8A] transition-all duration-300 ease-in-out"
-              />
+   {activeMainTab === 'bankTransferRequests' && (
+  <div className="bg-white rounded-2xl shadow-lg border border-[#4D8CF5]/10 overflow-hidden">
+    {/* Tabs for Room vs Day Tour - IMPROVED ACTIVE STATE */}
+    <div className="relative flex items-center justify-between border-b border-[#4D8CF5]/20 px-6 bg-gradient-to-r from-white to-[#F8FBFF]">
+      <div
+        className="relative flex justify-between items-center w-full gap-8"
+        ref={requestsTabsContainerRef}
+      >
+        {/* Sliding background */}
+        <div
+          ref={requestsSliderRef}
+          className="absolute bottom-0 left-0 h-0.5 bg-[#1E3A8A] transition-all duration-300 ease-in-out"
+        />
 
-              {/* Room Bookings Tab */}
-              <button
-                ref={(el) => { requestsButtonRefs.current['room'] = el; }}
-                onClick={() => handleTabChange('room')}
-                className={`relative z-10 px-2 py-3 font-medium transition-all duration-200 text-center flex items-center gap-2 ${
-                  activeRequestsTab === 'room'
-                    ? 'text-[#1E3A8A]'
-                    : 'text-[#1E3A8A]/60 hover:text-[#4D8CF5]'
-                }`}
-              >
-                <i className="fas fa-bed text-sm"></i>
-                <span>Room Bookings</span>
-                {unreadRoomCount > 0 && (
-                  <span className="ml-1 bg-red-500 text-white text-xs px-1.5 py-0.5 rounded-full">
-                    {unreadRoomCount}
-                  </span>
-                )}
-              </button>
+        {/* Room Bookings Tab */}
+        <button
+          ref={(el) => { requestsButtonRefs.current['room'] = el; }}
+          onClick={() => handleTabChange('room')}
+          className={`relative z-10 flex-1 px-2 py-3 font-medium transition-all duration-200 text-center flex items-center justify-center gap-2 ${
+            activeRequestsTab === 'room'
+              ? 'text-[#1E3A8A]'
+              : 'text-[#1E3A8A]/60 hover:text-[#4D8CF5]'
+          }`}
+        >
+          <i className="fas fa-bed text-sm"></i>
+          <span>Room Bookings</span>
+          {unreadRoomCount > 0 && (
+            <span className="ml-1 bg-red-500 text-white text-xs px-1.5 py-0.5 rounded-full shadow-sm">
+              {unreadRoomCount}
+            </span>
+          )}
+        </button>
 
-              {/* Day Tour Bookings Tab */}
-              <button
-                ref={(el) => { requestsButtonRefs.current['daytour'] = el; }}
-                onClick={() => handleTabChange('daytour')}
-                className={`relative z-10 px-2 py-3 font-medium transition-all duration-200 text-center flex items-center gap-2 ${
-                  activeRequestsTab === 'daytour'
-                    ? 'text-[#1E3A8A]'
-                    : 'text-[#1E3A8A]/60 hover:text-[#4D8CF5]'
-                }`}
-              >
-                <i className="fas fa-sun text-sm"></i>
-                <span>Day Tour Bookings</span>
-                {unreadDayTourCount > 0 && (
-                  <span className="ml-1 bg-red-500 text-white text-xs px-1.5 py-0.5 rounded-full">
-                    {unreadDayTourCount}
-                  </span>
-                )}
-              </button>
-            </div>
-          </div>
+        {/* Day Tour Bookings Tab */}
+        <button
+          ref={(el) => { requestsButtonRefs.current['daytour'] = el; }}
+          onClick={() => handleTabChange('daytour')}
+          className={`relative z-10 flex-1 px-2 py-3 font-medium transition-all duration-200 text-center flex items-center justify-center gap-2 ${
+            activeRequestsTab === 'daytour'
+              ? 'text-[#1E3A8A]'
+              : 'text-[#1E3A8A]/60 hover:text-[#4D8CF5]'
+          }`}
+        >
+          <i className="fas fa-sun text-sm"></i>
+          <span>Day Tour Bookings</span>
+          {unreadDayTourCount > 0 && (
+            <span className="ml-1 bg-red-500 text-white text-xs px-1.5 py-0.5 rounded-full shadow-sm">
+              {unreadDayTourCount}
+            </span>
+          )}
+        </button>
+      </div>
+    </div>
 
-          <div className="px-6 pt-4 pb-2">
-            <div className="relative max-w-md">
-              <i className="fas fa-search absolute left-3 top-1/2 -translate-y-1/2 text-neutral text-sm"></i>
-              <input
-                type="text"
-                value={requestsSearchTerm}
-                onChange={(e) => setRequestsSearchTerm(e.target.value)}
-                placeholder="Search by name, email, bank account, or date"
-                className="w-full pl-9 pr-3 py-2.5 border border-ocean-light/20 rounded-xl text-sm focus:outline-none focus:border-ocean-light bg-white"
-              />
-            </div>
-          </div>
+          {/* Search Filter - FULL WIDTH with improved alignment */}
+<div className="px-6 pt-5 pb-3">
+  <div className="relative w-full group">
+    <i className="fas fa-search absolute left-4 top-1/2 -translate-y-1/2 text-[#4D8CF5] text-sm transition-all duration-300 group-focus-within:text-[#3B78E7]"></i>
+    
+    <input
+      type="text"
+      value={requestsSearchTerm}
+      onChange={(e) => setRequestsSearchTerm(e.target.value)}
+      placeholder="Search by name, email, bank account, or date"
+      className="w-full pl-11 pr-4 py-3 border-2 border-[#4D8CF5]/20 rounded-xl text-sm focus:outline-none focus:border-[#4D8CF5] focus:ring-2 focus:ring-[#4D8CF5]/20 transition-all duration-300 bg-white shadow-sm hover:shadow-md"
+    />
+  </div>
+</div>
           
           <div className="p-6 pt-2">
             {/* Room Bookings Requests - IMPROVED CARD DESIGN */}
@@ -1374,12 +1379,12 @@ const handleArchiveBankAccount = async () => {
         </div>
       )}
 
-      {/* Add/Edit Bank Account Modal */}
+      {/* Add/Edit Bank Account Modal - REDUCED HEIGHT (more compact) */}
       {showAddBankModal && (
         <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4" onClick={() => setShowAddBankModal(false)}>
-          <div className="bg-white rounded-2xl w-full max-w-sm p-6 shadow-2xl" onClick={(e) => e.stopPropagation()}>
-            <div className="flex justify-between items-center mb-5">
-              <h2 className="text-xl font-bold text-textPrimary font-playfair">
+          <div className="bg-white rounded-2xl w-full max-w-sm p-5 shadow-2xl" onClick={(e) => e.stopPropagation()}>
+            <div className="flex justify-between items-center mb-4">
+              <h2 className="text-lg font-bold text-textPrimary font-playfair">
                 {editingBank ? 'Edit Bank Account' : 'Add Bank Account'}
               </h2>
               <button
@@ -1391,15 +1396,14 @@ const handleArchiveBankAccount = async () => {
                   setBankQRPreview('');
                   setBankQRUrl('');
                 }}
-                className="w-8 h-8 rounded-full bg-ocean-ice hover:bg-ocean-light/20 text-neutral hover:text-textPrimary transition-all duration-200 flex items-center justify-center"
-              >
-                <i className="fas fa-times"></i>
+                className="w-7 h-7 rounded-md bg-ocean-ice text-neutral hover:bg-ocean-light/20 hover:text-textPrimary transition-all duration-200 flex items-center justify-center">
+                <i className="fas fa-times text-sm"></i>
               </button>
             </div>
             
-            <div className="space-y-4">
+            <div className="space-y-3">
               <div>
-                <label className="block text-sm font-semibold text-textPrimary mb-2">
+                <label className="block text-sm font-semibold text-textPrimary mb-1.5">
                   Bank Name
                 </label>
                 <input
@@ -1407,12 +1411,12 @@ const handleArchiveBankAccount = async () => {
                   value={tempBankDetails.bankName}
                   onChange={(e) => handleBankDetailsChange('bankName', e.target.value)}
                   placeholder="e.g., BDO, BPI, Metrobank"
-                  className="w-full px-4 py-2.5 border border-ocean-light/20 rounded-xl text-sm focus:outline-none focus:border-ocean-light"
+                  className="w-full px-4 py-2 border border-ocean-light/20 rounded-xl text-sm focus:outline-none focus:border-ocean-light"
                 />
               </div>
               
               <div>
-                <label className="block text-sm font-semibold text-textPrimary mb-2">
+                <label className="block text-sm font-semibold text-textPrimary mb-1.5">
                   Account Name
                 </label>
                 <input
@@ -1420,19 +1424,19 @@ const handleArchiveBankAccount = async () => {
                   value={tempBankDetails.accountName}
                   onChange={(e) => handleBankDetailsChange('accountName', e.target.value)}
                   placeholder="Account holder's name"
-                  className="w-full px-4 py-2.5 border border-ocean-light/20 rounded-xl text-sm focus:outline-none focus:border-ocean-light"
+                  className="w-full px-4 py-2 border border-ocean-light/20 rounded-xl text-sm focus:outline-none focus:border-ocean-light"
                 />
               </div>
               
               {/* Helper Text */}
-              <div className="text-sm text-amber-600 bg-amber-50 p-2 rounded-lg flex items-center gap-2">
-                <i className="fas fa-info-circle"></i>
+              <div className="text-xs text-amber-600 bg-amber-50 p-1.5 rounded-lg flex items-center gap-1.5">
+                <i className="fas fa-info-circle text-xs"></i>
                 <span>Choose only one: Account Number or QR Code.</span>
               </div>
 
               {/* Account Number Field - Disabled if QR is uploaded */}
               <div>
-                <label className="block text-sm font-semibold text-textPrimary mb-2">
+                <label className="block text-sm font-semibold text-textPrimary mb-1.5">
                   Account Number
                 </label>
                 <input
@@ -1442,16 +1446,16 @@ const handleArchiveBankAccount = async () => {
                   onChange={handleAccountNumberChange}
                   placeholder="Account number"
                   disabled={bankQRFile !== null || bankQRPreview !== ''}
-                  className={`w-full px-4 py-2.5 border border-ocean-light/20 rounded-xl text-sm focus:outline-none focus:border-ocean-light ${(bankQRFile !== null || bankQRPreview !== '') ? 'bg-gray-100 text-gray-400 cursor-not-allowed' : ''}`}
+                  className={`w-full px-4 py-2 border border-ocean-light/20 rounded-xl text-sm focus:outline-none focus:border-ocean-light ${(bankQRFile !== null || bankQRPreview !== '') ? 'bg-gray-100 text-gray-400 cursor-not-allowed' : ''}`}
                 />
               </div>
 
               {/* QR Code Upload Field - Disabled if Account Number is entered */}
               <div>
-                <label className="block text-sm font-semibold text-textPrimary mb-2">
+                <label className="block text-sm font-semibold text-textPrimary mb-1.5">
                   QR Code Image
                 </label>
-                <div className={`border-2 border-dashed border-ocean-light/20 rounded-xl p-4 text-center transition-colors ${tempBankDetails.accountNumber ? 'opacity-50 bg-gray-50' : 'hover:border-ocean-light'}`}>
+                <div className={`border-2 border-dashed border-ocean-light/20 rounded-xl p-3 text-center transition-colors ${tempBankDetails.accountNumber ? 'opacity-50 bg-gray-50' : 'hover:border-ocean-light'}`}>
                   <input
                     type="file"
                     accept="image/*"
@@ -1462,10 +1466,10 @@ const handleArchiveBankAccount = async () => {
                   />
                   <label
                     htmlFor="bank-qr-upload"
-                    className={`cursor-pointer flex flex-col items-center gap-2 ${tempBankDetails.accountNumber ? 'cursor-not-allowed' : ''}`}
+                    className={`cursor-pointer flex flex-col items-center gap-1.5 ${tempBankDetails.accountNumber ? 'cursor-not-allowed' : ''}`}
                   >
                     {bankQRPreview ? (
-                      <div className="relative w-24 h-24">
+                      <div className="relative w-20 h-20">
                         <Image
                           src={bankQRPreview}
                           alt="Bank QR Code Preview"
@@ -1488,8 +1492,8 @@ const handleArchiveBankAccount = async () => {
                       </div>
                     ) : (
                       <>
-                        <i className="fas fa-qrcode text-3xl text-ocean-light"></i>
-                        <span className="text-sm text-textSecondary">
+                        <i className="fas fa-qrcode text-2xl text-ocean-light"></i>
+                        <span className="text-xs text-textSecondary">
                           Click to upload QR code
                         </span>
                       </>
@@ -1501,13 +1505,13 @@ const handleArchiveBankAccount = async () => {
 
               {(bankQRFile !== null || bankQRPreview !== '' || bankQRUrl !== '') && (
                 <div>
-                  <label className="block text-sm font-semibold text-textPrimary mb-2">
+                  <label className="block text-sm font-semibold text-textPrimary mb-1.5">
                     QR Code Visibility
                   </label>
                   <select
                     value={tempBankDetails.showToGuest ? 'show' : 'hide'}
                     onChange={(e) => handleBankDetailsChange('showToGuest', e.target.value === 'show')}
-                    className="w-full px-4 py-2.5 border border-ocean-light/20 rounded-xl text-sm focus:outline-none focus:border-ocean-light"
+                    className="w-full px-4 py-2 border border-ocean-light/20 rounded-xl text-sm focus:outline-none focus:border-ocean-light"
                   >
                     <option value="show">Show this to the guest</option>
                     <option value="hide">Don&apos;t show this to the guest</option>
@@ -1516,7 +1520,7 @@ const handleArchiveBankAccount = async () => {
               )}
             </div>
             
-            <div className="flex gap-3 justify-end mt-6">
+            <div className="flex gap-3 justify-end mt-5">
               <button
                 onClick={() => {
                   setShowAddBankModal(false);
@@ -1526,14 +1530,14 @@ const handleArchiveBankAccount = async () => {
                   setBankQRPreview('');
                   setBankQRUrl('');
                 }}
-                className="px-5 py-2.5 border border-ocean-light/20 rounded-xl text-textSecondary text-sm font-medium hover:bg-ocean-ice transition-all duration-300"
+                className="px-4 py-2 border border-ocean-light/20 rounded-xl text-textSecondary text-sm font-medium hover:bg-ocean-ice transition-all duration-300"
               >
                 Cancel
               </button>
               <button
                 onClick={editingBank ? handleUpdateBankAccount : handleAddBankAccount}
                 disabled={saving || !isBankFormValid()}
-                className="px-5 py-2.5 bg-gradient-to-r from-ocean-mid to-ocean-light rounded-xl text-white text-sm font-medium hover:shadow-lg transition-all duration-300 disabled:opacity-50 disabled:cursor-not-allowed"
+                className="px-4 py-2 bg-gradient-to-r from-ocean-mid to-ocean-light rounded-xl text-white text-sm font-medium hover:shadow-lg transition-all duration-300 disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 {saving ? 'Saving...' : (editingBank ? 'Update' : 'Add')}
               </button>

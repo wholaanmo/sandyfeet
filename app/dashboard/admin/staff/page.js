@@ -595,19 +595,20 @@ const handleResendVerification = async () => {
 )}
 
       {/* Filters and Search */}
-      <div className="flex gap-4 mb-6 flex-wrap">
-        <div className="flex-1 min-w-[250px]">
-          <div className="relative">
-            <i className="fas fa-search absolute left-3 top-1/2 -translate-y-1/2 text-neutral text-sm"></i>
-            <input
-              type="text"
-              placeholder="Search by name, email, or phone..."
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-              className="w-full pl-9 pr-3 py-2.5 border border-ocean-light/20 rounded-xl text-sm focus:outline-none focus:border-ocean-light focus:ring-2 focus:ring-ocean-light/20 transition-all duration-300 bg-white"
-            />
-          </div>
-        </div>
+<div className="flex gap-4 mb-6 flex-wrap">
+  <div className="flex-1 min-w-[250px]">
+    <div className="relative w-full group">
+      <i className="fas fa-search absolute left-3 top-1/2 -translate-y-1/2 text-[#4D8CF5] text-sm transition-all duration-300 group-focus-within:text-[#3B78E7]"></i>
+      
+      <input
+        type="text"
+        placeholder="Search by name, email, or phone..."
+        value={searchTerm}
+        onChange={(e) => setSearchTerm(e.target.value)}
+        className="w-full pl-9 pr-3 py-2.5 border-2 border-[#4D8CF5]/20 rounded-xl text-sm focus:outline-none focus:border-[#4D8CF5] focus:ring-2 focus:ring-[#4D8CF5]/20 transition-all duration-300 bg-white shadow-sm hover:shadow-md"
+      />
+    </div>
+  </div>
         
         <select
           value={filterStatus}

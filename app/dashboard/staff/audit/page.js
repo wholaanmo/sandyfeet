@@ -184,25 +184,27 @@ export default function AuditLogs() {
 </div>
 
       {/* Search + Date Filter */}
-      <div className="mb-6 grid grid-cols-1 md:grid-cols-3 gap-3">
-        <div className="relative w-full md:col-span-2">
-          <i className="fas fa-search absolute left-3 top-1/2 -translate-y-1/2 text-neutral text-sm"></i>
-          <input
-            type="text"
-            placeholder="Search by user, role, module, or action details..."
-            value={searchTerm}
-            onChange={(e) => setSearchTerm(e.target.value)}
-            className="w-full pl-9 pr-10 py-2.5 border border-ocean-light/20 rounded-xl text-sm focus:outline-none focus:border-ocean-light focus:ring-2 focus:ring-ocean-light/20 transition-all duration-300 bg-white"
-          />
-          {searchTerm && (
-            <button
-              onClick={clearSearch}
-              className="absolute right-3 top-1/2 -translate-y-1/2 text-neutral hover:text-ocean-light transition-colors"
-            >
-              <i className="fas fa-times"></i>
-            </button>
-          )}
-        </div>
+   <div className="mb-6 grid grid-cols-1 md:grid-cols-3 gap-3">
+  <div className="relative w-full md:col-span-2 group">
+    <i className="fas fa-search absolute left-3 top-1/2 -translate-y-1/2 text-[#4D8CF5] text-sm transition-all duration-300 group-focus-within:text-[#3B78E7]"></i>
+    
+    <input
+      type="text"
+      placeholder="Search by user, role, module, or action details..."
+      value={searchTerm}
+      onChange={(e) => setSearchTerm(e.target.value)}
+      className="w-full pl-9 pr-10 py-2.5 border-2 border-[#4D8CF5]/20 rounded-xl text-sm focus:outline-none focus:border-[#4D8CF5] focus:ring-2 focus:ring-[#4D8CF5]/20 transition-all duration-300 bg-white shadow-sm hover:shadow-md"
+    />
+
+    {searchTerm && (
+      <button
+        onClick={clearSearch}
+        className="absolute right-3 top-1/2 -translate-y-1/2 text-neutral hover:text-[#4D8CF5] transition-colors duration-300"
+      >
+        <i className="fas fa-times"></i>
+      </button>
+    )}
+  </div>
         <div className="relative w-full">
           <input
             type="date"

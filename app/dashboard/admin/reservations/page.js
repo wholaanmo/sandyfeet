@@ -256,6 +256,17 @@ const groupMultiRoomBookings = (bookingsList) => {
     const exclusiveChildBooking = group.bookings.find((booking) => booking.isExclusiveResortBooking);
     const isExclusiveResortBooking = Boolean(exclusiveChildBooking);
     const exclusivePackagePrice = Number(exclusiveChildBooking?.exclusivePackagePrice || 0);
+
+if (isExclusiveResortBooking && tentCount > 0) {
+  const tentIndex = roomTypesArray.findIndex(item => item.type === 'Tent');
+  if (tentIndex !== -1) {
+    // Rename existing Tent entry to Tent(s)
+    roomTypesArray[tentIndex].type = 'Tent(s)';
+  } else {
+    // No Tent entry found (should not happen, but fallback)
+    roomTypesArray.push({ type: 'Tent(s)', quantity: tentCount, guestsPerRoom: 0 });
+  }
+}
     
     // Calculate total rooms: base 5 rooms for Entire Resort Package, plus 1 per tent
 let totalRoomsCount = totalRooms;
@@ -1330,18 +1341,23 @@ const handleConfirmReservation = async () => {
 </div>
 
       {/* Search Bar */}
-      <div className="mb-6">
-        <div className="relative">
-          <i className="fas fa-search absolute left-3 top-1/2 -translate-y-1/2 text-neutral text-sm"></i>
-          <input
-            type="text"
-            placeholder={`Search by ${activeTab === 'rooms' ? 'room type, guest name, or booking ID' : 'guest name or booking ID'}...`}
-            value={searchTerm}
-            onChange={(e) => setSearchTerm(e.target.value)}
-            className="w-full pl-9 pr-3 py-2.5 border border-ocean-light/20 rounded-xl text-sm focus:outline-none focus:border-ocean-light focus:ring-2 focus:ring-ocean-light/20 transition-all duration-300 bg-white"
-          />
-        </div>
-      </div>
+<div className="mb-6">
+  <div className="relative w-full group">
+    <i className="fas fa-search absolute left-4 top-1/2 -translate-y-1/2 text-[#4D8CF5] text-sm transition-all duration-300 group-focus-within:text-[#3B78E7]"></i>
+    
+    <input
+      type="text"
+      placeholder={`Search by ${
+        activeTab === 'rooms'
+          ? 'room type, guest name, or booking ID'
+          : 'guest name or booking ID'
+      }...`}
+      value={searchTerm}
+      onChange={(e) => setSearchTerm(e.target.value)}
+      className="w-full pl-11 pr-5 py-3 border-2 border-[#4D8CF5]/20 rounded-xl text-sm focus:outline-none focus:border-[#4D8CF5] focus:ring-2 focus:ring-[#4D8CF5]/20 transition-all duration-300 bg-white shadow-sm hover:shadow-md"
+    />
+  </div>
+</div>
 
       {/* Status Tabs */}
       <div className="flex gap-2 mb-6 overflow-x-auto pb-2">
@@ -1396,7 +1412,7 @@ const handleConfirmReservation = async () => {
                     ) : (
                       filteredBookings.map((booking) => (
                         <tr key={booking.id} className="border-b border-ocean-light/10 hover:bg-ocean-ice/30 transition-colors">
-                     <td className="px-3 py-2">
+                          <td className="px-3 py-2">
   <div className="flex flex-col">
     <span className="font-mono text-xs">{booking.bookingId}</span>
     <span className={`text-xs font-medium ${
@@ -1414,26 +1430,26 @@ const handleConfirmReservation = async () => {
                               {booking.guestInfo?.firstName} {booking.guestInfo?.lastName}
                             </div>
                             <div className="text-[10px] text-neutral">{booking.guestInfo?.email}</div>
-                           </td>
+                            </td>
                           <td className="px-3 py-2">
                             <div className="text-xs text-textPrimary">
                               {booking.roomTypesDisplay || booking.roomType || 'N/A'}
                             </div>
-                           </td>
+                            </td>
                           <td className="px-3 py-2 text-xs text-textSecondary">
                             {booking.totalRooms || (booking.isMultiRoomGroup ? booking.childBookings?.length || 0 : (booking.numberOfRooms || 1))}
-                           </td>
+                            </td>
                           <td className="px-3 py-2 text-xs text-textSecondary">
                             {formatDateWithTime(booking.checkIn, 'check-in')}
-                           </td>
+                            </td>
                           <td className="px-3 py-2 text-xs text-textSecondary">
                             {formatDateWithTime(booking.checkOut, 'check-out')}
-                           </td>
+                            </td>
                           <td className="px-3 py-2">
                             <span className={`inline-flex whitespace-nowrap px-2 py-0.5 rounded-full text-[10px] font-medium ${getStatusColor(booking.status)}`}>
                               {booking.status?.charAt(0).toUpperCase() + booking.status?.slice(1)}
                             </span>
-                           </td>
+                            </td>
                           <td className="px-3 py-2">
                             <div className="flex gap-1">
                               <button
@@ -1466,15 +1482,15 @@ const handleConfirmReservation = async () => {
                                 </button>
                               )}
                             </div>
-                           </td>
+                            </td>
                           <td className="px-3 py-2 text-xs text-textSecondary">
                             {formatDateTime(booking.createdAt)}
-                           </td>
-                         </tr>
+                            </td>
+                        </tr>
                       ))
                     )}
                   </tbody>
-                 </table>
+                </table>
               </div>
             </div>
           )}
@@ -1507,13 +1523,13 @@ const handleConfirmReservation = async () => {
                   </thead>
                   <tbody>
                     {filteredDayTours.length === 0 ? (
-                       <tr>
+                        <tr>
                         <td colSpan="9" className="px-4 py-12 text-center text-neutral">
                           <i className="fas fa-sun text-5xl mb-3 opacity-50 block"></i>
                           <p className="text-lg">No day tour reservations found</p>
                           <p className="text-sm">Day tour reservations will appear here once guests book</p>
-                         </td>
-                       </tr>
+                          </td>
+                        </tr>
                     ) : (
                       filteredDayTours.map((tour) => (
                         <tr key={tour.id} className="border-b border-ocean-light/10 hover:bg-ocean-ice/30 transition-colors">
@@ -1525,24 +1541,24 @@ const handleConfirmReservation = async () => {
                               {tour.guestInfo?.firstName} {tour.guestInfo?.lastName}
                             </div>
                             <div className="text-[10px] text-neutral">{tour.guestInfo?.email}</div>
-                           </td>
+                            </td>
                           <td className="px-3 py-2 text-xs text-textSecondary">
                             {formatDateOnly(tour.selectedDate)}
-                           </td>
+                            </td>
                           <td className="px-3 py-2 text-xs text-textSecondary text-center">
                             {tour.seniors || 0}
-                           </td>
+                            </td>
                           <td className="px-3 py-2 text-xs text-textSecondary text-center">
                             {tour.adults || 0}
-                           </td>
+                            </td>
                           <td className="px-3 py-2 text-xs text-textSecondary text-center">
                             {tour.kids || 0}
-                           </td>
+                            </td>
                           <td className="px-3 py-2">
                             <span className={`px-2 py-0.5 rounded-full text-[10px] font-medium ${getStatusColor(tour.status)}`}>
                               {tour.status?.charAt(0).toUpperCase() + tour.status?.slice(1)}
                             </span>
-                           </td>
+                            </td>
                           <td className="px-3 py-2">
                             <div className="flex gap-1">
                               <button
@@ -1567,15 +1583,15 @@ const handleConfirmReservation = async () => {
                                 </button>
                               )}
                             </div>
-                           </td>
+                            </td>
                           <td className="px-3 py-2 text-xs text-textSecondary">
                             {formatDateTime(tour.createdAt)}
-                           </td>
-                         </tr>
+                            </td>
+                        </tr>
                       ))
                     )}
                   </tbody>
-                 </table>
+                </table>
               </div>
             </div>
           )}
@@ -1631,18 +1647,11 @@ const handleConfirmReservation = async () => {
           <>
             <div className="bg-white/70 backdrop-blur-md border border-[#4D8CF5]/10 rounded-xl p-3 shadow-sm">
               <h3 className="text-xs font-semibold text-[#1E3A8A] uppercase tracking-wide mb-2">Room Details</h3>
-              {sidebarBooking.isExclusiveResortBooking && (
-                <>
-                  <p className="text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded-lg px-2 py-1 mb-2 font-semibold">
-                    Entire Resort Package: all room types are booked for this schedule.
-                  </p>
-                  {sidebarBooking.tentCount > 0 && (
-                    <p className="text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded-lg px-2 py-1 mb-2 font-semibold">
-                      Tents Added: {sidebarBooking.tentCount} tent(s)
-                    </p>
-                  )}
-                </>
-              )}
+{sidebarBooking.isExclusiveResortBooking && (
+  <p className="text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded-lg px-2 py-1 mb-2 font-semibold">
+    Entire Resort Package: all room types are booked for this schedule.
+  </p>
+)}
               {/* Multi-Room Detailed Display - without guest counts */}
               {sidebarBooking.isMultiRoomGroup && sidebarBooking.roomTypesArray && sidebarBooking.roomTypesArray.length > 0 ? (
                 <div className="space-y-1">
@@ -1664,6 +1673,11 @@ const handleConfirmReservation = async () => {
                   </p>
                 </>
               )}
+              {/* Added Total Rooms field */}
+              <p className="text-sm mt-2 pt-1 border-t border-[#4D8CF5]/20">
+                <span className="text-[#1E3A8A]/70">Total Rooms:</span>{' '}
+                <span className="font-medium text-[#1E3A8A]">{sidebarBooking.totalRooms || sidebarBooking.numberOfRooms || 1}</span>
+              </p>
             </div>
 
             <div className="bg-white/70 backdrop-blur-md border border-[#4D8CF5]/10 rounded-xl p-3 shadow-sm">

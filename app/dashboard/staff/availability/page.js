@@ -15,6 +15,11 @@ export default function StaffRoomStatus() {
   const [dayTourCapacity, setDayTourCapacity] = useState(null);
   const [dayTourBookedDates, setDayTourBookedDates] = useState({});
   const [dayTourUnavailableDates, setDayTourUnavailableDates] = useState({});
+  
+  // Calendar state
+  const [currentDate, setCurrentDate] = useState(new Date());
+  const [selectedTab, setSelectedTab] = useState('rooms'); // 'rooms' or 'daytour'
+  const [calendarViewDate, setCalendarViewDate] = useState(new Date());
 
   // Helper function to convert Date to YYYY-MM-DD local date string
   const toLocalDateKey = (date) => {
@@ -24,14 +29,11 @@ export default function StaffRoomStatus() {
     return `${year}-${month}-${day}`;
   };
 
-  // Get today and tomorrow dates
+  // Get today date
   const today = new Date();
   today.setHours(0, 0, 0, 0);
-  const tomorrow = new Date(today);
-  tomorrow.setDate(tomorrow.getDate() + 1);
 
   const todayKey = toLocalDateKey(today);
-  const tomorrowKey = toLocalDateKey(tomorrow);
 
   // Fetch rooms list (only non-archived and available)
   useEffect(() => {
@@ -77,7 +79,7 @@ export default function StaffRoomStatus() {
     return Math.max(0, total - maintenance);
   };
 
-  // Fetch bookings for all rooms
+  // Fetch bookings for all rooms (from app/dashboard/admin/calendar source)
   useEffect(() => {
     if (rooms.length === 0) return;
     
@@ -149,7 +151,7 @@ export default function StaffRoomStatus() {
     };
   }, [rooms]);
 
-  // Fetch blocked slots for all rooms
+  // Fetch blocked slots for all rooms (from app/dashboard/admin/calendar source)
   useEffect(() => {
     if (rooms.length === 0) return;
     
@@ -180,7 +182,7 @@ export default function StaffRoomStatus() {
     return () => unsubscribe();
   }, [rooms]);
 
-  // Fetch day tour capacity and bookings
+  // Fetch day tour capacity and bookings (from app/dashboard/admin/calendar-daytour source)
   useEffect(() => {
     // Fetch day tour configuration
     const fetchDayTourConfig = async () => {
@@ -260,6 +262,21 @@ export default function StaffRoomStatus() {
     return Math.max(0, totalUnits - maxUsed);
   };
 
+  // Check if a date is fully booked for a specific room type
+  const isRoomTypeFullyBookedOnDate = (roomId, date) => {
+    const totalUnits = getTotalRoomUnits(roomId);
+    if (totalUnits <= 0) return false;
+    const availableUnits = getAvailableUnitsForRoomOnDate(roomId, date);
+    return availableUnits === 0;
+  };
+
+  // Check if a date is fully booked for ALL room types
+  const isDateFullyBookedForAllRooms = (date) => {
+    if (rooms.length === 0) return false;
+    // A date is fully booked if every room type has 0 available units
+    return rooms.every(room => isRoomTypeFullyBookedOnDate(room.id, date));
+  };
+
   // Calculate remaining guest capacity for day tour on a specific date
   const getRemainingDayTourCapacity = (date) => {
     if (!dayTourCapacity) return 0;
@@ -267,6 +284,60 @@ export default function StaffRoomStatus() {
     const booked = dayTourBookedDates[dateKey] || 0;
     const unavailable = dayTourUnavailableDates[dateKey] || 0;
     return Math.max(0, dayTourCapacity - booked - unavailable);
+  };
+
+  const getBookedGuestsCount = (date) => {
+    if (!dayTourCapacity) return 0;
+    const dateKey = toLocalDateKey(date);
+    return dayTourBookedDates[dateKey] || 0;
+  };
+
+  const getUnavailableSlotsCount = (date) => {
+    const dateKey = toLocalDateKey(date);
+    return dayTourUnavailableDates[dateKey] || 0;
+  };
+
+  // Calendar helper functions
+  const getDaysInMonth = (date) => {
+    const year = date.getFullYear();
+    const month = date.getMonth();
+    const firstDay = new Date(year, month, 1);
+    const lastDay = new Date(year, month + 1, 0);
+    const daysInMonth = lastDay.getDate();
+    const startingDayOfWeek = firstDay.getDay();
+    const days = [];
+    for (let i = 0; i < startingDayOfWeek; i++) days.push(null);
+    for (let i = 1; i <= daysInMonth; i++) days.push(new Date(year, month, i));
+    return days;
+  };
+
+  const isDatePast = (date) => {
+    const todayDate = new Date();
+    todayDate.setHours(0, 0, 0, 0);
+    return date < todayDate;
+  };
+
+  const monthNames = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
+
+  const goToPreviousMonth = () => {
+    setCalendarViewDate(new Date(calendarViewDate.getFullYear(), calendarViewDate.getMonth() - 1, 1));
+  };
+  
+  const goToNextMonth = () => {
+    setCalendarViewDate(new Date(calendarViewDate.getFullYear(), calendarViewDate.getMonth() + 1, 1));
+  };
+
+  const days = getDaysInMonth(calendarViewDate);
+
+  // Get shortened room type label for better display
+  const getRoomTypeLabel = (type) => {
+    const labels = {
+      'Tent': 'Tent',
+      'Couple Room': 'Couple',
+      'Ground Floor Room': 'Ground Flr',
+      'Group Room': 'Group'
+    };
+    return labels[type] || type;
   };
 
   if (loading) {
@@ -280,9 +351,9 @@ export default function StaffRoomStatus() {
   }
 
   return (
-    <div className="p-8 min-h-screen" style={{ backgroundColor: 'var(--color-blue-whites)' }}>
-      {/* Header */}
-      <div className="mb-8 rounded-xl border border-[#7AAAF8]/20 bg-[#7AAAF8]/5 px-5 py-4 shadow-sm">
+    <div className="px-9 py-1 min-h-screen" style={{ backgroundColor: 'var(--color-blue-whites)' }}>
+      {/* Header Section */}
+      <div className="mb-6 rounded-xl border border-[#7AAAF8]/20 bg-[#7AAAF8]/5 px-5 py-4 shadow-sm">
         <h1 className="text-3xl font-bold text-[#1E3A8A] font-playfair tracking-tight">
           Room & Capacity Status
         </h1>
@@ -291,231 +362,326 @@ export default function StaffRoomStatus() {
         </p>
       </div>
 
-      {/* Date Info Cards */}
+      {/* Summary Cards - Top Section (Reduced Height) */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-8">
-        <div className="bg-gradient-to-r from-blue-50 to-white rounded-xl border border-blue-200 p-4 shadow-sm">
+        {/* Left Card: Room Availability - Today */}
+        <div className="bg-gradient-to-r from-blue-50 to-white rounded-xl border border-blue-200 py-3 px-5 shadow-sm hover:shadow-md transition-shadow duration-300">
           <div className="flex items-center gap-3 mb-2">
-            <div className="w-10 h-10 rounded-lg bg-blue-100 flex items-center justify-center">
-              <i className="fas fa-calendar-day text-blue-600"></i>
+            <div className="w-9 h-9 rounded-lg bg-blue-100 flex items-center justify-center">
+              <i className="fas fa-bed text-blue-600 text-base"></i>
             </div>
             <div>
-              <h3 className="text-lg font-bold text-[#1E3A8A]">Today</h3>
-              <p className="text-sm text-gray-500">{today.toLocaleDateString('en-US', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}</p>
+              <h3 className="text-base font-bold text-[#1E3A8A]">Room Availability</h3>
+              <p className="text-xs text-gray-500">{today.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}</p>
             </div>
           </div>
+          <div className="space-y-1.5">
+            {rooms.length === 0 ? (
+              <p className="text-xs text-gray-400 text-center py-2">No active room types found</p>
+            ) : (
+              rooms.map((room) => {
+                const todayAvailable = getAvailableUnitsForRoomOnDate(room.id, today);
+                const totalUnits = getTotalRoomUnits(room.id);
+                return (
+                  <div key={room.id} className="flex justify-between items-center text-sm">
+                    <span className="text-gray-700 font-medium">{getRoomTypeLabel(room.type)}</span>
+                    <div className="flex items-center gap-1">
+                      <span className={`text-base font-bold ${todayAvailable > 0 ? 'text-green-600' : 'text-red-500'}`}>
+                        {todayAvailable}
+                      </span>
+                      <span className="text-gray-400 text-xs">/{totalUnits}</span>
+                    </div>
+                  </div>
+                );
+              })
+            )}
+          </div>
         </div>
-        
-        <div className="bg-gradient-to-r from-emerald-50 to-white rounded-xl border border-emerald-200 p-4 shadow-sm">
+
+        {/* Right Card: Day Tour - Today (Reduced Height) */}
+        <div className="bg-gradient-to-r from-amber-50 to-white rounded-xl border border-amber-200 py-3 px-5 shadow-sm hover:shadow-md transition-shadow duration-300">
           <div className="flex items-center gap-3 mb-2">
-            <div className="w-10 h-10 rounded-lg bg-emerald-100 flex items-center justify-center">
-              <i className="fas fa-calendar-week text-emerald-600"></i>
+            <div className="w-9 h-9 rounded-lg bg-amber-100 flex items-center justify-center">
+              <i className="fas fa-sun text-amber-600 text-base"></i>
             </div>
             <div>
-              <h3 className="text-lg font-bold text-[#1E3A8A]">Tomorrow</h3>
-              <p className="text-sm text-gray-500">{tomorrow.toLocaleDateString('en-US', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}</p>
+              <h3 className="text-base font-bold text-[#1E3A8A]">Day Tour Capacity</h3>
+              <p className="text-xs text-gray-500">{today.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}</p>
             </div>
+          </div>
+          {!dayTourCapacity ? (
+            <div className="text-center py-3 text-gray-400">
+              <i className="fas fa-sun text-2xl mb-1 block"></i>
+              <p className="text-xs">Not configured</p>
+            </div>
+          ) : (
+            <div className="space-y-1.5">
+              <div className="flex justify-between items-center text-sm">
+                <span className="text-gray-700">Booked:</span>
+                <span className="text-amber-600 font-bold">{dayTourBookedDates[todayKey] || 0}</span>
+              </div>
+              <div className="flex justify-between items-center text-sm">
+                <span className="text-gray-700">Unavailable:</span>
+                <span className="text-gray-500 font-bold">{dayTourUnavailableDates[todayKey] || 0}</span>
+              </div>
+              <div className="flex justify-between items-center text-sm">
+                <span className="text-gray-700">Remaining:</span>
+                <span className={`font-bold ${getRemainingDayTourCapacity(today) > 0 ? 'text-green-600' : 'text-red-500'}`}>
+                  {getRemainingDayTourCapacity(today)}/{dayTourCapacity}
+                </span>
+              </div>
+            </div>
+          )}
+        </div>
+      </div>
+
+      {/* Tab Navigation - Sliding Design (copied from staff/calendars) */}
+      <div className="relative flex items-center mb-6 border-b border-[#4D8CF5]/20">
+        <div className="relative flex w-full">
+          {/* Sliding background */}
+          <div
+            className="absolute top-1 bottom-1 w-1/2 rounded-lg bg-[#4D8CF5]/10 transition-all duration-300 ease-in-out shadow-sm"
+            style={{
+              transform: `
+                translateX(${selectedTab === 'rooms' ? '0%' : '100%'})
+                scale(0.98)
+              `,
+            }}
+          />
+
+          {/* Room Availability Tab */}
+          <div className="flex-1 flex justify-center">
+            <button
+              onClick={() => setSelectedTab('rooms')}
+              className={`relative z-10 w-full px-6 py-3 font-medium transition-all duration-200 text-center flex items-center justify-center gap-2 ${
+                selectedTab === 'rooms'
+                  ? 'text-[#1E3A8A]'
+                  : 'text-[#1E3A8A]/60 hover:text-[#4D8CF5]'
+              }`}
+            >
+              <i className="fas fa-bed"></i>
+              Room Availability
+            </button>
+          </div>
+
+          {/* Day Tour Guest Availability Tab */}
+          <div className="flex-1 flex justify-center">
+            <button
+              onClick={() => setSelectedTab('daytour')}
+              className={`relative z-10 w-full px-6 py-3 font-medium transition-all duration-200 text-center flex items-center justify-center gap-2 ${
+                selectedTab === 'daytour'
+                  ? 'text-[#1E3A8A]'
+                  : 'text-[#1E3A8A]/60 hover:text-[#4D8CF5]'
+              }`}
+            >
+              <i className="fas fa-sun"></i>
+              Day Tour Guest Availability
+            </button>
           </div>
         </div>
       </div>
 
-      {/* Two-column layout for Room Status and Day Tour Capacity */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-        
-        {/* Left: Room Availability Status */}
+      {/* Room Availability Tab - Enhanced Calendar UI with Red Highlight for Fully Booked Dates */}
+      {selectedTab === 'rooms' && (
         <div className="bg-white rounded-2xl shadow-lg border border-[#4D8CF5]/10 overflow-hidden">
           <div className="bg-gradient-to-r from-[#4D8CF5]/10 to-[#7AAAF8]/5 px-6 py-4 border-b border-[#4D8CF5]/15">
             <h2 className="text-xl font-bold text-[#1E3A8A] flex items-center gap-2">
-              <i className="fas fa-bed text-[#4D8CF5]"></i>
-              Room Availability
+              <i className="fas fa-calendar-alt text-[#4D8CF5]"></i>
+              Room Availability Calendar
             </h2>
             <p className="text-[#1E3A8A]/60 text-sm mt-1">
-              Available units per room type for today and tomorrow
+              Available units per room type for each date
             </p>
           </div>
           
           <div className="p-6">
-            {rooms.length === 0 ? (
-              <div className="text-center py-12 text-[#1E3A8A]/60">
-                <i className="fas fa-bed text-5xl mb-3 block text-gray-300"></i>
-                <p>No active room types found</p>
-                <p className="text-xs mt-1 text-gray-400">All rooms are either archived or unavailable</p>
-              </div>
-            ) : (
-              <div className="space-y-4">
-                {rooms.map((room) => {
-                  const todayAvailable = getAvailableUnitsForRoomOnDate(room.id, today);
-                  const tomorrowAvailable = getAvailableUnitsForRoomOnDate(room.id, tomorrow);
-                  const totalUnits = getTotalRoomUnits(room.id);
-                  const todayPercentage = totalUnits > 0 ? (todayAvailable / totalUnits) * 100 : 0;
-                  const tomorrowPercentage = totalUnits > 0 ? (tomorrowAvailable / totalUnits) * 100 : 0;
-                  
-                  return (
-                    <div key={room.id} className="border border-gray-100 rounded-xl p-4 hover:shadow-md transition-all duration-200">
-                      <div className="flex justify-between items-start mb-3">
-                        <div>
-                          <h3 className="font-bold text-gray-800 text-lg">{room.type}</h3>
-                          <p className="text-xs text-gray-400">Total: {totalUnits} units</p>
-                        </div>
-                      </div>
-                      
-                      <div className="grid grid-cols-2 gap-4 mt-3">
-                        {/* Today */}
-                        <div className="bg-blue-50/30 rounded-lg p-3">
-                          <div className="flex items-center justify-between mb-2">
-                            <span className="text-xs font-semibold text-blue-600 uppercase tracking-wider">Today</span>
-                            <span className={`text-2xl font-bold ${todayAvailable > 0 ? 'text-green-600' : 'text-red-500'}`}>
-                              {todayAvailable}
-                            </span>
-                          </div>
-                          <div className="w-full bg-gray-200 rounded-full h-2">
-                            <div 
-                              className="bg-blue-500 rounded-full h-2 transition-all duration-500"
-                              style={{ width: `${todayPercentage}%` }}
-                            ></div>
-                          </div>
-                          <p className="text-xs text-gray-500 mt-2">
-                            {todayAvailable === 0 ? 'Fully booked' : `${todayAvailable} unit(s) available`}
-                          </p>
-                        </div>
+            {/* Month Navigation - Enhanced */}
+            <div className="flex justify-between items-center mb-6">
+              <button 
+                onClick={goToPreviousMonth} 
+                className="px-4 py-2 border border-[#4D8CF5]/20 rounded-xl hover:bg-[#4D8CF5]/5 hover:border-[#4D8CF5]/40 transition-all duration-200 text-sm flex items-center gap-2 text-[#1E3A8A]"
+              >
+                <i className="fas fa-chevron-left text-xs"></i> Prev
+              </button>
+              <h2 className="text-xl font-bold text-[#1E3A8A]">{monthNames[calendarViewDate.getMonth()]} {calendarViewDate.getFullYear()}</h2>
+              <button 
+                onClick={goToNextMonth} 
+                className="px-4 py-2 border border-[#4D8CF5]/20 rounded-xl hover:bg-[#4D8CF5]/5 hover:border-[#4D8CF5]/40 transition-all duration-200 text-sm flex items-center gap-2 text-[#1E3A8A]"
+              >
+                Next <i className="fas fa-chevron-right text-xs"></i>
+              </button>
+            </div>
+
+            {/* Weekday Headers - Enhanced */}
+            <div className="grid grid-cols-7 gap-2 mb-3">
+              {['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].map(day => (
+                <div key={day} className="text-center font-semibold text-[#4D8CF5] text-sm py-2 bg-[#4D8CF5]/5 rounded-lg">
+                  {day}
+                </div>
+              ))}
+            </div>
+
+            {/* Calendar Days Grid - Enhanced with Red Highlight for Fully Booked Dates */}
+            <div className="grid grid-cols-7 gap-2">
+              {days.map((day, idx) => {
+                if (!day) return <div key={idx} className="min-h-[130px]"></div>;
+                
+                const isPast = isDatePast(day);
+                const isFullyBooked = !isPast && isDateFullyBookedForAllRooms(day);
+                
+                // Determine background color: red for fully booked, gray for past, white for available
+                let bgColor = 'bg-white';
+                let borderColor = 'border-gray-200';
+                
+                if (isPast) {
+                  bgColor = 'bg-gray-50';
+                  borderColor = 'border-gray-200';
+                } else if (isFullyBooked) {
+                  bgColor = 'bg-red-50';
+                  borderColor = 'border-red-200';
+                }
+                
+                let shadowClass = 'hover:shadow-md';
+                
+                return (
+                  <div
+                    key={idx}
+                    className={`relative rounded-xl ${bgColor} ${borderColor} ${shadowClass} p-2 min-h-[130px] transition-all duration-200 ${!isPast && !isFullyBooked ? 'hover:border-[#4D8CF5]/30' : ''}`}
+                  >
+                    <span className={`text-sm font-semibold block mb-2 ${isPast ? 'text-gray-400' : (isFullyBooked ? 'text-red-600' : 'text-[#1E3A8A]')}`}>
+                      {day.getDate()}
+                    </span>
+                    <div className="space-y-1.5">
+                      {rooms.map((room) => {
+                        const availableUnits = getAvailableUnitsForRoomOnDate(room.id, day);
+                        const totalUnits = getTotalRoomUnits(room.id);
+                        const isRoomFullyBooked = availableUnits === 0 && totalUnits > 0 && !isPast;
+                        const roomLabel = getRoomTypeLabel(room.type);
                         
-                        {/* Tomorrow */}
-                        <div className="bg-emerald-50/30 rounded-lg p-3">
-                          <div className="flex items-center justify-between mb-2">
-                            <span className="text-xs font-semibold text-emerald-600 uppercase tracking-wider">Tomorrow</span>
-                            <span className={`text-2xl font-bold ${tomorrowAvailable > 0 ? 'text-green-600' : 'text-red-500'}`}>
-                              {tomorrowAvailable}
+                        return (
+                          <div key={room.id} className="text-xs flex justify-between items-center">
+                            <span className="text-gray-600 w-[55px] truncate" title={room.type}>{roomLabel}:</span>
+                            <span className={`font-semibold ${isRoomFullyBooked ? 'text-red-500' : 'text-green-600'}`}>
+                              {availableUnits}/{totalUnits}
                             </span>
                           </div>
-                          <div className="w-full bg-gray-200 rounded-full h-2">
-                            <div 
-                              className="bg-emerald-500 rounded-full h-2 transition-all duration-500"
-                              style={{ width: `${tomorrowPercentage}%` }}
-                            ></div>
-                          </div>
-                          <p className="text-xs text-gray-500 mt-2">
-                            {tomorrowAvailable === 0 ? 'Fully booked' : `${tomorrowAvailable} unit(s) available`}
-                          </p>
-                        </div>
-                      </div>
+                        );
+                      })}
                     </div>
-                  );
-                })}
-              </div>
-            )}
+                  </div>
+                );
+              })}
+            </div>
+
+            {/* Legend - Enhanced */}
+            <div className="mt-6 pt-4 border-t border-gray-100 flex justify-center gap-8 text-xs">
+              <div className="flex items-center gap-2"><div className="w-3 h-3 bg-white border border-gray-300 rounded"></div><span className="text-gray-600">Available</span></div>
+              <div className="flex items-center gap-2"><div className="w-3 h-3 bg-red-50 border border-red-200 rounded"></div><span className="text-gray-600">Fully Booked</span></div>
+              <div className="flex items-center gap-2"><div className="w-3 h-3 bg-gray-50 border border-gray-200 rounded"></div><span className="text-gray-600">Past Dates</span></div>
+            </div>
           </div>
         </div>
+      )}
 
-        {/* Right: Day Tour Guest Capacity */}
-        <div className="bg-white rounded-2xl shadow-lg border border-[#4D8CF5]/10 overflow-hidden">
+      {/* Day Tour Guest Availability Tab - Enhanced Calendar UI (shows data for past dates too) */}
+      {selectedTab === 'daytour' && (
+        <div className="bg-white rounded-2xl shadow-lg border border-[#F59E0B]/10 overflow-hidden">
           <div className="bg-gradient-to-r from-[#F59E0B]/10 to-[#FBBF24]/5 px-6 py-4 border-b border-[#F59E0B]/15">
             <h2 className="text-xl font-bold text-[#1E3A8A] flex items-center gap-2">
-              <i className="fas fa-sun text-[#F59E0B]"></i>
-              Day Tour Capacity
+              <i className="fas fa-calendar-alt text-[#F59E0B]"></i>
+              Day Tour Guest Availability Calendar
             </h2>
             <p className="text-[#1E3A8A]/60 text-sm mt-1">
-              Available guest slots for today and tomorrow
+              Booked guests, unavailable slots, and remaining capacity per date
             </p>
           </div>
           
           <div className="p-6">
-            {!dayTourCapacity ? (
-              <div className="text-center py-12 text-[#1E3A8A]/60">
-                <i className="fas fa-sun text-5xl mb-3 block text-gray-300"></i>
-                <p>Day tour not configured</p>
-                <p className="text-xs mt-1 text-gray-400">Please configure day tour in admin panel</p>
-              </div>
-            ) : (
-              <div className="space-y-6">
-                {/* Today */}
-                <div className="bg-gradient-to-br from-blue-50 to-white rounded-xl p-5 border border-blue-100">
-                  <div className="flex items-center justify-between mb-3">
-                    <div className="flex items-center gap-2">
-                      <div className="w-8 h-8 rounded-lg bg-blue-100 flex items-center justify-center">
-                        <i className="fas fa-calendar-day text-blue-600 text-sm"></i>
-                      </div>
-                      <h3 className="font-bold text-gray-800">Today</h3>
-                    </div>
-                    <span className="text-2xl font-bold text-blue-600">
-                      {getRemainingDayTourCapacity(today)}
-                    </span>
-                  </div>
-                  
-                  <div className="space-y-2">
-                    <div className="flex justify-between text-sm">
-                      <span className="text-gray-500">Maximum Capacity:</span>
-                      <span className="font-semibold">{dayTourCapacity} guests</span>
-                    </div>
-                    <div className="flex justify-between text-sm">
-                      <span className="text-gray-500">Booked Guests:</span>
-                      <span className="font-semibold text-amber-600">{dayTourBookedDates[todayKey] || 0}</span>
-                    </div>
-                    <div className="flex justify-between text-sm">
-                      <span className="text-gray-500">Unavailable Slots:</span>
-                      <span className="font-semibold text-gray-500">{dayTourUnavailableDates[todayKey] || 0}</span>
-                    </div>
-                  </div>
-                  
-                  <div className="mt-3 w-full bg-gray-200 rounded-full h-2.5">
-                    <div 
-                      className="bg-blue-500 rounded-full h-2.5 transition-all duration-500"
-                      style={{ width: `${((dayTourBookedDates[todayKey] || 0) / dayTourCapacity) * 100}%` }}
-                    ></div>
-                  </div>
-                  
-                  <p className="text-xs text-gray-400 mt-3">
-                    {getRemainingDayTourCapacity(today) === 0 ? 
-                      'Fully booked - No slots available' : 
-                      `${getRemainingDayTourCapacity(today)} guest slot(s) remaining`}
-                  </p>
+            {/* Month Navigation - Enhanced */}
+            <div className="flex justify-between items-center mb-6">
+              <button 
+                onClick={goToPreviousMonth} 
+                className="px-4 py-2 border border-[#F59E0B]/20 rounded-xl hover:bg-[#F59E0B]/5 hover:border-[#F59E0B]/40 transition-all duration-200 text-sm flex items-center gap-2 text-[#1E3A8A]"
+              >
+                <i className="fas fa-chevron-left text-xs"></i> Prev
+              </button>
+              <h2 className="text-xl font-bold text-[#1E3A8A]">{monthNames[calendarViewDate.getMonth()]} {calendarViewDate.getFullYear()}</h2>
+              <button 
+                onClick={goToNextMonth} 
+                className="px-4 py-2 border border-[#F59E0B]/20 rounded-xl hover:bg-[#F59E0B]/5 hover:border-[#F59E0B]/40 transition-all duration-200 text-sm flex items-center gap-2 text-[#1E3A8A]"
+              >
+                Next <i className="fas fa-chevron-right text-xs"></i>
+              </button>
+            </div>
+
+            {/* Weekday Headers - Enhanced */}
+            <div className="grid grid-cols-7 gap-2 mb-3">
+              {['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].map(day => (
+                <div key={day} className="text-center font-semibold text-[#F59E0B] text-sm py-2 bg-[#F59E0B]/5 rounded-lg">
+                  {day}
                 </div>
+              ))}
+            </div>
+
+            {/* Calendar Days Grid - Enhanced (shows data for all dates including past) */}
+            <div className="grid grid-cols-7 gap-2">
+              {days.map((day, idx) => {
+                if (!day) return <div key={idx} className="min-h-[130px]"></div>;
                 
-                {/* Tomorrow */}
-                <div className="bg-gradient-to-br from-emerald-50 to-white rounded-xl p-5 border border-emerald-100">
-                  <div className="flex items-center justify-between mb-3">
-                    <div className="flex items-center gap-2">
-                      <div className="w-8 h-8 rounded-lg bg-emerald-100 flex items-center justify-center">
-                        <i className="fas fa-calendar-week text-emerald-600 text-sm"></i>
-                      </div>
-                      <h3 className="font-bold text-gray-800">Tomorrow</h3>
-                    </div>
-                    <span className="text-2xl font-bold text-emerald-600">
-                      {getRemainingDayTourCapacity(tomorrow)}
+                const isPast = isDatePast(day);
+                const bookedGuests = getBookedGuestsCount(day);
+                const unavailableSlots = getUnavailableSlotsCount(day);
+                const remainingCapacity = getRemainingDayTourCapacity(day);
+                const isFullyBooked = remainingCapacity === 0 && dayTourCapacity > 0;
+                
+                let bgColor = isPast ? 'bg-gray-50' : (isFullyBooked && !isPast ? 'bg-red-50' : 'bg-white');
+                let borderClass = 'border border-gray-200';
+                let shadowClass = 'hover:shadow-md';
+                
+                return (
+                  <div
+                    key={idx}
+                    className={`relative rounded-xl ${bgColor} ${borderClass} ${shadowClass} p-2 min-h-[130px] transition-all duration-200 ${!isPast && !isFullyBooked ? 'hover:border-[#F59E0B]/30' : ''}`}
+                  >
+                    <span className={`text-sm font-semibold block mb-2 ${isPast ? 'text-gray-400' : (isFullyBooked ? 'text-red-600' : 'text-[#1E3A8A]')}`}>
+                      {day.getDate()}
                     </span>
+                    {dayTourCapacity ? (
+                      <div className="space-y-1 text-xs">
+                        <div className="flex justify-between items-center">
+                          <span className="text-gray-500">Booked:</span>
+                          <span className="text-amber-600 font-semibold">{bookedGuests}</span>
+                        </div>
+                        <div className="flex justify-between items-center">
+                          <span className="text-gray-500">Unavail:</span>
+                          <span className="text-gray-500 font-semibold">{unavailableSlots}</span>
+                        </div>
+                        <div className="flex justify-between items-center pt-1 border-t border-gray-100 mt-1">
+                          <span className="text-gray-500">Remaining:</span>
+                          <span className={`font-semibold ${remainingCapacity > 0 ? 'text-green-600' : 'text-red-500'}`}>
+                            {remainingCapacity}
+                          </span>
+                        </div>
+                      </div>
+                    ) : (
+                      <div className="text-xs text-gray-400 text-center py-4">
+                        Not configured
+                      </div>
+                    )}
                   </div>
-                  
-                  <div className="space-y-2">
-                    <div className="flex justify-between text-sm">
-                      <span className="text-gray-500">Maximum Capacity:</span>
-                      <span className="font-semibold">{dayTourCapacity} guests</span>
-                    </div>
-                    <div className="flex justify-between text-sm">
-                      <span className="text-gray-500">Booked Guests:</span>
-                      <span className="font-semibold text-amber-600">{dayTourBookedDates[tomorrowKey] || 0}</span>
-                    </div>
-                    <div className="flex justify-between text-sm">
-                      <span className="text-gray-500">Unavailable Slots:</span>
-                      <span className="font-semibold text-gray-500">{dayTourUnavailableDates[tomorrowKey] || 0}</span>
-                    </div>
-                  </div>
-                  
-                  <div className="mt-3 w-full bg-gray-200 rounded-full h-2.5">
-                    <div 
-                      className="bg-emerald-500 rounded-full h-2.5 transition-all duration-500"
-                      style={{ width: `${((dayTourBookedDates[tomorrowKey] || 0) / dayTourCapacity) * 100}%` }}
-                    ></div>
-                  </div>
-                  
-                  <p className="text-xs text-gray-400 mt-3">
-                    {getRemainingDayTourCapacity(tomorrow) === 0 ? 
-                      'Fully booked - No slots available' : 
-                      `${getRemainingDayTourCapacity(tomorrow)} guest slot(s) remaining`}
-                  </p>
-                </div>
-              </div>
-            )}
+                );
+              })}
+            </div>
+
+            {/* Legend - Enhanced */}
+            <div className="mt-6 pt-4 border-t border-gray-100 flex justify-center gap-8 text-xs">
+              <div className="flex items-center gap-2"><div className="w-3 h-3 bg-white border border-gray-300 rounded"></div><span className="text-gray-600">Has Availability</span></div>
+              <div className="flex items-center gap-2"><div className="w-3 h-3 bg-red-50 border border-red-200 rounded"></div><span className="text-gray-600">Fully Booked</span></div>
+              <div className="flex items-center gap-2"><div className="w-3 h-3 bg-gray-50 border border-gray-200 rounded"></div><span className="text-gray-600">Past Dates</span></div>
+            </div>
           </div>
         </div>
-      </div>
+      )}
     </div>
   );
 }

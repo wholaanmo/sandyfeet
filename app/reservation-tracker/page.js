@@ -105,100 +105,125 @@ export default function ReservationTrackerPage() {
     }
   };
 
-  const checkForMultiRoomBooking = async (email, bookingId) => {
-    try {
-      const bookingsRef = collection(db, 'bookings');
-      const childQuery = query(
-        bookingsRef,
-        where('parentBookingId', '==', bookingId),
-        where('isMultiRoomBooking', '==', true)
-      );
-      const childSnapshot = await getDocs(childQuery);
-      if (!childSnapshot.empty) {
-        const firstChild = childSnapshot.docs[0].data();
-        const children = [];
-        let totalPrice = 0;
-        let totalRooms = 0;
-        const roomTypes = {};
-        let totalGuests = 0;
-        childSnapshot.forEach((doc) => {
-          const childData = doc.data();
-          children.push({
-            id: doc.id,
-            ...childData
-          });
-          totalPrice += childData.totalPrice || 0;
-          totalRooms += childData.numberOfRooms || 1;
-          totalGuests += childData.guests || 1;
-          if (!roomTypes[childData.roomType]) {
-            roomTypes[childData.roomType] = {
-              quantity: 1,
-              guestsPerRoom: childData.guests || 1,
-              price: childData.price
-            };
-          } else {
-            roomTypes[childData.roomType].quantity++;
-          }
+const checkForMultiRoomBooking = async (email, bookingId) => {
+  try {
+    const bookingsRef = collection(db, 'bookings');
+    const childQuery = query(
+      bookingsRef,
+      where('parentBookingId', '==', bookingId),
+      where('isMultiRoomBooking', '==', true)
+    );
+    const childSnapshot = await getDocs(childQuery);
+    
+    if (!childSnapshot.empty) {
+      const children = [];
+      childSnapshot.forEach((doc) => {
+        children.push({
+          id: doc.id,
+          ...doc.data()
         });
-        
-        // If this is an exclusive resort booking, add tents to total rooms
-        if (firstChild.isExclusiveResortBooking) {
-          totalRooms += (firstChild.tentCount || 0);
-        }
-        
-        let overallStatus = firstChild.status;
-        let cancellationReason = null;
-        let cancelledBy = null;
+      });
+
+      const firstChild = children[0]; // use first child for shared data
+      
+      // Determine total price: use exclusivePackagePrice if exclusive resort booking
+      let totalPrice = 0;
+      if (firstChild.isExclusiveResortBooking) {
+        totalPrice = firstChild.exclusivePackagePrice || 0;
+      } else {
         for (const child of children) {
-          if (child.status === 'cancelled') {
-            overallStatus = 'cancelled';
-            cancellationReason = child.cancellationReason;
-            cancelledBy = child.cancelledBy;
-            break;
-          } else if (child.status === 'cancelled-by-guest') {
-            overallStatus = 'cancelled-by-guest';
-            cancellationReason = child.cancellationReason;
-            cancelledBy = child.cancelledBy;
-          }
+          totalPrice += child.totalPrice || 0;
         }
-        const multiRoomReservation = {
-          id: bookingId,
-          bookingId: bookingId,
-          guestInfo: firstChild.guestInfo,
-          checkIn: firstChild.checkIn,
-          checkOut: firstChild.checkOut,
-          status: overallStatus,
-          totalPrice: totalPrice,
-          type: 'room',
-          isMultiRoom: true,
-          totalRooms: totalRooms,
-          totalGuests: totalGuests,
-          roomTypes: roomTypes,
-          roomTypesArray: Object.entries(roomTypes).map(([type, data]) => ({
-            type: type,
-            quantity: data.quantity,
-            guestsPerRoom: data.guestsPerRoom,
-            price: data.price
-          })),
-          createdAt: firstChild.createdAt,
-          children: children,
-          cancellationReason: cancellationReason,
-          cancelledBy: cancelledBy,
-          adminNote: firstChild.adminNote || null,
-          isExclusiveResortBooking: firstChild.isExclusiveResortBooking || false,
-          exclusivePackagePrice: firstChild.exclusivePackagePrice || null,
-          tentCount: firstChild.tentCount || 0,
-          exclusiveAdults: firstChild.exclusiveAdults || 0,
-          exclusiveKids: firstChild.exclusiveKids || 0
-        };
-        return multiRoomReservation;
       }
-      return null;
-    } catch (err) {
-      console.error('Error checking for multi-room booking:', err);
-      return null;
+
+      let totalRooms = 0;
+      let totalGuests = 0;
+      const roomTypes = {};
+
+      for (const child of children) {
+        totalRooms += child.numberOfRooms || 1;
+        totalGuests += child.guests || 1;
+        if (!roomTypes[child.roomType]) {
+          roomTypes[child.roomType] = {
+            quantity: 1,
+            guestsPerRoom: child.guests || 1,
+            price: child.price
+          };
+        } else {
+          roomTypes[child.roomType].quantity++;
+        }
+      }
+
+      // If exclusive resort booking, add tents to total rooms
+      if (firstChild.isExclusiveResortBooking) {
+        totalRooms += (firstChild.tentCount || 0);
+      }
+
+      // Build roomTypesArray and rename 'Tent' → 'Tent(s)' for exclusive resort
+      let roomTypesArray = Object.entries(roomTypes).map(([type, data]) => ({
+        type: type,
+        quantity: data.quantity,
+        guestsPerRoom: data.guestsPerRoom,
+        price: data.price
+      }));
+
+      if (firstChild.isExclusiveResortBooking) {
+        const tentIndex = roomTypesArray.findIndex(item => item.type === 'Tent');
+        if (tentIndex !== -1) {
+          roomTypesArray[tentIndex].type = 'Tent(s)';
+        }
+      }
+
+      // Determine overall status & cancellation details
+      let overallStatus = firstChild.status;
+      let cancellationReason = null;
+      let cancelledBy = null;
+      for (const child of children) {
+        if (child.status === 'cancelled') {
+          overallStatus = 'cancelled';
+          cancellationReason = child.cancellationReason;
+          cancelledBy = child.cancelledBy;
+          break;
+        } else if (child.status === 'cancelled-by-guest') {
+          overallStatus = 'cancelled-by-guest';
+          cancellationReason = child.cancellationReason;
+          cancelledBy = child.cancelledBy;
+        }
+      }
+
+      const multiRoomReservation = {
+        id: bookingId,
+        bookingId: bookingId,
+        guestInfo: firstChild.guestInfo,
+        checkIn: firstChild.checkIn,
+        checkOut: firstChild.checkOut,
+        status: overallStatus,
+        totalPrice: totalPrice,
+        type: 'room',
+        isMultiRoom: true,
+        totalRooms: totalRooms,
+        totalGuests: totalGuests,
+        roomTypes: roomTypes,
+        roomTypesArray: roomTypesArray,
+        createdAt: firstChild.createdAt,
+        children: children,
+        cancellationReason: cancellationReason,
+        cancelledBy: cancelledBy,
+        adminNote: firstChild.adminNote || null,
+        isExclusiveResortBooking: firstChild.isExclusiveResortBooking || false,
+        exclusivePackagePrice: firstChild.exclusivePackagePrice || null,
+        tentCount: firstChild.tentCount || 0,
+        exclusiveAdults: firstChild.exclusiveAdults || 0,
+        exclusiveKids: firstChild.exclusiveKids || 0
+      };
+      return multiRoomReservation;
     }
-  };
+    return null;
+  } catch (err) {
+    console.error('Error checking for multi-room booking:', err);
+    return null;
+  }
+};
 
   const handleSearch = async (e) => {
     e.preventDefault();
@@ -1352,4 +1377,3 @@ try {
     </GuestLayout>
   );
 }
-

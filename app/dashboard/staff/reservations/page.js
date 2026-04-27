@@ -1325,18 +1325,23 @@ const handleConfirmReservation = async () => {
 </div>
 
       {/* Search Bar */}
-      <div className="mb-6">
-        <div className="relative">
-          <i className="fas fa-search absolute left-3 top-1/2 -translate-y-1/2 text-neutral text-sm"></i>
-          <input
-            type="text"
-            placeholder={`Search by ${activeTab === 'rooms' ? 'room type, guest name, or booking ID' : 'guest name or booking ID'}...`}
-            value={searchTerm}
-            onChange={(e) => setSearchTerm(e.target.value)}
-            className="w-full pl-9 pr-3 py-2.5 border border-ocean-light/20 rounded-xl text-sm focus:outline-none focus:border-ocean-light focus:ring-2 focus:ring-ocean-light/20 transition-all duration-300 bg-white"
-          />
-        </div>
-      </div>
+<div className="mb-6">
+  <div className="relative w-full group">
+    <i className="fas fa-search absolute left-4 top-1/2 -translate-y-1/2 text-[#4D8CF5] text-sm transition-all duration-300 group-focus-within:text-[#3B78E7]"></i>
+    
+    <input
+      type="text"
+      placeholder={`Search by ${
+        activeTab === 'rooms'
+          ? 'room type, guest name, or booking ID'
+          : 'guest name or booking ID'
+      }...`}
+      value={searchTerm}
+      onChange={(e) => setSearchTerm(e.target.value)}
+      className="w-full pl-11 pr-5 py-3 border-2 border-[#4D8CF5]/20 rounded-xl text-sm focus:outline-none focus:border-[#4D8CF5] focus:ring-2 focus:ring-[#4D8CF5]/20 transition-all duration-300 bg-white shadow-sm hover:shadow-md"
+    />
+  </div>
+</div>
 
       {/* Status Tabs */}
       <div className="flex gap-2 mb-6 overflow-x-auto pb-2">

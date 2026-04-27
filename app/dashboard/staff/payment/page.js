@@ -374,11 +374,6 @@ export default function StaffPaymentPage() {
   <p className="text-[#4D6FA8] text-sm leading-relaxed mt-1">
     View payment settings and provide bank transfer information for guest payment requests.
   </p>
-  {/* Staff restriction notice */}
-  <div className="mt-2 text-xs text-amber-600 flex items-center gap-1">
-    <i className="fas fa-info-circle"></i>
-    <span>Staff have view-only access to payment settings. Only administrators can add, edit, or archive payment methods.</span>
-  </div>
 </div>
 
       {/* Notification */}
@@ -528,7 +523,7 @@ export default function StaffPaymentPage() {
         </div>
       )}
 
-      {/* View Bank Account Details Modal */}
+      {/* View Bank Account Details Modal - REMOVED Close text button, Updated X button hover to square */}
       {showViewBankModal && selectedBankForView && (
         <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4" onClick={() => setShowViewBankModal(false)}>
           <div className="bg-white rounded-2xl w-full max-w-md p-6 shadow-2xl" onClick={(e) => e.stopPropagation()}>
@@ -536,12 +531,12 @@ export default function StaffPaymentPage() {
               <h2 className="text-xl font-bold text-textPrimary font-playfair">
                 Bank Account Details
               </h2>
-              <button
-                onClick={() => setShowViewBankModal(false)}
-                className="w-8 h-8 rounded-full bg-ocean-ice hover:bg-ocean-light/20 text-neutral hover:text-textPrimary transition-all duration-200 flex items-center justify-center"
-              >
-                <i className="fas fa-times"></i>
-              </button>
+<button
+  onClick={() => setShowViewBankModal(false)}
+  className="w-8 h-8 rounded-md bg-ocean-ice text-neutral hover:bg-ocean-light/20 hover:text-textPrimary transition-all duration-200 flex items-center justify-center"
+>
+  <i className="fas fa-times"></i>
+</button>
             </div>
             
             <div className="space-y-4">
@@ -594,82 +589,79 @@ export default function StaffPaymentPage() {
               </div>
             </div>
             
-            <div className="flex gap-3 justify-end mt-6">
-              <button
-                onClick={() => setShowViewBankModal(false)}
-                className="px-5 py-2.5 bg-gradient-to-r from-ocean-mid to-ocean-light rounded-xl text-white text-sm font-medium hover:shadow-lg transition-all duration-300"
-              >
-                Close
-              </button>
-            </div>
+            {/* Close text button removed - only X button remains */}
           </div>
         </div>
       )}
 
       {/* Bank Transfer Requests Tab Content - Staff CAN provide bank details */}
-      {activeMainTab === 'bankTransferRequests' && (
-        <div className="bg-white rounded-2xl shadow-md border border-ocean-light/10 overflow-hidden">
-          {/* Tabs for Room vs Day Tour */}
-          <div className="relative flex items-center border-b border-[#4D8CF5]/20 px-6">
-            <div className="relative flex gap-8" ref={requestsTabsContainerRef}>
-              {/* Sliding background */}
-              <div
-                ref={requestsSliderRef}
-                className="absolute bottom-0 left-0 h-0.5 bg-[#1E3A8A] transition-all duration-300 ease-in-out"
-              />
+     {activeMainTab === 'bankTransferRequests' && (
+  <div className="bg-white rounded-2xl shadow-lg border border-[#4D8CF5]/10 overflow-hidden">
+    {/* Tabs for Room vs Day Tour - IMPROVED ACTIVE STATE */}
+    <div className="relative flex items-center justify-between border-b border-[#4D8CF5]/20 px-6 bg-gradient-to-r from-white to-[#F8FBFF]">
+      <div
+        className="relative flex justify-between items-center w-full gap-8"
+        ref={requestsTabsContainerRef}
+      >
+        {/* Sliding background */}
+        <div
+          ref={requestsSliderRef}
+          className="absolute bottom-0 left-0 h-0.5 bg-[#1E3A8A] transition-all duration-300 ease-in-out"
+        />
 
-              {/* Room Bookings Tab */}
-              <button
-                ref={(el) => { requestsButtonRefs.current['room'] = el; }}
-                onClick={() => handleTabChange('room')}
-                className={`relative z-10 px-2 py-3 font-medium transition-all duration-200 text-center flex items-center gap-2 ${
-                  activeRequestsTab === 'room'
-                    ? 'text-[#1E3A8A]'
-                    : 'text-[#1E3A8A]/60 hover:text-[#4D8CF5]'
-                }`}
-              >
-                <i className="fas fa-bed text-sm"></i>
-                <span>Room Bookings</span>
-                {unreadRoomCount > 0 && (
-                  <span className="ml-1 bg-red-500 text-white text-xs px-1.5 py-0.5 rounded-full">
-                    {unreadRoomCount}
-                  </span>
-                )}
-              </button>
+        {/* Room Bookings Tab */}
+        <button
+          ref={(el) => { requestsButtonRefs.current['room'] = el; }}
+          onClick={() => handleTabChange('room')}
+          className={`relative z-10 flex-1 px-2 py-3 font-medium transition-all duration-200 text-center flex items-center justify-center gap-2 ${
+            activeRequestsTab === 'room'
+              ? 'text-[#1E3A8A]'
+              : 'text-[#1E3A8A]/60 hover:text-[#4D8CF5]'
+          }`}
+        >
+          <i className="fas fa-bed text-sm"></i>
+          <span>Room Bookings</span>
+          {unreadRoomCount > 0 && (
+            <span className="ml-1 bg-red-500 text-white text-xs px-1.5 py-0.5 rounded-full shadow-sm">
+              {unreadRoomCount}
+            </span>
+          )}
+        </button>
 
-              {/* Day Tour Bookings Tab */}
-              <button
-                ref={(el) => { requestsButtonRefs.current['daytour'] = el; }}
-                onClick={() => handleTabChange('daytour')}
-                className={`relative z-10 px-2 py-3 font-medium transition-all duration-200 text-center flex items-center gap-2 ${
-                  activeRequestsTab === 'daytour'
-                    ? 'text-[#1E3A8A]'
-                    : 'text-[#1E3A8A]/60 hover:text-[#4D8CF5]'
-                }`}
-              >
-                <i className="fas fa-sun text-sm"></i>
-                <span>Day Tour Bookings</span>
-                {unreadDayTourCount > 0 && (
-                  <span className="ml-1 bg-red-500 text-white text-xs px-1.5 py-0.5 rounded-full">
-                    {unreadDayTourCount}
-                  </span>
-                )}
-              </button>
-            </div>
-          </div>
+        {/* Day Tour Bookings Tab */}
+        <button
+          ref={(el) => { requestsButtonRefs.current['daytour'] = el; }}
+          onClick={() => handleTabChange('daytour')}
+          className={`relative z-10 flex-1 px-2 py-3 font-medium transition-all duration-200 text-center flex items-center justify-center gap-2 ${
+            activeRequestsTab === 'daytour'
+              ? 'text-[#1E3A8A]'
+              : 'text-[#1E3A8A]/60 hover:text-[#4D8CF5]'
+          }`}
+        >
+          <i className="fas fa-sun text-sm"></i>
+          <span>Day Tour Bookings</span>
+          {unreadDayTourCount > 0 && (
+            <span className="ml-1 bg-red-500 text-white text-xs px-1.5 py-0.5 rounded-full shadow-sm">
+              {unreadDayTourCount}
+            </span>
+          )}
+        </button>
+      </div>
+    </div>
 
-          <div className="px-6 pt-4 pb-2">
-            <div className="relative max-w-md">
-              <i className="fas fa-search absolute left-3 top-1/2 -translate-y-1/2 text-neutral text-sm"></i>
-              <input
-                type="text"
-                value={requestsSearchTerm}
-                onChange={(e) => setRequestsSearchTerm(e.target.value)}
-                placeholder="Search by name, email, bank account, or date"
-                className="w-full pl-9 pr-3 py-2.5 border border-ocean-light/20 rounded-xl text-sm focus:outline-none focus:border-ocean-light bg-white"
-              />
-            </div>
-          </div>
+<div className="px-6 pt-5 pb-3">
+  <div className="relative w-full group">
+    <i className="fas fa-search absolute left-4 top-1/2 -translate-y-1/2 text-[#4D8CF5] text-sm transition-all duration-300 group-focus-within:text-[#3B78E7]"></i>
+    
+    <input
+      type="text"
+      value={requestsSearchTerm}
+      onChange={(e) => setRequestsSearchTerm(e.target.value)}
+      placeholder="Search by name, email, bank account, or date"
+      className="w-full pl-11 pr-4 py-3 border-2 border-[#4D8CF5]/20 rounded-xl text-sm focus:outline-none focus:border-[#4D8CF5] focus:ring-2 focus:ring-[#4D8CF5]/20 transition-all duration-300 bg-white shadow-sm hover:shadow-md"
+    />
+  </div>
+</div>
           
           <div className="p-6 pt-2">
             {/* Room Bookings Requests */}

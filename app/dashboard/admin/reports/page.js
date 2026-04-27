@@ -159,7 +159,8 @@ export default function AdminReports() {
     return `₱${value.toLocaleString()}`;
   };
   
-  // Helper function to draw improved header with properly sized logo
+  // ==================== UPDATED PDF HEADER LAYOUT ====================
+  // Helper function to draw the header with vertical stacking on the right of the logo
   const drawImprovedHeader = async (pdf, reportTitle, margin, pageWidth) => {
     let yOffset = 20;
     
@@ -177,7 +178,7 @@ export default function AdminReports() {
       });
       
       // Calculate logo dimensions to match text height
-      const targetHeight = 10;
+      const targetHeight = 12;
       logoHeight = targetHeight;
       logoWidth = (img.width / img.height) * logoHeight;
       
@@ -191,40 +192,35 @@ export default function AdminReports() {
       console.warn('Could not load sandyfeet.png', err);
     }
     
-    // Layout: Logo on left, then "Sandyfeet Reservation", then Report Title on right, Date below title
+    // Logo on the left
     const leftMargin = margin;
     let currentX = leftMargin;
     
-    // Logo position
     if (logoBase64) {
       pdf.addImage(logoBase64, 'PNG', currentX, yOffset + 2, logoWidth, logoHeight);
       currentX += logoWidth + 8;
     }
     
-    // "Sandyfeet Reservation" text (on the right side of logo)
-    pdf.setFontSize(16);
+    // Right side of logo: "Sandyfeet Reservation" (line 1)
+    pdf.setFontSize(14);
     pdf.setFont('helvetica', 'bold');
     pdf.setTextColor(30, 58, 138);
-    pdf.text('Sandyfeet Reservation', currentX, yOffset + 10);
+    pdf.text('Sandyfeet Reservation', currentX, yOffset + 6);
     
-    // Report Title (right-aligned)
-    pdf.setFontSize(11);
+    // Report title (line 2, directly below "Sandyfeet Reservation")
+    pdf.setFontSize(10);
     pdf.setFont('helvetica', 'normal');
     pdf.setTextColor(80, 80, 80);
-    const titleWidth = pdf.getTextWidth(reportTitle);
-    pdf.text(reportTitle, pageWidth - margin - titleWidth, yOffset + 10);
+    pdf.text(reportTitle, currentX, yOffset + 12);
     
-    yOffset += 28;
-    
-    // Date Generated (right-aligned below report title)
-    pdf.setFontSize(9);
+    // Date Generated (line 3, directly below report title)
+    pdf.setFontSize(8);
     pdf.setFont('helvetica', 'italic');
     pdf.setTextColor(120, 120, 120);
     const dateText = `Generated: ${getFormattedDate()}`;
-    const dateWidth = pdf.getTextWidth(dateText);
-    pdf.text(dateText, pageWidth - margin - dateWidth, yOffset);
+    pdf.text(dateText, currentX, yOffset + 18);
     
-    yOffset += 12;
+    yOffset += 32;
     
     // Add separator line
     pdf.setDrawColor(200, 200, 200);
@@ -779,6 +775,17 @@ export default function AdminReports() {
     return () => clearTimeout(timer);
   }, [updateSlider]);
   
+  // FIX: Ensure slider appears after loading completes (tabs become visible)
+  useEffect(() => {
+    if (!loading) {
+      // Wait a tiny bit for DOM to settle then update slider position
+      const timer = setTimeout(() => {
+        updateSlider();
+      }, 50);
+      return () => clearTimeout(timer);
+    }
+  }, [loading, updateSlider]);
+  
   useEffect(() => {
     fetchAllData();
   }, []);
@@ -887,6 +894,7 @@ export default function AdminReports() {
     return roomCount;
   };
   
+  // ==================== FIXED REVENUE COMPUTATION ====================
   const processData = (bookings, dayTours) => {
     let totalRoomRevenue = 0;
     let totalRoomUnits = 0;
@@ -896,6 +904,7 @@ export default function AdminReports() {
     const processedBookings = [];
     const multiRoomGroups = new Map();
     
+    // First pass: group multi-room bookings and collect non-grouped completed bookings
     bookings.forEach(booking => {
       if (booking.status === 'completed') {
         if (booking.isMultiRoomBooking && booking.parentBookingId) {
@@ -913,6 +922,7 @@ export default function AdminReports() {
           group.totalPrice += booking.totalPrice || 0;
           group.numberOfRooms += (booking.numberOfRooms || 1);
         } else if (!booking.isMultiRoomBooking) {
+          // Single (non-grouped) completed room booking
           totalRoomRevenue += booking.totalPrice || 0;
           totalRoomUnits += (booking.numberOfRooms || 1);
           processedBookings.push(booking);
@@ -920,6 +930,7 @@ export default function AdminReports() {
       }
     });
     
+    // Second pass: add grouped bookings
     multiRoomGroups.forEach((group, parentId) => {
       totalRoomUnits += group.numberOfRooms;
       totalRoomRevenue += group.totalPrice;
@@ -933,6 +944,7 @@ export default function AdminReports() {
       });
     });
     
+    // Day tours – unchanged
     dayTours.forEach(tour => {
       if (tour.status === 'completed') {
         const seniors = tour.seniors || 0;
@@ -948,14 +960,14 @@ export default function AdminReports() {
     setTotalRoomBookings(totalRoomUnits);
     setTotalDayTourGuests(dayTourGuestCount);
     
+    // Monthly data structures (unchanged)
     const yearlyMonthlyRoom = {};
     const yearlyMonthlyRevenue = {};
     const yearlyMonthlyTrend = {};
     const yearsSet = new Set();
-    
-    // Track monthly split data for booking types (accurate counts per month)
     const monthlySplitData = {};
     
+    // Process each completed booking for monthly breakdown
     processedBookings.forEach(booking => {
       const createdAt = booking.createdAt?.toDate ? booking.createdAt.toDate() : new Date(booking.createdAt);
       const year = createdAt.getFullYear();
@@ -991,20 +1003,16 @@ export default function AdminReports() {
         }));
       }
       
-      // Determine booking type for split with accurate classification
+      // Booking type split (unchanged)
       let bookingType = 'singleRoom';
-      // Check for Entire Resort booking
       if (booking.isExclusiveResortBooking || (booking.isGrouped && booking.childBookings && booking.childBookings.some(cb => cb.isExclusiveResortBooking))) {
         bookingType = 'entireResort';
-      } 
-      // Check for Multi-Room Types booking
-      else if (booking.isGrouped || (booking.roomTypes && booking.roomTypes.length > 1)) {
+      } else if (booking.isGrouped || (booking.roomTypes && booking.roomTypes.length > 1)) {
         bookingType = 'multiRoom';
       }
-      // Otherwise it's Single Room Type
-      
       monthlySplitData[year][month][bookingType]++;
       
+      // Room type counts (unchanged)
       let roomTypes = [];
       if (booking.isGrouped && booking.childBookings) {
         booking.childBookings.forEach(cb => {
@@ -1033,6 +1041,7 @@ export default function AdminReports() {
         else if (roomType === 'Couple Room') yearlyMonthlyRoom[year]['Couple Room'][month]++;
       });
       
+      // --- FIXED: Use the same total price we already aggregated for revenue ---
       const totalPrice = calculateBookingTotalPrice(booking);
       yearlyMonthlyRevenue[year].roomRevenue[month] += totalPrice;
       yearlyMonthlyRevenue[year].total[month] += totalPrice;
@@ -1041,6 +1050,7 @@ export default function AdminReports() {
       yearlyMonthlyTrend[year].roomBookings[month] += roomUnitCount;
     });
     
+    // Day tours monthly breakdown (unchanged)
     dayTours.forEach(tour => {
       if (tour.status === 'completed') {
         const createdAt = tour.createdAt?.toDate ? tour.createdAt.toDate() : new Date(tour.createdAt);
@@ -1071,6 +1081,7 @@ export default function AdminReports() {
       }
     });
     
+    // Prepare chart data (unchanged)
     const roomTypeChartData = {};
     const revenueChartData = {};
     const trendChartData = {};
@@ -1099,8 +1110,6 @@ export default function AdminReports() {
     setYearlyMonthlyRoomData(roomTypeChartData);
     setYearlyMonthlyRevenueData(revenueChartData);
     setYearlyMonthlyTrendData(trendChartData);
-    
-    // Store accurate monthly booking split data in state for PDF/Excel export
     setMonthlyBookingSplitData(monthlySplitData);
     
     const years = Array.from(yearsSet).sort((a, b) => b - a);
@@ -1108,7 +1117,7 @@ export default function AdminReports() {
     if (years.length > 0 && !selectedYear) setSelectedYear(years[0]);
     if (years.length > 0 && !selectedSplitYear) setSelectedSplitYear(years[0]);
     
-    // Calculate total booking split data
+    // Booking split data (unchanged)
     let entireResortCount = 0, multiRoomCount = 0, singleRoomCount = 0;
     processedBookings.forEach(booking => {
       if (booking.isExclusiveResortBooking || (booking.isGrouped && booking.childBookings?.some(cb => cb.isExclusiveResortBooking))) {

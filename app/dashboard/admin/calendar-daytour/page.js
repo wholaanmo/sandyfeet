@@ -454,7 +454,7 @@ export default function AdminDayTourCalendar() {
         <div className="xl:w-[40%] space-y-6">
           {/* Book for Guest Button */}
  <Link
-  href="/day-tour/calendar"
+  href="/day-tour"
   target="_blank"
   className="w-full flex items-center justify-center gap-2 px-5 py-3
              bg-[#4D8CF5] text-white border border-[#4D8CF5]
