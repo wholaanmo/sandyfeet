@@ -6,6 +6,30 @@ let openAICircuitOpenUntil = 0;
 let geminiCircuitOpenUntil = 0;
 const OPENAI_MODELS = ['gpt-4o-mini', 'gpt-4.1-mini'];
 const GEMINI_MODELS = ['gemini-2.5-flash', 'gemini-2.0-flash'];
+const MAX_RESPONSE_TOKENS = 700;
+const MAX_LOCAL_SECTIONS = 3;
+const SHOW_AI_UNAVAILABLE_NOTICE = process.env.CHATBOT_SHOW_AI_STATUS === 'true';
+
+const QUERY_TOKEN_ALIASES = {
+  tagalo: ['tagalog', 'filipino'],
+  tagalog: ['filipino'],
+  filipino: ['tagalog'],
+  pilipino: ['tagalog', 'filipino'],
+  reserbasyon: ['reservation', 'booking'],
+  reservation: ['booking'],
+  booking: ['reservation'],
+  kuwarto: ['room', 'rooms'],
+  kwarto: ['room', 'rooms'],
+  silid: ['room', 'rooms'],
+  presyo: ['pricing', 'rates'],
+  bayad: ['payment'],
+  pasilidad: ['facilities', 'amenities'],
+  gamit: ['facilities', 'amenities'],
+  lokasyon: ['location', 'address'],
+  saan: ['location', 'address'],
+  pasok: ['check', 'times'],
+  labas: ['checkout', 'times'],
+};
 
 // Load the knowledge base once at module level
 let knowledgeBase = '';
@@ -28,7 +52,8 @@ YOUR RULES (STRICTLY FOLLOW):
 6. Never discuss topics unrelated to Sandyfeet Resort (politics, other businesses, personal advice, coding, etc.). Politely redirect: "I'm here to help with Sandyfeet Resort inquiries! 🏖️"
 7. If asked about exact pricing and you don't have specific numbers, say: "Pricing may vary — please check our Rooms or Day Tour page for the latest rates!"
 8. Do NOT pretend to make bookings or process payments. Always direct guests to use the website.
-9. Format responses nicely — use line breaks for readability. Keep answers under 150 words unless the question requires detailed explanation.
+9. Keep answers concise but complete. If a question has multiple parts, cover each part clearly. Use line breaks and short sections for readability. Do not cut off mid-thought.
+10. Support both English and Filipino/Tagalog. Reply in the same language as the guest whenever possible. If asked whether you understand Tagalog, confirm that you do.
 
 KNOWLEDGE BASE:
 ---
@@ -67,6 +92,42 @@ function isRetryableModelError(error) {
     errorMessage.includes('unsupported') ||
     errorMessage.includes('overloaded')
   );
+}
+
+function splitKnowledgeSections(raw) {
+  if (!raw) return [];
+
+  const lines = raw.split(/\r?\n/);
+  const sections = [];
+  let current = { title: '', lines: [] };
+
+  const pushCurrent = () => {
+    const text = current.lines.join('\n').trim();
+    if (current.title || text) {
+      sections.push({ title: current.title, text });
+    }
+  };
+
+  for (const line of lines) {
+    const headingMatch = line.match(/^##\s+(.+)/);
+    if (headingMatch) {
+      pushCurrent();
+      current = { title: headingMatch[1].trim(), lines: [] };
+      continue;
+    }
+    current.lines.push(line);
+  }
+
+  pushCurrent();
+
+  if (sections.length > 0) {
+    return sections;
+  }
+
+  return raw
+    .split(/\n\s*\n/)
+    .map((section) => ({ title: '', text: section.trim() }))
+    .filter((section) => section.text);
 }
 
 function buildConversationMessages(history, trimmedMessage) {
@@ -108,7 +169,7 @@ async function tryOpenAI(messages) {
           model,
           messages,
           temperature: 0.7,
-          max_tokens: 300,
+          max_tokens: MAX_RESPONSE_TOKENS,
         }),
       });
 
@@ -154,8 +215,13 @@ async function tryOpenAI(messages) {
 
 async function tryGemini(messages) {
   const primaryGeminiKey = process.env.GEMINI_API_KEY;
-  const fallbackGeminiKey = process.env.FALLBACK_API_KEY;
-  const candidateKeys = [primaryGeminiKey, fallbackGeminiKey].filter(Boolean);
+  const secondaryGeminiKey = process.env.FALLBACK_GEMINI_API_KEY;
+  const legacyFallbackGeminiKey = process.env.FALLBACK_API_KEY;
+  const candidateKeys = [...new Set([
+    primaryGeminiKey,
+    secondaryGeminiKey,
+    legacyFallbackGeminiKey,
+  ].filter(Boolean))];
 
   if (candidateKeys.length === 0) {
     return null;
@@ -185,7 +251,7 @@ async function tryGemini(messages) {
             ],
             generationConfig: {
               temperature: 0.7,
-              maxOutputTokens: 300,
+              maxOutputTokens: MAX_RESPONSE_TOKENS,
             },
           }),
         });
@@ -239,6 +305,41 @@ function tokenize(input) {
     .filter((word) => word.length > 2);
 }
 
+function expandQueryTokens(queryTokens) {
+  const expanded = new Set(queryTokens);
+
+  for (const token of [...expanded]) {
+    const aliases = QUERY_TOKEN_ALIASES[token];
+    if (Array.isArray(aliases)) {
+      for (const alias of aliases) {
+        expanded.add(alias);
+      }
+    }
+  }
+
+  return expanded;
+}
+
+function maybeLanguageCapabilityReply(message) {
+  const normalized = (message || '').toLowerCase();
+  const hasTagalogTerm = /\b(tagalog|tagalo|filipino|pilipino)\b/.test(normalized);
+  const hasLanguageIntent = /\b(understand|speak|read|write|naiintindihan|nakakaintindi|marunong|pwede|kaya)\b/.test(normalized);
+
+  if (!hasTagalogTerm) {
+    return null;
+  }
+
+  if (hasLanguageIntent || normalized.trim().endsWith('?') || normalized.trim().length <= 50) {
+    return [
+      'Oo, nakakaintindi ako ng Tagalog at English.',
+      'Pwede ka magtanong in either language tungkol sa rooms, day tours, booking, facilities, payment, at reservation tracking sa Sandyfeet.',
+      'Kung may detalye na wala sa guide, email us at sandyfeetreservation@gmail.com.',
+    ].join('\n');
+  }
+
+  return null;
+}
+
 function localKnowledgeReply(message) {
   const fallbackContact = "I'm not sure about that one! For more details, please email us at sandyfeetreservation@gmail.com or check our website.";
 
@@ -246,46 +347,56 @@ function localKnowledgeReply(message) {
     return fallbackContact;
   }
 
-  const queryTokens = new Set(tokenize(message));
-  const sections = knowledgeBase
-    .split(/\n\s*\n/)
-    .map((section) => section.trim())
-    .filter(Boolean);
+  const languageCapabilityReply = maybeLanguageCapabilityReply(message);
+  if (languageCapabilityReply) {
+    return languageCapabilityReply;
+  }
 
-  let bestSection = '';
-  let bestScore = 0;
+  const queryTokens = expandQueryTokens(new Set(tokenize(message)));
+  const sections = splitKnowledgeSections(knowledgeBase);
+  const scoredSections = sections
+    .map((section) => {
+      const titleTokens = new Set(tokenize(section.title));
+      const bodyTokens = new Set(tokenize(section.text));
+      let score = 0;
 
-  for (const section of sections) {
-    const sectionTokens = new Set(tokenize(section));
-    let score = 0;
-
-    for (const token of queryTokens) {
-      if (sectionTokens.has(token)) {
-        score += 1;
+      for (const token of queryTokens) {
+        if (titleTokens.has(token)) {
+          score += 3;
+        }
+        if (bodyTokens.has(token)) {
+          score += 1;
+        }
       }
-    }
 
-    if (score > bestScore) {
-      bestScore = score;
-      bestSection = section;
-    }
-  }
+      return { ...section, score };
+    })
+    .filter((section) => section.score > 0)
+    .sort((a, b) => b.score - a.score)
+    .slice(0, MAX_LOCAL_SECTIONS);
 
-  if (!bestSection || bestScore === 0) {
+  if (scoredSections.length === 0) {
     return fallbackContact;
   }
 
-  const lines = bestSection
-    .split('\n')
-    .map((line) => line.trim())
-    .filter(Boolean)
-    .slice(0, 4);
+  const replyParts = [];
 
-  if (lines.length === 0) {
-    return fallbackContact;
+  for (const section of scoredSections) {
+    const lines = section.text
+      .split('\n')
+      .map((line) => line.trim())
+      .filter(Boolean);
+
+    if (section.title) {
+      replyParts.push(`**${section.title}**`);
+    }
+
+    replyParts.push(...lines);
+    replyParts.push('');
   }
 
-  return `${lines.join('\n')}\n\nIf you want, I can help with rooms, day tours, facilities, or reservation tracking. 🏖️`;
+  const reply = replyParts.join('\n').trim();
+  return reply || fallbackContact;
 }
 
 export async function POST(request) {
@@ -301,17 +412,23 @@ export async function POST(request) {
 
     const openAIReply = await tryOpenAI(messages);
     if (openAIReply) {
-      return Response.json({ reply: openAIReply }, { status: 200 });
+      return Response.json({ reply: openAIReply, source: 'openai' }, { status: 200 });
     }
 
     const geminiReply = await tryGemini(messages);
     if (geminiReply) {
-      return Response.json({ reply: geminiReply }, { status: 200 });
+      return Response.json({ reply: geminiReply, source: 'gemini' }, { status: 200 });
     }
+
+    const localReply = localKnowledgeReply(trimmedMessage);
+    const aiUnavailableNotice = SHOW_AI_UNAVAILABLE_NOTICE
+      ? '\n\nI am currently using the local resort guide for this reply.'
+      : '';
 
     return Response.json(
       {
-        reply: `${localKnowledgeReply(trimmedMessage)}\n\nLive AI is temporarily unavailable right now, so I'm using our local resort guide for the moment.`
+        reply: `${localReply}${aiUnavailableNotice}`,
+        source: 'local',
       },
       { status: 200 }
     );

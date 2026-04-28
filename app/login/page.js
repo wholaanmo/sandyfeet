@@ -310,206 +310,127 @@ const loginUser = async (e) => {
 
     return (
         <>
-            <div className="min-h-screen w-full relative bg-gradient-to-br from-[var(--color-blue-white)] to-white flex items-center justify-center overflow-hidden">
-                {/* Animated gradient orbs */}
-                <div className="absolute inset-0 z-0">
-                    <div className="absolute top-[-15%] right-[-10%] w-[600px] h-[600px] rounded-full bg-ocean-light/20 blur-[100px] animate-floatOrb"></div>
-                    <div className="absolute bottom-[-15%] left-[-10%] w-[550px] h-[550px] rounded-full bg-ocean-deep/15 blur-[100px] animate-floatOrb delay-2000"></div>
-                    <div className="absolute top-1/3 right-1/4 w-[450px] h-[450px] rounded-full bg-ocean-lighter/15 blur-[90px] animate-floatOrb delay-4000"></div>
-                    <div className="absolute bottom-1/3 left-1/4 w-[400px] h-[400px] rounded-full bg-neutral/10 blur-[80px] animate-floatOrb delay-6000"></div>
-                </div>
-                
-                {/* Pattern overlay */}
-                <div className="absolute inset-0 z-0 opacity-10" style={{
-                    backgroundImage: `repeating-linear-gradient(45deg, rgba(43, 108, 108, 0.05) 0px, rgba(43, 108, 108, 0.05) 2px, transparent 2px, transparent 10px)`,
-                    backgroundSize: '20px 20px'
-                }}></div>
-
-                {/* Main Container */}
-                <div className="w-[840px] max-w-[90%] h-[540px] bg-white/95 backdrop-blur-sm rounded-[48px] flex overflow-hidden shadow-2xl border border-white/40 z-10">
-                    
-                    {/* Left Panel - Ocean Gradient */}
-                    <div className="w-[45%] bg-gradient-to-br from-ocean-deep via-ocean-mid to-ocean-light p-6 flex items-center justify-center relative overflow-hidden rounded-r-[40px]">
-                        <div className="absolute inset-0 bg-gradient-to-tr from-ocean-lighter/30 via-transparent to-ocean-pale/20 animate-gradientShift"></div>
-                        <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/10 to-transparent -skew-x-12 animate-shimmer"></div>
-                        
-                        <div className="text-center max-w-[260px] relative z-10">
-                            {/* Logo Container */}
-                            <div className="mb-4 flex justify-center relative">
-                                <div className="w-[110px] h-[110px] rounded-full bg-gradient-to-br from-ocean-lighter via-ocean-light to-ocean-mid p-[3px] relative z-10 shadow-2xl ring-4 ring-white/30">
-                                    <div className="w-full h-full rounded-full overflow-hidden bg-gradient-to-br from-ocean-deep to-ocean-mid shadow-inner">
-                                        <Image 
-                                            src="/assets/Sea&RiverView.png" 
-                                            alt="SandyFeet Reservation" 
-                                            width={104}
-                                            height={104}
-                                            className="object-cover w-full h-full"
-                                            priority
-                                        />
-                                    </div>
-                                </div>
+            <div className="min-h-screen w-full bg-[#f6f8fc] px-6 py-12 flex items-center justify-center">
+                <div className="w-full max-w-md rounded-3xl border border-slate-100 bg-white px-8 py-10 shadow-[0_20px_60px_rgba(15,35,70,0.12)]">
+                    <div className="login-box">
+                        <div className="mb-8 text-center">
+                            <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-2xl bg-ocean-ice/70 ring-1 ring-ocean-light/20">
+                                <Image
+                                    src="/SandyFeet_logo2.png"
+                                    alt="SandyFeet"
+                                    width={56}
+                                    height={56}
+                                    className="h-12 w-12 object-contain"
+                                    priority
+                                />
                             </div>
-                            
-                            {/* Title */}
-                            <div className="mb-2">
-                                <h2 className="font-playfair text-2xl font-bold tracking-wide">
-                                    <span className="bg-gradient-to-r from-white via-ocean-pale to-white bg-clip-text text-transparent drop-shadow-lg">
-                                        SandyFeet
-                                    </span>
-                                    <br />
-                                    <span className="text-white/90 text-lg font-medium tracking-wider">
-                                        Reservation
-                                    </span>
-                                </h2>
-                            </div>
-                            
-                            {/* Tagline */}
-                            <p className="text-white/90 font-poppins text-xs mb-8 max-w-[240px] mx-auto italic">
-                                Plan Your SandyFeet Escape with Ease
-                            </p>
-                            
-                            {/* Features */}
-                            <div className="flex justify-center gap-6">
-                                {[
-                                    { icon: 'fa-umbrella-beach', label: 'Rooms & Camping' },
-                                    { icon: 'fa-sun', label: 'Day Tour' },
-                                    { icon: 'fa-water', label: 'Beach Access' }
-                                ].map((feature, idx) => (
-                                    <div key={idx} className="flex flex-col items-center gap-1.5">
-                                        <div className="w-[42px] h-[42px] rounded-full bg-gradient-to-br from-white/25 to-white/10 backdrop-blur-sm flex items-center justify-center border border-white/40 shadow-md">
-                                            <i className={`fas ${feature.icon} text-white text-base drop-shadow`}></i>
-                                        </div>
-                                        <span className="text-white/80 text-[11px] font-medium">{feature.label}</span>
-                                    </div>
-                                ))}
-                            </div>
-                            
-                            {/* Decorative Waves */}
-                            <div className="absolute bottom-0 left-0 w-full h-[50px] overflow-hidden pointer-events-none">
-                                <div className="absolute bottom-0 left-0 w-[200%] h-full bg-gradient-to-t from-white/20 via-white/10 to-transparent rounded-t-full animate-wave"></div>
-                                <div className="absolute -bottom-2 left-0 w-[200%] h-full bg-gradient-to-t from-white/10 via-transparent to-transparent rounded-t-full animate-wave-reverse"></div>
-                            </div>
+                            <p className="mt-4 text-xs uppercase tracking-[0.3em] text-ocean-light/70">SandyFeet</p>
+                            <h1 className="mt-2 font-playfair text-3xl text-ocean-deep">Sign in</h1>
+                            <p className="mt-2 text-sm text-ocean-mid/70">Access your dashboard</p>
                         </div>
-                    </div>
-                    
-                    {/* Right Panel */}
-                    <div className="w-[55%] p-8 flex items-center justify-center bg-gradient-to-br from-white via-white to-blue-white overflow-y-auto no-scrollbar">
-                        <div className="w-full max-w-[300px] login-box">
-                            {/* Header */}
-                            <div className="text-center mb-6">
-                                <h1 className="font-playfair text-2xl font-bold bg-gradient-to-r from-ocean-deep to-ocean-light bg-clip-text text-transparent mb-1">Welcome Back</h1>
-                                <p className="font-poppins text-xs text-ocean-mid/80">Sign in to your account</p>
-                            </div>
-                            
-                            {/* Error Message */}
-                            {error && (
-                                <div className="bg-gradient-to-r from-red-50 to-red-100/50 rounded-xl p-3 mb-4 flex items-start gap-2 shadow-sm border-l-4 border-red-500">
+
+                        {error && (
+                            <div className="mb-4 rounded-2xl border border-red-100 bg-red-50/80 p-3 text-xs text-red-600 shadow-sm">
+                                <div className="flex items-start gap-2">
                                     <i className="fas fa-exclamation-circle text-red-500 text-sm mt-0.5"></i>
                                     <div className="flex-1">
-                                        <span className="text-red-600 text-xs font-poppins">{error}</span>
+                                        <p className="text-xs font-poppins">{error}</p>
                                         {showResendOption && (
                                             <button
                                                 onClick={handleResendVerification}
                                                 disabled={resendLoading}
-                                                className="block mt-2 text-xs text-ocean-light font-medium hover:text-ocean-mid underline"
+                                                className="mt-2 text-xs text-ocean-deep underline hover:text-ocean-mid"
                                             >
                                                 {resendLoading ? 'Sending...' : 'Resend verification email'}
                                             </button>
                                         )}
                                     </div>
                                 </div>
-                            )}
-                            
-                            {/* Login Form */}
-                            <form onSubmit={loginUser}>
-                                {/* Email Field */}
-                                <div className="mb-3">
-                                    <div className="relative group">
-                                        <div className="absolute left-3 top-1/2 transform -translate-y-1/2 text-ocean-light/50 group-focus-within:text-ocean-light transition-colors duration-300">
-                                            <i className="fas fa-envelope text-sm"></i>
-                                        </div>
-                                        <input 
-                                            type="email" 
-                                            placeholder="Email address" 
-                                            required 
-                                            value={email}
-                                            onChange={(e) => setEmail(e.target.value)}
-                                            disabled={loading}
-                                            className="w-full pl-9 pr-3 py-2.5 bg-gradient-to-r from-ocean-ice/50 to-white border border-ocean-light/20 rounded-xl text-ocean-deep font-poppins text-sm placeholder:text-ocean-light/40 focus:outline-none focus:border-ocean-light focus:ring-2 focus:ring-ocean-light/30 transition-all duration-300 shadow-sm"
-                                        />
-                                    </div>
-                                </div>
-                                
-                                {/* Password Field */}
-                                <div className="mb-4">
-                                    <div className="relative group">
-                                        <div className="absolute left-3 top-1/2 transform -translate-y-1/2 text-ocean-light/50 group-focus-within:text-ocean-light transition-colors duration-300">
-                                            <i className="fas fa-lock text-sm"></i>
-                                        </div>
-                                        <input 
-                                            type={showPassword ? 'text' : 'password'} 
-                                            placeholder="Password" 
-                                            required 
-                                            value={password}
-                                            onChange={(e) => setPassword(e.target.value)}
-                                            disabled={loading}
-                                            className="w-full pl-9 pr-10 py-2.5 bg-gradient-to-r from-ocean-ice/50 to-white border border-ocean-light/20 rounded-xl text-ocean-deep font-poppins text-sm placeholder:text-ocean-light/40 focus:outline-none focus:border-ocean-light focus:ring-2 focus:ring-ocean-light/30 transition-all duration-300 shadow-sm"
-                                        />
-                                        <button 
-                                            type="button"
-                                            className="absolute right-3 top-1/2 transform -translate-y-1/2 text-ocean-light/50 hover:text-ocean-light transition-colors"
-                                            onClick={togglePassword}
-                                        >
-                                            <i className={`fas ${showPassword ? 'fa-eye' : 'fa-eye-slash'} text-sm`}></i>
-                                        </button>
-                                    </div>
-                                </div>
-                                
-                                {/* Remember Me and Forgot Password */}
-                                <div className="flex items-center justify-between mb-5">
-                                    <label className="flex items-center gap-2 cursor-pointer group">
-                                        <input 
-                                            type="checkbox" 
-                                            checked={rememberMe}
-                                            onChange={(e) => setRememberMe(e.target.checked)}
-                                            className="w-3.5 h-3.5 accent-ocean-light rounded cursor-pointer"
-                                        />
-                                        <span className="text-xs text-ocean-mid/70 group-hover:text-ocean-light transition-colors">Remember me</span>
-                                    </label>
-                                    <a 
-                                        href="#" 
-                                        className="text-xs text-ocean-light font-medium hover:text-ocean-deep transition-all duration-300 hover:underline underline-offset-2"
-                                        onClick={handleForgotPassword}
-                                    >
-                                        Forgot password?
-                                    </a>
-                                </div>
-                                
-                                {/* Sign In Button */}
-                                <button 
-                                    type="submit" 
-                                    className="w-full py-2.5 bg-gradient-to-r from-ocean-mid via-ocean-light to-ocean-lighter bg-[length:200%_auto] text-white font-poppins font-semibold text-sm rounded-xl shadow-md hover:shadow-lg transform hover:scale-[1.02] transition-all duration-300 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2 group relative overflow-hidden"
-                                    disabled={loading}
-                                >
-                                    <span className="absolute inset-0 bg-gradient-to-r from-white/0 via-white/20 to-white/0 -translate-x-full group-hover:translate-x-full transition-transform duration-700"></span>
-                                    {loading ? (
-                                        <>
-                                            <i className="fas fa-spinner fa-spin"></i> Signing in...
-                                        </>
-                                    ) : (
-                                        <>
-                                            <i className="fas fa-arrow-right-to-bracket text-sm"></i> Sign In
-                                        </>
-                                    )}
-                                </button>
-                            </form>
-                            
-                            {/* Footer */}
-                            <div className="text-center mt-6 pt-4 border-t border-ocean-light/10">
-                                <p className="text-xs text-ocean-light/50 flex items-center justify-center gap-1">
-                                    <i className="fas fa-umbrella-beach text-[10px]"></i> © 2026 SandyFeet Reservation
-                                </p>
                             </div>
+                        )}
+
+                        <form onSubmit={loginUser}>
+                            <div className="mb-4">
+                                <label className="text-xs font-medium text-ocean-mid/70">Email address</label>
+                                <div className="relative mt-2">
+                                    <div className="absolute left-4 top-1/2 -translate-y-1/2 text-ocean-light/50">
+                                        <i className="fas fa-envelope text-sm"></i>
+                                    </div>
+                                    <input
+                                        type="email"
+                                        placeholder="name@company.com"
+                                        required
+                                        value={email}
+                                        onChange={(e) => setEmail(e.target.value)}
+                                        disabled={loading}
+                                        className="w-full rounded-2xl border border-slate-200 bg-white py-3 pl-11 pr-4 text-sm text-ocean-deep placeholder:text-ocean-light/50 shadow-sm focus:border-ocean-light focus:outline-none focus:ring-2 focus:ring-ocean-light/20"
+                                    />
+                                </div>
+                            </div>
+
+                            <div className="mb-5">
+                                <label className="text-xs font-medium text-ocean-mid/70">Password</label>
+                                <div className="relative mt-2">
+                                    <div className="absolute left-4 top-1/2 -translate-y-1/2 text-ocean-light/50">
+                                        <i className="fas fa-lock text-sm"></i>
+                                    </div>
+                                    <input
+                                        type={showPassword ? 'text' : 'password'}
+                                        placeholder="Enter your password"
+                                        required
+                                        value={password}
+                                        onChange={(e) => setPassword(e.target.value)}
+                                        disabled={loading}
+                                        className="w-full rounded-2xl border border-slate-200 bg-white py-3 pl-11 pr-12 text-sm text-ocean-deep placeholder:text-ocean-light/50 shadow-sm focus:border-ocean-light focus:outline-none focus:ring-2 focus:ring-ocean-light/20"
+                                    />
+                                    <button
+                                        type="button"
+                                        className="absolute right-4 top-1/2 -translate-y-1/2 text-ocean-light/60 hover:text-ocean-deep"
+                                        onClick={togglePassword}
+                                    >
+                                        <i className={`fas ${showPassword ? 'fa-eye' : 'fa-eye-slash'} text-sm`}></i>
+                                    </button>
+                                </div>
+                            </div>
+
+                            <div className="mb-6 flex items-center justify-between">
+                                <label className="flex items-center gap-2 text-xs text-ocean-mid/70">
+                                    <input
+                                        type="checkbox"
+                                        checked={rememberMe}
+                                        onChange={(e) => setRememberMe(e.target.checked)}
+                                        className="h-3.5 w-3.5 accent-ocean-mid"
+                                    />
+                                    Remember me
+                                </label>
+                                <button
+                                    type="button"
+                                    className="text-xs font-medium text-ocean-deep hover:text-ocean-mid"
+                                    onClick={handleForgotPassword}
+                                >
+                                    Forgot password?
+                                </button>
+                            </div>
+
+                            <button
+                                type="submit"
+                                className="flex w-full items-center justify-center gap-2 rounded-2xl bg-ocean-mid py-3 text-sm font-semibold text-white shadow-md transition hover:bg-ocean-light disabled:cursor-not-allowed disabled:opacity-60"
+                                disabled={loading}
+                            >
+                                {loading ? (
+                                    <>
+                                        <i className="fas fa-spinner fa-spin"></i> Signing in...
+                                    </>
+                                ) : (
+                                    <>
+                                        <i className="fas fa-arrow-right-to-bracket text-sm"></i> Sign in
+                                    </>
+                                )}
+                            </button>
+                        </form>
+
+                        <div className="mt-6 text-center text-xs text-ocean-mid/60">
+                            © 2026 SandyFeet
                         </div>
                     </div>
                 </div>
@@ -517,60 +438,60 @@ const loginUser = async (e) => {
             
             {/* Forgot Password Modal */}
             {showForgotModal && (
-                <div className="fixed inset-0 bg-gradient-to-br from-black/60 to-black/40 backdrop-blur-md z-[100] flex items-center justify-center p-4 animate-fadeIn" onClick={() => setShowForgotModal(false)}>
-                    <div className="bg-white rounded-2xl w-full max-w-md shadow-2xl animate-slideUp border border-white/20" onClick={(e) => e.stopPropagation()}>
-                        <div className="bg-gradient-to-r from-ocean-deep via-ocean-mid to-ocean-light p-5 rounded-t-2xl flex items-center justify-between relative overflow-hidden">
-                            <div className="absolute inset-0 bg-gradient-to-r from-white/10 to-transparent"></div>
-                            <h3 className="font-playfair text-xl font-semibold text-white relative z-10">
-                                <i className="fas fa-key mr-2"></i> Reset Password
-                            </h3>
-                            <button 
-                                className="w-8 h-8 rounded-full bg-white/20 hover:bg-white/30 text-white transition-all duration-300 flex items-center justify-center backdrop-blur-sm"
-                                onClick={() => setShowForgotModal(false)}
-                            >
-                                <i className="fas fa-times text-sm"></i>
-                            </button>
-                        </div>
-                        
-                        <div className="p-6">
-                            <p className="text-ocean-mid text-sm mb-5 flex items-start gap-2">
-                                <i className="fas fa-envelope-open-text text-ocean-lighter mt-0.5"></i>
-                                Enter your email address and we'll send you a link to reset your password.
+                <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/50 p-4 backdrop-blur-sm animate-fadeIn" onClick={() => setShowForgotModal(false)}>
+                    <div className="w-full max-w-md overflow-hidden rounded-3xl bg-white shadow-2xl animate-slideUp" onClick={(e) => e.stopPropagation()}>
+                        <div className="bg-[linear-gradient(135deg,#174FCC_0%,#2169F3_50%,#7AAAF8_100%)] p-5 text-white">
+                            <div className="flex items-center justify-between">
+                                <h3 className="font-playfair text-xl font-semibold">
+                                    <i className="fas fa-key mr-2"></i> Reset Password
+                                </h3>
+                                <button
+                                    className="flex h-9 w-9 items-center justify-center rounded-full bg-white/20 text-white transition hover:bg-white/30"
+                                    onClick={() => setShowForgotModal(false)}
+                                >
+                                    <i className="fas fa-times text-sm"></i>
+                                </button>
+                            </div>
+                            <p className="mt-2 text-xs text-white/80">
+                                We will send a reset link to your email address.
                             </p>
-                            
+                        </div>
+
+                        <div className="p-6">
                             {resetMessage && (
-                                <div className="bg-gradient-to-r from-green-50 to-emerald-50 border-l-4 border-green-400 rounded-lg p-3 mb-4 flex items-center gap-2">
-                                    <i className="fas fa-check-circle text-green-500 text-sm"></i>
-                                    <span className="text-green-700 text-xs">{resetMessage}</span>
+                                <div className="mb-4 rounded-2xl border border-green-100 bg-green-50/80 p-3 text-xs text-green-700">
+                                    <i className="fas fa-check-circle mr-2 text-green-500"></i>
+                                    {resetMessage}
                                 </div>
                             )}
-                            
+
                             {resetError && (
-                                <div className="bg-gradient-to-r from-red-50 to-rose-50 border-l-4 border-red-400 rounded-lg p-3 mb-4 flex items-center gap-2">
-                                    <i className="fas fa-exclamation-circle text-red-500 text-sm"></i>
-                                    <span className="text-red-600 text-xs">{resetError}</span>
+                                <div className="mb-4 rounded-2xl border border-red-100 bg-red-50/80 p-3 text-xs text-red-600">
+                                    <i className="fas fa-exclamation-circle mr-2 text-red-500"></i>
+                                    {resetError}
                                 </div>
                             )}
-                            
+
                             <form onSubmit={handleResetPassword}>
-                                <div className="relative mb-5 group">
-                                    <div className="absolute left-3 top-1/2 transform -translate-y-1/2 text-ocean-light/50 group-focus-within:text-ocean-light transition-colors">
+                                <label className="text-xs font-medium text-ocean-mid/70">Email address</label>
+                                <div className="relative mt-2 mb-6">
+                                    <div className="absolute left-4 top-1/2 -translate-y-1/2 text-ocean-light/50">
                                         <i className="fas fa-envelope text-sm"></i>
                                     </div>
                                     <input
                                         type="email"
-                                        placeholder="Your email address"
+                                        placeholder="name@company.com"
                                         value={resetEmail}
                                         onChange={(e) => setResetEmail(e.target.value)}
                                         disabled={resetLoading || resetMessage}
-                                        className="w-full pl-9 pr-3 py-3 bg-gradient-to-r from-ocean-ice/50 to-white border border-ocean-light/20 rounded-xl text-ocean-deep font-poppins text-sm placeholder:text-ocean-light/40 focus:outline-none focus:border-ocean-light focus:ring-2 focus:ring-ocean-light/20 transition-all duration-300"
+                                        className="w-full rounded-2xl border border-ocean-light/20 bg-white/90 py-3 pl-11 pr-4 text-sm text-ocean-deep placeholder:text-ocean-light/50 shadow-sm focus:border-ocean-light focus:outline-none focus:ring-2 focus:ring-ocean-light/20"
                                     />
                                 </div>
-                                
+
                                 <div className="flex gap-3">
                                     <button
                                         type="button"
-                                        className="flex-1 py-2 rounded-xl border-2 border-ocean-light/30 text-ocean-mid font-poppins text-sm hover:bg-ocean-light/10 hover:border-ocean-light/50 transition-all duration-300"
+                                        className="flex-1 rounded-2xl border border-ocean-light/30 py-2 text-sm font-medium text-ocean-mid transition hover:border-ocean-light/60 hover:bg-ocean-ice/60"
                                         onClick={() => setShowForgotModal(false)}
                                         disabled={resetLoading}
                                     >
@@ -578,7 +499,7 @@ const loginUser = async (e) => {
                                     </button>
                                     <button
                                         type="submit"
-                                        className="flex-1 py-2 rounded-xl bg-gradient-to-r from-ocean-mid to-ocean-light text-white font-poppins text-sm font-medium hover:shadow-lg transition-all duration-300 disabled:opacity-50"
+                                        className="flex-1 rounded-2xl bg-ocean-mid py-2 text-sm font-semibold text-white shadow-md transition hover:bg-ocean-light disabled:opacity-60"
                                         disabled={resetLoading || resetMessage}
                                     >
                                         {resetLoading ? (
@@ -599,74 +520,25 @@ const loginUser = async (e) => {
             )}
             
             <style jsx>{`
-                @keyframes pulse-glow {
-                    0%, 100% { opacity: 0.5; transform: translate(-50%, -50%) scale(1); }
-                    50% { opacity: 0.9; transform: translate(-50%, -50%) scale(1.12); }
-                }
-                .animate-pulse-glow {
-                    animation: pulse-glow 4s infinite ease-in-out;
-                }
-                @keyframes gradientShift {
-                    0%, 100% { opacity: 0.4; background-position: 0% 50%; }
-                    50% { opacity: 0.7; background-position: 100% 50%; }
-                }
-                .animate-gradientShift {
-                    animation: gradientShift 3s ease infinite;
-                    background-size: 200% auto;
-                }
-                @keyframes wave {
-                    0% { transform: translateX(-30%) scaleX(1.2); }
-                    100% { transform: translateX(10%) scaleX(1.2); }
-                }
-                .animate-wave {
-                    animation: wave 18s infinite linear;
-                }
-                .animate-wave-reverse {
-                    animation: wave 22s infinite linear reverse;
-                }
                 @keyframes fadeIn {
-                    from { opacity: 0; backdrop-filter: blur(0px); }
-                    to { opacity: 1; backdrop-filter: blur(4px); }
+                    from { opacity: 0; }
+                    to { opacity: 1; }
                 }
                 .animate-fadeIn {
                     animation: fadeIn 0.3s ease forwards;
                 }
                 @keyframes slideUp {
-                    from { transform: translateY(30px); opacity: 0; filter: blur(2px); }
-                    to { transform: translateY(0); opacity: 1; filter: blur(0); }
+                    from { transform: translateY(24px) scale(0.98); opacity: 0; }
+                    to { transform: translateY(0) scale(1); opacity: 1; }
                 }
                 .animate-slideUp {
                     animation: slideUp 0.3s ease;
                 }
-                @keyframes floatOrb {
-                    0%, 100% { transform: translate(0, 0) scale(1); }
-                    50% { transform: translate(30px, -20px) scale(1.05); }
-                }
-                .animate-floatOrb {
-                    animation: floatOrb 12s infinite ease-in-out;
-                }
-                @keyframes shimmer {
-                    0% { transform: translateX(-100%) skewX(-12deg); }
-                    100% { transform: translateX(200%) skewX(-12deg); }
-                }
-                .animate-shimmer {
-                    animation: shimmer 8s infinite;
-                }
-                .no-scrollbar::-webkit-scrollbar {
-                    display: none;
-                }
-                .no-scrollbar {
-                    scrollbar-width: none;
-                    -ms-overflow-style: none;
-                }
-                .delay-2000 {
-                    animation-delay: 2s;
-                }
-                .delay-4000 {
-                    animation-delay: 4s;
-                }
-                .delay-6000 {
-                    animation-delay: 6s;
+                @media (prefers-reduced-motion: reduce) {
+                    .animate-fadeIn,
+                    .animate-slideUp {
+                        animation: none;
+                    }
                 }
             `}</style>
         </>

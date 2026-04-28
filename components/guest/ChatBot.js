@@ -342,7 +342,7 @@ export default function ChatBot() {
               onChange={(e) => setInputValue(e.target.value)}
               onKeyDown={handleKeyDown}
               disabled={isLoading}
-              maxLength={500}
+              maxLength={1000}
               autoComplete="off"
             />
             <button
