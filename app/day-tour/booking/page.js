@@ -8,6 +8,7 @@ import { db } from '@/lib/firebase';
 import { collection, query, where, getDocs, addDoc, doc, getDoc, serverTimestamp, onSnapshot } from 'firebase/firestore';
 import { uploadImage } from '@/lib/cloudinary';
 import { sendDayTourPendingEmail } from '@/lib/emailService';
+import ChatBot from '@/components/guest/ChatBot';
 
 // Storage key for persisting booking data
 const STORAGE_KEY = 'daytour_booking_data';
@@ -1675,6 +1676,7 @@ function DayTourBookingContent() {
           </div>
         </div>
       )}
+      <ChatBot />
     </GuestLayout>
   );
 }

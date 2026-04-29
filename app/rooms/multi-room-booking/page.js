@@ -10,6 +10,7 @@ import Image from 'next/image';
 import { uploadImage } from '@/lib/cloudinary';
 import { compressImage } from '@/lib/imageUtils';
 import { sendRoomPendingEmail } from '@/lib/emailService';
+import ChatBot from '@/components/guest/ChatBot';
 
 // Storage keys for persisting data
 const MULTI_ROOM_STORAGE_KEY = 'multi_room_booking_data';
@@ -1667,6 +1668,7 @@ const handleSubmitBooking = async () => {
           animation: fadeIn 0.3s ease-out;
         }
       `}</style>
+      <ChatBot />
     </GuestLayout>
   );
 }

@@ -7,6 +7,7 @@ import Image from 'next/image';
 import Link from 'next/link';
 import { db } from '@/lib/firebase';
 import { addDoc, collection, getDocs, limit, onSnapshot, query, serverTimestamp, where } from 'firebase/firestore';
+import ChatBot from '@/components/guest/ChatBot';
 
 const galleryImages = [
   { src: '/assets/View/Front view.jpg', alt: 'Sandyfeet front view' },
@@ -1151,6 +1152,7 @@ const handleVerifyFeedbackBooking = async (event) => {
         </style>
 
       </div>
+      <ChatBot />
     </GuestLayout>
   );
 }

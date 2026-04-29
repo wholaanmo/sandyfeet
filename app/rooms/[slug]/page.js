@@ -7,6 +7,7 @@ import { useRouter, useParams } from 'next/navigation';
 import GuestLayout from '@/app/guest/layout';
 import { db } from '@/lib/firebase';
 import { collection, query, where, onSnapshot } from 'firebase/firestore';
+import ChatBot from '@/components/guest/ChatBot';
 
 const formatHour = (hour) => {
   const period = hour >= 12 ? 'PM' : 'AM';
@@ -1177,6 +1178,7 @@ export default function RoomDetailsPage({ params }) {
           </div>
         </div>
       )}
+      <ChatBot />
     </GuestLayout>
   );
 }

@@ -6,6 +6,7 @@ import { db } from '../../lib/firebase';
 import { collection, query, where, getDocs, updateDoc, doc, addDoc, onSnapshot } from 'firebase/firestore';
 import GuestLayout from '../guest/layout';
 import { sendCancellationEmail, sendDayTourCancellationEmail } from '../../lib/emailService';
+import ChatBot from '@/components/guest/ChatBot';
 
 export default function ReservationTrackerPage() {
   const [email, setEmail] = useState('');
@@ -1386,6 +1387,7 @@ const paymentBalanceDisplay = reservation
 )}
         </div>
       </div>
+      <ChatBot />
     </GuestLayout>
   );
 }

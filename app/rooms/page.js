@@ -6,6 +6,7 @@ import { useRouter } from 'next/navigation';
 import GuestLayout from '@/app/guest/layout';
 import { db } from '@/lib/firebase';
 import { collection, query, where, onSnapshot } from 'firebase/firestore';
+import ChatBot from '@/components/guest/ChatBot';
 
 export default function RoomsPage() {
   const router = useRouter();
@@ -1674,6 +1675,7 @@ const handleProceed = () => {
           </div>
         </div>
       </div>
+      <ChatBot />
     </GuestLayout>
   );
 }

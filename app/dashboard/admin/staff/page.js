@@ -219,9 +219,9 @@ export default function StaffManagement() {
     
     // Add audit log
     await logAdminAction({
-      action: 'Added staff member',
-      module: 'Staff Management',
-      details: `Added new staff member: ${formData.name} (${formData.email}) with role: ${formData.role}`
+      action: 'Added member',
+      module: 'User Management',
+      details: `Added new member: ${formData.name} (${formData.email}) with role: ${formData.role}`
     });
     
     showNotification(
@@ -275,7 +275,7 @@ const handleResendVerification = async () => {
     // Add audit log
     await logAdminAction({
       action: 'Resent verification email',
-      module: 'Staff Management',
+      module: 'User Management',
       details: `Resent verification email to: ${resendModal.email}`
     });
     
@@ -313,9 +313,9 @@ const handleResendVerification = async () => {
       
       // Add audit log
       await logAdminAction({
-        action: 'Updated staff information',
-        module: 'Staff Management',
-        details: `Updated staff member: ${selectedStaff.name} (${selectedStaff.email}) - Name: ${formData.name}, Phone: ${formData.phone || 'Not provided'}`
+        action: 'Updated user information',
+        module: 'User Management',
+        details: `Updated user member: ${selectedStaff.name} (${selectedStaff.email}) - Name: ${formData.name}, Phone: ${formData.phone || 'Not provided'}`
       });
       
       showNotification('Staff information updated successfully!');
@@ -364,7 +364,7 @@ const handleResendVerification = async () => {
       // Add audit log
       await logAdminAction({
         action: `${newStatus === 'active' ? 'Activated' : 'Deactivated'} staff account`,
-        module: 'Staff Management',
+        module: 'User Management',
         details: `${newStatus === 'active' ? 'Activated' : 'Deactivated'} staff account: ${staffMember.name} (${staffMember.email})`
       });
       
@@ -400,7 +400,7 @@ const handleResendVerification = async () => {
       // Add audit log
       await logAdminAction({
         action: 'Promoted staff to admin',
-        module: 'Staff Management',
+        module: 'User Management',
         details: `Promoted ${staffMember.name} (${staffMember.email}) from Staff to Admin`
       });
       
@@ -436,7 +436,7 @@ const handleResendVerification = async () => {
       // Add audit log
       await logAdminAction({
         action: 'Demoted admin to staff',
-        module: 'Staff Management',
+        module: 'User Management',
         details: `Demoted ${staffMember.name} (${staffMember.email}) from Admin to Staff`
       });
       
@@ -536,7 +536,7 @@ const handleResendVerification = async () => {
 <div className="flex justify-between items-center mb-8 rounded-xl border border-[#7AAAF8]/20 bg-[#7AAAF8]/5 px-5 py-4 shadow-sm">
   <div>
     <h1 className="text-3xl font-bold text-[#1E3A8A] font-playfair tracking-tight mb-1">
-      Staff Management
+      User Management
     </h1>
     <p className="text-[#4D6FA8] text-sm leading-relaxed">
       Manage staff accounts, roles, and status
@@ -548,7 +548,7 @@ const handleResendVerification = async () => {
   className="flex items-center gap-2 px-5 py-2.5 rounded-xl font-medium border border-[#7AAAF8]/30 bg-white/70 backdrop-blur-md text-[#1E3A8A] shadow-sm hover:bg-[#7AAAF8] hover:text-white hover:border-[#7AAAF8] hover:shadow-md hover:-translate-y-0.5 transition-all duration-200"
 >
   <i className="fas fa-plus text-sm"></i>
-  Add New Staff
+  Add New User
 </button>
 </div>
 
@@ -610,16 +610,23 @@ const handleResendVerification = async () => {
     </div>
   </div>
         
-        <select
-          value={filterStatus}
-          onChange={(e) => setFilterStatus(e.target.value)}
-          className="px-4 py-2.5 border border-ocean-light/20 rounded-xl text-sm text-textPrimary focus:outline-none focus:border-ocean-light cursor-pointer bg-white"
-        >
-          <option value="all">All Status</option>
-          <option value="active">Active</option>
-          <option value="pending_verification">Pending Verification</option>
-          <option value="inactive">Inactive</option>
-        </select>
+<div className="relative">
+  <select
+    value={filterStatus}
+    onChange={(e) => setFilterStatus(e.target.value)}
+    className="px-4 py-2.5 pr-10 border-2 border-[#4D8CF5]/20 rounded-xl text-sm text-textPrimary bg-white shadow-sm focus:outline-none focus:border-[#4D8CF5] focus:ring-2 focus:ring-[#4D8CF5]/20 hover:border-[#4D8CF5]/70 transition-all duration-200 appearance-none cursor-pointer"
+  >
+    <option value="all">All Status</option>
+    <option value="active">Active</option>
+    <option value="pending_verification">Pending Verification</option>
+    <option value="inactive">Inactive</option>
+  </select>
+
+  {/* Custom dropdown arrow */}
+  <div className="absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none text-[#4D8CF5] text-xs">
+    ▼
+  </div>
+</div>
       </div>
 
       {/* Staff Table */}
@@ -719,7 +726,7 @@ const handleResendVerification = async () => {
                           <button
                             onClick={() => handleViewStaff(member)}
                             className="p-2 rounded-lg bg-[#7AAAF8]/10 text-[#1E3A8A] border border-[#7AAAF8]/20 hover:bg-[#7AAAF8] hover:text-white transition-all duration-200 flex items-center justify-center"
-                            title="View/Edit Staff Information"
+                            title="View/Edit User Information"
                           >
                             <i className="fas fa-eye"></i>
                           </button>
@@ -746,8 +753,8 @@ const handleResendVerification = async () => {
           <div className="bg-white rounded-2xl w-full max-w-md max-h-[90vh] overflow-auto p-6 shadow-2xl" onClick={(e) => e.stopPropagation()}>
             <div className="flex justify-between items-center mb-5">
               <h2 className="text-xl font-bold text-textPrimary font-playfair">
-                {modalType === 'add' ? 'Add New Staff Member' : 
-                 modalType === 'view' && !isEditing ? 'Staff Information' : 'Edit Staff Information'}
+                {modalType === 'add' ? 'Add New Member' : 
+                 modalType === 'view' && !isEditing ? 'User Information' : 'Edit User Information'}
               </h2>
               <button
                 onClick={() => {
@@ -755,8 +762,7 @@ const handleResendVerification = async () => {
                   setSelectedStaff(null);
                   setIsEditing(false);
                 }}
-                className="w-8 h-8 rounded-full bg-ocean-ice hover:bg-ocean-light/20 text-neutral hover:text-textPrimary transition-all duration-200 flex items-center justify-center"
-              >
+                className="w-7 h-7 rounded-md bg-ocean-ice text-neutral hover:bg-ocean-light/20 hover:text-textPrimary transition-all duration-200 flex items-center justify-center">
                 <i className="fas fa-times"></i>
               </button>
             </div>
@@ -765,7 +771,7 @@ const handleResendVerification = async () => {
               <form onSubmit={handleAddStaff}>
                 {/* Name */}
                 <div className="mb-4">
-                  <label className="block mb-1.5 text-sm font-medium text-textPrimary">Full Name *</label>
+                  <label className="block mb-1.5 text-sm font-medium text-textPrimary">Full Name</label>
                   <input
                     type="text"
                     name="name"
@@ -778,7 +784,7 @@ const handleResendVerification = async () => {
 
  {/* Email */}
 <div className="mb-4">
-  <label className="block mb-1.5 text-sm font-medium text-textPrimary">Email Address *</label>
+  <label className="block mb-1.5 text-sm font-medium text-textPrimary">Email Address</label>
   <input
     type="email"
     name="email"
@@ -792,7 +798,7 @@ const handleResendVerification = async () => {
 
 {/* Password */}
 <div className="mb-4">
-  <label className="block mb-1.5 text-sm font-medium text-textPrimary">Password *</label>
+  <label className="block mb-1.5 text-sm font-medium text-textPrimary">Password</label>
   <div className="relative">
     <input
       type={showPassword ? 'text' : 'password'}
@@ -815,7 +821,7 @@ const handleResendVerification = async () => {
 
 {/* Confirm Password */}
 <div className="mb-4">
-  <label className="block mb-1.5 text-sm font-medium text-textPrimary">Confirm Password *</label>
+  <label className="block mb-1.5 text-sm font-medium text-textPrimary">Confirm Password</label>
   <div className="relative">
     <input
       type={showConfirmPassword ? 'text' : 'password'}
@@ -848,7 +854,6 @@ const handleResendVerification = async () => {
                     className={`w-full px-3 py-2.5 border ${formErrors.phone ? 'border-red-500' : 'border-ocean-light/20'} rounded-xl text-sm focus:outline-none focus:border-ocean-light focus:ring-2 focus:ring-ocean-light/20 transition-all duration-300`}
                   />
                   {formErrors.phone && <p className="text-red-500 text-xs mt-1">{formErrors.phone}</p>}
-                  <p className="text-neutral text-xs mt-1">Exactly 11 digits, numbers only</p>
                 </div>
 
                 {/* Role only (Status removed) */}
@@ -975,7 +980,7 @@ const handleResendVerification = async () => {
                   <form onSubmit={handleUpdateStaff}>
                     {/* Name */}
                     <div className="mb-4">
-                      <label className="block mb-1.5 text-sm font-medium text-textPrimary">Full Name *</label>
+                      <label className="block mb-1.5 text-sm font-medium text-textPrimary">Full Name</label>
                       <input
                         type="text"
                         name="name"

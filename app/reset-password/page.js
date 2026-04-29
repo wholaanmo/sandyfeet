@@ -89,12 +89,12 @@ function ResetPasswordForm() {
         </div>
         
         {message && (
-          <div className="bg-green-50 border-l-4 border-green-500 p-3 mb-4 rounded">
+          <div className="bg-green-50 p-3 mb-4 rounded">
             <p className="text-green-700 text-sm">{message}</p>
           </div>
         )}
         {error && (
-          <div className="bg-red-50 border-l-4 border-red-500 p-3 mb-4 rounded">
+          <div className="bg-red-50 p-3 mb-4 rounded">
             <p className="text-red-700 text-sm">{error}</p>
           </div>
         )}

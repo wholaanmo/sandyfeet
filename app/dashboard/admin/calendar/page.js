@@ -679,7 +679,8 @@ export default function AdminCalendar() {
       setSelectedDate(null);
       setUnitsToBlock(1);
     }}
-    className="w-full px-4 py-2 pr-10 border border-[#4D8CF5]/40 rounded-xl text-sm bg-white text-textPrimary shadow-sm focus:outline-none focus:ring-2 focus:ring-[#4D8CF5]/40 focus:border-[#4D8CF5] hover:border-[#4D8CF5]/70 transition-all duration-200 appearance-none">
+    className="w-full px-4 py-2 pr-10 border-2 border-[#4D8CF5]/20 rounded-xl text-sm bg-white text-textPrimary shadow-sm focus:outline-none focus:ring-2 focus:ring-[#4D8CF5]/20 focus:border-[#4D8CF5] hover:border-[#4D8CF5]/70 transition-all duration-200 appearance-none"
+  >
     {rooms?.map((room) => (
       <option key={room.id} value={room.id}>
         {room.type || room.name || room.id}

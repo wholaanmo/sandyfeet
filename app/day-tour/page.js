@@ -8,6 +8,7 @@ import GuestLayout from '../guest/layout';
 import { db } from '@/lib/firebase';
 import { collection, query, orderBy, onSnapshot, where } from 'firebase/firestore';
 import ActivityCard from '@/components/guest/ActivityCard';
+import ChatBot from '@/components/guest/ChatBot';
 
 export default function DayTourPage() {
   const router = useRouter();
@@ -776,6 +777,7 @@ export default function DayTourPage() {
 
         </div>
       </div>
+      <ChatBot />
     </GuestLayout>
   );
 }
