@@ -1277,7 +1277,7 @@ autoTable(pdf, {
           Reports & Analytics
         </h1>
         <p className="text-[#4D6FA8] text-sm leading-relaxed mt-1">
-          View comprehensive reports and insights about your business performance
+          Track your resort performance with clear reports and insights.
         </p>
       </div>
       
@@ -1408,22 +1408,37 @@ autoTable(pdf, {
               <div className="flex items-center gap-3 bg-gradient-to-r from-gray-50 to-white px-4 py-2 rounded-xl shadow-sm border border-gray-100">
                 <i className="fas fa-calendar-alt text-[#4D8CF5] text-sm"></i>
                 <label className="text-sm font-medium text-gray-700">Select Year:</label>
-                <select value={selectedYear} onChange={(e) => setSelectedYear(e.target.value)} className="px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#4D8CF5] focus:border-transparent bg-white">
-                  {availableYears.map(year => (<option key={year} value={year}>{year}</option>))}
-                </select>
+<div className="relative inline-block">
+  <select
+    value={selectedYear}
+    onChange={(e) => setSelectedYear(e.target.value)}
+    className="px-3 py-2 pr-8 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#4D8CF5] focus:border-transparent bg-white appearance-none cursor-pointer transition-all duration-200"
+  >
+    {availableYears.map((year) => (
+      <option key={year} value={year}>
+        {year}
+      </option>
+    ))}
+  </select>
+
+  {/* Custom dropdown arrow */}
+  <div className="absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none text-[#4D8CF5] text-xs">
+    ▼
+  </div>
+</div>
               </div>
             </div>
             <div className="flex justify-end gap-2 mb-6">
               <button
                 onClick={() => openExportConfirm('pdf', 'Most Booked Room Types', [], getRoomTypesTableData(), ['Month', 'Tent', 'Ground Floor Room', 'Group Room', 'Couple Room', 'Total'])}
-                className="px-4 py-2 rounded-lg bg-red-500 text-white text-sm font-medium hover:bg-red-600 transition-all duration-200 flex items-center gap-2 shadow-sm"
-              >
+className="px-4 py-2 rounded-lg bg-red-500/10 text-red-600 hover:bg-red-600/80 hover:text-white transition-all duration-200 flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
+>
                 <i className="fas fa-file-pdf"></i> PDF
               </button>
               <button
                 onClick={() => openExportConfirm('excel', 'Most Booked Room Types', [], getRoomTypesTableData(), ['Month', 'Tent', 'Ground Floor Room', 'Group Room', 'Couple Room', 'Total'])}
-                className="px-4 py-2 rounded-lg bg-gradient-to-r from-green-500 to-green-600 text-white text-sm font-medium hover:shadow-lg transition-all duration-200 flex items-center gap-2"
-              >
+className="px-4 py-2 rounded-lg bg-green-500/10 text-green-600 hover:bg-green-600/80 hover:text-white transition-all duration-200 flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
+>
                 <i className="fas fa-file-excel"></i> Excel
               </button>
             </div>
@@ -1507,22 +1522,37 @@ autoTable(pdf, {
               <div className="flex items-center gap-3 bg-gradient-to-r from-gray-50 to-white px-4 py-2 rounded-xl shadow-sm border border-gray-100">
                 <i className="fas fa-calendar-alt text-[#4D8CF5] text-sm"></i>
                 <label className="text-sm font-medium text-gray-700">Select Year:</label>
-                <select value={selectedYear} onChange={(e) => setSelectedYear(e.target.value)} className="px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#4D8CF5] focus:border-transparent bg-white">
-                  {availableYears.map(year => (<option key={year} value={year}>{year}</option>))}
-                </select>
+<div className="relative inline-block">
+  <select
+    value={selectedYear}
+    onChange={(e) => setSelectedYear(e.target.value)}
+    className="px-3 py-2 pr-8 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#4D8CF5] focus:border-transparent bg-white appearance-none cursor-pointer transition-all duration-200"
+  >
+    {availableYears.map((year) => (
+      <option key={year} value={year}>
+        {year}
+      </option>
+    ))}
+  </select>
+
+  {/* Custom dropdown arrow */}
+  <div className="absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none text-[#4D8CF5] text-xs">
+    ▼
+  </div>
+</div>
               </div>
             </div>
             <div className="flex justify-end gap-2 mb-6">
               <button
                 onClick={() => openExportConfirm('pdf', 'Revenue Summary', [], getRevenueTableData(), ['Month', 'Room Revenue', 'Day Tour Revenue', 'Total Revenue'])}
-                className="px-4 py-2 rounded-lg bg-red-500 text-white text-sm font-medium hover:bg-red-600 transition-all duration-200 flex items-center gap-2 shadow-sm"
-              >
+className="px-4 py-2 rounded-lg bg-red-500/10 text-red-600 hover:bg-red-600/80 hover:text-white transition-all duration-200 flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
+>
                 <i className="fas fa-file-pdf"></i> PDF
               </button>
               <button
                 onClick={() => openExportConfirm('excel', 'Revenue Summary', [], getRevenueTableData(), ['Month', 'Room Revenue', 'Day Tour Revenue', 'Total Revenue'])}
-                className="px-4 py-2 rounded-lg bg-gradient-to-r from-green-500 to-green-600 text-white text-sm font-medium hover:shadow-lg transition-all duration-200 flex items-center gap-2"
-              >
+className="px-4 py-2 rounded-lg bg-green-500/10 text-green-600 hover:bg-green-600/80 hover:text-white transition-all duration-200 flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
+>
                 <i className="fas fa-file-excel"></i> Excel
               </button>
             </div>
@@ -1594,17 +1624,44 @@ autoTable(pdf, {
                 <div className="flex items-center gap-3 bg-gradient-to-r from-gray-50 to-white px-4 py-2 rounded-xl shadow-sm border border-gray-100">
                   <i className="fas fa-sliders-h text-[#4D8CF5] text-sm"></i>
                   <label className="text-sm font-medium text-gray-700">Filter by:</label>
-                  <select value={selectedSplitFilter} onChange={(e) => setSelectedSplitFilter(e.target.value)} className="px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#4D8CF5] focus:border-transparent bg-white">
-                    <option value="year">Year</option><option value="month">Month</option>
-                  </select>
+<div className="relative inline-block">
+  <select
+    value={selectedSplitFilter}
+    onChange={(e) => setSelectedSplitFilter(e.target.value)}
+    className="px-3 py-2 pr-8 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#4D8CF5] focus:border-transparent bg-white appearance-none cursor-pointer transition-all duration-200"
+  >
+    <option value="year">Year</option>
+    <option value="month">Month</option>
+  </select>
+
+  {/* Custom dropdown arrow */}
+  <div className="absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none text-[#4D8CF5] text-xs">
+    ▼
+  </div>
+</div>
                 </div>
                 {selectedSplitFilter === 'year' ? (
                   <div className="flex items-center gap-3 bg-gradient-to-r from-gray-50 to-white px-4 py-2 rounded-xl shadow-sm border border-gray-100">
                     <i className="fas fa-calendar-alt text-[#4D8CF5] text-sm"></i>
                     <label className="text-sm font-medium text-gray-700">Year:</label>
-                    <select value={selectedSplitYear} onChange={(e) => setSelectedSplitYear(e.target.value)} className="px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#4D8CF5] focus:border-transparent bg-white">
-                      {availableYears.map(year => (<option key={year} value={year}>{year}</option>))}
-                    </select>
+<div className="relative inline-block">
+  <select
+    value={selectedSplitYear}
+    onChange={(e) => setSelectedSplitYear(e.target.value)}
+    className="px-3 py-2 pr-8 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#4D8CF5] focus:border-transparent bg-white appearance-none cursor-pointer transition-all duration-200"
+  >
+    {availableYears.map((year) => (
+      <option key={year} value={year}>
+        {year}
+      </option>
+    ))}
+  </select>
+
+  {/* Custom dropdown arrow */}
+  <div className="absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none text-[#4D8CF5] text-xs">
+    ▼
+  </div>
+</div>
                   </div>
                 ) : (
                   <div className="flex flex-wrap gap-3">
@@ -1629,14 +1686,14 @@ autoTable(pdf, {
             <div className="flex justify-end gap-2 mb-6">
               <button
                 onClick={() => openExportConfirm('pdf', 'Room Booking Type Split', [], getBookingSplitTableData(), ['Booking Type', 'Count'])}
-                className="px-4 py-2 rounded-lg bg-red-500 text-white text-sm font-medium hover:bg-red-600 transition-all duration-200 flex items-center gap-2 shadow-sm"
-              >
+className="px-4 py-2 rounded-lg bg-red-500/10 text-red-600 hover:bg-red-600/80 hover:text-white transition-all duration-200 flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
+>
                 <i className="fas fa-file-pdf"></i> PDF
               </button>
               <button
                 onClick={() => openExportConfirm('excel', 'Room Booking Type Split', [], getBookingSplitTableData(), ['Booking Type', 'Count'])}
-                className="px-4 py-2 rounded-lg bg-gradient-to-r from-green-500 to-green-600 text-white text-sm font-medium hover:shadow-lg transition-all duration-200 flex items-center gap-2"
-              >
+className="px-4 py-2 rounded-lg bg-green-500/10 text-green-600 hover:bg-green-600/80 hover:text-white transition-all duration-200 flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
+>
                 <i className="fas fa-file-excel"></i> Excel
               </button>
             </div>
@@ -1685,22 +1742,37 @@ autoTable(pdf, {
               <div className="flex items-center gap-3 bg-gradient-to-r from-gray-50 to-white px-4 py-2 rounded-xl shadow-sm border border-gray-100">
                 <i className="fas fa-calendar-alt text-[#4D8CF5] text-sm"></i>
                 <label className="text-sm font-medium text-gray-700">Select Year:</label>
-                <select value={selectedYear} onChange={(e) => setSelectedYear(e.target.value)} className="px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#4D8CF5] focus:border-transparent bg-white">
-                  {availableYears.map(year => (<option key={year} value={year}>{year}</option>))}
-                </select>
+<div className="relative inline-block">
+  <select
+    value={selectedYear}
+    onChange={(e) => setSelectedYear(e.target.value)}
+    className="px-3 py-2 pr-8 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#4D8CF5] focus:border-transparent bg-white appearance-none cursor-pointer transition-all duration-200"
+  >
+    {availableYears.map((year) => (
+      <option key={year} value={year}>
+        {year}
+      </option>
+    ))}
+  </select>
+
+  {/* Custom dropdown arrow */}
+  <div className="absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none text-[#4D8CF5] text-xs">
+    ▼
+  </div>
+</div>
               </div>
             </div>
             <div className="flex justify-end gap-2 mb-6">
               <button
                 onClick={() => openExportConfirm('pdf', 'Monthly Seasonal Trend', [], getTrendTableData(), ['Month', 'Room Bookings', 'Day Tour Guests'])}
-                className="px-4 py-2 rounded-lg bg-red-500 text-white text-sm font-medium hover:bg-red-600 transition-all duration-200 flex items-center gap-2 shadow-sm"
-              >
+className="px-4 py-2 rounded-lg bg-red-500/10 text-red-600 hover:bg-red-600/80 hover:text-white transition-all duration-200 flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
+>
                 <i className="fas fa-file-pdf"></i> PDF
               </button>
               <button
                 onClick={() => openExportConfirm('excel', 'Monthly Seasonal Trend', [], getTrendTableData(), ['Month', 'Room Bookings', 'Day Tour Guests'])}
-                className="px-4 py-2 rounded-lg bg-gradient-to-r from-green-500 to-green-600 text-white text-sm font-medium hover:shadow-lg transition-all duration-200 flex items-center gap-2"
-              >
+ className="px-4 py-2 rounded-lg bg-green-500/10 text-green-600 hover:bg-green-600/80 hover:text-white transition-all duration-200 flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
+>
                 <i className="fas fa-file-excel"></i> Excel
               </button>
             </div>

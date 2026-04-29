@@ -85,9 +85,8 @@ export default function AdminSidebar({ isOpen, onToggle, isDesktop }) {
   const menuItems = [
     { path: '/dashboard/admin/overview', icon: 'dashboard', label: 'Overview', materialIcon: 'dashboard' },
     { path: '/dashboard/admin/reservations', icon: 'event', label: 'Reservations', materialIcon: 'event' },
-    { path: '/dashboard/admin/rooms', icon: 'hotel', label: 'Rooms', materialIcon: 'hotel' },
-    { path: '/dashboard/admin/day-tour', icon: 'wb_sunny', label: 'Day Tour', materialIcon: 'wb_sunny' },
-    { path: '/dashboard/admin/calendars', icon: 'event', label: 'Calendar Management', materialIcon: 'event' },
+    { path: '/dashboard/admin/manage', icon: 'event_available', label: 'Availability Management', materialIcon: 'event_available'},
+    { path: '/dashboard/admin/calendars', icon: 'calendar_month', label: 'Calendar Management', materialIcon: 'calendar_month' },
     { path: '/dashboard/admin/payment', icon: 'payment', label: 'Payment', materialIcon: 'payment' },
     { path: '/dashboard/admin/reports', icon: 'assessment', label: 'Reports', materialIcon: 'assessment' },
     { path: '/dashboard/admin/feedback', icon: 'feedback', label: 'Feedback', materialIcon: 'feedback' },

@@ -273,18 +273,37 @@ export default function AdminPaymentPage() {
     }
   };
 
-    const isBankFormValid = () => {
-    const { bankName, accountName, accountNumber } = tempBankDetails;
-    // Check if either account number OR QR code is provided (mutually exclusive logic)
-    const hasAccountNumber = accountNumber.trim().length > 0;
-    const hasQRCode = bankQRUrl !== '' || bankQRFile !== null;
-    const isMutuallyExclusiveValid = (hasAccountNumber && !hasQRCode) || (!hasAccountNumber && hasQRCode);
+const isBankFormValid = () => {
+  const { bankName, accountName, accountNumber } = tempBankDetails;
+  // Check if either account number OR QR code is provided (mutually exclusive logic)
+  const hasAccountNumber = accountNumber.trim().length > 0;
+  const hasQRCode = bankQRUrl !== '' || bankQRFile !== null;
+  const isMutuallyExclusiveValid = (hasAccountNumber && !hasQRCode) || (!hasAccountNumber && hasQRCode);
+  
+  if (!bankName.trim() || !accountName.trim()) return false;
+  if (!isMutuallyExclusiveValid) return false;
+  
+  // For edit mode, check if ANY changes were made
+  if (editingBank) {
+    // Check text field changes
+    const hasTextChanges = 
+      tempBankDetails.bankName !== originalBankDetails?.bankName ||
+      tempBankDetails.accountName !== originalBankDetails?.accountName ||
+      tempBankDetails.accountNumber !== originalBankDetails?.accountNumber ||
+      tempBankDetails.showToGuest !== originalBankDetails?.showToGuest;
     
-    if (!bankName.trim() || !accountName.trim()) return false;
-    if (!isMutuallyExclusiveValid) return false;
-    if (editingBank && !hasBankChanges) return false;
-    return true;
-  };
+    // Check QR code changes (if original had QR and now has different QR, or if QR was added/removed)
+    const hasQRChange = 
+      (bankQRFile !== null) || // New QR uploaded
+      (originalBankDetails?.qrCodeUrl !== '' && !bankQRFile && !bankQRUrl) || // QR was removed
+      (originalBankDetails?.qrCodeUrl === '' && bankQRUrl !== '' && !bankQRFile); // QR was added from existing
+    
+    // Button is enabled if either text changed OR QR changed
+    if (!hasTextChanges && !hasQRChange) return false;
+  }
+  
+  return true;
+};
 
   const handleArchiveGCashQR = async () => {
   setArchivingQR(true);
@@ -621,7 +640,8 @@ const handleArchiveBankAccount = async () => {
       bankName: account.bankName,
       accountName: account.accountName,
       accountNumber: account.accountNumber,
-      showToGuest: account.showToGuest === true
+      showToGuest: account.showToGuest === true,
+      qrCodeUrl: account.qrCodeUrl || '' 
     });
     setTempBankDetails({
       bankName: account.bankName,
@@ -781,20 +801,29 @@ const handleArchiveBankAccount = async () => {
   });
 
   // Handler for QR Code file selection in Add Bank Modal
-  const handleBankQRFileSelect = (e) => {
-    const file = e.target.files[0];
-    if (!file) return;
-    
-    // Clear account number if QR is selected
-    if (tempBankDetails.accountNumber) {
-      handleBankDetailsChange('accountNumber', '');
+const handleBankQRFileSelect = (e) => {
+  const file = e.target.files[0];
+  if (!file) return;
+  
+  // Clear account number if QR is selected
+  if (tempBankDetails.accountNumber) {
+    handleBankDetailsChange('accountNumber', '');
+  }
+  
+  setBankQRFile(file);
+  const previewUrl = URL.createObjectURL(file);
+  setBankQRPreview(previewUrl);
+  setBankQRUrl('');
+  
+  // Mark that changes have been made (QR image changed)
+  if (editingBank) {
+    // Check if the new QR is different from the original
+    const hasQRChange = originalBankDetails?.qrCodeUrl !== '' || true;
+    if (hasQRChange) {
+      setHasBankChanges(true);
     }
-    
-    setBankQRFile(file);
-    const previewUrl = URL.createObjectURL(file);
-    setBankQRPreview(previewUrl);
-    setBankQRUrl('');
-  };
+  }
+};
 
   if (loading) {
     return (
@@ -1508,14 +1537,23 @@ const handleArchiveBankAccount = async () => {
                   <label className="block text-sm font-semibold text-textPrimary mb-1.5">
                     QR Code Visibility
                   </label>
-                  <select
-                    value={tempBankDetails.showToGuest ? 'show' : 'hide'}
-                    onChange={(e) => handleBankDetailsChange('showToGuest', e.target.value === 'show')}
-                    className="w-full px-4 py-2 border border-ocean-light/20 rounded-xl text-sm focus:outline-none focus:border-ocean-light"
-                  >
-                    <option value="show">Show this to the guest</option>
-                    <option value="hide">Don&apos;t show this to the guest</option>
-                  </select>
+<div className="relative">
+  <select
+    value={tempBankDetails.showToGuest ? 'show' : 'hide'}
+    onChange={(e) =>
+      handleBankDetailsChange('showToGuest', e.target.value === 'show')
+    }
+    className="w-full px-4 py-2 pr-10 border border-ocean-light/20 rounded-xl text-sm focus:outline-none focus:border-ocean-light appearance-none cursor-pointer transition-all duration-200"
+  >
+    <option value="show">Show this to the guest</option>
+    <option value="hide">Don&apos;t show this to the guest</option>
+  </select>
+
+  {/* Custom dropdown arrow */}
+  <div className="absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none text-ocean-light text-xs">
+    ▼
+  </div>
+</div>
                 </div>
               )}
             </div>
@@ -1529,6 +1567,7 @@ const handleArchiveBankAccount = async () => {
                   setBankQRFile(null);
                   setBankQRPreview('');
                   setBankQRUrl('');
+                  setEditingBank(null);
                 }}
                 className="px-4 py-2 border border-ocean-light/20 rounded-xl text-textSecondary text-sm font-medium hover:bg-ocean-ice transition-all duration-300"
               >

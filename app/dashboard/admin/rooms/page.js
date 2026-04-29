@@ -605,17 +605,7 @@ export default function AdminRooms() {
   
   return (
     <div className="px-9 py-1 min-h-screen" style={{ backgroundColor: 'var(--color-blue-whites)' }}>
-      {/* Header */}
-<div className="flex justify-between items-center mb-6 rounded-xl border border-[#7AAAF8]/20 bg-[#7AAAF8]/5 px-5 py-4 shadow-sm">
-  <div>
-    <h1 className="text-3xl font-bold text-[#1E3A8A] font-playfair tracking-tight mb-1">
-      Room Management
-    </h1>
-    <p className="text-[#4D6FA8] text-sm leading-relaxed">
-      Manage your resort rooms, pricing, and availability
-    </p>
-  </div>
-
+<div className="mb-6 flex justify-end">
 <button
   onClick={openAddModal}
   className="flex items-center gap-2 px-5 py-2.5 rounded-xl font-medium border border-[#7AAAF8]/30 bg-white/70 backdrop-blur-md text-[#1E3A8A] shadow-sm hover:bg-[#7AAAF8] hover:text-white hover:border-[#7AAAF8] hover:shadow-md hover:-translate-y-0.5 transition-all duration-200"
@@ -624,39 +614,64 @@ export default function AdminRooms() {
   Add New Room
 </button>
 </div>
+
+
       
       {/* Statistics Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-6">
-        <div className="bg-white rounded-2xl shadow-md border border-ocean-light/10 p-5 hover:shadow-lg transition-shadow duration-300">
-          <div className="flex items-center justify-between h-full">
-            <div>
-              <h3 className="text-sm font-semibold text-textSecondary uppercase tracking-wide mb-2">Total Units</h3>
-              <div className="text-3xl font-bold text-textPrimary">{totalUnits}</div>
-            </div>
-            <i className="fas fa-building text-ocean-light text-3xl"></i>
-          </div>
-        </div>
-        
-        <div className="bg-white rounded-2xl shadow-md border border-ocean-light/10 p-5 hover:shadow-lg transition-shadow duration-300">
-          <div className="flex items-center justify-between h-full">
-            <div>
-              <h3 className="text-sm font-semibold text-textSecondary uppercase tracking-wide mb-2">Available Rooms</h3>
-              <div className="text-3xl font-bold text-textPrimary">{availableRooms}</div>
-            </div>
-            <i className="fas fa-check-circle text-green-500 text-3xl"></i>
-          </div>
-        </div>
-        
-        <div className="bg-white rounded-2xl shadow-md border border-ocean-light/10 p-5 hover:shadow-lg transition-shadow duration-300">
-          <div className="flex items-center justify-between h-full">
-            <div>
-              <h3 className="text-sm font-semibold text-textSecondary uppercase tracking-wide mb-2">Under Maintenance</h3>
-              <div className="text-3xl font-bold text-textPrimary">{totalMaintenanceRooms}</div>
-            </div>
-            <i className="fas fa-tools text-yellow-500 text-3xl"></i>
-          </div>
+   <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-6">
+  
+  {/* Total Units */}
+  <div className="bg-gradient-to-br from-white to-ocean-light/5 rounded-2xl shadow-md border border-ocean-light/10 p-5 hover:shadow-xl hover:-translate-y-0.5 transition-all duration-300">
+    <div className="flex items-center justify-between h-full">
+      <div>
+        <h3 className="text-sm font-semibold text-textSecondary uppercase tracking-wide mb-2">
+          Total Units
+        </h3>
+        <div className="text-3xl font-bold text-textPrimary leading-tight">
+          {totalUnits}
         </div>
       </div>
+      <div className="w-12 h-12 rounded-xl bg-ocean-light/10 flex items-center justify-center">
+        <i className="fas fa-building text-ocean-light text-2xl"></i>
+      </div>
+    </div>
+  </div>
+
+  {/* Available Rooms */}
+  <div className="bg-gradient-to-br from-white to-green-50 rounded-2xl shadow-md border border-ocean-light/10 p-5 hover:shadow-xl hover:-translate-y-0.5 transition-all duration-300">
+    <div className="flex items-center justify-between h-full">
+      <div>
+        <h3 className="text-sm font-semibold text-textSecondary uppercase tracking-wide mb-2">
+          Available Rooms
+        </h3>
+        <div className="text-3xl font-bold text-textPrimary leading-tight">
+          {availableRooms}
+        </div>
+      </div>
+      <div className="w-12 h-12 rounded-xl bg-green-500/10 flex items-center justify-center">
+        <i className="fas fa-check-circle text-green-500 text-2xl"></i>
+      </div>
+    </div>
+  </div>
+
+  {/* Under Maintenance */}
+  <div className="bg-gradient-to-br from-white to-yellow-50 rounded-2xl shadow-md border border-ocean-light/10 p-5 hover:shadow-xl hover:-translate-y-0.5 transition-all duration-300">
+    <div className="flex items-center justify-between h-full">
+      <div>
+        <h3 className="text-sm font-semibold text-textSecondary uppercase tracking-wide mb-2">
+          Under Maintenance
+        </h3>
+        <div className="text-3xl font-bold text-textPrimary leading-tight">
+          {totalMaintenanceRooms}
+        </div>
+      </div>
+      <div className="w-12 h-12 rounded-xl bg-yellow-500/10 flex items-center justify-center">
+        <i className="fas fa-tools text-yellow-500 text-2xl"></i>
+      </div>
+    </div>
+  </div>
+
+</div>
       
       {/* Notification */}
       {notification.show && (
@@ -684,16 +699,23 @@ export default function AdminRooms() {
     </div>
   </div>
         
-        <select
-          value={filterStatus}
-          onChange={(e) => setFilterStatus(e.target.value)}
-          className="px-4 py-2.5 border border-ocean-light/20 rounded-xl text-sm text-textPrimary focus:outline-none focus:border-ocean-light cursor-pointer bg-white"
-        >
-          <option value="all">All Status</option>
-          <option value="available">Available</option>
-          <option value="unavailable">Unavailable</option>
-          <option value="maintenance">Under Maintenance</option>
-        </select>
+<div className="relative">
+  <select
+    value={filterStatus}
+    onChange={(e) => setFilterStatus(e.target.value)}
+    className="px-4 py-2.5 pr-10 border-2 border-[#4D8CF5]/20 rounded-xl text-sm text-textPrimary bg-white shadow-sm focus:outline-none focus:border-[#4D8CF5] focus:ring-2 focus:ring-[#4D8CF5]/20 hover:border-[#4D8CF5]/70 transition-all duration-200 appearance-none cursor-pointer"
+  >
+    <option value="all">All Status</option>
+    <option value="available">Available</option>
+    <option value="unavailable">Unavailable</option>
+    <option value="maintenance">Under Maintenance</option>
+  </select>
+
+  {/* Custom dropdown arrow */}
+  <div className="absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none text-[#4D8CF5] text-xs">
+    ▼
+  </div>
+</div>
       </div>
       
       {/* Rooms Table */}

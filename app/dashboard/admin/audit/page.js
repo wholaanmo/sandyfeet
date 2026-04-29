@@ -179,7 +179,7 @@ export default function AuditLogs() {
     Audit Logs
   </h1>
   <p className="text-[#4D6FA8] text-sm leading-relaxed mt-1">
-    Track all administrative actions across the system
+    Track all actions across the system
   </p>
 </div>
 
@@ -205,14 +205,15 @@ export default function AuditLogs() {
       </button>
     )}
   </div>
-        <div className="relative w-full">
-          <input
-            type="date"
-            value={selectedDateFilter}
-            onChange={(e) => setSelectedDateFilter(e.target.value)}
-            className="w-full px-3 py-2.5 border border-ocean-light/20 rounded-xl text-sm focus:outline-none focus:border-ocean-light focus:ring-2 focus:ring-ocean-light/20 transition-all duration-300 bg-white"
-          />
-        </div>
+<div className="relative w-full">
+  <input
+    type="date"
+    value={selectedDateFilter}
+    onChange={(e) => setSelectedDateFilter(e.target.value)}
+    className="w-full px-3 py-2.5 border-2 border-[#4D8CF5]/20 rounded-xl text-sm bg-white text-textPrimary shadow-sm focus:outline-none focus:border-[#4D8CF5] focus:ring-2 focus:ring-[#4D8CF5]/20 hover:border-[#4D8CF5]/60 transition-all duration-300 appearance-none"
+  />
+
+</div>
       </div>
 
       {/* Audit Logs Table */}

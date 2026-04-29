@@ -539,7 +539,7 @@ const handleResendVerification = async () => {
       User Management
     </h1>
     <p className="text-[#4D6FA8] text-sm leading-relaxed">
-      Manage staff accounts, roles, and status
+      Manage user accounts, roles, and status
     </p>
   </div>
 
@@ -857,19 +857,28 @@ const handleResendVerification = async () => {
                 </div>
 
                 {/* Role only (Status removed) */}
-                <div className="mb-5">
-                  <label className="block mb-1.5 text-sm font-medium text-textPrimary">Role</label>
-                  <select
-                    name="role"
-                    value={formData.role}
-                    onChange={handleInputChange}
-                    className="w-full px-3 py-2.5 border border-ocean-light/20 rounded-xl text-sm focus:outline-none focus:border-ocean-light cursor-pointer bg-white"
-                  >
-                    <option value="staff">Staff</option>
-                    <option value="admin">Admin</option>
-                  </select>
-                  <p className="text-neutral text-xs mt-1">Account will be created with &quot;Pending Verification&quot; status. An email will be sent to verify the address.</p>
-                </div>
+<div className="mb-5 relative">
+  <label className="block mb-1.5 text-sm font-medium text-textPrimary">Role</label>
+
+  <select
+    name="role"
+    value={formData.role}
+    onChange={handleInputChange}
+    className="w-full px-3 py-2.5 pr-10 border border-ocean-light/20 rounded-xl text-sm focus:outline-none focus:border-ocean-light cursor-pointer bg-white appearance-none"
+  >
+    <option value="staff">Staff</option>
+    <option value="admin">Admin</option>
+  </select>
+
+  {/* Custom dropdown arrow */}
+  <div className="absolute right-3 top-[38px] pointer-events-none text-[#4D8CF5] text-xs">
+    ▼
+  </div>
+
+  <p className="text-neutral text-xs mt-1">
+    Account will be created with &quot;Pending Verification&quot; status. An email will be sent to verify the address.
+  </p>
+</div>
 
                 {/* Form Actions - Button always visible */}
                 <div className="flex gap-3 justify-end mt-6">

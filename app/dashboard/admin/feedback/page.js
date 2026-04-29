@@ -256,7 +256,8 @@ export default function AdminFeedback() {
                       <td className="px-4 py-3">
                         <div className="flex gap-2">
                           <button onClick={() => { setSelectedFeedback(feedback); setIsViewModalOpen(true); }} className="w-8 h-8 rounded-lg bg-[#7AAAF8]/10 text-[#1E3A8A] hover:bg-[#7AAAF8] hover:text-white transition-all duration-200 flex items-center justify-center" title="View Details"><i className="fas fa-eye text-sm"></i></button>
-                          <button onClick={() => openArchiveConfirm(feedback)} disabled={actionLoading[feedback.id]} className="w-8 h-8 rounded-lg bg-gray-500/10 text-gray-600 hover:bg-gray-500 hover:text-white transition-all duration-200 flex items-center justify-center disabled:opacity-50" title="Archive"><i className="fas fa-archive text-sm"></i></button>
+                          <button onClick={() => openArchiveConfirm(feedback)} disabled={actionLoading[feedback.id]} className="w-8 h-8 rounded-lg bg-[#F59E0B]/10 text-[#C2410C] border border-[#F59E0B]/20 hover:bg-[#F59E0B] hover:text-white hover:border-[#F59E0B] transition-all duration-200 flex items-center justify-center disabled:opacity-50"
+title="Archive"><i className="fas fa-archive text-sm"></i></button>
                         </div>
                       </td>
                     </tr>
@@ -321,24 +322,24 @@ export default function AdminFeedback() {
               <button
                 onClick={() => openPublishConfirm(selectedFeedback)}
                 disabled={actionLoading[selectedFeedback.id]}
-                className="px-4 py-2 rounded-lg bg-green-500/10 text-green-600 hover:bg-green-600/80 hover:text-white transition-all duration-200 flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
-              >
+className="px-4 py-2 rounded-lg bg-green-500/10 text-green-600 hover:bg-green-600/80 hover:text-white transition-all duration-200 flex items-center gap-2 text-sm disabled:opacity-50 disabled:cursor-not-allowed"
+>
                 <i className="fas fa-check text-sm"></i>
                 <span>Publish</span>
               </button>
               <button
                 onClick={() => openDontPublishConfirm(selectedFeedback)}
                 disabled={actionLoading[selectedFeedback.id]}
-                className="px-4 py-2 rounded-lg bg-red-500/10 text-red-600 hover:bg-red-600/80 hover:text-white transition-all duration-200 flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
-              >
+className="px-4 py-2 rounded-lg bg-red-500/10 text-red-600 hover:bg-red-600/80 hover:text-white transition-all duration-200 flex items-center gap-2 text-sm disabled:opacity-50 disabled:cursor-not-allowed"
+>
                 <i className="fas fa-times text-sm"></i>
                 <span>Don't Publish</span>
               </button>
               <button
                 onClick={() => openArchiveConfirm(selectedFeedback)}
                 disabled={actionLoading[selectedFeedback.id]}
-                className="px-4 py-2 rounded-lg bg-red-500/10 text-red-600 hover:bg-red-600/80 hover:text-white transition-all duration-200 flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
-              >
+className="px-4 py-1.5 rounded-lg bg-[#F59E0B]/10 text-[#C2410C] hover:bg-[#F59E0B]/80 hover:text-white transition-all duration-200 flex items-center gap-2 text-sm disabled:opacity-50 disabled:cursor-not-allowed"
+>
                 <i className="fas fa-archive text-sm"></i>
                 <span>Archive</span>
               </button>

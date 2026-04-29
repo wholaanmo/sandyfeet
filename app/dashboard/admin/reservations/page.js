@@ -1392,17 +1392,17 @@ const handleConfirmReservation = async () => {
               <div className="overflow-x-auto">
                 <table className="w-full min-w-[700px]">
                   <thead>
-                    <tr className="bg-ocean-pale/50 border-b border-ocean-light/20">
-                      <th className="px-3 py-2 text-left text-sm font-semibold text-textPrimary">Booking ID</th>
-                      <th className="px-3 py-2 text-left text-sm font-semibold text-textPrimary">Guest Name</th>
-                      <th className="px-3 py-2 text-left text-sm font-semibold text-textPrimary">Room Type(s)</th>
-                      <th className="px-3 py-2 text-left text-sm font-semibold text-textPrimary">Rooms</th>
-                      <th className="px-3 py-2 text-left text-sm font-semibold text-textPrimary">Check-in</th>
-                      <th className="px-3 py-2 text-left text-sm font-semibold text-textPrimary">Check-out</th>
-                      <th className="px-3 py-2 text-left text-sm font-semibold text-textPrimary min-w-[80px]">Status</th>
-                      <th className="px-3 py-2 text-left text-sm font-semibold text-textPrimary">Actions</th>
-                      <th className="px-3 py-2 text-left text-sm font-semibold text-textPrimary">Booked On</th>
-                    </tr>
+  <tr className="bg-ocean-pale/50 border-b border-ocean-light/20">
+    <th className="px-4 py-3 text-left text-sm font-semibold text-textPrimary">Booking ID</th>
+    <th className="px-4 py-3 text-left text-sm font-semibold text-textPrimary">Guest Name</th>
+    <th className="px-4 py-3 text-left text-sm font-semibold text-textPrimary">Room Type(s)</th>
+    <th className="px-4 py-3 text-left text-sm font-semibold text-textPrimary">Rooms</th>
+    <th className="px-4 py-3 text-left text-sm font-semibold text-textPrimary">Check-in</th>
+    <th className="px-4 py-3 text-left text-sm font-semibold text-textPrimary">Check-out</th>
+    <th className="px-4 py-3 text-left text-sm font-semibold text-textPrimary min-w-[80px]">Status</th>
+    <th className="px-4 py-3 text-left text-sm font-semibold text-textPrimary">Actions</th>
+    <th className="px-4 py-3 text-left text-sm font-semibold text-textPrimary">Booked On</th>
+  </tr>
                   </thead>
                   <tbody>
                     {filteredBookings.length === 0 ? (
@@ -1514,15 +1514,15 @@ const handleConfirmReservation = async () => {
                 <table className="w-full min-w-[650px]">
                   <thead>
                     <tr className="bg-ocean-pale/50 border-b border-ocean-light/20">
-                      <th className="px-3 py-2 text-left text-sm font-semibold text-textPrimary">Booking ID</th>
-                      <th className="px-3 py-2 text-left text-sm font-semibold text-textPrimary">Guest Name</th>
-                      <th className="px-3 py-2 text-left text-sm font-semibold text-textPrimary">Date</th>
-                      <th className="px-3 py-2 text-left text-sm font-semibold text-textPrimary">Senior</th>
-                      <th className="px-3 py-2 text-left text-sm font-semibold text-textPrimary">Adult</th>
-                      <th className="px-3 py-2 text-left text-sm font-semibold text-textPrimary">Kid</th>
-                      <th className="px-3 py-2 text-left text-sm font-semibold text-textPrimary min-w-[80px]">Status</th>
-                      <th className="px-3 py-2 text-left text-sm font-semibold text-textPrimary">Actions</th>
-                      <th className="px-3 py-2 text-left text-sm font-semibold text-textPrimary">Booked On</th>
+                      <th className="px-4 py-3 text-left text-sm font-semibold text-textPrimary">Booking ID</th>
+                      <th className="px-4 py-3 text-left text-sm font-semibold text-textPrimary">Guest Name</th>
+                      <th className="px-4 py-3 text-left text-sm font-semibold text-textPrimary">Date</th>
+                      <th className="px-4 py-3 text-left text-sm font-semibold text-textPrimary">Senior</th>
+                      <th className="px-4 py-3 text-left text-sm font-semibold text-textPrimary">Adult</th>
+                      <th className="px-4 py-3 text-left text-sm font-semibold text-textPrimary">Kid</th>
+                      <th className="px-4 py-3 text-left text-sm font-semibold text-textPrimary min-w-[80px]">Status</th>
+                      <th className="px-4 py-3 text-left text-sm font-semibold text-textPrimary">Actions</th>
+                      <th className="px-4 py-3 text-left text-sm font-semibold text-textPrimary">Booked On</th>
                     </tr>
                   </thead>
                   <tbody>
