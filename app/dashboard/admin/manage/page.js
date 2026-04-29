@@ -13,7 +13,7 @@ export default function CombinedManage() {
       {/* Header Section */}
       <div className="mb-6 rounded-xl border border-[#7AAAF8]/20 bg-[#7AAAF8]/5 px-5 py-4 shadow-sm">
         <h1 className="text-3xl font-bold text-[#1E3A8A] font-playfair tracking-tight">
-          Manage
+          Availability Management
         </h1>
         <p className="text-[#4D6FA8] text-sm leading-relaxed mt-1">
           Manage rooms, day tours, and activities

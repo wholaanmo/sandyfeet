@@ -955,7 +955,7 @@ const handleSubmitBooking = async () => {
                           </h3>
                           {paymentSettings.gcashQRCode ? (
                             <div className="flex flex-col items-center">
-                              <div className="w-32 h-32 sm:w-40 sm:h-40 bg-white rounded-lg flex items-center justify-center border border-ocean-light/20 overflow-hidden shadow-sm">
+                              <div className="w-60 h-60 sm:w-70 sm:h-70 bg-white rounded-lg flex items-center justify-center border border-ocean-light/20 overflow-hidden shadow-sm">
                                 <img
                                   src={paymentSettings.gcashQRCode}
                                   alt="GCash QR Code"
@@ -1082,7 +1082,7 @@ const handleSubmitBooking = async () => {
               <h3 className="text-sm font-semibold text-blue-900">QR Code Payment</h3>
             </div>
             <div className="flex flex-col items-center gap-3">
-              <div className="flex h-32 w-32 items-center justify-center overflow-hidden rounded-lg border border-blue-200 bg-white p-2 shadow-sm">
+              <div className="flex w-60 h-60 sm:w-70 sm:h-70 items-center justify-center overflow-hidden rounded-lg border border-blue-200 bg-white p-2 shadow-sm">
                 <img
                   src={visibleGuestQrBank.qrCodeUrl}
                   alt={`${visibleGuestQrBank.bankName} QR Code`}

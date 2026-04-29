@@ -29,6 +29,7 @@ export default function AdminDayTour({ defaultTab = 'tours', hideTabs = false })
   const tabsContainerRef = useRef(null);
   const sliderRef = useRef(null);
   const buttonRefs = useRef({});
+  const [viewImageIndex, setViewImageIndex] = useState(0);
   const [showInclusionDropdown, setShowInclusionDropdown] = useState(false);
   const inclusionOptions = [
     'Access to Pool',
@@ -809,7 +810,12 @@ export default function AdminDayTour({ defaultTab = 'tours', hideTabs = false })
         <div>
           {loading ? (
             <div className="flex justify-center items-center h-64">
-              <i className="fas fa-spinner fa-spin text-3xl text-ocean-light"></i>
+              <div className="relative">
+                <div className="w-12 h-12 rounded-full border-4 border-[#4D8CF5]/20 border-t-[#4D8CF5] animate-spin"></div>
+                <div className="absolute inset-0 flex items-center justify-center">
+                  <i className="fas fa-sun text-xs text-[#4D8CF5] animate-pulse"></i>
+                </div>
+              </div>
             </div>
           ) : !dayTour ? (
             /* No Day Tour Created - Show Creation Card */
@@ -832,26 +838,24 @@ export default function AdminDayTour({ defaultTab = 'tours', hideTabs = false })
             </div>
           ) : (
             /* Day Tour Exists - Show Management Card */
-            <div className="max-w-4xl mx-auto">
-              <div className="bg-white rounded-2xl shadow-md border border-ocean-light/10 overflow-hidden">
-                <div className="flex justify-between items-start p-6 border-b border-[#4D8CF5]/20 bg-[#4D8CF5]/10">
-                  <div>
-                    <div className="flex items-center gap-3 mb-2">
-                      <h2 className="text-xl font-bold text-[#1E3A8A] font-playfair">Day Tour</h2>
-                      <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${getAvailabilityStyle(dayTour.availability)}`}>
+            <div className="max-w-4xl mx-auto mb-12">
+              <div className="bg-white rounded-[2.5rem] shadow-xl shadow-[#4D8CF5]/5 border border-[#4D8CF5]/10 overflow-hidden">
+                {/* Header */}
+                <div className="p-8 border-b border-gray-50 flex justify-between items-center bg-gradient-to-br from-white to-[#4D8CF5]/5">
+                  <div className="flex items-center gap-5">
+                    <div className="w-16 h-16 rounded-[1.5rem] bg-white shadow-sm flex items-center justify-center border border-[#4D8CF5]/20">
+                      <i className="fas fa-umbrella-beach text-3xl text-[#4D8CF5]"></i>
+                    </div>
+                    <div>
+                      <h2 className="text-2xl font-bold text-[#1E3A8A] font-playfair mb-1.5">Day Tour Package</h2>
+                      <span className={`inline-flex px-3 py-1 rounded-full text-[10px] font-bold uppercase tracking-widest ${getAvailabilityStyle(dayTour.availability)}`}>
                         {getAvailabilityLabel(dayTour.availability)}
                       </span>
                     </div>
-                    {dayTour.maxCapacity && (
-                      <p className="text-[#1E3A8A]/70 text-xs flex items-center gap-1">
-                        <i className="fas fa-users text-[#1E3A8A]/60 text-xs"></i>
-                        Maximum Capacity: {dayTour.maxCapacity} guests
-                      </p>
-                    )}
                   </div>
-                  <div className="flex gap-2">
-                    <button onClick={() => { setSelectedTour(dayTour); setShowTourDetailsModal(true); }} className="p-1.5 rounded-lg bg-[#4D8CF5]/10 text-[#1E3A8A] border border-[#4D8CF5]/20 hover:bg-[#4D8CF5] hover:text-white transition-all duration-200" title="View Details">
-                      <i className="fas fa-eye text-sm"></i>
+                  <div className="flex gap-2.5">
+                    <button onClick={() => { setSelectedTour(dayTour); setViewImageIndex(0); setShowTourDetailsModal(true); }} className="w-12 h-12 rounded-2xl bg-white border border-[#4D8CF5]/20 text-[#4D8CF5] hover:bg-[#4D8CF5] hover:text-white hover:border-[#4D8CF5] transition-all shadow-sm flex items-center justify-center" title="View Details">
+                      <i className="fas fa-eye"></i>
                     </button>
                     <button onClick={() => handleEditTour(dayTour)} className="p-1.5 rounded-lg bg-[#93C5FD]/10 text-[#1E3A8A] border border-[#93C5FD]/15 hover:bg-[#4D8CF5] hover:text-white transition-all duration-200" title="Edit Tour">
                       <i className="fas fa-edit text-sm"></i>
@@ -861,59 +865,79 @@ export default function AdminDayTour({ defaultTab = 'tours', hideTabs = false })
                     </button>
                   </div>
                 </div>
-                <div className="p-5">
-                  <div className="mb-4">
-                    <h3 className="text-base font-semibold text-textPrimary mb-2 flex items-center gap-1">
-                      <i className="fas fa-tag text-ocean-light text-sm"></i> Pricing (per person)
-                    </h3>
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                      <div className="bg-ocean-ice/30 rounded-lg p-2 text-center">
-                        <p className="text-xs text-textSecondary mb-0.5">Adult (16+)</p>
-                        <p className="text-lg font-bold text-ocean-mid">₱{dayTour.adultPrice?.toLocaleString()}</p>
-                      </div>
-                      <div className="bg-ocean-ice/30 rounded-lg p-2 text-center">
-                        <p className="text-xs text-textSecondary mb-0.5">Kid (15-)</p>
-                        <p className="text-lg font-bold text-ocean-mid">₱{dayTour.kidPrice?.toLocaleString()}</p>
+                
+                <div className="p-8">
+                  {/* Quick Stats Grid */}
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-10">
+                    <div className="p-6 rounded-[2rem] bg-gray-50 border border-gray-100 flex flex-col items-center text-center group hover:bg-white hover:shadow-lg hover:shadow-gray-100 transition-all">
+                      <span className="text-[10px] font-bold text-[#1E3A8A]/40 uppercase tracking-[0.2em] mb-3">Adult (16+)</span>
+                      <p className="text-2xl font-black text-[#4D8CF5]">₱{dayTour.adultPrice?.toLocaleString()}</p>
+                    </div>
+                    <div className="p-6 rounded-[2rem] bg-gray-50 border border-gray-100 flex flex-col items-center text-center group hover:bg-white hover:shadow-lg hover:shadow-gray-100 transition-all">
+                      <span className="text-[10px] font-bold text-[#1E3A8A]/40 uppercase tracking-[0.2em] mb-3">Kid (15-)</span>
+                      <p className="text-2xl font-black text-[#4D8CF5]">₱{dayTour.kidPrice?.toLocaleString()}</p>
+                    </div>
+                    <div className="p-6 rounded-[2rem] bg-gray-50 border border-gray-100 flex flex-col items-center text-center group hover:bg-white hover:shadow-lg hover:shadow-gray-100 transition-all">
+                      <span className="text-[10px] font-bold text-[#1E3A8A]/40 uppercase tracking-[0.2em] mb-3">Max Capacity</span>
+                      <div className="flex items-center gap-2">
+                        <i className="fas fa-users text-[#1E3A8A]/30 text-xs"></i>
+                        <p className="text-xl font-bold text-[#1E3A8A]">{dayTour.maxCapacity || 'Unlimited'}</p>
                       </div>
                     </div>
                   </div>
-                  {dayTour.inclusions && dayTour.inclusions.length > 0 && (
-                    <div className="mb-4">
-                      <h3 className="text-base font-semibold text-textPrimary mb-2 flex items-center gap-1">
-                        <i className="fas fa-gift text-ocean-light text-sm"></i> Inclusions
-                      </h3>
-                      <div className="flex flex-wrap gap-1.5">
-                        {dayTour.inclusions.map((inclusion, idx) => (
-                          <span key={idx} className="px-2 py-1 bg-ocean-ice text-ocean-mid rounded-full text-xs">{inclusion}</span>
-                        ))}
+
+                  {/* Details Sections */}
+                  <div className="space-y-10">
+                    {dayTour.inclusions && dayTour.inclusions.length > 0 && (
+                      <div>
+                        <h3 className="text-xs font-bold text-[#1E3A8A]/40 uppercase tracking-[0.2em] mb-5 flex items-center gap-3">
+                          <div className="w-1.5 h-1.5 rounded-full bg-[#4D8CF5]"></div>
+                          Package Inclusions
+                        </h3>
+                        <div className="flex flex-wrap gap-2.5">
+                          {dayTour.inclusions.map((inclusion, idx) => (
+                            <span key={idx} className="px-4 py-2 bg-white border border-gray-100 text-[#1E3A8A] rounded-[1.25rem] text-sm font-medium shadow-sm hover:shadow-md hover:border-[#4D8CF5]/20 transition-all cursor-default">
+                              {inclusion}
+                            </span>
+                          ))}
+                        </div>
                       </div>
-                    </div>
-                  )}
-                  <div className="mb-4">
-                    <h3 className="text-base font-semibold text-textPrimary mb-2 flex items-center gap-1">
-                      <i className="fas fa-align-left text-ocean-light text-sm"></i> Description
-                    </h3>
-                    <p className="text-textSecondary text-sm leading-relaxed whitespace-pre-wrap">{dayTour.description}</p>
-                  </div>
-                  {dayTour.images && dayTour.images.length > 0 && (
+                    )}
+
                     <div>
-                      <h3 className="text-base font-semibold text-textPrimary mb-2 flex items-center gap-1">
-                        <i className="fas fa-image text-ocean-light text-sm"></i> Tour Images ({dayTour.images.length})
+                      <h3 className="text-xs font-bold text-[#1E3A8A]/40 uppercase tracking-[0.2em] mb-5 flex items-center gap-3">
+                        <div className="w-1.5 h-1.5 rounded-full bg-[#4D8CF5]"></div>
+                        About this Package
                       </h3>
-                      <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
-                        {dayTour.images.slice(0, 4).map((img, idx) => (
-                          <div key={idx} className="relative aspect-video rounded-lg overflow-hidden border border-ocean-light/20">
-                            <Image src={img} alt={`Tour image ${idx + 1}`} fill className="object-cover" />
-                          </div>
-                        ))}
-                        {dayTour.images.length > 4 && (
-                          <div className="relative aspect-video rounded-lg bg-ocean-ice flex items-center justify-center">
-                            <span className="text-ocean-mid text-sm font-medium">+{dayTour.images.length - 4} more</span>
-                          </div>
-                        )}
-                      </div>
+                      <p className="text-[#1E3A8A]/70 text-sm leading-relaxed max-w-3xl whitespace-pre-wrap px-1">
+                        {dayTour.description}
+                      </p>
                     </div>
-                  )}
+
+                    {dayTour.images && dayTour.images.length > 0 && (
+                      <div>
+                        <div className="flex justify-between items-center mb-5">
+                          <h3 className="text-xs font-bold text-[#1E3A8A]/40 uppercase tracking-[0.2em] flex items-center gap-3">
+                            <div className="w-1.5 h-1.5 rounded-full bg-[#4D8CF5]"></div>
+                            Gallery Preview
+                          </h3>
+                          <span className="text-[10px] font-bold text-[#4D8CF5] bg-[#4D8CF5]/10 px-2 py-0.5 rounded-full">{dayTour.images.length} Photos</span>
+                        </div>
+                        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                          {dayTour.images.slice(0, 4).map((img, idx) => (
+                            <div key={idx} className="relative aspect-[4/3] rounded-[1.5rem] overflow-hidden border border-gray-100 shadow-sm group cursor-pointer">
+                              <Image src={img} alt={`Tour image ${idx + 1}`} fill className="object-cover transition-transform duration-700 group-hover:scale-110" />
+                              {idx === 3 && dayTour.images.length > 4 && (
+                                <div className="absolute inset-0 bg-[#1E3A8A]/40 flex items-center justify-center backdrop-blur-[2px]">
+                                  <span className="text-white font-black text-xl">+{dayTour.images.length - 4}</span>
+                                </div>
+                              )}
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+                  </div>
                 </div>
               </div>
             </div>
@@ -930,7 +954,7 @@ export default function AdminDayTour({ defaultTab = 'tours', hideTabs = false })
           </div>
           {loading ? (
             <div className="flex justify-center items-center h-64">
-              <i className="fas fa-spinner fa-spin text-3xl text-ocean-light"></i>
+              <div className="w-12 h-12 rounded-full border-4 border-[#4D8CF5]/20 border-t-[#4D8CF5] animate-spin"></div>
             </div>
           ) : activities.length === 0 ? (
             <div className="bg-white rounded-2xl shadow-md border border-ocean-light/10 p-12 text-center">
@@ -942,33 +966,34 @@ export default function AdminDayTour({ defaultTab = 'tours', hideTabs = false })
               </button>
             </div>
           ) : (
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8 max-w-7xl mx-auto px-4 pb-12">
               {activities.map((activity) => (
-                <div key={activity.id} className="bg-white rounded-2xl shadow-md border-2 border-[#4D8CF5]/40 overflow-hidden hover:shadow-lg transition-all duration-300">
-                  <div className="relative h-48 bg-gradient-to-br from-ocean-pale to-ocean-ice overflow-hidden">
+                <div key={activity.id} className="group bg-white rounded-[2.5rem] shadow-xl shadow-gray-100/50 border border-gray-100 overflow-hidden hover:shadow-2xl hover:shadow-[#4D8CF5]/10 hover:-translate-y-1.5 transition-all duration-500">
+                  <div className="relative h-60 bg-gray-50 overflow-hidden">
                     {activity.images && activity.images[0] ? (
-                      <Image src={activity.images[0]} alt={activity.name} fill className="object-cover" />
+                      <Image src={activity.images[0]} alt={activity.name} fill className="object-cover transition-transform duration-1000 group-hover:scale-110" />
                     ) : (
-                      <div className="flex items-center justify-center h-full">
-                        <i className="fas fa-bicycle text-5xl text-ocean-light/30"></i>
+                      <div className="flex items-center justify-center h-full opacity-20">
+                        <i className="fas fa-bicycle text-6xl text-[#4D8CF5]"></i>
                       </div>
                     )}
-                  </div>
-                  <div className="p-5">
-                    <h3 className="text-lg font-bold text-[#1E3A8A] mb-2">{activity.name}</h3>
-                    <p className="text-2xl font-bold text-[#4D8CF5] mb-2">
-                      ₱{activity.priceValue?.toLocaleString()}
-                      <span className="text-sm font-normal text-[#1E3A8A]/70">
-                        {activity.priceType === 'perHour' && '/hour'}
-                        {activity.priceType === 'per30Mins' && '/30 minutes'}
-                        {activity.priceType === 'per2Hrs' && '/2 hours'}
-                        {activity.priceType === 'per1Hr30Mins' && '/1.5 hours'}
+                    <div className="absolute top-5 right-5 px-4 py-2.5 bg-white/90 backdrop-blur-md rounded-2xl shadow-sm border border-white/50">
+                      <span className="text-xl font-black text-[#4D8CF5]">₱{activity.priceValue?.toLocaleString()}</span>
+                      <span className="text-[10px] font-bold text-[#1E3A8A]/40 uppercase ml-1 tracking-widest">
+                        {activity.priceType === 'perHour' && '/ hr'}
+                        {activity.priceType === 'per30Mins' && '/ 30m'}
+                        {activity.priceType === 'per2Hrs' && '/ 2h'}
+                        {activity.priceType === 'per1Hr30Mins' && '/ 1.5h'}
                       </span>
-                    </p>
-                    <p className="text-sm text-[#1E3A8A]/70 line-clamp-2 mb-4">{activity.description}</p>
-                    <div className="flex gap-2">
-                      <button onClick={() => { setSelectedActivity(activity); setShowActivityDetailsModal(true); }} className="w-10 h-10 ml-auto rounded-lg bg-[#4D8CF5]/10 text-[#1E3A8A] border border-[#4D8CF5]/20 hover:bg-[#4D8CF5] hover:text-white transition-all duration-200 flex items-center justify-center">
-                        <i className="fas fa-eye"></i>
+                    </div>
+                  </div>
+                  <div className="p-8">
+                    <h3 className="text-xl font-bold text-[#1E3A8A] mb-3 group-hover:text-[#4D8CF5] transition-colors">{activity.name}</h3>
+                    <p className="text-sm text-[#1E3A8A]/60 line-clamp-3 mb-8 leading-relaxed h-[3.75rem]">{activity.description}</p>
+                    <div className="flex gap-2 pt-2">
+                      <button onClick={() => { setSelectedActivity(activity); setViewImageIndex(0); setShowActivityDetailsModal(true); }} className="flex-1 py-3.5 rounded-2xl bg-gray-50 text-[#1E3A8A]/60 font-bold hover:bg-[#4D8CF5]/10 hover:text-[#4D8CF5] transition-all border border-gray-100 hover:border-[#4D8CF5]/20 flex items-center justify-center gap-2">
+                        <i className="fas fa-eye text-sm"></i>
+                        <span className="text-xs">View</span>
                       </button>
                       <button onClick={() => handleEditActivity(activity)} className="px-3 py-2 rounded-lg bg-[#93C5FD]/10 text-[#1E3A8A] border border-[#93C5FD]/15 hover:bg-[#4D8CF5] hover:text-white transition-all duration-200">
                         <i className="fas fa-edit"></i>
@@ -1005,7 +1030,7 @@ export default function AdminDayTour({ defaultTab = 'tours', hideTabs = false })
                   activeTab === 'tours' ? 'text-[#1E3A8A]' : 'text-[#1E3A8A]/60 hover:text-[#4D8CF5]'
                 }`}>
                 <i className="fas fa-sun"></i> Day Tour
-              </button>
+          </button>
             </div>
             <div className="flex-1 flex justify-center">
               <button onClick={() => setActiveTab('activities')} ref={el => buttonRefs.current['activities'] = el}
@@ -1013,8 +1038,8 @@ export default function AdminDayTour({ defaultTab = 'tours', hideTabs = false })
                   activeTab === 'activities' ? 'text-[#1E3A8A]' : 'text-[#1E3A8A]/60 hover:text-[#4D8CF5]'
                 }`}>
                 <i className="fas fa-bicycle"></i> Activities
-              </button>
-            </div>
+          </button>
+        </div>
           </div>
         </div>
       )}
@@ -1037,51 +1062,133 @@ export default function AdminDayTour({ defaultTab = 'tours', hideTabs = false })
           setShowTourDetailsModal(false);
           setSelectedTour(null);
         }}>
-          <div className="bg-white rounded-2xl w-full max-w-4xl max-h-[90vh] overflow-auto p-6 shadow-2xl" onClick={(e) => e.stopPropagation()}>
+          <div className="bg-white rounded-2xl w-full max-w-2xl max-h-[90vh] overflow-auto p-6 shadow-2xl" onClick={(e) => e.stopPropagation()}>
             <div className="flex justify-between items-center mb-5">
-              <h2 className="text-2xl font-bold text-textPrimary font-playfair">Day Tour Details</h2>
+              <h2 className="text-xl font-bold text-textPrimary font-playfair flex items-center gap-2">
+                <i className="fas fa-umbrella-beach text-[#4D8CF5]"></i>
+                Day Tour Details
+              </h2>
               <button onClick={() => { setShowTourDetailsModal(false); setSelectedTour(null); }} className="w-8 h-8 rounded-full bg-ocean-ice hover:bg-ocean-light/20 text-neutral hover:text-textPrimary transition-all duration-200 flex items-center justify-center">
                 <i className="fas fa-times"></i>
               </button>
             </div>
+
+            {/* Images Slider */}
             {selectedTour.images && selectedTour.images.length > 0 && (
-              <div className="mb-6"><ImageSlider images={selectedTour.images} roomType="Day Tour" /></div>
+              <div className="mb-6">
+                <div className="relative group overflow-hidden rounded-xl bg-ocean-pale/10 aspect-[16/9]">
+                  <Image
+                    src={selectedTour.images[viewImageIndex]}
+                    alt="Day Tour"
+                    fill
+                    className="object-contain transition-all duration-500"
+                  />
+                  
+                  {selectedTour.images.length > 1 && (
+                    <>
+                      <button 
+                        onClick={() => setViewImageIndex((prev) => (prev === 0 ? selectedTour.images.length - 1 : prev - 1))}
+                        className="absolute left-3 top-1/2 -translate-y-1/2 w-9 h-9 flex items-center justify-center rounded-full bg-white/80 hover:bg-white text-[#1E3A8A] shadow-md transition-all opacity-0 group-hover:opacity-100 z-10"
+                      >
+                        <i className="fas fa-chevron-left text-sm"></i>
+                      </button>
+                      <button 
+                        onClick={() => setViewImageIndex((prev) => (prev === selectedTour.images.length - 1 ? 0 : prev + 1))}
+                        className="absolute right-3 top-1/2 -translate-y-1/2 w-9 h-9 flex items-center justify-center rounded-full bg-white/80 hover:bg-white text-[#1E3A8A] shadow-md transition-all opacity-0 group-hover:opacity-100 z-10"
+                      >
+                        <i className="fas fa-chevron-right text-sm"></i>
+                      </button>
+                      
+                      <div className="absolute bottom-4 left-1/2 -translate-x-1/2 flex gap-1.5 z-10">
+                        {selectedTour.images.map((_, idx) => (
+                          <div 
+                            key={idx} 
+                            onClick={() => setViewImageIndex(idx)}
+                            className={`w-1.5 h-1.5 rounded-full cursor-pointer transition-all ${idx === viewImageIndex ? 'bg-[#4D8CF5] w-4' : 'bg-white/60 hover:bg-white'}`} 
+                          />
+                        ))}
+                      </div>
+                    </>
+                  )}
+                </div>
+                
+                {selectedTour.images.length > 1 && (
+                  <div className="flex gap-2 mt-3 overflow-x-auto pb-2 scrollbar-hide">
+                    {selectedTour.images.map((img, idx) => (
+                      <div 
+                        key={idx} 
+                        onClick={() => setViewImageIndex(idx)}
+                        className={`relative flex-shrink-0 w-14 h-14 rounded-lg overflow-hidden cursor-pointer border-2 transition-all ${idx === viewImageIndex ? 'border-[#4D8CF5]' : 'border-transparent hover:border-[#4D8CF5]/50'}`}
+                      >
+                        <Image
+                          src={img}
+                          alt={`Thumbnail ${idx + 1}`}
+                          fill
+                          className="object-cover"
+                        />
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
             )}
-            <div className="grid grid-cols-2 gap-6">
-              <div>
-                <label className="block text-xs font-semibold text-neutral uppercase tracking-wide mb-1">Adult Price (16+)</label>
-                <p className="text-2xl font-bold text-ocean-mid">₱{selectedTour.adultPrice?.toLocaleString()}<span className="text-sm font-normal text-textSecondary">/person</span></p>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-x-8 gap-y-5 bg-[#4D8CF5]/5 rounded-2xl p-6 border border-[#4D8CF5]/10 mb-6">
+              <div className="col-span-1 md:col-span-2 pb-2 border-b border-[#4D8CF5]/10 flex justify-between items-center">
+                <h3 className="font-bold text-[#1E3A8A]">Pricing Details</h3>
+                <span className={`px-3 py-1 rounded-full text-[11px] font-bold uppercase tracking-wider ${getAvailabilityStyle(selectedTour.availability)}`}>
+                  {getAvailabilityLabel(selectedTour.availability)}
+                </span>
               </div>
+
               <div>
-                <label className="block text-xs font-semibold text-neutral uppercase tracking-wide mb-1">Kid Price (15-)</label>
-                <p className="text-2xl font-bold text-ocean-mid">₱{selectedTour.kidPrice?.toLocaleString()}<span className="text-sm font-normal text-textSecondary">/person</span></p>
+                <label className="block text-[10px] font-bold text-[#1E3A8A]/50 uppercase tracking-widest mb-1">Adult Price (16+)</label>
+                <p className="text-xl font-bold text-[#4D8CF5]">₱{selectedTour.adultPrice?.toLocaleString()}<span className="text-xs font-normal text-textSecondary ml-1">/ person</span></p>
               </div>
+
               <div>
-                <label className="block text-xs font-semibold text-neutral uppercase tracking-wide mb-1">Max Capacity</label>
-                <p className="text-textPrimary flex items-center gap-2"><i className="fas fa-users text-ocean-light"></i>{selectedTour.maxCapacity ? `${selectedTour.maxCapacity} Guests` : 'Unlimited'}</p>
+                <label className="block text-[10px] font-bold text-[#1E3A8A]/50 uppercase tracking-widest mb-1">Kid Price (15-)</label>
+                <p className="text-xl font-bold text-[#4D8CF5]">₱{selectedTour.kidPrice?.toLocaleString()}<span className="text-xs font-normal text-textSecondary ml-1">/ person</span></p>
               </div>
-              <div>
-                <label className="block text-xs font-semibold text-neutral uppercase tracking-wide mb-1">Status</label>
-                <span className={`inline-block px-3 py-1 rounded-full text-sm font-medium ${getAvailabilityStyle(selectedTour.availability)}`}>{getAvailabilityLabel(selectedTour.availability)}</span>
-              </div>
-              <div className="col-span-2">
-                <label className="block text-xs font-semibold text-neutral uppercase tracking-wide mb-1">Inclusions</label>
-                <div className="flex flex-wrap gap-2">
-                  {selectedTour.inclusions && selectedTour.inclusions.length > 0 ? (
-                    selectedTour.inclusions.map((inclusion, idx) => (
-                      <span key={idx} className="px-3 py-1 bg-ocean-ice text-ocean-mid rounded-full text-sm">{inclusion}</span>
-                    ))
-                  ) : (<p className="text-textSecondary">No inclusions listed</p>)}
+
+              <div className="grid grid-cols-2 gap-4 col-span-1 md:col-span-2">
+                <div>
+                  <label className="block text-[10px] font-bold text-[#1E3A8A]/50 uppercase tracking-widest mb-1">Information</label>
+                  <div className="space-y-1">
+                    <p className="text-xs text-textSecondary flex items-center justify-between">
+                      <span>Max Capacity:</span>
+                      <span className="font-bold text-[#1E3A8A]">{selectedTour.maxCapacity || 'Unlimited'} Guests</span>
+                    </p>
+                  </div>
+                </div>
+
+                <div>
+                  <label className="block text-[10px] font-bold text-[#1E3A8A]/50 uppercase tracking-widest mb-1">Description</label>
+                  <p className="text-xs text-textSecondary leading-relaxed line-clamp-3">
+                    {selectedTour.description}
+                  </p>
                 </div>
               </div>
-              <div className="col-span-2">
-                <label className="block text-xs font-semibold text-neutral uppercase tracking-wide mb-1">Description</label>
-                <p className="text-textSecondary leading-relaxed whitespace-pre-wrap">{selectedTour.description}</p>
+            </div>
+
+            <div className="mb-6">
+              <label className="block text-[10px] font-bold text-[#1E3A8A]/50 uppercase tracking-widest mb-2 px-1">Tour Inclusions</label>
+              <div className="flex flex-wrap gap-2">
+                {selectedTour.inclusions && selectedTour.inclusions.length > 0 ? (
+                  selectedTour.inclusions.map((inclusion, idx) => (
+                    <span key={idx} className="px-3 py-1.5 bg-white border border-[#4D8CF5]/20 text-[#1E3A8A] rounded-xl text-xs font-medium shadow-sm">
+                      {inclusion}
+                    </span>
+                  ))
+                ) : (
+                  <p className="text-xs text-textSecondary px-1 italic">No inclusions listed</p>
+                )}
               </div>
             </div>
-            <div className="flex gap-3 justify-end mt-6 pt-4 border-t border-ocean-light/10">
+
+            <div className="flex gap-3 justify-end pt-4 border-t border-ocean-light/10">
               <button onClick={() => { setShowTourDetailsModal(false); setSelectedTour(null); }} className="px-5 py-2.5 border border-ocean-light/20 rounded-xl text-textSecondary text-sm font-medium hover:bg-ocean-ice transition-all duration-300">Close</button>
-              <button onClick={() => { setShowTourDetailsModal(false); handleEditTour(selectedTour); }} className="px-5 py-2.5 bg-gradient-to-r from-ocean-mid to-ocean-light rounded-xl text-white text-sm font-medium hover:shadow-lg hover:-translate-y-0.5 transition-all duration-300"><i className="fas fa-edit mr-2"></i>Edit Tour</button>
+              <button onClick={() => { setShowTourDetailsModal(false); handleEditTour(selectedTour); }} className="px-5 py-2.5 bg-[#4D8CF5] rounded-xl text-white text-sm font-medium hover:bg-[#3B78E7] shadow-sm hover:shadow-md transition-all duration-300"><i className="fas fa-edit mr-2"></i>Edit Tour</button>
             </div>
           </div>
         </div>
@@ -1093,38 +1200,111 @@ export default function AdminDayTour({ defaultTab = 'tours', hideTabs = false })
           setShowActivityDetailsModal(false);
           setSelectedActivity(null);
         }}>
-          <div className="bg-white rounded-2xl w-full max-w-4xl max-h-[90vh] overflow-auto p-6 shadow-2xl" onClick={(e) => e.stopPropagation()}>
+          <div className="bg-white rounded-2xl w-full max-w-2xl max-h-[90vh] overflow-auto p-6 shadow-2xl" onClick={(e) => e.stopPropagation()}>
             <div className="flex justify-between items-center mb-5">
-              <h2 className="text-2xl font-bold text-textPrimary font-playfair">{selectedActivity.name}</h2>
+              <h2 className="text-xl font-bold text-textPrimary font-playfair flex items-center gap-2">
+                <i className="fas fa-bicycle text-[#4D8CF5]"></i>
+                Activity Details
+              </h2>
               <button onClick={() => { setShowActivityDetailsModal(false); setSelectedActivity(null); }} className="w-8 h-8 rounded-full bg-ocean-ice hover:bg-ocean-light/20 text-neutral hover:text-textPrimary transition-all duration-200 flex items-center justify-center">
                 <i className="fas fa-times"></i>
               </button>
             </div>
+
+            {/* Images Slider */}
             {selectedActivity.images && selectedActivity.images.length > 0 && (
-              <div className="mb-6"><ImageSlider images={selectedActivity.images} roomType={selectedActivity.name} /></div>
-            )}
-            <div className="grid grid-cols-2 gap-6">
-              <div>
-                <label className="block text-xs font-semibold text-neutral uppercase tracking-wide mb-1">Activity Name</label>
-                <p className="text-lg font-semibold text-textPrimary">{selectedActivity.name}</p>
+              <div className="mb-6">
+                <div className="relative group overflow-hidden rounded-xl bg-ocean-pale/10 aspect-[16/9]">
+                  <Image
+                    src={selectedActivity.images[viewImageIndex]}
+                    alt={selectedActivity.name}
+                    fill
+                    className="object-contain transition-all duration-500"
+                  />
+                  
+                  {selectedActivity.images.length > 1 && (
+                    <>
+                      <button 
+                        onClick={() => setViewImageIndex((prev) => (prev === 0 ? selectedActivity.images.length - 1 : prev - 1))}
+                        className="absolute left-3 top-1/2 -translate-y-1/2 w-9 h-9 flex items-center justify-center rounded-full bg-white/80 hover:bg-white text-[#1E3A8A] shadow-md transition-all opacity-0 group-hover:opacity-100 z-10"
+                      >
+                        <i className="fas fa-chevron-left text-sm"></i>
+                      </button>
+                      <button 
+                        onClick={() => setViewImageIndex((prev) => (prev === selectedActivity.images.length - 1 ? 0 : prev + 1))}
+                        className="absolute right-3 top-1/2 -translate-y-1/2 w-9 h-9 flex items-center justify-center rounded-full bg-white/80 hover:bg-white text-[#1E3A8A] shadow-md transition-all opacity-0 group-hover:opacity-100 z-10"
+                      >
+                        <i className="fas fa-chevron-right text-sm"></i>
+                      </button>
+                      
+                      <div className="absolute bottom-4 left-1/2 -translate-x-1/2 flex gap-1.5 z-10">
+                        {selectedActivity.images.map((_, idx) => (
+                          <div 
+                            key={idx} 
+                            onClick={() => setViewImageIndex(idx)}
+                            className={`w-1.5 h-1.5 rounded-full cursor-pointer transition-all ${idx === viewImageIndex ? 'bg-[#4D8CF5] w-4' : 'bg-white/60 hover:bg-white'}`} 
+                          />
+                        ))}
+                      </div>
+                    </>
+                  )}
+                </div>
+                
+                {selectedActivity.images.length > 1 && (
+                  <div className="flex gap-2 mt-3 overflow-x-auto pb-2 scrollbar-hide">
+                    {selectedActivity.images.map((img, idx) => (
+                      <div 
+                        key={idx} 
+                        onClick={() => setViewImageIndex(idx)}
+                        className={`relative flex-shrink-0 w-14 h-14 rounded-lg overflow-hidden cursor-pointer border-2 transition-all ${idx === viewImageIndex ? 'border-[#4D8CF5]' : 'border-transparent hover:border-[#4D8CF5]/50'}`}
+                      >
+                        <Image
+                          src={img}
+                          alt={`Thumbnail ${idx + 1}`}
+                          fill
+                          className="object-cover"
+                        />
+                      </div>
+                    ))}
+                  </div>
+                )}
               </div>
+            )}
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-x-8 gap-y-5 bg-[#4D8CF5]/5 rounded-2xl p-6 border border-[#4D8CF5]/10 mb-6">
+              <div className="col-span-1 md:col-span-2 pb-2 border-b border-[#4D8CF5]/10">
+                <h3 className="font-bold text-[#1E3A8A]">{selectedActivity.name}</h3>
+              </div>
+
               <div>
-                <label className="block text-xs font-semibold text-neutral uppercase tracking-wide mb-1">Price</label>
-                <p className="text-2xl font-bold text-ocean-mid">₱{selectedActivity.priceValue?.toLocaleString()}<span className="text-sm font-normal text-textSecondary">
-                  {selectedActivity.priceType === 'perHour' && '/hour'}
-                  {selectedActivity.priceType === 'per30Mins' && '/30 minutes'}
-                  {selectedActivity.priceType === 'per2Hrs' && '/2 hours'}
-                  {selectedActivity.priceType === 'per1Hr30Mins' && '/1.5 hours'}
+                <label className="block text-[10px] font-bold text-[#1E3A8A]/50 uppercase tracking-widest mb-1">Pricing</label>
+                <p className="text-xl font-bold text-[#4D8CF5]">₱{selectedActivity.priceValue?.toLocaleString()}<span className="text-xs font-normal text-textSecondary ml-1">
+                  {selectedActivity.priceType === 'perHour' && '/ hour'}
+                  {selectedActivity.priceType === 'per30Mins' && '/ 30 mins'}
+                  {selectedActivity.priceType === 'per2Hrs' && '/ 2 hours'}
+                  {selectedActivity.priceType === 'per1Hr30Mins' && '/ 1.5 hours'}
                 </span></p>
               </div>
-              <div className="col-span-2">
-                <label className="block text-xs font-semibold text-neutral uppercase tracking-wide mb-1">Description</label>
-                <p className="text-textSecondary leading-relaxed whitespace-pre-wrap">{selectedActivity.description}</p>
+
+              <div>
+                <label className="block text-[10px] font-bold text-[#1E3A8A]/50 uppercase tracking-widest mb-1">Activity Type</label>
+                <p className="text-sm font-semibold text-[#1E3A8A] flex items-center gap-2">
+                  <i className="fas fa-tag text-[#4D8CF5]/60"></i>
+                  {selectedActivity.priceType.replace('per', 'Per ')}
+                </p>
+              </div>
+
+              <div className="col-span-1 md:col-span-2">
+                <label className="block text-[10px] font-bold text-[#1E3A8A]/50 uppercase tracking-widest mb-1">Description</label>
+                <p className="text-xs text-textSecondary leading-relaxed whitespace-pre-wrap">
+                  {selectedActivity.description}
+                </p>
               </div>
             </div>
-            <div className="flex gap-3 justify-end mt-6 pt-4 border-t border-ocean-light/10">
+
+            <div className="flex gap-3 justify-end pt-4 border-t border-ocean-light/10">
               <button onClick={() => { setShowActivityDetailsModal(false); setSelectedActivity(null); }} className="px-5 py-2.5 border border-ocean-light/20 rounded-xl text-textSecondary text-sm font-medium hover:bg-ocean-ice transition-all duration-300">Close</button>
-              <button onClick={() => { setShowActivityDetailsModal(false); handleEditActivity(selectedActivity); }} className="px-5 py-2.5 bg-gradient-to-r from-ocean-mid to-ocean-light rounded-xl text-white text-sm font-medium hover:shadow-lg hover:-translate-y-0.5 transition-all duration-300"><i className="fas fa-edit mr-2"></i>Edit Activity</button>
+              <button onClick={() => { setShowActivityDetailsModal(false); handleEditActivity(selectedActivity); }} className="px-5 py-2.5 bg-[#4D8CF5] rounded-xl text-white text-sm font-medium hover:bg-[#3B78E7] shadow-sm hover:shadow-md transition-all duration-300"><i className="fas fa-edit mr-2"></i>Edit Activity</button>
             </div>
           </div>
         </div>
@@ -1132,105 +1312,125 @@ export default function AdminDayTour({ defaultTab = 'tours', hideTabs = false })
       
       {/* Add/Edit Tour Modal */}
       {showTourModal && (
-        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4" onClick={() => { if (!actionLoading) { setShowTourModal(false); setSelectedTour(null); setOriginalTourData(null); } }}>
-          <div className="bg-white rounded-2xl w-full max-w-2xl max-h-[90vh] overflow-auto p-6 shadow-2xl" onClick={(e) => e.stopPropagation()}>
+        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4" onClick={() => { if (!actionLoading) { setShowTourModal(false); setSelectedTour(null); setOriginalTourData(null); setShowInclusionDropdown(false); } }}>
+          <div className="bg-white rounded-2xl w-full max-w-lg max-h-[90vh] overflow-auto p-6 shadow-2xl" onClick={(e) => e.stopPropagation()}>
             <div className="flex justify-between items-center mb-5">
-              <h2 className="text-xl font-bold text-textPrimary font-playfair">{tourModalType === 'add' ? 'Create Day Tour' : 'Edit Day Tour'}</h2>
-              <button onClick={() => { setShowTourModal(false); setSelectedTour(null); setOriginalTourData(null); }} className="w-8 h-8 rounded-full bg-ocean-ice hover:bg-ocean-light/20 text-neutral hover:text-textPrimary transition-all duration-200 flex items-center justify-center"><i className="fas fa-times"></i></button>
+              <h2 className="text-xl font-bold text-textPrimary font-playfair flex items-center gap-2">
+                <i className={`fas ${tourModalType === 'add' ? 'fa-plus-circle' : 'fa-edit'} text-[#4D8CF5]`}></i>
+                {tourModalType === 'add' ? 'Create Day Tour' : 'Edit Day Tour'}
+              </h2>
+              <button onClick={() => { setShowTourModal(false); setSelectedTour(null); setOriginalTourData(null); setShowInclusionDropdown(false); }} className="w-8 h-8 rounded-full bg-ocean-ice hover:bg-ocean-light/20 text-neutral hover:text-textPrimary transition-all duration-200 flex items-center justify-center"><i className="fas fa-times"></i></button>
             </div>
+            
             <form onSubmit={tourModalType === 'add' ? handleAddTour : handleUpdateTour}>
-              <div className="grid grid-cols-2 gap-4 mb-4">
-                <div>
-                  <label className="block mb-1.5 text-sm font-medium text-textPrimary">Adult Price (₱) - 16+ *</label>
-                  <input type="number" name="adultPrice" value={tourFormData.adultPrice} onChange={handleTourInputChange} placeholder="Adult price" className={`w-full px-3 py-2.5 border ${tourFormErrors.adultPrice ? 'border-red-500' : 'border-ocean-light/20'} rounded-xl text-sm focus:outline-none focus:border-ocean-light`} step="0.01" min="0" />
-                  {tourFormErrors.adultPrice && <p className="text-red-500 text-xs mt-1">{tourFormErrors.adultPrice}</p>}
+              {/* Pricing Group */}
+              <div className="bg-gray-50 rounded-xl p-4 mb-4 border border-gray-100">
+                <div className="grid grid-cols-2 gap-4 mb-4">
+                  <div>
+                    <label className="block mb-1.5 text-xs font-bold text-[#1E3A8A]/60 uppercase tracking-widest">Adult Price (₱) *</label>
+                    <input type="number" name="adultPrice" value={tourFormData.adultPrice} onChange={handleTourInputChange} placeholder="Adult price" className={`w-full px-4 py-2.5 border-2 ${tourFormErrors.adultPrice ? 'border-red-500' : 'border-[#4D8CF5]/20'} rounded-xl text-sm focus:outline-none focus:border-[#4D8CF5] transition-all`} step="0.01" min="0" />
+                    {tourFormErrors.adultPrice && <p className="text-red-500 text-[10px] mt-1 font-medium ml-1">{tourFormErrors.adultPrice}</p>}
+                  </div>
+                  <div>
+                    <label className="block mb-1.5 text-xs font-bold text-[#1E3A8A]/60 uppercase tracking-widest">Kid Price (₱) *</label>
+                    <input type="number" name="kidPrice" value={tourFormData.kidPrice} onChange={handleTourInputChange} placeholder="Kid price" className={`w-full px-4 py-2.5 border-2 ${tourFormErrors.kidPrice ? 'border-red-500' : 'border-[#4D8CF5]/20'} rounded-xl text-sm focus:outline-none focus:border-[#4D8CF5] transition-all`} step="0.01" min="0" />
+                    {tourFormErrors.kidPrice && <p className="text-red-500 text-[10px] mt-1 font-medium ml-1">{tourFormErrors.kidPrice}</p>}
+                  </div>
                 </div>
-                <div>
-                  <label className="block mb-1.5 text-sm font-medium text-textPrimary">Kid Price (₱) - 15- *</label>
-                  <input type="number" name="kidPrice" value={tourFormData.kidPrice} onChange={handleTourInputChange} placeholder="Kid price" className={`w-full px-3 py-2.5 border ${tourFormErrors.kidPrice ? 'border-red-500' : 'border-ocean-light/20'} rounded-xl text-sm focus:outline-none focus:border-ocean-light`} step="0.01" min="0" />
-                  {tourFormErrors.kidPrice && <p className="text-red-500 text-xs mt-1">{tourFormErrors.kidPrice}</p>}
+
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <label className="block mb-1.5 text-xs font-bold text-[#1E3A8A]/60 uppercase tracking-widest">Max Capacity</label>
+                    <input type="number" name="maxCapacity" value={tourFormData.maxCapacity} onChange={handleTourInputChange} placeholder="Unlimited" className={`w-full px-4 py-2.5 border-2 ${tourFormErrors.maxCapacity ? 'border-red-500' : 'border-[#4D8CF5]/20'} rounded-xl text-sm focus:outline-none focus:border-[#4D8CF5] transition-all`} min="0" />
+                    {tourFormErrors.maxCapacity && <p className="text-red-500 text-[10px] mt-1 font-medium ml-1">{tourFormErrors.maxCapacity}</p>}
+                  </div>
+                  <div>
+                    <label className="block mb-1.5 text-xs font-bold text-[#1E3A8A]/60 uppercase tracking-widest">Availability *</label>
+                    <select name="availability" value={tourFormData.availability} onChange={handleTourInputChange} className="w-full px-4 py-2.5 border-2 border-[#4D8CF5]/20 rounded-xl text-sm focus:outline-none focus:border-[#4D8CF5] bg-white transition-all">
+                      {availabilityStatuses.map(status => (<option key={status.value} value={status.value}>{status.label}</option>))}
+                    </select>
+                  </div>
                 </div>
               </div>
+
+              {/* Inclusions Dropdown */}
               <div className="mb-4">
-                <label className="block mb-1.5 text-sm font-medium text-textPrimary">Maximum Capacity <span className="text-xs text-neutral">(Optional - leave empty for unlimited)</span></label>
-                <input type="number" name="maxCapacity" value={tourFormData.maxCapacity} onChange={handleTourInputChange} placeholder="Leave empty for unlimited" className={`w-full px-3 py-2.5 border ${tourFormErrors.maxCapacity ? 'border-red-500' : 'border-ocean-light/20'} rounded-xl text-sm focus:outline-none focus:border-ocean-light`} min="0" />
-                {tourFormErrors.maxCapacity && <p className="text-red-500 text-xs mt-1">{tourFormErrors.maxCapacity}</p>}
-              </div>
-              <div className="mb-4">
-                <label className="block mb-1.5 text-sm font-medium text-textPrimary">Availability *</label>
-                <select name="availability" value={tourFormData.availability} onChange={handleTourInputChange} className="w-full px-3 py-2.5 border border-ocean-light/20 rounded-xl text-sm focus:outline-none focus:border-ocean-light bg-white">
-                  {availabilityStatuses.map(status => (<option key={status.value} value={status.value}>{status.label}</option>))}
-                </select>
-              </div>
-              <div className="mb-4">
-                <label className="block mb-1.5 text-sm font-medium text-textPrimary">Inclusions</label>
+                <label className="block mb-1.5 text-xs font-bold text-[#1E3A8A]/60 uppercase tracking-widest px-1">Tour Inclusions</label>
                 <div className="relative">
-                  <button type="button" onClick={() => setShowInclusionDropdown(!showInclusionDropdown)} className="w-full px-3 py-2.5 border border-ocean-light/20 rounded-xl text-sm focus:outline-none focus:border-ocean-light bg-white text-left flex justify-between items-center">
-                    <span className={tourFormData.inclusions.length === 0 ? 'text-gray-400' : 'text-textPrimary'}>{tourFormData.inclusions.length === 0 ? 'Select inclusions...' : `${tourFormData.inclusions.length} selected`}</span>
-                    <i className={`fas fa-chevron-${showInclusionDropdown ? 'up' : 'down'} text-gray-400`}></i>
+                  <button type="button" onClick={() => setShowInclusionDropdown(!showInclusionDropdown)} className="w-full px-4 py-2.5 border-2 border-[#4D8CF5]/20 rounded-xl text-sm focus:outline-none focus:border-[#4D8CF5] bg-white text-left flex justify-between items-center transition-all hover:border-[#4D8CF5]/40">
+                    <span className={tourFormData.inclusions.length === 0 ? 'text-gray-400' : 'text-[#1E3A8A] font-medium'}>{tourFormData.inclusions.length === 0 ? 'Select inclusions...' : `${tourFormData.inclusions.length} selected`}</span>
+                    <i className={`fas fa-chevron-${showInclusionDropdown ? 'up' : 'down'} text-[#4D8CF5] text-xs`}></i>
                   </button>
                   {showInclusionDropdown && (
-                    <div className="absolute left-0 right-0 mt-1 bg-white border border-ocean-light/20 rounded-xl shadow-lg z-50 max-h-60 overflow-auto">
+                    <div className="absolute left-0 right-0 mt-1 bg-white border-2 border-[#4D8CF5]/10 rounded-xl shadow-xl z-50 max-h-60 overflow-auto animate-scaleIn">
                       {inclusionOptions.map((option) => (
-                        <label key={option} className="flex items-center gap-2 px-3 py-2 hover:bg-ocean-ice cursor-pointer">
+                        <label key={option} className="flex items-center gap-3 px-4 py-2.5 hover:bg-[#4D8CF5]/5 cursor-pointer transition-colors border-b border-gray-50 last:border-0">
                           <input type="checkbox" checked={tourFormData.inclusions.includes(option)} onChange={() => {
                             if (tourFormData.inclusions.includes(option)) {
                               setTourFormData(prev => ({ ...prev, inclusions: prev.inclusions.filter(i => i !== option) }));
                             } else {
                               setTourFormData(prev => ({ ...prev, inclusions: [...prev.inclusions, option] }));
                             }
-                          }} className="rounded border-ocean-light/30 text-ocean-mid focus:ring-ocean-mid" />
-                          <span className="text-sm text-textPrimary">{option}</span>
+                          }} className="w-4 h-4 rounded border-[#4D8CF5]/30 text-[#4D8CF5] focus:ring-[#4D8CF5]/20" />
+                          <span className="text-sm text-[#1E3A8A]">{option}</span>
                         </label>
                       ))}
                     </div>
                   )}
                 </div>
                 {tourFormData.inclusions.length > 0 && (
-                  <div className="flex flex-wrap gap-2 mt-3">
+                  <div className="flex flex-wrap gap-1.5 mt-3 px-1">
                     {tourFormData.inclusions.map((inclusion, idx) => (
-                      <span key={idx} className="inline-flex items-center gap-1 px-2 py-1 bg-ocean-ice text-ocean-mid rounded-full text-sm">
+                      <span key={idx} className="inline-flex items-center gap-1.5 px-3 py-1 bg-[#4D8CF5]/10 text-[#1E3A8A] rounded-full text-[11px] font-medium border border-[#4D8CF5]/10">
                         {inclusion}
-                        <button type="button" onClick={() => handleInclusionRemove(inclusion)} className="hover:text-red-500 transition-colors"><i className="fas fa-times text-xs"></i></button>
+                        <button type="button" onClick={() => handleInclusionRemove(inclusion)} className="w-4 h-4 flex items-center justify-center rounded-full hover:bg-[#4D8CF5]/20 transition-colors"><i className="fas fa-times text-[8px]"></i></button>
                       </span>
                     ))}
                   </div>
                 )}
               </div>
+
+              {/* Description */}
               <div className="mb-4">
-                <label className="block mb-1.5 text-sm font-medium text-textPrimary">Description *</label>
-                <textarea name="description" value={tourFormData.description} onChange={handleTourInputChange} rows="4" placeholder="Describe the day tour experience, itinerary, highlights..." className={`w-full px-3 py-2.5 border ${tourFormErrors.description ? 'border-red-500' : 'border-ocean-light/20'} rounded-xl text-sm focus:outline-none focus:border-ocean-light`}></textarea>
-                {tourFormErrors.description && <p className="text-red-500 text-xs mt-1">{tourFormErrors.description}</p>}
+                <label className="block mb-1.5 text-xs font-bold text-[#1E3A8A]/60 uppercase tracking-widest px-1">Description *</label>
+                <textarea name="description" value={tourFormData.description} onChange={handleTourInputChange} rows="3" placeholder="Describe the day tour experience..." className={`w-full px-4 py-2.5 border-2 ${tourFormErrors.description ? 'border-red-500' : 'border-[#4D8CF5]/20'} rounded-xl text-sm focus:outline-none focus:border-[#4D8CF5] transition-all resize-none`}></textarea>
+                {tourFormErrors.description && <p className="text-red-500 text-[10px] mt-1 font-medium ml-1">{tourFormErrors.description}</p>}
               </div>
-              <div className="mb-5">
-                <label className="block mb-1.5 text-sm font-medium text-textPrimary">Tour Images <span className="text-xs text-neutral">(Optional)</span></label>
-                <div className="border-2 border-dashed border-ocean-light/20 rounded-xl p-4 text-center hover:border-ocean-light transition-colors">
+
+              {/* Images */}
+              <div className="mb-6">
+                <label className="block mb-1.5 text-xs font-bold text-[#1E3A8A]/60 uppercase tracking-widest px-1">Tour Images</label>
+                <div className="border-2 border-dashed border-[#4D8CF5]/20 rounded-xl p-5 text-center hover:border-[#4D8CF5]/40 hover:bg-[#4D8CF5]/5 transition-all group">
                   <input type="file" accept="image/*" multiple onChange={handleTourImageUpload} disabled={uploadingImage} className="hidden" id="tour-image-upload" />
                   <label htmlFor="tour-image-upload" className="cursor-pointer flex flex-col items-center gap-2">
-                    <i className={`fas ${uploadingImage ? 'fa-spinner fa-spin' : 'fa-cloud-upload-alt'} text-3xl text-ocean-light`}></i>
-                    <span className="text-sm text-textSecondary">{uploadingImage ? 'Uploading...' : 'Click to upload images'}</span>
-                    <span className="text-xs text-neutral">PNG, JPG up to 5MB (Optional)</span>
+                    <div className="w-12 h-12 rounded-full bg-[#4D8CF5]/10 flex items-center justify-center group-hover:bg-[#4D8CF5]/20 transition-all">
+                      <i className={`fas ${uploadingImage ? 'fa-spinner fa-spin' : 'fa-cloud-upload-alt'} text-xl text-[#4D8CF5]`}></i>
+                    </div>
+                    <span className="text-xs font-semibold text-[#1E3A8A]">{uploadingImage ? 'Uploading...' : 'Click to upload images'}</span>
+                    <span className="text-[10px] text-[#1E3A8A]/40 uppercase tracking-widest">PNG, JPG up to 5MB</span>
                   </label>
                 </div>
                 {tourFormData.images.length > 0 && (
-                  <div className="grid grid-cols-4 gap-2 mt-3">
+                  <div className="grid grid-cols-4 gap-2 mt-3 px-1">
                     {tourFormData.images.map((img, idx) => (
-                      <div key={idx} className="relative group aspect-square rounded-lg overflow-hidden border border-ocean-light/20">
+                      <div key={idx} className="relative group aspect-square rounded-lg overflow-hidden border border-[#4D8CF5]/10 shadow-sm">
                         <Image src={img} alt={`Tour image ${idx + 1}`} fill className="object-cover" />
-                        <button type="button" onClick={() => handleTourImageRemove(img)} className="absolute top-1 right-1 w-6 h-6 bg-red-500 text-white rounded-full flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity"><i className="fas fa-times text-xs"></i></button>
+                        <button type="button" onClick={() => handleTourImageRemove(img)} className="absolute inset-0 bg-red-500/80 text-white flex items-center justify-center opacity-0 group-hover:opacity-100 transition-all"><i className="fas fa-trash-alt text-xs"></i></button>
                       </div>
                     ))}
                   </div>
                 )}
               </div>
-              <div className="flex gap-3 justify-end mt-6">
-                <button type="button" onClick={() => { setShowTourModal(false); setSelectedTour(null); setOriginalTourData(null); }} className="px-5 py-2.5 border border-ocean-light/20 rounded-xl text-textSecondary text-sm font-medium hover:bg-ocean-ice transition-all duration-300">Cancel</button>
-                <button type="submit" disabled={actionLoading || (tourModalType === 'edit' ? !hasTourChanges() : isTourFormIncomplete())} className={`px-5 py-2.5 rounded-xl text-white text-sm font-medium transition-all duration-300 ${
+
+              {/* Actions */}
+              <div className="flex gap-3 justify-end pt-4 border-t border-gray-100">
+                <button type="button" onClick={() => { setShowTourModal(false); setSelectedTour(null); setOriginalTourData(null); setShowInclusionDropdown(false); }} className="px-6 py-2.5 rounded-xl text-textSecondary text-sm font-semibold hover:bg-gray-100 transition-all">Cancel</button>
+                <button type="submit" disabled={actionLoading || (tourModalType === 'edit' ? !hasTourChanges() : isTourFormIncomplete())} className={`px-8 py-2.5 rounded-xl text-white text-sm font-bold shadow-sm transition-all ${
                   actionLoading || (tourModalType === 'edit' ? !hasTourChanges() : isTourFormIncomplete())
-                    ? 'bg-neutral cursor-not-allowed opacity-50'
-                    : 'bg-gradient-to-r from-ocean-mid to-ocean-light hover:shadow-lg hover:-translate-y-0.5'
+                    ? 'bg-gray-200 text-gray-400 cursor-not-allowed'
+                    : 'bg-[#4D8CF5] hover:bg-[#3B78E7] hover:shadow-md active:scale-95'
                 }`}>
-                  {actionLoading ? (<span><i className="fas fa-spinner fa-spin mr-2"></i> {tourModalType === 'add' ? 'Creating...' : 'Saving...'}</span>) : (tourModalType === 'add' ? 'Create Day Tour' : 'Save Changes')}
+                  {actionLoading ? (<span><i className="fas fa-spinner fa-spin mr-2"></i> Processing...</span>) : (tourModalType === 'add' ? 'Create Day Tour' : 'Save Changes')}
                 </button>
               </div>
             </form>
@@ -1241,64 +1441,80 @@ export default function AdminDayTour({ defaultTab = 'tours', hideTabs = false })
       {/* Add/Edit Activity Modal */}
       {showActivityModal && (
         <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4" onClick={() => { if (!actionLoading) { setShowActivityModal(false); setSelectedActivity(null); setOriginalActivityData(null); } }}>
-          <div className="bg-white rounded-2xl w-full max-w-2xl max-h-[90vh] overflow-auto p-6 shadow-2xl" onClick={(e) => e.stopPropagation()}>
+          <div className="bg-white rounded-2xl w-full max-w-lg max-h-[90vh] overflow-auto p-6 shadow-2xl" onClick={(e) => e.stopPropagation()}>
             <div className="flex justify-between items-center mb-5">
-              <h2 className="text-xl font-bold text-textPrimary font-playfair">{activityModalType === 'add' ? 'Add New Activity' : 'Edit Activity'}</h2>
+              <h2 className="text-xl font-bold text-textPrimary font-playfair flex items-center gap-2">
+                <i className={`fas ${activityModalType === 'add' ? 'fa-plus-circle' : 'fa-edit'} text-[#4D8CF5]`}></i>
+                {activityModalType === 'add' ? 'Add New Activity' : 'Edit Activity'}
+              </h2>
               <button onClick={() => { setShowActivityModal(false); setSelectedActivity(null); setOriginalActivityData(null); }} className="w-8 h-8 rounded-full bg-ocean-ice hover:bg-ocean-light/20 text-neutral hover:text-textPrimary transition-all duration-200 flex items-center justify-center"><i className="fas fa-times"></i></button>
             </div>
+            
             <form onSubmit={activityModalType === 'add' ? handleAddActivity : handleUpdateActivity}>
-              <div className="mb-4">
-                <label className="block mb-1.5 text-sm font-medium text-textPrimary">Activity Name *</label>
-                <input type="text" name="name" value={activityFormData.name} onChange={handleActivityInputChange} placeholder="e.g., ATV, Banana Boat, Jet Ski" className={`w-full px-3 py-2.5 border ${activityFormErrors.name ? 'border-red-500' : 'border-ocean-light/20'} rounded-xl text-sm focus:outline-none focus:border-ocean-light focus:ring-2 focus:ring-ocean-light/20`} />
-                {activityFormErrors.name && <p className="text-red-500 text-xs mt-1">{activityFormErrors.name}</p>}
-              </div>
-              <div className="grid grid-cols-2 gap-4 mb-4">
-                <div>
-                  <label className="block mb-1.5 text-sm font-medium text-textPrimary">Pricing Type *</label>
-                  <select name="priceType" value={activityFormData.priceType} onChange={handleActivityInputChange} className="w-full px-3 py-2.5 border border-ocean-light/20 rounded-xl text-sm focus:outline-none focus:border-ocean-light bg-white">
-                    {pricingTypes.map(type => (<option key={type.value} value={type.value}>{type.label}</option>))}
-                  </select>
+              {/* Activity Info Group */}
+              <div className="bg-gray-50 rounded-xl p-4 mb-4 border border-gray-100">
+                <div className="mb-4">
+                  <label className="block mb-1.5 text-xs font-bold text-[#1E3A8A]/60 uppercase tracking-widest">Activity Name *</label>
+                  <input type="text" name="name" value={activityFormData.name} onChange={handleActivityInputChange} placeholder="e.g., ATV, Banana Boat" className={`w-full px-4 py-2.5 border-2 ${activityFormErrors.name ? 'border-red-500' : 'border-[#4D8CF5]/20'} rounded-xl text-sm focus:outline-none focus:border-[#4D8CF5] transition-all`} />
+                  {activityFormErrors.name && <p className="text-red-500 text-[10px] mt-1 font-medium ml-1">{activityFormErrors.name}</p>}
                 </div>
-                <div>
-                  <label className="block mb-1.5 text-sm font-medium text-textPrimary">Price (₱) *</label>
-                  <input type="number" name="priceValue" value={activityFormData.priceValue} onChange={handleActivityInputChange} placeholder="Price" className={`w-full px-3 py-2.5 border ${activityFormErrors.priceValue ? 'border-red-500' : 'border-ocean-light/20'} rounded-xl text-sm focus:outline-none focus:border-ocean-light`} step="0.01" min="0" />
-                  {activityFormErrors.priceValue && <p className="text-red-500 text-xs mt-1">{activityFormErrors.priceValue}</p>}
+
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <label className="block mb-1.5 text-xs font-bold text-[#1E3A8A]/60 uppercase tracking-widest">Pricing Type *</label>
+                    <select name="priceType" value={activityFormData.priceType} onChange={handleActivityInputChange} className="w-full px-4 py-2.5 border-2 border-[#4D8CF5]/20 rounded-xl text-sm focus:outline-none focus:border-[#4D8CF5] bg-white transition-all">
+                      {pricingTypes.map(type => (<option key={type.value} value={type.value}>{type.label}</option>))}
+                    </select>
+                  </div>
+                  <div>
+                    <label className="block mb-1.5 text-xs font-bold text-[#1E3A8A]/60 uppercase tracking-widest">Price (₱) *</label>
+                    <input type="number" name="priceValue" value={activityFormData.priceValue} onChange={handleActivityInputChange} placeholder="Price" className={`w-full px-4 py-2.5 border-2 ${activityFormErrors.priceValue ? 'border-red-500' : 'border-[#4D8CF5]/20'} rounded-xl text-sm focus:outline-none focus:border-[#4D8CF5] transition-all`} step="0.01" min="0" />
+                    {activityFormErrors.priceValue && <p className="text-red-500 text-[10px] mt-1 font-medium ml-1">{activityFormErrors.priceValue}</p>}
+                  </div>
                 </div>
               </div>
+
+              {/* Description */}
               <div className="mb-4">
-                <label className="block mb-1.5 text-sm font-medium text-textPrimary">Description *</label>
-                <textarea name="description" value={activityFormData.description} onChange={handleActivityInputChange} rows="3" placeholder="Describe the activity..." className={`w-full px-3 py-2.5 border ${activityFormErrors.description ? 'border-red-500' : 'border-ocean-light/20'} rounded-xl text-sm focus:outline-none focus:border-ocean-light`}></textarea>
-                {activityFormErrors.description && <p className="text-red-500 text-xs mt-1">{activityFormErrors.description}</p>}
+                <label className="block mb-1.5 text-xs font-bold text-[#1E3A8A]/60 uppercase tracking-widest px-1">Description *</label>
+                <textarea name="description" value={activityFormData.description} onChange={handleActivityInputChange} rows="3" placeholder="Describe the activity..." className={`w-full px-4 py-2.5 border-2 ${activityFormErrors.description ? 'border-red-500' : 'border-[#4D8CF5]/20'} rounded-xl text-sm focus:outline-none focus:border-[#4D8CF5] transition-all resize-none`}></textarea>
+                {activityFormErrors.description && <p className="text-red-500 text-[10px] mt-1 font-medium ml-1">{activityFormErrors.description}</p>}
               </div>
-              <div className="mb-5">
-                <label className="block mb-1.5 text-sm font-medium text-textPrimary">Activity Images <span className="text-xs text-neutral">(Optional)</span></label>
-                <div className="border-2 border-dashed border-ocean-light/20 rounded-xl p-4 text-center hover:border-ocean-light transition-colors">
+
+              {/* Images */}
+              <div className="mb-6">
+                <label className="block mb-1.5 text-xs font-bold text-[#1E3A8A]/60 uppercase tracking-widest px-1">Activity Images</label>
+                <div className="border-2 border-dashed border-[#4D8CF5]/20 rounded-xl p-5 text-center hover:border-[#4D8CF5]/40 hover:bg-[#4D8CF5]/5 transition-all group">
                   <input type="file" accept="image/*" multiple onChange={handleActivityImageUpload} disabled={uploadingImage} className="hidden" id="activity-image-upload" />
                   <label htmlFor="activity-image-upload" className="cursor-pointer flex flex-col items-center gap-2">
-                    <i className={`fas ${uploadingImage ? 'fa-spinner fa-spin' : 'fa-cloud-upload-alt'} text-3xl text-ocean-light`}></i>
-                    <span className="text-sm text-textSecondary">{uploadingImage ? 'Uploading...' : 'Click to upload images'}</span>
-                    <span className="text-xs text-neutral">PNG, JPG up to 5MB (Optional)</span>
+                    <div className="w-12 h-12 rounded-full bg-[#4D8CF5]/10 flex items-center justify-center group-hover:bg-[#4D8CF5]/20 transition-all">
+                      <i className={`fas ${uploadingImage ? 'fa-spinner fa-spin' : 'fa-cloud-upload-alt'} text-xl text-[#4D8CF5]`}></i>
+                    </div>
+                    <span className="text-xs font-semibold text-[#1E3A8A]">{uploadingImage ? 'Uploading...' : 'Click to upload images'}</span>
+                    <span className="text-[10px] text-[#1E3A8A]/40 uppercase tracking-widest">PNG, JPG up to 5MB</span>
                   </label>
                 </div>
                 {activityFormData.images.length > 0 && (
-                  <div className="grid grid-cols-4 gap-2 mt-3">
+                  <div className="grid grid-cols-4 gap-2 mt-3 px-1">
                     {activityFormData.images.map((img, idx) => (
-                      <div key={idx} className="relative group aspect-square rounded-lg overflow-hidden border border-ocean-light/20">
+                      <div key={idx} className="relative group aspect-square rounded-lg overflow-hidden border border-[#4D8CF5]/10 shadow-sm">
                         <Image src={img} alt={`Activity image ${idx + 1}`} fill className="object-cover" />
-                        <button type="button" onClick={() => handleActivityImageRemove(img)} className="absolute top-1 right-1 w-6 h-6 bg-red-500 text-white rounded-full flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity"><i className="fas fa-times text-xs"></i></button>
+                        <button type="button" onClick={() => handleActivityImageRemove(img)} className="absolute inset-0 bg-red-500/80 text-white flex items-center justify-center opacity-0 group-hover:opacity-100 transition-all"><i className="fas fa-trash-alt text-xs"></i></button>
                       </div>
                     ))}
                   </div>
                 )}
               </div>
-              <div className="flex gap-3 justify-end mt-6">
-                <button type="button" onClick={() => { setShowActivityModal(false); setSelectedActivity(null); setOriginalActivityData(null); }} className="px-5 py-2.5 border border-ocean-light/20 rounded-xl text-textSecondary text-sm font-medium hover:bg-ocean-ice transition-all duration-300">Cancel</button>
-                <button type="submit" disabled={actionLoading || (activityModalType === 'edit' ? !hasActivityChanges() : isActivityFormIncomplete())} className={`px-5 py-2.5 rounded-xl text-white text-sm font-medium transition-all duration-300 ${
+
+              {/* Actions */}
+              <div className="flex gap-3 justify-end pt-4 border-t border-gray-100">
+                <button type="button" onClick={() => { setShowActivityModal(false); setSelectedActivity(null); setOriginalActivityData(null); }} className="px-6 py-2.5 rounded-xl text-textSecondary text-sm font-semibold hover:bg-gray-100 transition-all">Cancel</button>
+                <button type="submit" disabled={actionLoading || (activityModalType === 'edit' ? !hasActivityChanges() : isActivityFormIncomplete())} className={`px-8 py-2.5 rounded-xl text-white text-sm font-bold shadow-sm transition-all ${
                   actionLoading || (activityModalType === 'edit' ? !hasActivityChanges() : isActivityFormIncomplete())
-                    ? 'bg-neutral cursor-not-allowed opacity-50'
-                    : 'bg-gradient-to-r from-ocean-mid to-ocean-light hover:shadow-lg hover:-translate-y-0.5'
+                    ? 'bg-gray-200 text-gray-400 cursor-not-allowed'
+                    : 'bg-[#4D8CF5] hover:bg-[#3B78E7] hover:shadow-md active:scale-95'
                 }`}>
-                  {actionLoading ? (<span><i className="fas fa-spinner fa-spin mr-2"></i> {activityModalType === 'add' ? 'Adding...' : 'Updating...'}</span>) : (activityModalType === 'add' ? 'Add Activity' : 'Save Changes')}
+                  {actionLoading ? (<span><i className="fas fa-spinner fa-spin mr-2"></i> Processing...</span>) : (activityModalType === 'add' ? 'Add Activity' : 'Save Changes')}
                 </button>
               </div>
             </form>

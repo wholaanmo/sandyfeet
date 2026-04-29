@@ -118,6 +118,18 @@ export default function AdminDayTourCalendar() {
     return () => unsubscribe();
   }, [dayTour]);
 
+  // Handle body scroll when sidebar is open
+  useEffect(() => {
+    if (isSidebarOpen) {
+      document.body.style.overflow = 'hidden';
+    } else {
+      document.body.style.overflow = 'unset';
+    }
+    return () => {
+      document.body.style.overflow = 'unset';
+    };
+  }, [isSidebarOpen]);
+
   const getDaysInMonth = (date) => {
     const year = date.getFullYear();
     const month = date.getMonth();
@@ -454,7 +466,7 @@ export default function AdminDayTourCalendar() {
         <div className="xl:w-[40%] space-y-6">
           {/* Book for Guest Button */}
  <Link
-  href="/day-tour/calendar"
+  href="/day-tour"
   target="_blank"
   className="w-full flex items-center justify-center gap-2 px-5 py-3
              bg-[#4D8CF5] text-white border border-[#4D8CF5]

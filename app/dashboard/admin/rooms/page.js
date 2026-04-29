@@ -39,6 +39,21 @@ export default function AdminRooms() {
   const [formErrors, setFormErrors] = useState({});
   const [actionLoading, setActionLoading] = useState(false);
   const [inclusionInput, setInclusionInput] = useState('');
+  const [viewImageIndex, setViewImageIndex] = useState(0);
+  const [showInclusionDropdown, setShowInclusionDropdown] = useState(false);
+
+  const roomInclusionOptions = [
+    'Access to Pool',
+    'Wi-Fi',
+    'Free Use of Kitchenwares & Stove',
+    'Free Use of Grill with Charcoal',
+    'Free Drinking (Mineral) Water',
+    'Free Bonfire at Night',
+    'Free Parking',
+    'Air-Conditioned',
+    'Fan Room',
+    'Common Bathroom'
+  ];
   
   const availabilityStatuses = [
     { value: 'available', label: 'Available', color: 'bg-green-50 text-green-700 border-green-200' },
@@ -522,6 +537,7 @@ export default function AdminRooms() {
   
   const handleViewRoom = (room) => {
     setSelectedRoom(room);
+    setViewImageIndex(0);
     setShowViewModal(true);
   };
   
@@ -814,10 +830,11 @@ export default function AdminRooms() {
             setSelectedRoom(null);
           }
         }}>
-          <div className="bg-white rounded-2xl w-full max-w-3xl max-h-[90vh] overflow-auto p-6 shadow-2xl" onClick={(e) => e.stopPropagation()}>
+          <div className="bg-white rounded-2xl w-full max-w-2xl max-h-[90vh] overflow-auto p-6 shadow-2xl" onClick={(e) => e.stopPropagation()}>
             <div className="flex justify-between items-center mb-5">
-              <h2 className="text-2xl font-bold text-textPrimary font-playfair">
-                Room Details - {selectedRoom.type}
+              <h2 className="text-xl font-bold text-textPrimary font-playfair flex items-center gap-2">
+                <i className="fas fa-bed text-[#4D8CF5]"></i>
+                Room Details
               </h2>
               <button
                 onClick={() => {
@@ -830,105 +847,133 @@ export default function AdminRooms() {
               </button>
             </div>
             
-            {/* Room Images Slider/Gallery */}
+            {/* Room Images Slider */}
             {selectedRoom.images && selectedRoom.images.length > 0 && (
               <div className="mb-6">
-                <div className="relative">
-                  <div className="relative overflow-hidden rounded-xl bg-ocean-pale/30" style={{ height: '300px' }}>
-                    <Image
-                      src={selectedRoom.images[0]}
-                      alt={selectedRoom.type}
-                      fill
-                      className="object-contain"
-                    />
-                  </div>
+                <div className="relative group overflow-hidden rounded-xl bg-ocean-pale/10 aspect-[16/9]">
+                  <Image
+                    src={selectedRoom.images[viewImageIndex]}
+                    alt={selectedRoom.type}
+                    fill
+                    className="object-contain transition-all duration-500"
+                  />
                   
                   {selectedRoom.images.length > 1 && (
-                    <div className="flex gap-2 mt-3 overflow-x-auto pb-2">
-                      {selectedRoom.images.map((img, idx) => (
-                        <div key={idx} className="relative flex-shrink-0 w-16 h-16 rounded-lg overflow-hidden cursor-pointer border-2 border-transparent hover:border-ocean-mid transition-all">
-                          <Image
-                            src={img}
-                            alt={`Thumbnail ${idx + 1}`}
-                            fill
-                            className="object-cover"
+                    <>
+                      <button 
+                        onClick={() => setViewImageIndex((prev) => (prev === 0 ? selectedRoom.images.length - 1 : prev - 1))}
+                        className="absolute left-3 top-1/2 -translate-y-1/2 w-9 h-9 flex items-center justify-center rounded-full bg-white/80 hover:bg-white text-[#1E3A8A] shadow-md transition-all opacity-0 group-hover:opacity-100 z-10"
+                      >
+                        <i className="fas fa-chevron-left text-sm"></i>
+                      </button>
+                      <button 
+                        onClick={() => setViewImageIndex((prev) => (prev === selectedRoom.images.length - 1 ? 0 : prev + 1))}
+                        className="absolute right-3 top-1/2 -translate-y-1/2 w-9 h-9 flex items-center justify-center rounded-full bg-white/80 hover:bg-white text-[#1E3A8A] shadow-md transition-all opacity-0 group-hover:opacity-100 z-10"
+                      >
+                        <i className="fas fa-chevron-right text-sm"></i>
+                      </button>
+                      
+                      <div className="absolute bottom-4 left-1/2 -translate-x-1/2 flex gap-1.5 z-10">
+                        {selectedRoom.images.map((_, idx) => (
+                          <div 
+                            key={idx} 
+                            onClick={() => setViewImageIndex(idx)}
+                            className={`w-1.5 h-1.5 rounded-full cursor-pointer transition-all ${idx === viewImageIndex ? 'bg-[#4D8CF5] w-4' : 'bg-white/60 hover:bg-white'}`} 
                           />
-                        </div>
-                      ))}
-                    </div>
+                        ))}
+                      </div>
+                    </>
                   )}
                 </div>
+                
+                {selectedRoom.images.length > 1 && (
+                  <div className="flex gap-2 mt-3 overflow-x-auto pb-2 scrollbar-hide">
+                    {selectedRoom.images.map((img, idx) => (
+                      <div 
+                        key={idx} 
+                        onClick={() => setViewImageIndex(idx)}
+                        className={`relative flex-shrink-0 w-14 h-14 rounded-lg overflow-hidden cursor-pointer border-2 transition-all ${idx === viewImageIndex ? 'border-[#4D8CF5]' : 'border-transparent hover:border-[#4D8CF5]/50'}`}
+                      >
+                        <Image
+                          src={img}
+                          alt={`Thumbnail ${idx + 1}`}
+                          fill
+                          className="object-cover"
+                        />
+                      </div>
+                    ))}
+                  </div>
+                )}
               </div>
             )}
             
-            <div className="grid grid-cols-2 gap-6">
-              <div>
-                <label className="block text-xs font-semibold text-neutral uppercase tracking-wide mb-1">Room Type</label>
-                <p className="text-lg font-semibold text-textPrimary">{selectedRoom.type}</p>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-x-8 gap-y-5 bg-[#4D8CF5]/5 rounded-2xl p-6 border border-[#4D8CF5]/10 mb-6">
+              <div className="col-span-1 md:col-span-2 pb-2 border-b border-[#4D8CF5]/10 flex justify-between items-center">
+                <h3 className="font-bold text-[#1E3A8A]">{selectedRoom.type}</h3>
+                <span className={`px-3 py-1 rounded-full text-[11px] font-bold uppercase tracking-wider ${getAvailabilityStyle(selectedRoom.availability)}`}>
+                  {getAvailabilityLabel(selectedRoom.availability)}
+                </span>
               </div>
+
               <div>
-                <label className="block text-xs font-semibold text-neutral uppercase tracking-wide mb-1">Capacity</label>
-                <p className="text-textPrimary flex items-center gap-2">
-                  <i className="fas fa-users text-ocean-light"></i>
+                <label className="block text-[10px] font-bold text-[#1E3A8A]/50 uppercase tracking-widest mb-1">Pricing</label>
+                <p className="text-xl font-bold text-[#4D8CF5]">₱{selectedRoom.price.toLocaleString()}<span className="text-xs font-normal text-textSecondary ml-1">/ night</span></p>
+              </div>
+
+              <div>
+                <label className="block text-[10px] font-bold text-[#1E3A8A]/50 uppercase tracking-widest mb-1">Guest Capacity</label>
+                <p className="text-sm font-semibold text-[#1E3A8A] flex items-center gap-2">
+                  <i className="fas fa-users text-[#4D8CF5]/60"></i>
                   {selectedRoom.capacityMin && selectedRoom.capacityMax 
                     ? `${selectedRoom.capacityMin}–${selectedRoom.capacityMax} Guests` 
                     : selectedRoom.capacity || `${selectedRoom.capacityMin || selectedRoom.capacityMax} Guests`}
                 </p>
               </div>
-              <div>
-                <label className="block text-xs font-semibold text-neutral uppercase tracking-wide mb-1">Total Rooms</label>
-                <p className="text-textPrimary flex items-center gap-2">
-                  <i className="fas fa-door-open text-ocean-light"></i>
-                  {selectedRoom.totalRooms} Rooms
-                </p>
-              </div>
-              <div>
-                <label className="block text-xs font-semibold text-neutral uppercase tracking-wide mb-1">Under Maintenance</label>
-                <p className="text-textPrimary flex items-center gap-2">
-                  <i className="fas fa-tools text-yellow-500"></i>
-                  {selectedRoom.maintenanceRooms || 0} Rooms
-                </p>
-              </div>
-              <div>
-                <label className="block text-xs font-semibold text-neutral uppercase tracking-wide mb-1">Available for Booking</label>
-                <p className="text-textPrimary flex items-center gap-2">
-                  <i className="fas fa-check-circle text-green-500"></i>
-                  {selectedRoom.availableRooms || (selectedRoom.totalRooms - (selectedRoom.maintenanceRooms || 0))} Rooms
-                </p>
-              </div>
-              <div>
-                <label className="block text-xs font-semibold text-neutral uppercase tracking-wide mb-1">Price per Night</label>
-                <p className="text-2xl font-bold text-ocean-mid">₱{selectedRoom.price.toLocaleString()}</p>
-              </div>
-              <div>
-                <label className="block text-xs font-semibold text-neutral uppercase tracking-wide mb-1">Status</label>
-                <span className={`inline-block px-3 py-1 rounded-full text-sm font-medium ${getAvailabilityStyle(selectedRoom.availability)}`}>
-                  {getAvailabilityLabel(selectedRoom.availability)}
-                </span>
-              </div>
-              <div className="col-span-2">
-                <label className="block text-xs font-semibold text-neutral uppercase tracking-wide mb-1">Inclusions</label>
-                <div className="flex flex-wrap gap-2">
-                  {selectedRoom.inclusions && selectedRoom.inclusions.length > 0 ? (
-                    selectedRoom.inclusions.map((inclusion, idx) => (
-                      <span key={idx} className="px-3 py-1 bg-ocean-ice text-ocean-mid rounded-full text-sm">
-                        {inclusion}
-                      </span>
-                    ))
-                  ) : (
-                    <p className="text-textSecondary">No inclusions listed</p>
-                  )}
+
+              <div className="grid grid-cols-2 gap-4 col-span-1 md:col-span-2">
+                <div>
+                  <label className="block text-[10px] font-bold text-[#1E3A8A]/50 uppercase tracking-widest mb-1">Room Counts</label>
+                  <div className="space-y-1">
+                    <p className="text-xs text-textSecondary flex items-center justify-between">
+                      <span>Total Units:</span>
+                      <span className="font-bold text-[#1E3A8A]">{selectedRoom.totalRooms}</span>
+                    </p>
+                    <p className="text-xs text-textSecondary flex items-center justify-between">
+                      <span>Maintenance:</span>
+                      <span className="font-bold text-amber-600">{selectedRoom.maintenanceRooms || 0}</span>
+                    </p>
+                    <p className="text-xs text-textSecondary flex items-center justify-between">
+                      <span>Available:</span>
+                      <span className="font-bold text-green-600">{selectedRoom.availableRooms || (selectedRoom.totalRooms - (selectedRoom.maintenanceRooms || 0))}</span>
+                    </p>
+                  </div>
+                </div>
+
+                <div>
+                  <label className="block text-[10px] font-bold text-[#1E3A8A]/50 uppercase tracking-widest mb-1">Description</label>
+                  <p className="text-xs text-textSecondary leading-relaxed line-clamp-3">
+                    {selectedRoom.description}
+                  </p>
                 </div>
               </div>
-              <div className="col-span-2">
-                <label className="block text-xs font-semibold text-neutral uppercase tracking-wide mb-1">Description</label>
-                <p className="text-textSecondary leading-relaxed whitespace-pre-wrap">
-                  {selectedRoom.description}
-                </p>
+            </div>
+
+            <div className="mb-6">
+              <label className="block text-[10px] font-bold text-[#1E3A8A]/50 uppercase tracking-widest mb-2 px-1">Room Inclusions</label>
+              <div className="flex flex-wrap gap-2">
+                {selectedRoom.inclusions && selectedRoom.inclusions.length > 0 ? (
+                  selectedRoom.inclusions.map((inclusion, idx) => (
+                    <span key={idx} className="px-3 py-1.5 bg-white border border-[#4D8CF5]/20 text-[#1E3A8A] rounded-xl text-xs font-medium shadow-sm">
+                      {inclusion}
+                    </span>
+                  ))
+                ) : (
+                  <p className="text-xs text-textSecondary px-1 italic">No inclusions listed</p>
+                )}
               </div>
             </div>
             
-            <div className="flex gap-3 justify-end mt-6 pt-4 border-t border-ocean-light/10">
+            <div className="flex gap-3 justify-end pt-4 border-t border-ocean-light/10">
               <button
                 onClick={() => {
                   setShowViewModal(false);
@@ -940,7 +985,7 @@ export default function AdminRooms() {
               </button>
               <button
                 onClick={() => handleEditRoom(selectedRoom)}
-                className="px-5 py-2.5 bg-gradient-to-r from-ocean-mid to-ocean-light rounded-xl text-white text-sm font-medium hover:shadow-lg hover:-translate-y-0.5 transition-all duration-300"
+                className="px-5 py-2.5 bg-[#4D8CF5] rounded-xl text-white text-sm font-medium hover:bg-[#3B78E7] shadow-sm hover:shadow-md transition-all duration-300"
               >
                 <i className="fas fa-edit mr-2"></i>
                 Edit Room
@@ -956,17 +1001,20 @@ export default function AdminRooms() {
           if (!actionLoading) {
             setShowModal(false);
             setSelectedRoom(null);
+            setShowInclusionDropdown(false);
           }
         }}>
-          <div className="bg-white rounded-2xl w-full max-w-lg max-h-[90vh] overflow-auto p-5 shadow-2xl" onClick={(e) => e.stopPropagation()}>
-            <div className="flex justify-between items-center mb-4">
-              <h2 className="text-xl font-bold text-textPrimary font-playfair">
+          <div className="bg-white rounded-2xl w-full max-w-lg max-h-[90vh] overflow-auto p-6 shadow-2xl" onClick={(e) => e.stopPropagation()}>
+            <div className="flex justify-between items-center mb-5">
+              <h2 className="text-xl font-bold text-textPrimary font-playfair flex items-center gap-2">
+                <i className={`fas ${modalType === 'add' ? 'fa-plus-circle' : 'fa-edit'} text-[#4D8CF5]`}></i>
                 {modalType === 'add' ? 'Add New Room' : 'Edit Room'}
               </h2>
               <button
                 onClick={() => {
                   setShowModal(false);
                   setSelectedRoom(null);
+                  setShowInclusionDropdown(false);
                 }}
                 className="w-8 h-8 rounded-full bg-ocean-ice hover:bg-ocean-light/20 text-neutral hover:text-textPrimary transition-all duration-200 flex items-center justify-center"
               >
@@ -975,188 +1023,199 @@ export default function AdminRooms() {
             </div>
             
             <form onSubmit={modalType === 'add' ? handleAddRoom : handleUpdateRoom}>
-              {/* Room Type Dropdown */}
-              <div className="mb-3">
-                <label className="block mb-1 text-sm font-medium text-textPrimary">Room Type *</label>
-                <select
-                  name="type"
-                  value={formData.type}
-                  onChange={handleInputChange}
-                  className={`w-full px-3 py-2 border ${formErrors.type ? 'border-red-500' : 'border-ocean-light/20'} rounded-xl text-sm focus:outline-none focus:border-ocean-light focus:ring-2 focus:ring-ocean-light/20 bg-white`}
-                >
-                  <option value="">Select Room Type</option>
-                  <option value="Tent">Tent</option>
-                  <option value="Ground Floor Rooms">Ground Floor Rooms</option>
-                  <option value="Couple Room">Couple Room</option>
-                  <option value="Group Room">Group Room</option>
-                </select>
-                {formErrors.type && <p className="text-red-500 text-xs mt-1">{formErrors.type}</p>}
-              </div>
+              {/* Basic Info Group */}
+              <div className="bg-gray-50 rounded-xl p-4 mb-4 border border-gray-100">
+                <div className="mb-4">
+                  <label className="block mb-1.5 text-xs font-bold text-[#1E3A8A]/60 uppercase tracking-widest">Room Type *</label>
+                  <select
+                    name="type"
+                    value={formData.type}
+                    onChange={handleInputChange}
+                    className={`w-full px-4 py-2.5 border-2 ${formErrors.type ? 'border-red-500' : 'border-[#4D8CF5]/20'} rounded-xl text-sm focus:outline-none focus:border-[#4D8CF5] focus:ring-2 focus:ring-[#4D8CF5]/10 bg-white transition-all`}
+                  >
+                    <option value="">Select Room Type</option>
+                    <option value="Tent">Tent</option>
+                    <option value="Ground Floor Rooms">Ground Floor Rooms</option>
+                    <option value="Couple Room">Couple Room</option>
+                    <option value="Group Room">Group Room</option>
+                  </select>
+                  {formErrors.type && <p className="text-red-500 text-[10px] mt-1 font-medium ml-1">{formErrors.type}</p>}
+                </div>
 
-              {/* Total Rooms Available */}
-              <div className="mb-3">
-                <label className="block mb-1 text-sm font-medium text-textPrimary">Total Rooms Available *</label>
-                <input
-                  type="number"
-                  name="totalRooms"
-                  value={formData.totalRooms}
-                  onChange={handleInputChange}
-                  placeholder="Number of rooms available"
-                  min="0"
-                  className={`w-full px-3 py-2 border ${formErrors.totalRooms ? 'border-red-500' : 'border-ocean-light/20'} rounded-xl text-sm focus:outline-none focus:border-ocean-light focus:ring-2 focus:ring-ocean-light/20`}
-                />
-                {formErrors.totalRooms && <p className="text-red-500 text-xs mt-1">{formErrors.totalRooms}</p>}
-              </div>
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <label className="block mb-1.5 text-xs font-bold text-[#1E3A8A]/60 uppercase tracking-widest">Total Units *</label>
+                    <input
+                      type="number"
+                      name="totalRooms"
+                      value={formData.totalRooms}
+                      onChange={handleInputChange}
+                      placeholder="e.g. 10"
+                      min="0"
+                      className={`w-full px-4 py-2.5 border-2 ${formErrors.totalRooms ? 'border-red-500' : 'border-[#4D8CF5]/20'} rounded-xl text-sm focus:outline-none focus:border-[#4D8CF5] transition-all`}
+                    />
+                    {formErrors.totalRooms && <p className="text-red-500 text-[10px] mt-1 font-medium ml-1">{formErrors.totalRooms}</p>}
+                  </div>
 
-              {/* Rooms Under Maintenance */}
-              <div className="mb-3">
-                <label className="block mb-1 text-sm font-medium text-textPrimary">Rooms Under Maintenance</label>
-                <input
-                  type="number"
-                  name="maintenanceRooms"
-                  value={formData.maintenanceRooms}
-                  onChange={handleInputChange}
-                  placeholder="Number of rooms under maintenance"
-                  min="0"
-                  className={`w-full px-3 py-2 border ${formErrors.maintenanceRooms ? 'border-red-500' : 'border-ocean-light/20'} rounded-xl text-sm focus:outline-none focus:border-ocean-light focus:ring-2 focus:ring-ocean-light/20`}
-                />
-                {formErrors.maintenanceRooms && <p className="text-red-500 text-xs mt-1">{formErrors.maintenanceRooms}</p>}
-                <p className="text-xs text-neutral mt-0.5">
-                  Available Rooms will be automatically calculated as: Total Rooms Available - Rooms Under Maintenance
+                  <div>
+                    <label className="block mb-1.5 text-xs font-bold text-[#1E3A8A]/60 uppercase tracking-widest">Maintenance</label>
+                    <input
+                      type="number"
+                      name="maintenanceRooms"
+                      value={formData.maintenanceRooms}
+                      onChange={handleInputChange}
+                      placeholder="e.g. 0"
+                      min="0"
+                      className={`w-full px-4 py-2.5 border-2 ${formErrors.maintenanceRooms ? 'border-red-500' : 'border-[#4D8CF5]/20'} rounded-xl text-sm focus:outline-none focus:border-[#4D8CF5] transition-all`}
+                    />
+                    {formErrors.maintenanceRooms && <p className="text-red-500 text-[10px] mt-1 font-medium ml-1">{formErrors.maintenanceRooms}</p>}
+                  </div>
+                </div>
+                <p className="text-[10px] text-[#1E3A8A]/40 mt-2 px-1">
+                  Available: <span className="font-bold">{parseInt(formData.totalRooms || 0) - parseInt(formData.maintenanceRooms || 0)} units</span>
                 </p>
               </div>
               
-              {/* Capacity Fields */}
-              <div className="grid grid-cols-2 gap-3 mb-3">
-                <div>
-                  <label className="block mb-1 text-sm font-medium text-textPrimary">Min Capacity (Guests) *</label>
-                  <input
-                    type="number"
-                    name="capacityMin"
-                    value={formData.capacityMin}
-                    onChange={handleInputChange}
-                    placeholder="Minimum guests"
-                    min="0"
-                    className={`w-full px-3 py-2 border ${formErrors.capacityMin ? 'border-red-500' : 'border-ocean-light/20'} rounded-xl text-sm focus:outline-none focus:border-ocean-light`}
-                  />
-                  {formErrors.capacityMin && <p className="text-red-500 text-xs mt-1">{formErrors.capacityMin}</p>}
+              {/* Capacity & Price Group */}
+              <div className="bg-gray-50 rounded-xl p-4 mb-4 border border-gray-100">
+                <div className="grid grid-cols-2 gap-4 mb-4">
+                  <div>
+                    <label className="block mb-1.5 text-xs font-bold text-[#1E3A8A]/60 uppercase tracking-widest">Min Guests *</label>
+                    <input
+                      type="number"
+                      name="capacityMin"
+                      value={formData.capacityMin}
+                      onChange={handleInputChange}
+                      placeholder="Min"
+                      min="0"
+                      className={`w-full px-4 py-2.5 border-2 ${formErrors.capacityMin ? 'border-red-500' : 'border-[#4D8CF5]/20'} rounded-xl text-sm focus:outline-none focus:border-[#4D8CF5] transition-all`}
+                    />
+                    {formErrors.capacityMin && <p className="text-red-500 text-[10px] mt-1 font-medium ml-1">{formErrors.capacityMin}</p>}
+                  </div>
+                  
+                  <div>
+                    <label className="block mb-1.5 text-xs font-bold text-[#1E3A8A]/60 uppercase tracking-widest">Max Guests *</label>
+                    <input
+                      type="number"
+                      name="capacityMax"
+                      value={formData.capacityMax}
+                      onChange={handleInputChange}
+                      placeholder="Max"
+                      min="0"
+                      className={`w-full px-4 py-2.5 border-2 ${formErrors.capacityMax ? 'border-red-500' : 'border-[#4D8CF5]/20'} rounded-xl text-sm focus:outline-none focus:border-[#4D8CF5] transition-all`}
+                    />
+                    {formErrors.capacityMax && <p className="text-red-500 text-[10px] mt-1 font-medium ml-1">{formErrors.capacityMax}</p>}
+                  </div>
                 </div>
                 
-                <div>
-                  <label className="block mb-1 text-sm font-medium text-textPrimary">Max Capacity (Guests) *</label>
-                  <input
-                    type="number"
-                    name="capacityMax"
-                    value={formData.capacityMax}
-                    onChange={handleInputChange}
-                    placeholder="Maximum guests"
-                    min="0"
-                    className={`w-full px-3 py-2 border ${formErrors.capacityMax ? 'border-red-500' : 'border-ocean-light/20'} rounded-xl text-sm focus:outline-none focus:border-ocean-light`}
-                  />
-                  {formErrors.capacityMax && <p className="text-red-500 text-xs mt-1">{formErrors.capacityMax}</p>}
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <label className="block mb-1.5 text-xs font-bold text-[#1E3A8A]/60 uppercase tracking-widest">Price (₱) *</label>
+                    <input
+                      type="number"
+                      name="price"
+                      value={formData.price}
+                      onChange={handleInputChange}
+                      placeholder="Price / night"
+                      min="0"
+                      step="0.01"
+                      className={`w-full px-4 py-2.5 border-2 ${formErrors.price ? 'border-red-500' : 'border-[#4D8CF5]/20'} rounded-xl text-sm focus:outline-none focus:border-[#4D8CF5] transition-all`}
+                    />
+                    {formErrors.price && <p className="text-red-500 text-[10px] mt-1 font-medium ml-1">{formErrors.price}</p>}
+                  </div>
+                  
+                  <div>
+                    <label className="block mb-1.5 text-xs font-bold text-[#1E3A8A]/60 uppercase tracking-widest">Initial Status *</label>
+                    <select
+                      name="availability"
+                      value={formData.availability}
+                      onChange={handleInputChange}
+                      className="w-full px-4 py-2.5 border-2 border-[#4D8CF5]/20 rounded-xl text-sm focus:outline-none focus:border-[#4D8CF5] bg-white transition-all"
+                    >
+                      {availabilityStatuses.map(status => (
+                        <option key={status.value} value={status.value}>{status.label}</option>
+                      ))}
+                    </select>
+                    {manualOverride && (
+                      <p className="text-[10px] text-amber-600 mt-1 font-medium ml-1">Manual override active</p>
+                    )}
+                  </div>
                 </div>
               </div>
               
-              {/* Price and Availability */}
-              <div className="grid grid-cols-2 gap-3 mb-3">
-                <div>
-                  <label className="block mb-1 text-sm font-medium text-textPrimary">Price (₱) *</label>
-                  <input
-                    type="number"
-                    name="price"
-                    value={formData.price}
-                    onChange={handleInputChange}
-                    placeholder="Price per night"
-                    min="0"
-                    step="0.01"
-                    className={`w-full px-3 py-2 border ${formErrors.price ? 'border-red-500' : 'border-ocean-light/20'} rounded-xl text-sm focus:outline-none focus:border-ocean-light`}
-                  />
-                  {formErrors.price && <p className="text-red-500 text-xs mt-1">{formErrors.price}</p>}
-                </div>
-                
-                <div>
-                  <label className="block mb-1 text-sm font-medium text-textPrimary">Availability *</label>
-                  <select
-                    name="availability"
-                    value={formData.availability}
-                    onChange={handleInputChange}
-                    className="w-full px-3 py-2 border border-ocean-light/20 rounded-xl text-sm focus:outline-none focus:border-ocean-light bg-white"
+              {/* Inclusions Dropdown (Standardized) */}
+              <div className="mb-4">
+                <label className="block mb-1.5 text-xs font-bold text-[#1E3A8A]/60 uppercase tracking-widest px-1">Room Inclusions</label>
+                <div className="relative">
+                  <button 
+                    type="button" 
+                    onClick={() => setShowInclusionDropdown(!showInclusionDropdown)} 
+                    className="w-full px-4 py-2.5 border-2 border-[#4D8CF5]/20 rounded-xl text-sm focus:outline-none focus:border-[#4D8CF5] bg-white text-left flex justify-between items-center transition-all hover:border-[#4D8CF5]/40"
                   >
-                    {availabilityStatuses.map(status => (
-                      <option key={status.value} value={status.value}>{status.label}</option>
-                    ))}
-                  </select>
-                  {manualOverride && (
-                    <p className="text-xs text-amber-600 mt-0.5">
-                      Manual override active. Status won't auto-update based on room counts.
-                    </p>
+                    <span className={formData.inclusions.length === 0 ? 'text-gray-400' : 'text-[#1E3A8A] font-medium'}>
+                      {formData.inclusions.length === 0 ? 'Select inclusions...' : `${formData.inclusions.length} selected`}
+                    </span>
+                    <i className={`fas fa-chevron-${showInclusionDropdown ? 'up' : 'down'} text-[#4D8CF5] text-xs`}></i>
+                  </button>
+                  
+                  {showInclusionDropdown && (
+                    <div className="absolute left-0 right-0 mt-1 bg-white border-2 border-[#4D8CF5]/10 rounded-xl shadow-xl z-50 max-h-60 overflow-auto animate-scaleIn">
+                      {roomInclusionOptions.map((option) => (
+                        <label key={option} className="flex items-center gap-3 px-4 py-2.5 hover:bg-[#4D8CF5]/5 cursor-pointer transition-colors border-b border-gray-50 last:border-0">
+                          <input 
+                            type="checkbox" 
+                            checked={formData.inclusions.includes(option)} 
+                            onChange={() => {
+                              if (formData.inclusions.includes(option)) {
+                                setFormData(prev => ({ ...prev, inclusions: prev.inclusions.filter(i => i !== option) }));
+                              } else {
+                                setFormData(prev => ({ ...prev, inclusions: [...prev.inclusions, option] }));
+                              }
+                            }} 
+                            className="w-4 h-4 rounded border-[#4D8CF5]/30 text-[#4D8CF5] focus:ring-[#4D8CF5]/20" 
+                          />
+                          <span className="text-sm text-[#1E3A8A]">{option}</span>
+                        </label>
+                      ))}
+                    </div>
                   )}
                 </div>
+                
+                {formData.inclusions.length > 0 && (
+                  <div className="flex flex-wrap gap-1.5 mt-3 px-1">
+                    {formData.inclusions.map((inclusion, idx) => (
+                      <span key={idx} className="inline-flex items-center gap-1.5 px-3 py-1 bg-[#4D8CF5]/10 text-[#1E3A8A] rounded-full text-[11px] font-medium border border-[#4D8CF5]/10">
+                        {inclusion}
+                        <button 
+                          type="button" 
+                          onClick={() => handleInclusionRemove(inclusion)} 
+                          className="w-4 h-4 flex items-center justify-center rounded-full hover:bg-[#4D8CF5]/20 transition-colors"
+                        >
+                          <i className="fas fa-times text-[8px]"></i>
+                        </button>
+                      </span>
+                    ))}
+                  </div>
+                )}
               </div>
               
-              {/* Inclusions Dropdown */}
-              <div className="mb-3">
-                <label className="block mb-1 text-sm font-medium text-textPrimary">Inclusions</label>
-                <select
-                  value=""
-                  onChange={(e) => {
-                    const value = e.target.value;
-                    if (value && !formData.inclusions.includes(value)) {
-                      setFormData(prev => ({
-                        ...prev,
-                        inclusions: [...prev.inclusions, value]
-                      }));
-                    }
-                    e.target.value = '';
-                  }}
-                  className="w-full px-3 py-2 border border-ocean-light/20 rounded-xl text-sm focus:outline-none focus:border-ocean-light bg-white"
-                >
-                  <option value="">Select an inclusion to add</option>
-                  <option value="Access to Pool">Access to Pool</option>
-                  <option value="Wi-Fi">Wi-Fi</option>
-                  <option value="Free Use of Kitchenwares & Stove">Free Use of Kitchenwares & Stove</option>
-                  <option value="Free Use of Grill with Charcoal">Free Use of Grill with Charcoal</option>
-                  <option value="Free Drinking (Mineral) Water">Free Drinking (Mineral) Water</option>
-                  <option value="Free Bonfire at Night">Free Bonfire at Night</option>
-                  <option value="Free Parking">Free Parking</option>
-                  <option value="Air-Conditioned">Air-Conditioned</option>
-                  <option value="Fan Room">Fan Room</option>
-                  <option value="Common Bathroom">Common Bathroom</option>
-                </select>
-                <div className="flex flex-wrap gap-1.5 mt-2">
-                  {formData.inclusions.map((inclusion, idx) => (
-                    <span key={idx} className="inline-flex items-center gap-1 px-2 py-1 bg-ocean-ice text-ocean-mid rounded-full text-xs">
-                      {inclusion}
-                      <button
-                        type="button"
-                        onClick={() => handleInclusionRemove(inclusion)}
-                        className="hover:text-red-500 transition-colors"
-                      >
-                        <i className="fas fa-times text-xs"></i>
-                      </button>
-                    </span>
-                  ))}
-                </div>
-              </div>
-              
-              {/* Description */}
-              <div className="mb-3">
-                <label className="block mb-1 text-sm font-medium text-textPrimary">Description *</label>
+              {/* Description & Images */}
+              <div className="mb-4">
+                <label className="block mb-1.5 text-xs font-bold text-[#1E3A8A]/60 uppercase tracking-widest px-1">Description *</label>
                 <textarea
                   name="description"
                   value={formData.description}
                   onChange={handleInputChange}
                   rows="3"
-                  placeholder="Describe the room features, amenities, and highlights..."
-                  className={`w-full px-3 py-2 border ${formErrors.description ? 'border-red-500' : 'border-ocean-light/20'} rounded-xl text-sm focus:outline-none focus:border-ocean-light`}
+                  placeholder="Tell guests about this room..."
+                  className={`w-full px-4 py-2.5 border-2 ${formErrors.description ? 'border-red-500' : 'border-[#4D8CF5]/20'} rounded-xl text-sm focus:outline-none focus:border-[#4D8CF5] transition-all resize-none`}
                 />
-                {formErrors.description && <p className="text-red-500 text-xs mt-1">{formErrors.description}</p>}
+                {formErrors.description && <p className="text-red-500 text-[10px] mt-1 font-medium ml-1">{formErrors.description}</p>}
               </div>
               
-              {/* Images Upload */}
-              <div className="mb-4">
-                <label className="block mb-1 text-sm font-medium text-textPrimary">Room Images</label>
-                <div className="border-2 border-dashed border-ocean-light/20 rounded-xl p-3 text-center hover:border-ocean-light transition-colors">
+              <div className="mb-6">
+                <label className="block mb-1.5 text-xs font-bold text-[#1E3A8A]/60 uppercase tracking-widest px-1">Room Images</label>
+                <div className="border-2 border-dashed border-[#4D8CF5]/20 rounded-xl p-5 text-center hover:border-[#4D8CF5]/40 hover:bg-[#4D8CF5]/5 transition-all group">
                   <input
                     type="file"
                     accept="image/*"
@@ -1168,20 +1227,22 @@ export default function AdminRooms() {
                   />
                   <label
                     htmlFor="image-upload"
-                    className="cursor-pointer flex flex-col items-center gap-1"
+                    className="cursor-pointer flex flex-col items-center gap-2"
                   >
-                    <i className={`fas ${uploadingImage ? 'fa-spinner fa-spin' : 'fa-cloud-upload-alt'} text-2xl text-ocean-light`}></i>
-                    <span className="text-xs text-textSecondary">
+                    <div className="w-12 h-12 rounded-full bg-[#4D8CF5]/10 flex items-center justify-center group-hover:bg-[#4D8CF5]/20 transition-all">
+                      <i className={`fas ${uploadingImage ? 'fa-spinner fa-spin' : 'fa-cloud-upload-alt'} text-xl text-[#4D8CF5]`}></i>
+                    </div>
+                    <span className="text-xs font-semibold text-[#1E3A8A]">
                       {uploadingImage ? 'Uploading...' : 'Click to upload images'}
                     </span>
-                    <span className="text-xs text-neutral">PNG, JPG up to 5MB (Optional)</span>
+                    <span className="text-[10px] text-[#1E3A8A]/40 uppercase tracking-widest">PNG, JPG up to 5MB</span>
                   </label>
                 </div>
                 
                 {formData.images.length > 0 && (
-                  <div className="grid grid-cols-4 gap-1.5 mt-2">
+                  <div className="grid grid-cols-4 gap-2 mt-3 px-1">
                     {formData.images.map((img, idx) => (
-                      <div key={idx} className="relative group aspect-square rounded-lg overflow-hidden border border-ocean-light/20">
+                      <div key={idx} className="relative group aspect-square rounded-lg overflow-hidden border border-[#4D8CF5]/10 shadow-sm">
                         <Image
                           src={img}
                           alt={`Room image ${idx + 1}`}
@@ -1191,9 +1252,9 @@ export default function AdminRooms() {
                         <button
                           type="button"
                           onClick={() => handleImageRemove(img)}
-                          className="absolute top-0.5 right-0.5 w-5 h-5 bg-red-500 text-white rounded-full flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity"
+                          className="absolute inset-0 bg-red-500/80 text-white flex items-center justify-center opacity-0 group-hover:opacity-100 transition-all"
                         >
-                          <i className="fas fa-times text-xs"></i>
+                          <i className="fas fa-trash-alt text-xs"></i>
                         </button>
                       </div>
                     ))}
@@ -1202,14 +1263,15 @@ export default function AdminRooms() {
               </div>
               
               {/* Form Actions */}
-              <div className="flex gap-3 justify-end mt-4">
+              <div className="flex gap-3 justify-end pt-4 border-t border-gray-100">
                 <button
                   type="button"
                   onClick={() => {
                     setShowModal(false);
                     setSelectedRoom(null);
+                    setShowInclusionDropdown(false);
                   }}
-                  className="px-4 py-2 border border-ocean-light/20 rounded-xl text-textSecondary text-sm font-medium hover:bg-ocean-ice transition-all duration-300"
+                  className="px-6 py-2.5 rounded-xl text-textSecondary text-sm font-semibold hover:bg-gray-100 transition-all"
                 >
                   Cancel
                 </button>
@@ -1220,16 +1282,16 @@ export default function AdminRooms() {
                     (modalType === 'add' && isFormIncomplete()) ||
                     (modalType === 'edit' && (!hasChanges))
                   }
-                  className={`px-4 py-2 rounded-xl text-white text-sm font-medium transition-all duration-300 ${
+                  className={`px-8 py-2.5 rounded-xl text-white text-sm font-bold shadow-sm transition-all ${
                     actionLoading || 
                     (modalType === 'add' && isFormIncomplete()) ||
                     (modalType === 'edit' && (!hasChanges))
-                      ? 'bg-gray-200 text-gray-700 cursor-not-allowed opacity-50 hover:shadow-none'
-                      : 'bg-gradient-to-r from-ocean-mid to-ocean-light hover:shadow-lg hover:-translate-y-0.5'
+                      ? 'bg-gray-200 text-gray-400 cursor-not-allowed'
+                      : 'bg-[#4D8CF5] hover:bg-[#3B78E7] hover:shadow-md active:scale-95'
                   }`}
                 >
                   {actionLoading ? (
-                    <span><i className="fas fa-spinner fa-spin mr-2"></i> {modalType === 'add' ? 'Adding...' : 'Updating...'}</span>
+                    <span><i className="fas fa-spinner fa-spin mr-2"></i> Processing...</span>
                   ) : (
                     modalType === 'add' ? 'Add Room' : 'Save Changes'
                   )}

@@ -300,6 +300,18 @@ export default function AdminCalendar() {
     return () => unsubscribe();
   }, [selectedRoomId, totalRoomUnits]);
 
+  // Handle body scroll when sidebar is open
+  useEffect(() => {
+    if (isSidebarOpen) {
+      document.body.style.overflow = 'hidden';
+    } else {
+      document.body.style.overflow = 'unset';
+    }
+    return () => {
+      document.body.style.overflow = 'unset';
+    };
+  }, [isSidebarOpen]);
+
   useEffect(() => {
     setUnitsToBlock((u) => {
       const n = typeof u === 'number' && Number.isFinite(u) ? u : 1;
