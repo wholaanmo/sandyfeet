@@ -74,8 +74,15 @@ export default function AdminNavbar({ toggleSidebar, sidebarOpen, isDesktop }) {
   // Combined notification update handler
   const handleNotificationsUpdate = (newItems, type) => {
     setNotifications(prev => {
-      const filtered = prev.filter(n => n.type !== type);
       const isStatusType = type === 'check_in' || type === 'check_out';
+
+      // For status notifications, don't clear the list if the service emits an empty update.
+      // This preserves already-triggered check-in/check-out notifications (read or unread).
+      if (isStatusType && (!Array.isArray(newItems) || newItems.length === 0)) {
+        return prev;
+      }
+
+      const filtered = prev.filter(n => n.type !== type);
       const itemsWithReadState = isStatusType
         ? newItems.map(item => ({ ...item, read: statusReadMapRef.current[`${item.type}-${item.id}`] === true }))
         : newItems;
@@ -310,8 +317,9 @@ const getNotificationStyle = (type) => {
       Day Tour Reservation
     </p>
     <p className="text-xs text-gray-600 mb-1">
-      <span className="font-semibold">{notification.guestName}</span> | Booking ID: <span className="font-mono">{notification.bookingId}</span>
+      <span className="font-semibold">{notification.guestName}</span> 
     </p>
+    <p className="text-xs text-gray-600 mb-1"> <span className="font-semibold">  Booking ID: </span><span className="font-mono">{notification.bookingId}</span></p>
     <div className="inline-flex items-center gap-1.5 mt-1 px-2 py-0.5 bg-emerald-50 rounded-full">
       <i className="fas fa-calendar-alt text-emerald-500 text-[10px]"></i>
       <span className="text-[11px] font-medium text-emerald-700">{notification.reservationDate}</span>

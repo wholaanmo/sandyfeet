@@ -428,12 +428,16 @@ useEffect(() => {
         checkInTime.setHours(14, 0, 0, 0);
         
         // Create check-out time at 12:00 PM on check-out day
-        const checkOutTime = new Date(checkOutRaw);
-        checkOutTime.setHours(12, 0, 0, 0);
-        
-        // Create completed time at 1:00 PM on check-out day (1 hour after check-out)
-        const completedTime = new Date(checkOutRaw);
-        completedTime.setHours(13, 0, 0, 0);
+const checkOutDateObj = new Date(checkOutRaw);
+const checkOutDay = new Date(checkOutDateObj.getFullYear(), checkOutDateObj.getMonth(), checkOutDateObj.getDate());
+
+// Check-out time: 12:00 PM on the check-out day
+const checkOutTime = new Date(checkOutDay);
+checkOutTime.setHours(12, 0, 0, 0);
+
+// Completed time: 1:00 PM on the same day (1 hour after check-out)
+const completedTime = new Date(checkOutDay);
+completedTime.setHours(13, 0, 0, 0);
         
         let targetStatus = null;
         

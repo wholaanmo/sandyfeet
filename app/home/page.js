@@ -1,3 +1,4 @@
+// app/page.js
 'use client';
 
 import { useEffect, useState } from 'react';
@@ -15,35 +16,6 @@ const galleryImages = [
   { src: '/assets/Tent/Tents.jpg', alt: 'Camping tents' },
   { src: '/assets/Facilities/Bonfire.jpg', alt: 'Bonfire night setup' },
 ];
-
-const testimonials = [
-  {
-    name: 'Aira M.',
-    role: 'WEEKEND GUEST',
-    review:
-      'Super easy booking process and the place looked exactly like the photos. The pool vibe at sunset is 10/10.',
-  },
-  {
-    name: 'Jules P.',
-    role: 'BIRTHDAY CELEBRANT',
-    review:
-      'We reserved for a small celebration and everything felt smooth from payment upload to confirmation update.',
-  },
-  {
-    name: 'Mark & Elle',
-    role: 'COUPLE ROOM STAY',
-    review:
-      'The room was cozy and clean, staff was responsive, and tracking our booking status gave us peace of mind.',
-  },
-  {
-    name: 'Nika R.',
-    role: 'DAY TOUR GUEST',
-    review:
-      'The reservation flow is clear and fast. We arrived with everything ready and enjoyed the whole day without hassle.',
-  },
-];
-
-const completedStatuses = new Set(['completed']);
 
 const toRoomSlug = (value) => {
   return String(value || '')
@@ -91,6 +63,24 @@ const getFallbackFeaturedImage = (roomType) => {
   return '/assets/GroundFloor/Room 1.jpg';
 };
 
+// Star rating component for testimonials
+const StarRating = ({ rating }) => {
+  return (
+    <div className="flex gap-1">
+      {[1, 2, 3, 4, 5].map((star) => (
+        <svg
+          key={star}
+          className={`w-4 h-4 ${star <= rating ? 'text-yellow-400' : 'text-gray-300'}`}
+          fill="currentColor"
+          viewBox="0 0 20 20"
+        >
+          <path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z" />
+        </svg>
+      ))}
+    </div>
+  );
+};
+
 export default function HomePage() {
   const [featuredRooms, setFeaturedRooms] = useState([]);
   const [featuredRoomsLoading, setFeaturedRoomsLoading] = useState(true);
@@ -102,6 +92,38 @@ export default function HomePage() {
   const [verifiedFeedbackBooking, setVerifiedFeedbackBooking] = useState(null);
   const [verifyingBooking, setVerifyingBooking] = useState(false);
   const [submittingFeedback, setSubmittingFeedback] = useState(false);
+  const [publishedFeedbacks, setPublishedFeedbacks] = useState([]);
+
+  // Fetch published feedbacks for testimonials with real-time updates
+ useEffect(() => {
+  const feedbacksRef = collection(db, 'feedbacks');
+  // Only filter by status in the query; archived filtering will be done in memory
+  const q = query(feedbacksRef, where('status', '==', 'Published'));
+  
+  const unsubscribe = onSnapshot(q, (querySnapshot) => {
+    const feedbacksList = [];
+    querySnapshot.forEach((doc) => {
+      const data = doc.data();
+      // Filter out archived feedbacks
+      if (data.archived === true) return;
+      // Only include feedbacks that have a comment
+      if (data.comment && data.comment.trim().length > 0) {
+        feedbacksList.push({
+          id: doc.id,
+          ...data,
+          createdAt: data.createdAt?.toDate?.() || new Date(data.createdAt || 0),
+        });
+      }
+    });
+    // Sort by creation date (newest first)
+    feedbacksList.sort((a, b) => b.createdAt - a.createdAt);
+    setPublishedFeedbacks(feedbacksList);
+  }, (error) => {
+    console.error('Error fetching published feedbacks:', error);
+  });
+  
+  return () => unsubscribe();
+}, []);
 
   useEffect(() => {
     const roomsRef = collection(db, 'rooms');
@@ -196,93 +218,188 @@ export default function HomePage() {
     resetFeedbackModal();
   };
 
-  const fetchBookingByReference = async (collectionName, bookingId) => {
-    const bookingsRef = collection(db, collectionName);
-    const bookingQuery = query(bookingsRef, where('bookingId', '==', bookingId), limit(1));
-    const bookingSnapshot = await getDocs(bookingQuery);
+const fetchBookingByReference = async (collectionName, bookingId) => {
+  const bookingsRef = collection(db, collectionName);
+  // 1) Search by bookingId field
+  const bookingQuery = query(bookingsRef, where('bookingId', '==', bookingId), limit(1));
+  let bookingSnapshot = await getDocs(bookingQuery);
 
-    if (bookingSnapshot.empty) return null;
-
+  if (!bookingSnapshot.empty) {
+    const bookingData = bookingSnapshot.docs[0].data();
+    // Check if it's a multi-room child booking (has parentBookingId)
+    if (bookingData.isMultiRoomBooking && bookingData.parentBookingId) {
+      // For child bookings, fetch the parent to get consolidated status
+      const parentQuery = query(bookingsRef, where('bookingId', '==', bookingData.parentBookingId), limit(1));
+      const parentSnapshot = await getDocs(parentQuery);
+      if (!parentSnapshot.empty) {
+        const parentData = parentSnapshot.docs[0].data();
+        return {
+          docId: bookingSnapshot.docs[0].id,
+          collectionName,
+          data: {
+            ...bookingData,
+            status: parentData.status,
+          },
+        };
+      }
+    }
+    // Normal booking (single room or parent booking)
     return {
       docId: bookingSnapshot.docs[0].id,
       collectionName,
-      data: bookingSnapshot.docs[0].data(),
+      data: bookingData,
     };
-  };
+  }
 
-  const handleVerifyFeedbackBooking = async (event) => {
-    event.preventDefault();
+  // 2) Not found by bookingId → try to find multi‑room group by parentBookingId
+  const groupQuery = query(bookingsRef, where('parentBookingId', '==', bookingId));
+  const groupSnapshot = await getDocs(groupQuery);
 
-    // Temporary preview mode: bypass verification and open the rating form directly.
-    setVerifiedFeedbackBooking({
-      bookingId: (feedbackCredentials.reference || 'PREVIEW-BOOKING').trim().toUpperCase(),
-      guestEmail: (feedbackCredentials.email || 'preview@sandyfeet.local').trim().toLowerCase(),
-      guestName: 'Preview Guest',
-      sourceCollection: 'preview',
-      sourceDocId: 'preview',
-    });
-    setFeedbackMessage({ text: 'Preview mode enabled. Verification is temporarily bypassed.', type: 'info' });
-    setFeedbackStep('form');
+  if (!groupSnapshot.empty) {
+    // Take the first child as representative (all share same parentBookingId, guestInfo, dates, and status)
+    const representativeDoc = groupSnapshot.docs[0];
+    const representativeData = representativeDoc.data();
+
+    // For a multi‑room group, all children have the same status (updated together by admin)
+    // Use the status from the first child
+    const groupStatus = representativeData.status;
+
+    // Build a synthetic booking object that mimics a normal booking for verification
+    const syntheticBooking = {
+      ...representativeData,
+      bookingId: bookingId,                     // the reference the guest entered
+      isMultiRoomGroup: true,                  // flag for downstream logic
+      originalChildBookings: groupSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })),
+      // Keep the status from the children
+      status: groupStatus,
+    };
+
+    return {
+      docId: representativeDoc.id,             // any child ID is fine for reference
+      collectionName,
+      data: syntheticBooking,
+    };
+  }
+
+  return null;
+};
+
+// Updated handleVerifyFeedbackBooking function with status validation
+const handleVerifyFeedbackBooking = async (event) => {
+  event.preventDefault();
+
+  const normalizedEmail = feedbackCredentials.email.trim().toLowerCase();
+  const normalizedReference = feedbackCredentials.reference.trim().toUpperCase();
+
+  if (!normalizedEmail || !normalizedReference) {
+    setFeedbackMessage({ text: 'Please enter both email and reference number.', type: 'error' });
     return;
+  }
 
-    const normalizedEmail = feedbackCredentials.email.trim().toLowerCase();
-    const normalizedReference = feedbackCredentials.reference.trim().toUpperCase();
+  setVerifyingBooking(true);
+  setFeedbackMessage({ text: '', type: '' });
 
-    if (!normalizedEmail || !normalizedReference) {
-      setFeedbackMessage({ text: 'Please enter both email and reference number.', type: 'error' });
+  try {
+    // First try to find the booking in 'bookings' collection (rooms)
+    let booking = await fetchBookingByReference('bookings', normalizedReference);
+    let isDayTour = false;
+    
+    // If not found in rooms, try dayTourBookings
+    if (!booking) {
+      booking = await fetchBookingByReference('dayTourBookings', normalizedReference);
+      isDayTour = true;
+    }
+
+    if (!booking) {
+      setFeedbackMessage({ text: 'No booking found for that reference number.', type: 'error' });
       return;
     }
 
-    setVerifyingBooking(true);
-    setFeedbackMessage({ text: '', type: '' });
-
-    try {
-      const roomBooking = await fetchBookingByReference('bookings', normalizedReference);
-      const dayTourBooking = roomBooking ? null : await fetchBookingByReference('dayTourBookings', normalizedReference);
-      const foundBooking = roomBooking || dayTourBooking;
-
-      if (!foundBooking) {
-        setFeedbackMessage({ text: 'No booking found for that reference number.', type: 'error' });
-        return;
-      }
-
-      const guestEmail = String(foundBooking.data?.guestInfo?.email || '').trim().toLowerCase();
-      if (!guestEmail || guestEmail !== normalizedEmail) {
-        setFeedbackMessage({ text: 'Email does not match this booking reference.', type: 'error' });
-        return;
-      }
-
-      const bookingStatus = String(foundBooking.data?.status || '').toLowerCase();
-      if (!completedStatuses.has(bookingStatus)) {
-        setFeedbackMessage({ text: 'Only completed bookings can submit feedback.', type: 'error' });
-        return;
-      }
-
-      const duplicateQuery = query(collection(db, 'feedbacks'), where('bookingId', '==', normalizedReference), limit(1));
-      const duplicateSnapshot = await getDocs(duplicateQuery);
-      if (!duplicateSnapshot.empty) {
-        setFeedbackMessage({ text: 'Feedback for this booking has already been submitted.', type: 'error' });
-        return;
-      }
-
-      const guestName = `${foundBooking.data?.guestInfo?.firstName || ''} ${foundBooking.data?.guestInfo?.lastName || ''}`.trim();
-
-      setVerifiedFeedbackBooking({
-        bookingId: normalizedReference,
-        guestEmail: normalizedEmail,
-        guestName: guestName || 'Guest',
-        sourceCollection: foundBooking.collectionName,
-        sourceDocId: foundBooking.docId,
-      });
-      setFeedbackStep('form');
-      setFeedbackMessage({ text: 'Booking verified. You can now write your feedback.', type: 'success' });
-    } catch (error) {
-      console.error('Error verifying booking:', error);
-      setFeedbackMessage({ text: 'Failed to verify booking. Please try again.', type: 'error' });
-    } finally {
-      setVerifyingBooking(false);
+    const guestEmail = String(booking.data?.guestInfo?.email || '').trim().toLowerCase();
+    if (!guestEmail || guestEmail !== normalizedEmail) {
+      setFeedbackMessage({ text: 'Email does not match this booking reference.', type: 'error' });
+      return;
     }
-  };
+
+    const bookingStatus = String(booking.data?.status || '').toLowerCase().trim();
+    console.log(`[DEBUG] Booking status: "${bookingStatus}", isDayTour: ${isDayTour}`); // You can remove this later
+
+    // Define allowed statuses for feedback submission
+    const allowedStatuses = new Set(['check-in', 'check-out', 'completed']);
+    const restrictedStatuses = new Set(['pending', 'confirmed', 'cancelled', 'cancelled-by-guest']);
+    
+    // Check if status is restricted (not allowed at all)
+    if (restrictedStatuses.has(bookingStatus)) {
+      let statusMessage = '';
+      switch(bookingStatus) {
+        case 'pending':
+          statusMessage = 'Pending - Your booking is still being reviewed.';
+          break;
+        case 'confirmed':
+          statusMessage = 'Confirmed - Your booking has been confirmed but the stay hasn\'t started yet.';
+          break;
+        case 'cancelled':
+          statusMessage = 'Cancelled - This booking has been cancelled by the admin.';
+          break;
+        case 'cancelled-by-guest':
+          statusMessage = 'Cancelled - This booking has been cancelled by the guest.';
+          break;
+        default:
+          statusMessage = 'This booking status does not allow feedback submission.';
+      }
+      setFeedbackMessage({ 
+        text: `You may submit feedback only after experiencing your stay at our resort. Feedback becomes available once your stay has started or been completed.`, 
+        type: 'error' 
+      });
+      return;
+    }
+    
+    // DAY TOUR: allow only 'completed' or 'check-in'
+    if (isDayTour && !['completed', 'check-in'].includes(bookingStatus)) {
+      setFeedbackMessage({ 
+        text: 'Only completed or ongoing (Check-In) day tour bookings can submit feedback.', 
+        type: 'error' 
+      });
+      return;
+    }
+    
+    // ROOM BOOKING: allow check-in, check-out, completed
+    if (!isDayTour && !allowedStatuses.has(bookingStatus)) {
+      setFeedbackMessage({ 
+        text: 'Only bookings with status Check-In, Check-Out, or Completed can submit feedback.', 
+        type: 'error' 
+      });
+      return;
+    }
+
+    // Check for duplicate feedback
+    const duplicateQuery = query(collection(db, 'feedbacks'), where('bookingId', '==', normalizedReference), limit(1));
+    const duplicateSnapshot = await getDocs(duplicateQuery);
+    if (!duplicateSnapshot.empty) {
+      setFeedbackMessage({ text: 'Feedback for this booking has already been submitted.', type: 'error' });
+      return;
+    }
+
+    const guestName = `${booking.data?.guestInfo?.firstName || ''} ${booking.data?.guestInfo?.lastName || ''}`.trim();
+
+    setVerifiedFeedbackBooking({
+      bookingId: normalizedReference,
+      guestEmail: normalizedEmail,
+      guestName: guestName || 'Guest',
+      sourceCollection: booking.collectionName,
+      sourceDocId: booking.docId,
+      isDayTour: isDayTour,
+    });
+    setFeedbackStep('form');
+    setFeedbackMessage({ text: 'Booking verified. You can now write your feedback.', type: 'success' });
+  } catch (error) {
+    console.error('Error verifying booking:', error);
+    setFeedbackMessage({ text: 'Failed to verify booking. Please try again.', type: 'error' });
+  } finally {
+    setVerifyingBooking(false);
+  }
+};
+
 
   const handleFeedbackSubmit = async (event) => {
     event.preventDefault();
@@ -312,6 +429,7 @@ export default function HomePage() {
         sourceCollection: verifiedFeedbackBooking.sourceCollection,
         sourceDocId: verifiedFeedbackBooking.sourceDocId,
         createdAt: serverTimestamp(),
+        status: 'Pending', // Default status when newly submitted
       });
 
       setFeedbackMessage({ text: 'Thank you. Your feedback has been submitted.', type: 'success' });
@@ -598,68 +716,87 @@ export default function HomePage() {
           </div>
         </section>
 
-        {/* --- TESTIMONIALS --- */}
-           <section className="py-16 bg-white border-t border-gray-50 pb-24">
-           <div className="max-w-7xl mx-auto px-6">
-             <div className="mb-12 text-center">
-               <span className="text-gray-500 font-bold text-[10px] tracking-[0.2em] uppercase mb-4 block">
-                 GUEST STORIES
-               </span>
-               <h2 className="font-playfair text-4xl md:text-5xl text-[#0f2824]">
-                 Testimonials
-               </h2>
-             </div>
+{/* --- TESTIMONIALS --- */}
+<section className="py-16 bg-white border-t border-gray-50 pb-24">
+  <div className="max-w-7xl mx-auto px-6">
+    <div className="mb-12 text-center">
+      <span className="text-gray-500 font-bold text-[10px] tracking-[0.2em] uppercase mb-4 block">
+        GUEST STORIES
+      </span>
+      <h2 className="font-playfair text-4xl md:text-5xl text-[#0f2824]">
+        Testimonials
+      </h2>
+    </div>
 
-             <div className="relative">
-                {/* Decorative palm tree */}
-                <div className="absolute -left-12 -top-12 z-0 opacity-80 decoration-clip hidden md:block">
-                 <Image src="/assets/Icon/Coconut tree.png" alt="Palm tree" width={100} height={100} />
+    <div className="relative">
+      {/* Decorative palm tree */}
+      <div className="absolute -left-12 -top-12 z-0 opacity-80 decoration-clip hidden md:block">
+        <Image src="/assets/Icon/Coconut tree.png" alt="Palm tree" width={100} height={100} />
+      </div>
+
+      <div className="relative overflow-hidden px-1">
+        <div className="pointer-events-none absolute left-0 top-0 z-10 h-full w-12 bg-gradient-to-r from-white to-transparent" />
+        <div className="pointer-events-none absolute right-0 top-0 z-10 h-full w-12 bg-gradient-to-l from-white to-transparent" />
+
+        {publishedFeedbacks.length > 0 ? (
+          <div className="testimonials-track flex w-max gap-6 pb-2">
+            {[...publishedFeedbacks, ...publishedFeedbacks].map((item, index) => (
+              <div
+                key={`${item.id}-${index}`}
+                className="w-[320px] flex-none rounded-3xl border border-gray-100 bg-white p-8 shadow-[0_8px_30px_rgb(0,0,0,0.03)] md:w-[360px]"
+              >
+                <div className="mb-6 flex items-center gap-4">
+                  <div className="flex h-12 w-12 items-center justify-center rounded-full bg-blue-50 text-lg font-bold text-[#3B82F6]">
+                    {(item.guestName || 'Guest').charAt(0)}
+                  </div>
+                  <div>
+                    <h4 className="font-bold text-[#0f2824]">{item.guestName || 'Guest'}</h4>
+                    <div className="mt-1">
+                      <StarRating rating={item.rating} />
+                    </div>
+                  </div>
                 </div>
+                <p className="mb-8 text-[15px] leading-relaxed text-gray-600">
+                  &quot;{item.comment}&quot;
+                </p>
+              </div>
+            ))}
+          </div>
+        ) : (
+          // Show empty state centered within the viewable area
+<div className="flex items-center justify-center min-h-[400px] w-full">
+  <div className="text-center">
+    <div className="flex justify-center mb-4">
+      <div className="w-16 h-16 rounded-full bg-gray-100 flex items-center justify-center animate-bounce">
+        <span className="material-icons text-3xl text-gray-400">
+          rate_review
+        </span>
+      </div>
+    </div>
 
-               <div className="relative overflow-hidden px-1">
-                 <div className="pointer-events-none absolute left-0 top-0 z-10 h-full w-12 bg-gradient-to-r from-white to-transparent" />
-                 <div className="pointer-events-none absolute right-0 top-0 z-10 h-full w-12 bg-gradient-to-l from-white to-transparent" />
+    <p className="text-gray-500 text-lg font-semibold">
+      No testimonials available yet
+    </p>
+    <p className="text-gray-400 text-sm mt-2">
+      Be the first to share your experience!
+    </p>
+  </div>
+</div>
+        )}
+      </div>
 
-                 <div className="testimonials-track flex w-max gap-6 pb-2">
-                   {[...testimonials, ...testimonials].map((item, index) => (
-                     <div
-                       key={`${item.name}-${index}`}
-                       className="w-[320px] flex-none rounded-3xl border border-gray-100 bg-white p-8 shadow-[0_8px_30px_rgb(0,0,0,0.03)] md:w-[360px]"
-                     >
-                       <div className="mb-6 flex items-center gap-4">
-                         <div className="flex h-12 w-12 items-center justify-center rounded-full bg-blue-50 text-lg font-bold text-[#3B82F6]">
-                           {item.name.charAt(0)}
-                         </div>
-                         <div>
-                           <h4 className="font-bold text-[#0f2824]">{item.name}</h4>
-                           <p className="text-[10px] uppercase tracking-widest text-gray-400">{item.role}</p>
-                         </div>
-                       </div>
-                       <p className="mb-8 text-[15px] leading-relaxed text-gray-600">
-                         &quot;{item.review}&quot;
-                       </p>
-                       <div className="mt-auto flex gap-1">
-                         {[1, 2, 3, 4, 5].map((i) => (
-                           <div key={i} className="h-2.5 w-2.5 rounded-full bg-[#fbc674]" />
-                         ))}
-                       </div>
-                     </div>
-                   ))}
-                 </div>
-               </div>
-
-               <div className="mt-8 flex justify-center">
-                 <button
-                   type="button"
-                   onClick={() => setShowFeedbackModal(true)}
-                   className="rounded-full bg-[#3B82F6] px-6 py-3 text-sm font-semibold text-white shadow-md shadow-blue-500/20 transition-all hover:-translate-y-0.5 hover:bg-[#2563EB]"
-                 >
-                   Add Feedback
-                 </button>
-               </div>
-             </div>
-           </div>
-        </section>
+      <div className="mt-8 flex justify-center">
+        <button
+          type="button"
+          onClick={() => setShowFeedbackModal(true)}
+          className="rounded-full bg-[#3B82F6] px-6 py-3 text-sm font-semibold text-white shadow-md shadow-blue-500/20 transition-all hover:-translate-y-0.5 hover:bg-[#2563EB]"
+        >
+          Add Feedback
+        </button>
+      </div>
+    </div>
+  </div>
+</section>
 
         {showFeedbackModal ? (
           <div
@@ -674,7 +811,7 @@ export default function HomePage() {
                 <div>
                   <h3 className="font-playfair text-2xl text-[#0f2824] sm:text-3xl">Add Feedback</h3>
                   <p className="mt-1 text-xs text-gray-500 sm:text-sm">
-                    Completed bookings only. Verify your email and reference number first.
+                    Feedback is only available for started or completed bookings.
                   </p>
                 </div>
                 <button
@@ -736,9 +873,7 @@ export default function HomePage() {
                   </form>
                 ) : (
                   <form onSubmit={handleFeedbackSubmit} className="space-y-4">
-                    <div className="rounded-xl border border-emerald-100 bg-emerald-50 px-4 py-3 text-sm text-emerald-700">
-                      Verified booking: <strong>{verifiedFeedbackBooking?.bookingId}</strong>
-                    </div>
+
 
                     <div>
                       <label htmlFor="feedback-rating" className="mb-2 block text-sm font-semibold text-[#0f2824]">
@@ -992,6 +1127,28 @@ export default function HomePage() {
             </div>
           </div>
         </footer>
+
+ <style>
+          {`
+            .gallery-track {
+              animation: scrollGallery 25s linear infinite;
+            }
+            .testimonials-track {
+              animation: scrollTestimonials 25s linear infinite;
+            }
+            @keyframes scrollGallery {
+              0% { transform: translateX(0); }
+              100% { transform: translateX(-50%); }
+            }
+            @keyframes scrollTestimonials {
+              0% { transform: translateX(0); }
+              100% { transform: translateX(-50%); }
+            }
+            .gallery-track:hover, .testimonials-track:hover {
+              animation-play-state: paused;
+            }
+          `}
+        </style>
 
       </div>
     </GuestLayout>

@@ -10,7 +10,6 @@ export const asDate = (value) => {
   return Number.isNaN(d.getTime()) ? new Date(0) : d;
 };
 
-// Helper function to get current user ID
 const getCurrentUserId = () => {
   if (typeof window !== 'undefined') {
     return localStorage.getItem('uid');
@@ -18,7 +17,6 @@ const getCurrentUserId = () => {
   return null;
 };
 
-// Helper function to format date for display
 const formatDateForDisplay = (dateValue) => {
   if (!dateValue) return 'N/A';
   try {
@@ -42,7 +40,6 @@ const formatDateForDisplay = (dateValue) => {
   }
 };
 
-// Helper function to format date with time for display
 const formatDateTimeForDisplay = (dateValue) => {
   if (!dateValue) return 'N/A';
   try {
@@ -68,21 +65,47 @@ const formatDateTimeForDisplay = (dateValue) => {
   }
 };
 
-// Helper function to determine room type display for notifications
-const getRoomTypeDisplay = (bookingData) => {
-  if (bookingData.isExclusiveResortBooking === true) {
-    return 'Entire Resort';
-  }
-  if (bookingData.isMultiRoomBooking && bookingData.parentBookingId) {
-    return null;
-  }
-  if (bookingData.roomTypes && Array.isArray(bookingData.roomTypes) && bookingData.roomTypes.length > 1) {
-    return 'Multi-Room Types';
-  }
-  if (bookingData.roomTypesArray && Array.isArray(bookingData.roomTypesArray) && bookingData.roomTypesArray.length > 1) {
-    return 'Multi-Room Types';
-  }
+// Returns the generic room type label used in the admin dashboard's Booking ID column
+const getRoomTypeLabel = (isExclusiveResort, distinctRoomTypeCount) => {
+  if (isExclusiveResort) return 'Entire Resort';
+  if (distinctRoomTypeCount > 1) return 'Multi-Room Types';
   return 'Single Room Type';
+};
+
+// Helper to fetch all children for a parent booking and count distinct room types
+const getDistinctRoomTypeCountForParent = async (parentBookingId) => {
+  try {
+    const bookingsRef = collection(db, 'bookings');
+    const q = query(
+      bookingsRef,
+      where('parentBookingId', '==', parentBookingId),
+      where('isMultiRoomBooking', '==', true)
+    );
+    const snapshot = await getDocs(q);
+    const distinctTypes = new Set();
+    snapshot.forEach(doc => {
+      const data = doc.data();
+      if (data.roomType) {
+        distinctTypes.add(data.roomType);
+      }
+    });
+    return distinctTypes.size;
+  } catch (err) {
+    console.error('Error fetching children for parent:', err);
+    return 0;
+  }
+};
+
+// Cache for parent booking distinct room type count (per parent)
+const parentRoomTypeCountCache = new Map();
+
+const getCachedParentRoomTypeCount = async (parentBookingId) => {
+  if (parentRoomTypeCountCache.has(parentBookingId)) {
+    return parentRoomTypeCountCache.get(parentBookingId);
+  }
+  const count = await getDistinctRoomTypeCountForParent(parentBookingId);
+  parentRoomTypeCountCache.set(parentBookingId, count);
+  return count;
 };
 
 const normalizeStatus = (status) => {
@@ -100,7 +123,6 @@ const getDayTourGuestCount = (data) => {
   return 1;
 };
 
-// Helper to save a notification to the notifications collection
 const saveNotification = async (notification) => {
   try {
     const notificationId = `${notification.type}_${notification.id}`;
@@ -114,7 +136,6 @@ const saveNotification = async (notification) => {
   }
 };
 
-// Helper to delete a notification from the notifications collection
 export const deleteNotification = async (notificationId, type) => {
   try {
     const fullId = `${type}_${notificationId}`;
@@ -128,7 +149,6 @@ export const deleteNotification = async (notificationId, type) => {
   }
 };
 
-// Helper to get user-specific read status from Firestore
 const getUserReadStatus = async (userId, notificationId, type) => {
   if (!userId) return false;
   try {
@@ -141,7 +161,6 @@ const getUserReadStatus = async (userId, notificationId, type) => {
   }
 };
 
-// Helper to set user-specific read status in Firestore
 const setUserReadStatus = async (userId, notificationId, type, read = true) => {
   if (!userId) return;
   try {
@@ -158,49 +177,82 @@ const setUserReadStatus = async (userId, notificationId, type, read = true) => {
   }
 };
 
-// Store generated notifications per user (for deduplication)
 let generatedRoomCheckIns = new Map();
 let generatedRoomCheckOuts = new Map();
 let generatedDayTourCheckIns = new Map();
 
-// Set up listener for room check-in and check-out status changes
-export const setupRoomStatusListener = (onUpdate) => {
-  const bookingsRef = collection(db, 'bookings');
-  const dayTourRef = collection(db, 'dayTourBookings');
-  const roomQuery = query(bookingsRef, orderBy('createdAt', 'desc'));
-  const dayTourQuery = query(dayTourRef, orderBy('createdAt', 'desc'));
+// Store the current bookings data for real-time checking
+let currentBookings = new Map();
+let realTimeInterval = null;
+let onUpdateCallback = null;
 
-  const emitStatusUpdates = async () => {
-    const userId = getCurrentUserId();
-    const allCheckIns = [...Array.from(generatedRoomCheckIns.values()), ...Array.from(generatedDayTourCheckIns.values())];
-    const allCheckOuts = Array.from(generatedRoomCheckOuts.values());
-    
-    const checkInsWithReadStatus = await Promise.all(allCheckIns.map(async (item) => {
-      const isRead = await getUserReadStatus(userId, item.id, item.type);
-      return { ...item, read: isRead };
-    }));
-    
-    const checkOutsWithReadStatus = await Promise.all(allCheckOuts.map(async (item) => {
-      const isRead = await getUserReadStatus(userId, item.id, item.type);
-      return { ...item, read: isRead };
-    }));
-    
-    onUpdate(checkInsWithReadStatus, 'check_in');
-    onUpdate(checkOutsWithReadStatus, 'check_out');
-  };
+// Function to load existing notifications from Firestore on page load
+const loadExistingNotifications = async (onUpdate) => {
+  const userId = getCurrentUserId();
+  if (!userId) return;
 
-  const unsubscribeRoom = onSnapshot(roomQuery, async (querySnapshot) => {
+  try {
+    const notificationsRef = collection(db, 'notifications');
+    const q = query(notificationsRef, orderBy('createdAt', 'desc'));
+    const snapshot = await getDocs(q);
+    
+    const existingCheckIns = [];
+    const existingCheckOuts = [];
+    
+    for (const docSnap of snapshot.docs) {
+      const notification = docSnap.data();
+      
+      // Load check-in notifications
+      if (notification.type === 'check_in') {
+        const isRead = await getUserReadStatus(userId, notification.id, notification.type);
+        const notificationWithRead = { ...notification, read: isRead };
+        existingCheckIns.push(notificationWithRead);
+        
+        // Restore to memory map to prevent duplicate generation
+        const notificationId = notification.id;
+        generatedRoomCheckIns.set(notificationId.replace('_checkin', ''), notification);
+      }
+      
+      // Load check-out notifications
+      if (notification.type === 'check_out') {
+        const isRead = await getUserReadStatus(userId, notification.id, notification.type);
+        const notificationWithRead = { ...notification, read: isRead };
+        existingCheckOuts.push(notificationWithRead);
+        
+        // Restore to memory map to prevent duplicate generation
+        const notificationId = notification.id;
+        generatedRoomCheckOuts.set(notificationId.replace('_checkout', ''), notification);
+      }
+    }
+    
+    // Emit existing notifications to the UI
+    if (existingCheckIns.length > 0 && onUpdate) {
+      onUpdate(existingCheckIns, 'check_in');
+    }
+    if (existingCheckOuts.length > 0 && onUpdate) {
+      onUpdate(existingCheckOuts, 'check_out');
+    }
+  } catch (error) {
+    console.error('Error loading existing notifications:', error);
+  }
+};
+
+// Function to check for check-in notifications in real-time (every minute)
+const startRealTimeCheckInChecker = (onUpdate) => {
+  if (realTimeInterval) {
+    clearInterval(realTimeInterval);
+  }
+  
+  realTimeInterval = setInterval(async () => {
+    if (currentBookings.size === 0) return;
+    
     const now = new Date();
+    const userId = getCurrentUserId();
+    let newNotifications = [];
     
-    for (const docSnap of querySnapshot.docs) {
-      const data = docSnap.data();
-      if (data.type !== 'room') continue;
-
-      const status = normalizeStatus(data.status);
-      const bookingKey = getRoomStatusBookingKey(docSnap.id, data);
-      const roomTypeDisplay = getRoomTypeDisplay(data);
-      const multiRoomDisplay = data.isExclusiveResortBooking ? 'Entire Resort' : 'Multi-Room Types';
-      const guestName = `${data.guestInfo?.firstName || ''} ${data.guestInfo?.lastName || ''}`.trim() || 'Guest';
+    for (const [bookingKey, data] of currentBookings.entries()) {
+      // Skip if check-in notification already generated for this booking
+      if (generatedRoomCheckIns.has(bookingKey)) continue;
       
       let checkInDate = null;
       if (data.checkIn) {
@@ -219,50 +271,148 @@ export const setupRoomStatusListener = (onUpdate) => {
       
       const oneHourBeforeCheckIn = checkInDate ? new Date(checkInDate.getTime() - 60 * 60 * 1000) : null;
       
-      let shouldShowCheckIn = false;
-      let checkInReason = '';
-      
-      if (status === 'check-in') {
-        shouldShowCheckIn = true;
-        checkInReason = 'status';
-      } else if (oneHourBeforeCheckIn && now >= oneHourBeforeCheckIn && now < checkInDate) {
-        shouldShowCheckIn = true;
-        checkInReason = 'early';
-      }
-      
-      if (shouldShowCheckIn && !generatedRoomCheckIns.has(bookingKey)) {
+      // Check if current time is at or after the 1-hour threshold but before check-in time
+      if (oneHourBeforeCheckIn && now >= oneHourBeforeCheckIn && now < checkInDate) {
+        // Determine room type label
+        let roomTypeLabel = 'Single Room Type';
+        if (data.isExclusiveResortBooking) {
+          roomTypeLabel = 'Entire Resort';
+        } else if (data.isMultiRoomBooking && data.parentBookingId) {
+          const distinctCount = await getCachedParentRoomTypeCount(data.parentBookingId);
+          roomTypeLabel = getRoomTypeLabel(false, distinctCount);
+        }
+        
+        const guestName = `${data.guestInfo?.firstName || ''} ${data.guestInfo?.lastName || ''}`.trim() || 'Guest';
+        
         const notification = {
           id: `${bookingKey}_checkin`,
           type: 'check_in',
           guestName,
           bookingId: bookingKey,
-          roomType: (data.isMultiRoomBooking && data.parentBookingId) ? multiRoomDisplay : (roomTypeDisplay || 'Single Room Type'),
+          roomType: roomTypeLabel,
           eventDate: formatDateTimeForDisplay(data.checkIn),
-          createdAt: data.updatedAt || data.createdAt || new Date().toISOString(),
+          createdAt: new Date().toISOString(),
           isMultiRoom: !!(data.isMultiRoomBooking && data.parentBookingId),
-          isEarlyTrigger: checkInReason === 'early'
+          isEarlyTrigger: true
         };
+        
         generatedRoomCheckIns.set(bookingKey, notification);
         await saveNotification(notification);
+        newNotifications.push(notification);
+      }
+    }
+    
+    // Emit any new notifications
+    if (newNotifications.length > 0 && onUpdate) {
+      const notificationsWithRead = await Promise.all(newNotifications.map(async (notification) => {
+        const isRead = await getUserReadStatus(userId, notification.id, notification.type);
+        return { ...notification, read: isRead };
+      }));
+      onUpdate(notificationsWithRead, 'check_in');
+    }
+  }, 30000); // Check every 30 seconds for real-time updates
+};
+
+const stopRealTimeCheckInChecker = () => {
+  if (realTimeInterval) {
+    clearInterval(realTimeInterval);
+    realTimeInterval = null;
+  }
+};
+
+export const setupRoomStatusListener = (onUpdate) => {
+  const bookingsRef = collection(db, 'bookings');
+  const dayTourRef = collection(db, 'dayTourBookings');
+  const roomQuery = query(bookingsRef, orderBy('createdAt', 'desc'));
+  const dayTourQuery = query(dayTourRef, orderBy('createdAt', 'desc'));
+  
+  // Store onUpdate callback for real-time checker
+  onUpdateCallback = onUpdate;
+  
+  // Load existing notifications from database on page load
+  loadExistingNotifications(onUpdate);
+  
+  const emitSingleNotification = async (notification, type, onUpdate) => {
+    const userId = getCurrentUserId();
+    const isRead = await getUserReadStatus(userId, notification.id, type);
+    const notificationWithRead = { ...notification, read: isRead };
+    onUpdate([notificationWithRead], type);
+  };
+
+  const emitStatusUpdates = async () => {
+    const userId = getCurrentUserId();
+    const allCheckIns = [...Array.from(generatedRoomCheckIns.values()), ...Array.from(generatedDayTourCheckIns.values())];
+    const allCheckOuts = Array.from(generatedRoomCheckOuts.values());
+
+    const checkInsWithReadStatus = await Promise.all(allCheckIns.map(async (item) => {
+      const isRead = await getUserReadStatus(userId, item.id, item.type);
+      return { ...item, read: isRead };
+    }));
+    
+    const checkOutsWithReadStatus = await Promise.all(allCheckOuts.map(async (item) => {
+      const isRead = await getUserReadStatus(userId, item.id, item.type);
+      return { ...item, read: isRead };
+    }));
+    
+    onUpdate(checkInsWithReadStatus, 'check_in');
+    onUpdate(checkOutsWithReadStatus, 'check_out');
+  };
+
+  const unsubscribeRoom = onSnapshot(roomQuery, async (querySnapshot) => {
+    const now = new Date();
+    
+    // Clear and repopulate currentBookings
+    currentBookings.clear();
+    
+    for (const docSnap of querySnapshot.docs) {
+      const data = docSnap.data();
+      if (data.type !== 'room') continue;
+
+      const status = normalizeStatus(data.status);
+      const bookingKey = getRoomStatusBookingKey(docSnap.id, data);
+      
+      // Store booking data for real-time checking
+      currentBookings.set(bookingKey, data);
+      
+      // Determine room type label for the notification
+      let roomTypeLabel = 'Single Room Type';
+      if (data.isExclusiveResortBooking) {
+        roomTypeLabel = 'Entire Resort';
+      } else if (data.isMultiRoomBooking && data.parentBookingId) {
+        const distinctCount = await getCachedParentRoomTypeCount(data.parentBookingId);
+        roomTypeLabel = getRoomTypeLabel(false, distinctCount);
+      } else {
+        // Single room booking always shows 'Single Room Type'
+        roomTypeLabel = 'Single Room Type';
       }
       
+      const guestName = `${data.guestInfo?.firstName || ''} ${data.guestInfo?.lastName || ''}`.trim() || 'Guest';
+      
+      // Check-out notifications (triggered on status change)
       if (status === 'check-out' && !generatedRoomCheckOuts.has(bookingKey)) {
         const notification = {
           id: `${bookingKey}_checkout`,
           type: 'check_out',
           guestName,
           bookingId: bookingKey,
-          roomType: (data.isMultiRoomBooking && data.parentBookingId) ? multiRoomDisplay : (roomTypeDisplay || 'Single Room Type'),
+          roomType: roomTypeLabel,
           eventDate: formatDateTimeForDisplay(data.checkOut),
           createdAt: data.updatedAt || data.createdAt || new Date().toISOString(),
           isMultiRoom: !!(data.isMultiRoomBooking && data.parentBookingId)
         };
         generatedRoomCheckOuts.set(bookingKey, notification);
         await saveNotification(notification);
+        await emitSingleNotification(notification, 'check_out', onUpdate);
       }
     }
     
     emitStatusUpdates();
+    
+    // Start or restart the real-time checker
+    if (currentBookings.size > 0) {
+      stopRealTimeCheckInChecker();
+      startRealTimeCheckInChecker(onUpdate);
+    }
   }, (error) => {
     console.error('Error fetching room status notifications:', error);
   });
@@ -280,7 +430,7 @@ export const setupRoomStatusListener = (onUpdate) => {
         const notification = {
           id: `${bookingKey}_daytour_checkin`,
           type: 'check_in',
-          guestName: `${guestName} | Booking ID: ${bookingKey} | Guests: ${guestCount}`,
+          guestName: `${guestName} | Guests: ${guestCount}`,
           bookingId: bookingKey,
           roomType: 'Day Tour',
           eventDate: formatDateForDisplay(data.selectedDate),
@@ -297,13 +447,14 @@ export const setupRoomStatusListener = (onUpdate) => {
     console.error('Error fetching day tour status notifications:', error);
   });
 
+  // Return cleanup function
   return () => {
     unsubscribeRoom();
     unsubscribeDayTour();
+    stopRealTimeCheckInChecker();
   };
 };
 
-// Set up listener for bank transfer requests
 export const setupBankRequestsListener = (onUpdate) => {
   const bankRequestsRef = collection(db, 'bank_requests');
   const q = query(bankRequestsRef, orderBy('createdAt', 'desc'));
@@ -346,7 +497,6 @@ export const setupBankRequestsListener = (onUpdate) => {
   return unsubscribe;
 };
 
-// Set up listener for day tour bank transfer requests
 export const setupDayTourBankRequestsListener = (onUpdate) => {
   const dayTourBankRequestsRef = collection(db, 'daytour_bank_requests');
   const q = query(dayTourBankRequestsRef, orderBy('createdAt', 'desc'));
@@ -379,7 +529,6 @@ export const setupDayTourBankRequestsListener = (onUpdate) => {
   return unsubscribe;
 };
 
-// Set up listener for room reservations
 export const setupRoomReservationsListener = (onUpdate) => {
   const bookingsRef = collection(db, 'bookings');
   const q = query(bookingsRef, orderBy('createdAt', 'desc'));
@@ -388,50 +537,130 @@ export const setupRoomReservationsListener = (onUpdate) => {
     const userId = getCurrentUserId();
     const reservationNotifications = [];
     const processedParents = new Set();
+    const parentBookingsData = new Map(); // Store parent booking data for processing
 
+    // First pass: Collect all bookings and identify parents
     for (const docSnap of querySnapshot.docs) {
       const data = docSnap.data();
       if (data.type !== 'room') continue;
       
-      let roomTypeDisplay = getRoomTypeDisplay(data);
-      
       if (data.isMultiRoomBooking && data.parentBookingId) {
-        if (!processedParents.has(data.parentBookingId)) {
-          processedParents.add(data.parentBookingId);
-          let multiRoomDisplay = 'Multi-Room Types';
-          if (data.isExclusiveResortBooking) {
-            multiRoomDisplay = 'Entire Resort';
-          }
-          const isRead = await getUserReadStatus(userId, data.parentBookingId, 'reservation_room');
-          const notification = {
-            id: data.parentBookingId,
-            type: 'reservation_room',
-            guestName: `${data.guestInfo?.firstName || ''} ${data.guestInfo?.lastName || ''}`.trim() || 'Guest',
-            bookingId: data.parentBookingId,
-            roomType: multiRoomDisplay,
+        // This is a child of a multi-room booking
+        if (!parentBookingsData.has(data.parentBookingId)) {
+          parentBookingsData.set(data.parentBookingId, {
+            parentBookingId: data.parentBookingId,
+            children: [],
+            guestInfo: data.guestInfo,
             createdAt: data.createdAt,
-            read: isRead,
-            isMultiRoom: true
-          };
-          reservationNotifications.push(notification);
-          await saveNotification(notification);
+            isExclusiveResortBooking: data.isExclusiveResortBooking || false
+          });
         }
+        parentBookingsData.get(data.parentBookingId).children.push(data);
       } else if (!data.isMultiRoomBooking) {
-        const isRead = await getUserReadStatus(userId, docSnap.id, 'reservation_room');
+        // Single booking - process immediately
+        let roomTypeLabel = 'Single Room Type';
+        if (data.isExclusiveResortBooking) {
+          roomTypeLabel = 'Entire Resort';
+        }
+        
+        // Check if notification already exists for this booking
+        const notificationId = docSnap.id;
+        const existingNotificationRef = doc(db, 'notifications', `reservation_room_${notificationId}`);
+        const existingNotification = await getDoc(existingNotificationRef);
+        
+        const isRead = await getUserReadStatus(userId, notificationId, 'reservation_room');
         const notification = {
-          id: docSnap.id,
+          id: notificationId,
           type: 'reservation_room',
           guestName: `${data.guestInfo?.firstName || ''} ${data.guestInfo?.lastName || ''}`.trim() || 'Guest',
-          bookingId: data.bookingId,
-          roomType: roomTypeDisplay || 'Single Room Type',
+          bookingId: data.bookingId || notificationId,
+          roomType: roomTypeLabel,
           createdAt: data.createdAt,
           read: isRead,
           isMultiRoom: false
         };
-        reservationNotifications.push(notification);
-        await saveNotification(notification);
+        
+        // Only add if not already processed or if it's new
+        if (!processedParents.has(notificationId)) {
+          processedParents.add(notificationId);
+          reservationNotifications.push(notification);
+          await saveNotification(notification);
+        }
       }
     }
+
+    // Second pass: Process multi-room parent bookings
+    for (const [parentId, parentData] of parentBookingsData.entries()) {
+      if (processedParents.has(parentId)) continue;
+      
+      // Wait a short moment to ensure all child bookings are collected
+      // This allows Firestore to sync all child documents
+      await new Promise(resolve => setTimeout(resolve, 100));
+      
+      // Re-fetch the parent data to ensure we have all children
+      const childrenQuery = query(
+        collection(db, 'bookings'),
+        where('parentBookingId', '==', parentId),
+        where('isMultiRoomBooking', '==', true)
+      );
+      const childrenSnapshot = await getDocs(childrenQuery);
+      const allChildren = [];
+      childrenSnapshot.forEach(doc => {
+        allChildren.push(doc.data());
+      });
+      
+      // Determine the correct room type label based on all children
+      let roomTypeLabel = 'Single Room Type';
+      let isExclusiveResort = false;
+      const distinctRoomTypes = new Set();
+      
+      for (const child of allChildren) {
+        if (child.roomType) {
+          distinctRoomTypes.add(child.roomType);
+        }
+        if (child.isExclusiveResortBooking) {
+          isExclusiveResort = true;
+        }
+      }
+      
+      if (isExclusiveResort) {
+        roomTypeLabel = 'Entire Resort';
+      } else if (distinctRoomTypes.size > 1) {
+        roomTypeLabel = 'Multi-Room Types';
+      } else {
+        roomTypeLabel = 'Single Room Type';
+      }
+      
+      // Use the first child's guest info (they should all be the same)
+      const firstChild = allChildren[0] || parentData.children[0];
+      if (!firstChild) continue;
+      
+      const guestName = `${firstChild.guestInfo?.firstName || ''} ${firstChild.guestInfo?.lastName || ''}`.trim() || 'Guest';
+      const createdAt = firstChild.createdAt;
+      
+      const isRead = await getUserReadStatus(userId, parentId, 'reservation_room');
+      const notification = {
+        id: parentId,
+        type: 'reservation_room',
+        guestName: guestName,
+        bookingId: parentId,
+        roomType: roomTypeLabel,
+        createdAt: createdAt,
+        read: isRead,
+        isMultiRoom: true
+      };
+      
+      processedParents.add(parentId);
+      reservationNotifications.push(notification);
+      await saveNotification(notification);
+    }
+    
+    // Sort notifications by createdAt (newest first)
+    reservationNotifications.sort((a, b) => {
+      const dateA = a.createdAt?.toDate ? a.createdAt.toDate() : new Date(a.createdAt || 0);
+      const dateB = b.createdAt?.toDate ? b.createdAt.toDate() : new Date(b.createdAt || 0);
+      return dateB - dateA;
+    });
     
     onUpdate(reservationNotifications, 'reservation_room');
   }, (error) => {
@@ -441,7 +670,6 @@ export const setupRoomReservationsListener = (onUpdate) => {
   return unsubscribe;
 };
 
-// Set up listener for day tour reservations
 export const setupDayTourReservationsListener = (onUpdate) => {
   const dayTourRef = collection(db, 'dayTourBookings');
   const q = query(dayTourRef, orderBy('createdAt', 'desc'));
@@ -473,7 +701,6 @@ export const setupDayTourReservationsListener = (onUpdate) => {
   return unsubscribe;
 };
 
-// Set up listener for guest cancellations
 export const setupGuestCancellationsListener = (onUpdate) => {
   const cancellationsRef = collection(db, 'guest_cancellations');
   const q = query(cancellationsRef, orderBy('cancelledAt', 'desc'));
@@ -489,9 +716,12 @@ export const setupGuestCancellationsListener = (onUpdate) => {
       if (data.isMultiRoom && data.parentBookingId) {
         if (!processedParents.has(data.parentBookingId)) {
           processedParents.add(data.parentBookingId);
-          let multiRoomDisplay = 'Multi-Room Types';
+          let roomTypeLabel = 'Single Room Type';
           if (data.isExclusiveResortBooking) {
-            multiRoomDisplay = 'Entire Resort';
+            roomTypeLabel = 'Entire Resort';
+          } else {
+            const distinctCount = await getCachedParentRoomTypeCount(data.parentBookingId);
+            roomTypeLabel = getRoomTypeLabel(false, distinctCount);
           }
           const isRead = await getUserReadStatus(userId, data.parentBookingId, 'cancellation');
           const notification = {
@@ -499,7 +729,7 @@ export const setupGuestCancellationsListener = (onUpdate) => {
             type: 'cancellation',
             guestName: data.guestName,
             bookingId: data.parentBookingId,
-            roomType: multiRoomDisplay,
+            roomType: roomTypeLabel,
             selectedDate: formatDateForDisplay(data.selectedDate || data.reservationDate || data.date || data.tourDate),
             createdAt: data.cancelledAt,
             read: isRead,
@@ -509,9 +739,9 @@ export const setupGuestCancellationsListener = (onUpdate) => {
           await saveNotification(notification);
         }
       } else if (data.bookingType === 'room') {
-        let singleRoomDisplay = 'Single Room Type';
+        let roomTypeLabel = 'Single Room Type';
         if (data.isExclusiveResortBooking) {
-          singleRoomDisplay = 'Entire Resort';
+          roomTypeLabel = 'Entire Resort';
         }
         const isRead = await getUserReadStatus(userId, doc.id, 'cancellation');
         const notification = {
@@ -519,7 +749,7 @@ export const setupGuestCancellationsListener = (onUpdate) => {
           type: 'cancellation',
           guestName: data.guestName,
           bookingId: data.bookingId,
-          roomType: singleRoomDisplay,
+          roomType: roomTypeLabel,
           selectedDate: formatDateForDisplay(data.selectedDate || data.reservationDate || data.date),
           createdAt: data.cancelledAt,
           read: isRead,
@@ -554,7 +784,6 @@ export const setupGuestCancellationsListener = (onUpdate) => {
   return unsubscribe;
 };
 
-// Mark a single notification as read - PER USER
 export const markNotificationAsRead = async (notification) => {
   if (notification.read) return;
   
@@ -573,7 +802,6 @@ export const markNotificationAsRead = async (notification) => {
   }
 };
 
-// Mark all notifications as read - PER USER
 export const markAllNotificationsAsRead = async () => {
   const userId = getCurrentUserId();
   if (!userId) return;
@@ -608,8 +836,11 @@ export const markAllNotificationsAsRead = async () => {
       }
     }
     
-    const allCheckInIds = [...generatedRoomCheckIns.keys(), ...generatedDayTourCheckIns.keys()];
-    const allCheckOutIds = [...generatedRoomCheckOuts.keys()];
+    const allCheckInIds = [
+      ...Array.from(generatedRoomCheckIns.values()).map(n => n.id),
+      ...Array.from(generatedDayTourCheckIns.values()).map(n => n.id)
+    ];
+    const allCheckOutIds = Array.from(generatedRoomCheckOuts.values()).map(n => n.id);
     
     for (const id of allCheckInIds) {
       await setUserReadStatus(userId, id, 'check_in', true);
@@ -622,7 +853,6 @@ export const markAllNotificationsAsRead = async () => {
   }
 };
 
-// Function to get all saved notifications from the database
 export const getAllNotifications = async () => {
   try {
     const notificationsRef = collection(db, 'notifications');

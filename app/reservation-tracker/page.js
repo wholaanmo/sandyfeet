@@ -154,9 +154,15 @@ const checkForMultiRoomBooking = async (email, bookingId) => {
         }
       }
 
-      // If exclusive resort booking, add tents to total rooms
+      // If exclusive resort booking, avoid double-counting tents:
+      // total rooms = non-tent rooms + tentCount
       if (firstChild.isExclusiveResortBooking) {
-        totalRooms += (firstChild.tentCount || 0);
+        const tentCount = firstChild.tentCount || 0;
+        const nonTentRooms = Object.entries(roomTypes).reduce((sum, [type, data]) => {
+          if (type === 'Tent') return sum;
+          return sum + (data.quantity || 0);
+        }, 0);
+        totalRooms = nonTentRooms + tentCount;
       }
 
       // Build roomTypesArray and rename 'Tent' → 'Tent(s)' for exclusive resort
@@ -168,9 +174,15 @@ const checkForMultiRoomBooking = async (email, bookingId) => {
       }));
 
       if (firstChild.isExclusiveResortBooking) {
-        const tentIndex = roomTypesArray.findIndex(item => item.type === 'Tent');
-        if (tentIndex !== -1) {
-          roomTypesArray[tentIndex].type = 'Tent(s)';
+        const tentCount = firstChild.tentCount || 0;
+        if (tentCount > 0) {
+          const tentIndex = roomTypesArray.findIndex(item => item.type === 'Tent');
+          if (tentIndex !== -1) {
+            roomTypesArray[tentIndex].type = 'Tent(s)';
+            roomTypesArray[tentIndex].quantity = tentCount;
+          } else {
+            roomTypesArray.push({ type: 'Tent(s)', quantity: tentCount, guestsPerRoom: 0, price: 0 });
+          }
         }
       }
 
@@ -774,22 +786,22 @@ try {
     return total * 0.5;
   };
 
-  const calculateBalance = (totalPrice, status) => {
-    if (status === 'cancelled' || status === 'cancelled-by-guest') {
-      return 'PHP 0';
-    }
-    const total = typeof totalPrice === 'number' ? totalPrice : Number(totalPrice) || 0;
-    const downPayment = total * 0.5;
-    if (status === 'pending' || status === 'confirmed') {
-      const remainingBalance = total - downPayment;
-      return `PHP ${remainingBalance.toLocaleString()}`;
-    }
-    if (status === 'check-in' || status === 'check-out') {
-      const remainingBalance = total - downPayment;
-      return `PHP ${remainingBalance.toLocaleString()}`;
-    }
-    return 'Not Confirmed';
-  };
+const calculateBalance = (totalPrice, status) => {
+  if (status === 'cancelled' || status === 'cancelled-by-guest' || status === 'completed') {
+    return 'PHP 0';
+  }
+  const total = typeof totalPrice === 'number' ? totalPrice : Number(totalPrice) || 0;
+  const downPayment = total * 0.5;
+  if (status === 'pending' || status === 'confirmed') {
+    const remainingBalance = total - downPayment;
+    return `PHP ${remainingBalance.toLocaleString()}`;
+  }
+  if (status === 'check-in' || status === 'check-out') {
+    const remainingBalance = total - downPayment;
+    return `PHP ${remainingBalance.toLocaleString()}`;
+  }
+  return 'Not Confirmed';
+};
 
   const canCancel = (status, isMultiRoom = false, cancelledBy = null) => {
     if (isMultiRoom && (status === 'cancelled' || status === 'cancelled-by-guest')) return false;
@@ -831,11 +843,11 @@ try {
   const totalPriceValue = reservation ? Number(reservation.totalPrice || 0) : 0;
   const downPaymentValue = reservation ? calculateDownPayment(reservation.totalPrice) : 0;
   const remainingBalanceValue = Math.max(0, totalPriceValue - downPaymentValue);
-  const paymentBalanceDisplay = reservation
-    ? (reservation.status === 'cancelled' || reservation.status === 'cancelled-by-guest'
-        ? 'PHP 0'
-        : `PHP ${remainingBalanceValue.toLocaleString()}`)
-    : 'PHP 0';
+const paymentBalanceDisplay = reservation
+  ? (reservation.status === 'cancelled' || reservation.status === 'cancelled-by-guest' || reservation.status === 'completed'
+      ? 'PHP 0'
+      : `PHP ${remainingBalanceValue.toLocaleString()}`)
+  : 'PHP 0';
   const totalPriceDisplay = `PHP ${totalPriceValue.toLocaleString()}`;
   const downPaymentDisplay = `PHP ${downPaymentValue.toLocaleString()}`;
   const reservationGuestTotal = reservation
@@ -899,7 +911,7 @@ try {
                         type="text"
                         value={referenceNumber}
                         onChange={(e) => setReferenceNumber(e.target.value.toUpperCase())}
-                        placeholder="BOOK-1734567890123-456"
+                        placeholder="BOOK-... or DAYTOUR-..."
                         className="w-full rounded-xl border border-slate-200 bg-slate-50 px-3.5 py-3 pr-11 font-mono text-xs text-slate-800 outline-none transition-all placeholder:text-slate-400 focus:border-blue-300 focus:bg-white focus:ring-4 focus:ring-blue-100 sm:text-sm"
                         disabled={loading}
                       />
@@ -1138,7 +1150,7 @@ try {
                             <div className="space-y-2">
                               {reservation.roomTypesArray && reservation.roomTypesArray.map((room, idx) => (
                                 <div key={idx} className="flex justify-between items-center border-b border-ocean-light/10 pb-2">
-                                  <span className="font-medium text-textPrimary">{room.quantity} x {room.type}</span>
+                                  <span className="font-medium text-textPrimary">{room.quantity} × {room.type}</span>
                                 </div>
                               ))}
                             </div>

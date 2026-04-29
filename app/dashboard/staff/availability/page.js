@@ -79,25 +79,25 @@ export default function StaffRoomStatus() {
     return Math.max(0, total - maintenance);
   };
 
-  // Fetch bookings for all rooms (from app/dashboard/admin/calendar source)
+  // Fetch bookings for all rooms - EXCLUDING Pending, Cancelled, and Cancelled-by-Guest
   useEffect(() => {
     if (rooms.length === 0) return;
     
     const roomIds = rooms.map(r => r.id);
     const bookingsRef = collection(db, 'bookings');
     
-    // Query for room bookings
+    // Query for room bookings - only include confirmed, check-in, check-out, completed (active bookings)
     const qRoom = query(
       bookingsRef,
       where('roomId', 'in', roomIds),
-      where('status', 'in', ['pending', 'confirmed', 'check-in'])
+      where('status', 'in', ['confirmed', 'check-in', 'check-out', 'completed'])
     );
     
-    // Query for exclusive resort bookings
+    // Query for exclusive resort bookings - only include confirmed, check-in, check-out, completed
     const qExclusive = query(
       bookingsRef,
       where('isExclusiveResortBooking', '==', true),
-      where('status', 'in', ['pending', 'confirmed', 'check-in'])
+      where('status', 'in', ['confirmed', 'check-in', 'check-out', 'completed'])
     );
     
     const unsubscribeRoom = onSnapshot(qRoom, (snapshot) => {
@@ -182,7 +182,7 @@ export default function StaffRoomStatus() {
     return () => unsubscribe();
   }, [rooms]);
 
-  // Fetch day tour capacity and bookings (from app/dashboard/admin/calendar-daytour source)
+  // Fetch day tour capacity and bookings - EXCLUDING Pending, Cancelled, and Cancelled-by-Guest
   useEffect(() => {
     // Fetch day tour configuration
     const fetchDayTourConfig = async () => {
@@ -202,11 +202,11 @@ export default function StaffRoomStatus() {
     
     fetchDayTourConfig();
     
-    // Fetch day tour bookings
+    // Fetch day tour bookings - only include confirmed, check-in, completed (active bookings)
     const bookingsRef = collection(db, 'dayTourBookings');
     const q = query(
       bookingsRef,
-      where('status', 'in', ['pending', 'confirmed', 'check-in'])
+      where('status', 'in', ['confirmed', 'check-in', 'completed'])
     );
     
     const unsubscribe = onSnapshot(q, (snapshot) => {
@@ -249,8 +249,16 @@ export default function StaffRoomStatus() {
     const dateKey = date.toDateString();
     const dateKeyLocal = toLocalDateKey(date);
     
-    // Check if exclusive resort booking blocks this date
-    if (exclusiveResortDates[dateKeyLocal]) return 0;
+    // Check if this date has an exclusive resort booking
+    const isExclusiveDate = exclusiveResortDates[dateKeyLocal];
+    
+    // For Tent rooms: even if there's an exclusive resort booking, available units should be based on room details only
+    // Don't block tent availability for exclusive resort bookings - show actual available count
+    const roomType = getRoomTypeFromId(roomId);
+    const isTentRoom = roomType === 'Tent' || (roomType?.toLowerCase() === 'tent');
+    
+    // Only block non-tent rooms if exclusive resort booking exists
+    if (!isTentRoom && isExclusiveDate) return 0;
     
     let maxUsed = 0;
     for (let hour = 14; hour < 24; hour++) {
@@ -260,6 +268,12 @@ export default function StaffRoomStatus() {
     }
     
     return Math.max(0, totalUnits - maxUsed);
+  };
+  
+  // Helper function to get room type from room ID
+  const getRoomTypeFromId = (roomId) => {
+    const room = rooms.find(r => r.id === roomId);
+    return room?.type || '';
   };
 
   // Check if a date is fully booked for a specific room type
@@ -273,7 +287,14 @@ export default function StaffRoomStatus() {
   // Check if a date is fully booked for ALL room types
   const isDateFullyBookedForAllRooms = (date) => {
     if (rooms.length === 0) return false;
-    // A date is fully booked if every room type has 0 available units
+    
+    const dateKeyLocal = toLocalDateKey(date);
+    const isExclusiveDate = exclusiveResortDates[dateKeyLocal];
+    
+    // If there's an exclusive resort booking, the date is fully booked regardless of tent availability
+    if (isExclusiveDate) return true;
+    
+    // Otherwise, check if every room type has 0 available units
     return rooms.every(room => isRoomTypeFullyBookedOnDate(room.id, date));
   };
 
@@ -490,7 +511,7 @@ export default function StaffRoomStatus() {
               Room Availability Calendar
             </h2>
             <p className="text-[#1E3A8A]/60 text-sm mt-1">
-              Available units per room type for each date
+              Available units per room type for each date (active bookings only: Confirmed, Check-in, Check-out, Completed)
             </p>
           </div>
           
@@ -592,7 +613,7 @@ export default function StaffRoomStatus() {
               Day Tour Guest Availability Calendar
             </h2>
             <p className="text-[#1E3A8A]/60 text-sm mt-1">
-              Booked guests, unavailable slots, and remaining capacity per date
+              Booked guests, unavailable slots, and remaining capacity per date (active bookings only: Confirmed, Check-in, Completed)
             </p>
           </div>
           

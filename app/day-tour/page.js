@@ -11,7 +11,6 @@ import ActivityCard from '@/components/guest/ActivityCard';
 
 export default function DayTourPage() {
   const router = useRouter();
-  const HARD_MAX_PACKS = 38;
   const [date, setDate] = useState('');
   const [adults, setAdults] = useState('1');
   const [kids, setKids] = useState('0');
@@ -27,7 +26,10 @@ export default function DayTourPage() {
   const [dateError, setDateError] = useState('');
   const calendarPopoverRef = useRef(null);
   const calendarTriggerRef = useRef(null);
-  const maxAllowedGuests = HARD_MAX_PACKS;
+  
+  // Use dynamic maxAllowedGuests from dayTour.maxCapacity, fallback to Infinity if not set
+  const maxAllowedGuests = dayTour?.maxCapacity || Infinity;
+  
   const adultsCount = Number.isNaN(parseInt(adults, 10)) ? 0 : parseInt(adults, 10);
   const kidsCount = Number.isNaN(parseInt(kids, 10)) ? 0 : parseInt(kids, 10);
 
@@ -230,7 +232,7 @@ export default function DayTourPage() {
   // Fetch day tour and dynamically update gallery images
   useEffect(() => {
     const toursRef = collection(db, 'dayTours');
-    const toursQuery = query(toursRef);
+    const toursQuery = query(toursRef, where('archived', '==', false));
 
     const unsubscribeTours = onSnapshot(toursQuery, (querySnapshot) => {
       const tours = [];
@@ -313,6 +315,7 @@ export default function DayTourPage() {
     }
   }, [isCalendarOpen]);
 
+  // Real-time validation that uses dynamic maxAllowedGuests
   useEffect(() => {
     if (!dayTour) {
       setDateError('');
@@ -335,8 +338,12 @@ export default function DayTourPage() {
     }
 
     const totalGuests = adultsCount + kidsCount;
-    if (adultsCount > maxAllowedGuests || kidsCount > maxAllowedGuests || totalGuests > maxAllowedGuests) {
-      setDateError(`We only allow up to ${maxAllowedGuests} guests per booking.`);
+    
+    // Use dynamic maxAllowedGuests from dayTour
+    const effectiveMaxAllowed = dayTour.maxCapacity || Infinity;
+    
+    if (adultsCount > effectiveMaxAllowed || kidsCount > effectiveMaxAllowed || totalGuests > effectiveMaxAllowed) {
+      setDateError(`We only allow up to ${effectiveMaxAllowed === Infinity ? 'unlimited' : effectiveMaxAllowed} guests per booking.`);
       return;
     }
 
@@ -358,7 +365,7 @@ export default function DayTourPage() {
     }
 
     setDateError('');
-  }, [date, adults, kids, adultsCount, kidsCount, dayTour, bookedDates, unavailableDates, maxAllowedGuests]);
+  }, [date, adults, kids, adultsCount, kidsCount, dayTour, bookedDates, unavailableDates]);
 
   const handleBookingStart = (e) => {
     e.preventDefault();
@@ -384,8 +391,10 @@ export default function DayTourPage() {
     }
 
     const totalGuests = adultsCount + kidsCount;
-    if (adultsCount > maxAllowedGuests || kidsCount > maxAllowedGuests || totalGuests > maxAllowedGuests) {
-      setDateError(`We only allow up to ${maxAllowedGuests} guests per booking.`);
+    const effectiveMaxAllowed = dayTour.maxCapacity || Infinity;
+    
+    if (adultsCount > effectiveMaxAllowed || kidsCount > effectiveMaxAllowed || totalGuests > effectiveMaxAllowed) {
+      setDateError(`We only allow up to ${effectiveMaxAllowed === Infinity ? 'unlimited' : effectiveMaxAllowed} guests per booking.`);
       return;
     }
 
