@@ -60,7 +60,8 @@ function DayTourBookingContent() {
     phone: '',
     paymentProof: null,
     validIdType: '',
-    validIdImage: null
+    validIdImage: null,
+    specialRequest: ''
   });
   
   const [errors, setErrors] = useState({});
@@ -142,7 +143,8 @@ function DayTourBookingContent() {
         paymentMethod: paymentMethod,
         bankRequestSent: bankRequestSent,
         bankRequestId: bankRequestId,
-        bankDetailsProvided: bankDetailsProvided
+        bankDetailsProvided: bankDetailsProvided,
+        specialRequest: bookingData.specialRequest 
       };
       localStorage.setItem(STORAGE_KEY, JSON.stringify(dataToSave));
     } catch (error) {
@@ -673,7 +675,8 @@ function DayTourBookingContent() {
         validIdImage: bookingData.validIdImage || null,
         createdAt: serverTimestamp(),
         updatedAt: serverTimestamp(),
-        type: 'daytour'
+        type: 'daytour',
+        specialRequest: bookingData.specialRequest || null, 
       };
       
       if (bankDetailsProvided) {
@@ -1166,89 +1169,116 @@ function DayTourBookingContent() {
               </div>
 
               {/* Step 1: Guest Count */}
-              {step === 1 && (
-                <div className="bg-white rounded-2xl shadow-lg border border-ocean-light/15 p-6 sm:p-8">
-                  <div className="mb-6">
-                    <h2 className="text-2xl font-bold text-textPrimary">Step 1: Number of Guests</h2>
-                    <p className="text-sm text-textSecondary mt-1">Set your party size first so we can validate available capacity.</p>
-                  </div>
+{step === 1 && (
+  <div className="bg-white rounded-2xl shadow-lg border border-ocean-light/15 p-6 sm:p-8">
+    <div className="mb-6">
+      <h2 className="text-2xl font-bold text-textPrimary">Step 1: Number of Guests</h2>
+      <p className="text-sm text-textSecondary mt-1">Set your party size first so we can validate available capacity.</p>
+    </div>
 
-                  <div className="grid md:grid-cols-2 gap-4">
-                    <div className="rounded-xl border border-ocean-light/20 bg-gradient-to-br from-white to-ocean-ice/35 p-4">
-                      <label className="text-xs uppercase tracking-[0.16em] font-bold text-textSecondary">Adults (16+) *</label>
-                      <div className="mt-2 relative">
-                        <i className="fas fa-user absolute left-3 top-1/2 -translate-y-1/2 text-ocean-mid text-sm"></i>
-                        <input
-                          type="number"
-                          min="1"
-                          value={bookingData.adults}
-                          onChange={(e) => handleGuestChange('adults', e.target.value)}
-                          onFocus={(e) => e.target.select()}
-                          className="w-full h-12 pl-10 pr-3 rounded-xl border border-ocean-light/25 bg-white text-lg font-semibold text-textPrimary focus:outline-none focus:border-ocean-mid focus:ring-2 focus:ring-ocean-light/30"
-                        />
-                      </div>
-                    </div>
+    {/* Two‑column layout with 80/20 split on md+ */}
+    <div className="grid grid-cols-1 md:grid-cols-[80%_20%] gap-4">
+      {/* Left column – 80% width */}
+      <div className="flex flex-col gap-4">
+        {/* Row 1: Adults + Kids side by side */}
+        <div className="grid grid-cols-2 gap-4">
+          {/* Adults */}
+          <div className="rounded-xl border border-ocean-light/20 bg-gradient-to-br from-white to-ocean-ice/35 p-4">
+            <label className="text-xs uppercase tracking-[0.16em] font-bold text-textSecondary">Adults (16+) *</label>
+            <div className="mt-2 relative">
+              <i className="fas fa-user absolute left-3 top-1/2 -translate-y-1/2 text-ocean-mid text-sm"></i>
+              <input
+                type="number"
+                min="1"
+                value={bookingData.adults}
+                onChange={(e) => handleGuestChange('adults', e.target.value)}
+                onFocus={(e) => e.target.select()}
+                className="w-full h-12 pl-10 pr-3 rounded-xl border border-ocean-light/25 bg-white text-lg font-semibold text-textPrimary focus:outline-none focus:border-ocean-mid focus:ring-2 focus:ring-ocean-light/30"
+              />
+            </div>
+          </div>
 
-                    <div className="rounded-xl border border-ocean-light/20 bg-gradient-to-br from-white to-ocean-ice/35 p-4">
-                      <label className="text-xs uppercase tracking-[0.16em] font-bold text-textSecondary">Kids (15 and below)</label>
-                      <div className="mt-2 relative">
-                        <i className="fas fa-child absolute left-3 top-1/2 -translate-y-1/2 text-ocean-mid text-sm"></i>
-                        <input
-                          type="number"
-                          min="0"
-                          value={bookingData.kids}
-                          onChange={(e) => handleGuestChange('kids', e.target.value)}
-                          onFocus={(e) => e.target.select()}
-                          className="w-full h-12 pl-10 pr-3 rounded-xl border border-ocean-light/25 bg-white text-lg font-semibold text-textPrimary focus:outline-none focus:border-ocean-mid focus:ring-2 focus:ring-ocean-light/30"
-                        />
-                      </div>
-                    </div>
-                  </div>
+          {/* Kids */}
+          <div className="rounded-xl border border-ocean-light/20 bg-gradient-to-br from-white to-ocean-ice/35 p-4">
+            <label className="text-xs uppercase tracking-[0.16em] font-bold text-textSecondary">Kids (15 and below)</label>
+            <div className="mt-2 relative">
+              <i className="fas fa-child absolute left-3 top-1/2 -translate-y-1/2 text-ocean-mid text-sm"></i>
+              <input
+                type="number"
+                min="0"
+                value={bookingData.kids}
+                onChange={(e) => handleGuestChange('kids', e.target.value)}
+                onFocus={(e) => e.target.select()}
+                className="w-full h-12 pl-10 pr-3 rounded-xl border border-ocean-light/25 bg-white text-lg font-semibold text-textPrimary focus:outline-none focus:border-ocean-mid focus:ring-2 focus:ring-ocean-light/30"
+              />
+            </div>
+          </div>
+        </div>
 
-                  {errors.guests && (
-                    <p className="text-[12px] text-rose-600/80 mt-3">{errors.guests}</p>
-                  )}
+        {/* Row 2: Booking Summary (full width) */}
+        <div className="rounded-xl border border-ocean-light/20 bg-gradient-to-r from-ocean-ice/80 to-blue-white/80 p-4 sm:p-5">
+          <h3 className="text-base font-semibold text-textPrimary mb-3">Booking Summary</h3>
+          <div className="grid grid-cols-3 gap-3">
+            <div className="rounded-lg bg-white/80 border border-ocean-light/15 p-3">
+              <p className="text-[11px] uppercase tracking-wide text-textSecondary">Total Guests</p>
+              <p className="text-xl font-bold text-textPrimary mt-1">{totalGuests}</p>
+            </div>
+            <div className="rounded-lg bg-white/80 border border-ocean-light/15 p-3">
+              <p className="text-[11px] uppercase tracking-wide text-textSecondary">Total Price</p>
+              <p className="text-xl font-bold text-ocean-mid mt-1">₱{totalPrice.toLocaleString()}</p>
+            </div>
+            <div className="rounded-lg bg-white/80 border border-ocean-light/15 p-3">
+              <p className="text-[11px] uppercase tracking-wide text-textSecondary">Down Payment</p>
+              <p className="text-xl font-bold text-amber-600 mt-1">₱{downPaymentAmount.toLocaleString()}</p>
+            </div>
+          </div>
+        </div>
+      </div>
 
-                  <div className="mt-5 rounded-xl border border-ocean-light/20 bg-gradient-to-r from-ocean-ice/80 to-blue-white/80 p-4 sm:p-5">
-                    <h3 className="text-base font-semibold text-textPrimary mb-3">Booking Summary</h3>
-                    <div className="grid grid-cols-3 gap-3">
-                      <div className="rounded-lg bg-white/80 border border-ocean-light/15 p-3">
-                        <p className="text-[11px] uppercase tracking-wide text-textSecondary">Total Guests</p>
-                        <p className="text-xl font-bold text-textPrimary mt-1">{totalGuests}</p>
-                      </div>
-                      <div className="rounded-lg bg-white/80 border border-ocean-light/15 p-3">
-                        <p className="text-[11px] uppercase tracking-wide text-textSecondary">Total Price</p>
-                        <p className="text-xl font-bold text-ocean-mid mt-1">₱{totalPrice.toLocaleString()}</p>
-                      </div>
-                      <div className="rounded-lg bg-white/80 border border-ocean-light/15 p-3">
-                        <p className="text-[11px] uppercase tracking-wide text-textSecondary">Down Payment</p>
-                        <p className="text-xl font-bold text-amber-600 mt-1">₱{downPaymentAmount.toLocaleString()}</p>
-                      </div>
-                    </div>
-                  </div>
+      {/* Right column – Special Request (20% width, full height) */}
+      <div className="rounded-xl border border-ocean-light/20 bg-gradient-to-br from-white to-ocean-ice/35 p-4 h-full">
+        <label className="text-xs uppercase tracking-[0.16em] font-bold text-textSecondary">Special Request (Optional)</label>
+        <div className="mt-2">
+          <textarea
+            value={bookingData.specialRequest}
+            onChange={(e) => {
+              setBookingData(prev => ({ ...prev, specialRequest: e.target.value }));
+              if (errors.specialRequest) setErrors(prev => ({ ...prev, specialRequest: '' }));
+            }}
+            rows={2}
+            placeholder="e.g., request to add additional guests, etc."
+className="w-full px-3 py-2.5 h-46 rounded-xl border border-ocean-light/25 bg-white text-sm text-textPrimary focus:outline-none focus:border-ocean-mid focus:ring-2 focus:ring-ocean-light/30 resize-none overflow-hidden"/>
+          {errors.specialRequest && <p className="text-red-500 text-xs mt-1">{errors.specialRequest}</p>}
+        </div>
+      </div>
+    </div>
 
-                  <div className="flex gap-3 mt-6">
-                    <button
-                      onClick={handlePreviousStep}
-                      className="flex-1 h-12 border border-ocean-light/25 rounded-xl text-textSecondary font-medium bg-white hover:bg-ocean-ice transition-all duration-300"
-                    >
-                      <i className="fas fa-arrow-left mr-2"></i>
-                      Back
-                    </button>
-                    <button
-                      onClick={handleNextStep}
-                      disabled={bookingData.adults === '' || bookingData.kids === '' || adultsCount < 1 || totalGuests < 1 || totalGuests > maxAllowedGuests || (remainingCapacity !== Infinity && totalGuests > remainingCapacity)}
-                      className={`flex-1 h-12 rounded-xl font-semibold transition-all duration-300 ${
-                        bookingData.adults !== '' && bookingData.kids !== '' && adultsCount >= 1 && totalGuests >= 1 && totalGuests <= maxAllowedGuests && (remainingCapacity === Infinity || totalGuests <= remainingCapacity)
-                          ? 'bg-gradient-to-r from-ocean-mid to-ocean-light text-white hover:shadow-lg'
-                          : 'bg-gray-200 text-gray-500 cursor-not-allowed'
-                      }`}
-                    >
-                      Continue to Details
-                    </button>
-                  </div>
-                </div>
-              )}
+    {errors.guests && (
+      <p className="text-[12px] text-rose-600/80 mt-3">{errors.guests}</p>
+    )}
+
+    <div className="flex gap-3 mt-6">
+      <button
+        onClick={handlePreviousStep}
+        className="flex-1 h-12 border border-ocean-light/25 rounded-xl text-textSecondary font-medium bg-white hover:bg-ocean-ice transition-all duration-300"
+      >
+        <i className="fas fa-arrow-left mr-2"></i>
+        Back
+      </button>
+      <button
+        onClick={handleNextStep}
+        disabled={bookingData.adults === '' || bookingData.kids === '' || adultsCount < 1 || totalGuests < 1 || totalGuests > maxAllowedGuests || (remainingCapacity !== Infinity && totalGuests > remainingCapacity)}
+        className={`flex-1 h-12 rounded-xl font-semibold transition-all duration-300 ${
+          bookingData.adults !== '' && bookingData.kids !== '' && adultsCount >= 1 && totalGuests >= 1 && totalGuests <= maxAllowedGuests && (remainingCapacity === Infinity || totalGuests <= remainingCapacity)
+            ? 'bg-gradient-to-r from-ocean-mid to-ocean-light text-white hover:shadow-lg'
+            : 'bg-gray-200 text-gray-500 cursor-not-allowed'
+        }`}
+      >
+        Continue to Details
+      </button>
+    </div>
+  </div>
+)}
 
               {/* Step 2: Guest Details */}
               {step === 2 && (

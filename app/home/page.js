@@ -702,7 +702,7 @@ const handleVerifyFeedbackBooking = async (event) => {
             <div className="flex flex-col gap-6">
               <div className="bg-[#4285F4] rounded-3xl p-8 text-white relative overflow-hidden shadow-lg shadow-blue-500/20">
                 <span className="text-white/80 font-bold text-[10px] tracking-widest uppercase mb-4 block relative z-10">HAPPY GUESTS</span>
-                <div className="font-playfair text-5xl font-bold mb-2 relative z-10">1,200+</div>
+                <div className="font-playfair text-5xl font-bold mb-2 relative z-10">30,000+</div>
                 <p className="text-white/90 text-sm relative z-10">Bookings handled with a smooth flow</p>
                 <div className="absolute -right-8 -bottom-8 w-40 h-40 bg-white/10 rounded-full blur-2xl"></div>
               </div>
@@ -751,7 +751,9 @@ const handleVerifyFeedbackBooking = async (event) => {
                     {(item.guestName || 'Guest').charAt(0)}
                   </div>
                   <div>
-                    <h4 className="font-bold text-[#0f2824]">{item.guestName || 'Guest'}</h4>
+                    <h4 className="font-bold text-[#0f2824]">
+  {item.guestName ? item.guestName.split(' ')[0] : 'Guest'}
+</h4>
                     <div className="mt-1">
                       <StarRating rating={item.rating} />
                     </div>
@@ -812,7 +814,7 @@ const handleVerifyFeedbackBooking = async (event) => {
                 <div>
                   <h3 className="font-playfair text-2xl text-[#0f2824] sm:text-3xl">Add Feedback</h3>
                   <p className="mt-1 text-xs text-gray-500 sm:text-sm">
-                    Feedback is only available for started or completed bookings.
+                    Feedback is only available for started or completed bookings.<br/> Only your first name will be displayed on the website once you submit feedback.
                   </p>
                 </div>
                 <button

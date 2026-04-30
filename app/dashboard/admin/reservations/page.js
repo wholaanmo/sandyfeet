@@ -47,6 +47,11 @@ export default function AdminReservations() {
   const FIXED_CHECK_IN_DISPLAY = '02:00 PM';
   const FIXED_CHECK_OUT_DISPLAY = '12:00 PM';
 
+  const [editingPayment, setEditingPayment] = useState(false);
+const [tempBalance, setTempBalance] = useState('');
+const [tempNote, setTempNote] = useState('');
+const [savingPayment, setSavingPayment] = useState(false);
+
   const updateSlider = useCallback(() => {
     const activeButton = buttonRefs.current[activeTab];
     const container = tabsContainerRef.current;
@@ -152,220 +157,228 @@ export default function AdminReservations() {
   };
 
   // Function to group multi-room bookings by parentBookingId
-  const groupMultiRoomBookings = (bookingsList) => {
-    const singleBookings = [];
-    const multiRoomGroups = new Map();
+ const groupMultiRoomBookings = (bookingsList) => {
+  const singleBookings = [];
+  const multiRoomGroups = new Map();
 
-    for (const booking of bookingsList) {
-      if (booking.isMultiRoomBooking && booking.parentBookingId) {
-        // This is a multi-room booking child
-        if (!multiRoomGroups.has(booking.parentBookingId)) {
-          multiRoomGroups.set(booking.parentBookingId, {
-            parentBookingId: booking.parentBookingId,
-            bookings: [],
-            guestInfo: booking.guestInfo,
-            checkIn: booking.checkIn,
-            checkOut: booking.checkOut,
-            status: booking.status,
-            paymentMethod: booking.paymentMethod,
-            paymentProofUrl: booking.paymentProofUrl,
-            validIdType: booking.validIdType,
-            validIdUrl: booking.validIdUrl,
-            specialRequest: booking.specialRequest,
-            createdAt: booking.createdAt,
-            type: 'room',
-            isMultiRoomGroup: true,
-            roomTypes: [],
-            tentCount: booking.tentCount || 0,
-            exclusiveAdults: booking.exclusiveAdults || 0,
-            exclusiveKids: booking.exclusiveKids || 0
-          });
-        }
-        multiRoomGroups.get(booking.parentBookingId).bookings.push(booking);
-      } else if (!booking.isMultiRoomBooking) {
-        // Single room booking - preserve adults and kids
-        singleBookings.push(booking);
+  for (const booking of bookingsList) {
+    if (booking.isMultiRoomBooking && booking.parentBookingId) {
+      // This is a multi-room booking child
+      if (!multiRoomGroups.has(booking.parentBookingId)) {
+        multiRoomGroups.set(booking.parentBookingId, {
+          parentBookingId: booking.parentBookingId,
+          bookings: [],
+          guestInfo: booking.guestInfo,
+          checkIn: booking.checkIn,
+          checkOut: booking.checkOut,
+          status: booking.status,
+          paymentMethod: booking.paymentMethod,
+          paymentProofUrl: booking.paymentProofUrl,
+          validIdType: booking.validIdType,
+          validIdUrl: booking.validIdUrl,
+          specialRequest: booking.specialRequest,
+          createdAt: booking.createdAt,
+          type: 'room',
+          isMultiRoomGroup: true,
+          roomTypes: [],
+          tentCount: booking.tentCount || 0,
+          exclusiveAdults: booking.exclusiveAdults || 0,
+          exclusiveKids: booking.exclusiveKids || 0,
+          // Preserve payment edit fields from first child
+          manualBalance: booking.manualBalance,
+          adminNote: booking.adminNote,
+          manualTotalPrice: booking.manualTotalPrice
+        });
       }
+      multiRoomGroups.get(booking.parentBookingId).bookings.push(booking);
+    } else if (!booking.isMultiRoomBooking) {
+      // Single room booking - preserve adults and kids
+      singleBookings.push(booking);
     }
+  }
 
-    // Process multi-room groups to create consolidated display
-    const consolidatedGroups = [];
-    for (const [parentId, group] of multiRoomGroups) {
-      // Check if this is a single-unit multi-room booking
-      if (group.bookings.length === 1) {
-        // Single unit from multi-room-booking should be treated as single booking with "Single Room Type" label
-        const singleBooking = group.bookings[0];
-        singleBookings.push({
-          ...singleBooking,
-          bookingIdDisplay: 'Single Room Type'
-        });
-        continue;
-      }
-
-      // Get unique room types and aggregate quantities
-      const roomTypeMap = new Map();
-      let totalRooms = 0;
-      let totalPrice = 0;
-      let totalGuests = 0;
-      let tentCount = group.tentCount || 0;
-      let exclusiveAdults = group.exclusiveAdults || 0;
-      let exclusiveKids = group.exclusiveKids || 0;
-      let childBookingsWithGuests = [];
-
-      for (const booking of group.bookings) {
-        totalRooms++;
-        totalPrice += booking.totalPrice || 0;
-        totalGuests += booking.guests || 1;
-
-        // Capture exclusive booking details from child bookings
-        if (booking.isExclusiveResortBooking) {
-          tentCount = booking.tentCount || 0;
-          exclusiveAdults = booking.exclusiveAdults || 0;
-          exclusiveKids = booking.exclusiveKids || 0;
-        }
-
-        // Store child booking with guest info for later display
-        childBookingsWithGuests.push({
-          roomType: booking.roomType,
-          guests: booking.guests || 1,
-          adults: booking.adults || booking.guests || 1,
-          kids: booking.kids || 0,
-          price: booking.price
-        });
-
-        if (!roomTypeMap.has(booking.roomType)) {
-          roomTypeMap.set(booking.roomType, {
-            count: 1,
-            price: booking.price,
-            guests: booking.guests || 1
-          });
-        } else {
-          const existing = roomTypeMap.get(booking.roomType);
-          existing.count++;
-        }
-      }
-
-      // Store detailed room types array for better display
-      const roomTypesArray = Array.from(roomTypeMap.entries()).map(([type, data]) => ({
-        type: type,
-        quantity: data.count,
-        guestsPerRoom: data.guests
-      }));
-
-      // Build room types display string
-      const exclusiveChildBooking = group.bookings.find((booking) => booking.isExclusiveResortBooking);
-      const isExclusiveResortBooking = Boolean(exclusiveChildBooking);
-      const exclusivePackagePrice = Number(exclusiveChildBooking?.exclusivePackagePrice || 0);
-
-      if (isExclusiveResortBooking && tentCount > 0) {
-        const tentIndex = roomTypesArray.findIndex(item => item.type === 'Tent');
-        if (tentIndex !== -1) {
-          // Rename existing Tent entry to Tent(s)
-          roomTypesArray[tentIndex].type = 'Tent(s)';
-        } else {
-          // No Tent entry found (should not happen, but fallback)
-          roomTypesArray.push({ type: 'Tent(s)', quantity: tentCount, guestsPerRoom: 0 });
-        }
-      }
-
-      // Calculate total rooms: base 5 rooms for Entire Resort Package, plus 1 per tent
-      let totalRoomsCount = totalRooms;
-      if (isExclusiveResortBooking) {
-        // For exclusive resort bookings, count all rooms from roomTypesArray
-        // (excluding tents from this count since tents are tracked separately)
-        let exclusiveRoomCount = 0;
-        for (const [type, data] of roomTypeMap) {
-          if (type !== 'Tent') {
-            exclusiveRoomCount += data.count;
-          }
-        }
-        // Total rooms = exclusive rooms + tents
-        totalRoomsCount = exclusiveRoomCount + (tentCount || 0);
-      }
-
-      // Build room type display string with tent count (without guest counts)
-      let roomTypesDisplay = '';
-      if (isExclusiveResortBooking) {
-        roomTypesDisplay = tentCount > 0
-          ? `Entire Resort Package + ${tentCount} Tent(s)`
-          : 'Entire Resort Package';
-      } else if (roomTypesArray.length > 1) {
-        roomTypesDisplay = roomTypesArray
-          .map(item => `${item.quantity} × ${item.type}`)
-          .join(', ');
-      } else {
-        roomTypesDisplay = roomTypesArray
-          .map(item => `${item.quantity} × ${item.type}`)
-          .join(', ');
-      }
-
-      const displayTotalPrice = isExclusiveResortBooking && exclusivePackagePrice > 0
-        ? exclusivePackagePrice
-        : totalPrice;
-      const displayDownPayment = displayTotalPrice * 0.5;
-      const displayRemainingBalance = displayTotalPrice - displayDownPayment;
-
-      // Determine booking ID display type
-      let bookingIdDisplay = '';
-      if (isExclusiveResortBooking) {
-        bookingIdDisplay = 'Entire Resort';
-      } else if (roomTypesArray.length > 1) {
-        bookingIdDisplay = 'Multi-Room Types';
-      } else {
-        bookingIdDisplay = 'Single Room Type';
-      }
-      // Ensure it's never empty
-      if (!bookingIdDisplay) bookingIdDisplay = 'Single Room Type';
-
-      consolidatedGroups.push({
-        id: parentId,
-        bookingId: parentId,
-        bookingIdDisplay: bookingIdDisplay,
-        guestInfo: group.guestInfo,
-        checkIn: group.checkIn,
-        checkOut: group.checkOut,
-        status: group.status,
-        paymentMethod: group.paymentMethod,
-        paymentProofUrl: group.paymentProofUrl,
-        validIdType: group.validIdType,
-        validIdUrl: group.validIdUrl,
-        specialRequest: group.specialRequest,
-        createdAt: group.createdAt,
-        type: 'room',
-        isMultiRoomGroup: true,
-        isExclusiveResortBooking,
-        exclusivePackagePrice: isExclusiveResortBooking ? exclusivePackagePrice : null,
-        roomTypesDisplay,
-        roomTypesArray,
-        totalRooms: totalRoomsCount,
-        totalPrice: displayTotalPrice,
-        downPayment: displayDownPayment,
-        remainingBalance: displayRemainingBalance,
-        totalGuests,
-        childBookings: childBookingsWithGuests,
-        originalChildBookings: group.bookings,
-        tentCount: tentCount,
-        exclusiveAdults: exclusiveAdults,
-        exclusiveKids: exclusiveKids,
-        exclusiveTotalGuests: exclusiveAdults + exclusiveKids
+  // Process multi-room groups to create consolidated display
+  const consolidatedGroups = [];
+  for (const [parentId, group] of multiRoomGroups) {
+    // Check if this is a single-unit multi-room booking
+    if (group.bookings.length === 1) {
+      // Single unit from multi-room-booking should be treated as single booking with "Single Room Type" label
+      const singleBooking = group.bookings[0];
+      singleBookings.push({
+        ...singleBooking,
+        bookingIdDisplay: 'Single Room Type'
       });
+      continue;
     }
 
-    // Enhanced single bookings - ensure they have bookingIdDisplay
-    const enhancedSingleBookings = singleBookings.map(booking => {
-      // For single bookings that came from multi-room-booking with 1 unit, 
-      // they already have bookingIdDisplay set
-      if (!booking.bookingIdDisplay) {
-        return {
-          ...booking,
-          bookingIdDisplay: 'Single Room Type'
-        };
-      }
-      return booking;
-    });
+    // Get unique room types and aggregate quantities
+    const roomTypeMap = new Map();
+    let totalRooms = 0;
+    let totalPrice = 0;
+    let totalGuests = 0;
+    let tentCount = group.tentCount || 0;
+    let exclusiveAdults = group.exclusiveAdults || 0;
+    let exclusiveKids = group.exclusiveKids || 0;
+    let childBookingsWithGuests = [];
 
-    return [...enhancedSingleBookings, ...consolidatedGroups];
-  };
+    for (const booking of group.bookings) {
+      totalRooms++;
+      totalPrice += booking.totalPrice || 0;
+      totalGuests += booking.guests || 1;
+
+      // Capture exclusive booking details from child bookings
+      if (booking.isExclusiveResortBooking) {
+        tentCount = booking.tentCount || 0;
+        exclusiveAdults = booking.exclusiveAdults || 0;
+        exclusiveKids = booking.exclusiveKids || 0;
+      }
+
+      // Store child booking with guest info for later display
+      childBookingsWithGuests.push({
+        roomType: booking.roomType,
+        guests: booking.guests || 1,
+        adults: booking.adults || booking.guests || 1,
+        kids: booking.kids || 0,
+        price: booking.price
+      });
+
+      if (!roomTypeMap.has(booking.roomType)) {
+        roomTypeMap.set(booking.roomType, {
+          count: 1,
+          price: booking.price,
+          guests: booking.guests || 1
+        });
+      } else {
+        const existing = roomTypeMap.get(booking.roomType);
+        existing.count++;
+      }
+    }
+
+    // Store detailed room types array for better display
+    const roomTypesArray = Array.from(roomTypeMap.entries()).map(([type, data]) => ({
+      type: type,
+      quantity: data.count,
+      guestsPerRoom: data.guests
+    }));
+
+    // Build room types display string
+    const exclusiveChildBooking = group.bookings.find((booking) => booking.isExclusiveResortBooking);
+    const isExclusiveResortBooking = Boolean(exclusiveChildBooking);
+    const exclusivePackagePrice = Number(exclusiveChildBooking?.exclusivePackagePrice || 0);
+
+    if (isExclusiveResortBooking && tentCount > 0) {
+      const tentIndex = roomTypesArray.findIndex(item => item.type === 'Tent');
+      if (tentIndex !== -1) {
+        // Rename existing Tent entry to Tent(s)
+        roomTypesArray[tentIndex].type = 'Tent(s)';
+      } else {
+        // No Tent entry found (should not happen, but fallback)
+        roomTypesArray.push({ type: 'Tent(s)', quantity: tentCount, guestsPerRoom: 0 });
+      }
+    }
+
+    // Calculate total rooms: base 5 rooms for Entire Resort Package, plus 1 per tent
+    let totalRoomsCount = totalRooms;
+    if (isExclusiveResortBooking) {
+      // For exclusive resort bookings, count all rooms from roomTypesArray
+      // (excluding tents from this count since tents are tracked separately)
+      let exclusiveRoomCount = 0;
+      for (const [type, data] of roomTypeMap) {
+        if (type !== 'Tent') {
+          exclusiveRoomCount += data.count;
+        }
+      }
+      // Total rooms = exclusive rooms + tents
+      totalRoomsCount = exclusiveRoomCount + (tentCount || 0);
+    }
+
+    // Build room type display string with tent count (without guest counts)
+    let roomTypesDisplay = '';
+    if (isExclusiveResortBooking) {
+      roomTypesDisplay = tentCount > 0
+        ? `Entire Resort Package + ${tentCount} Tent(s)`
+        : 'Entire Resort Package';
+    } else if (roomTypesArray.length > 1) {
+      roomTypesDisplay = roomTypesArray
+        .map(item => `${item.quantity} × ${item.type}`)
+        .join(', ');
+    } else {
+      roomTypesDisplay = roomTypesArray
+        .map(item => `${item.quantity} × ${item.type}`)
+        .join(', ');
+    }
+
+    const displayTotalPrice = isExclusiveResortBooking && exclusivePackagePrice > 0
+      ? exclusivePackagePrice
+      : totalPrice;
+    const displayDownPayment = displayTotalPrice * 0.5;
+    const displayRemainingBalance = displayTotalPrice - displayDownPayment;
+
+    // Determine booking ID display type
+    let bookingIdDisplay = '';
+    if (isExclusiveResortBooking) {
+      bookingIdDisplay = 'Entire Resort';
+    } else if (roomTypesArray.length > 1) {
+      bookingIdDisplay = 'Multi-Room Types';
+    } else {
+      bookingIdDisplay = 'Single Room Type';
+    }
+    // Ensure it's never empty
+    if (!bookingIdDisplay) bookingIdDisplay = 'Single Room Type';
+
+    consolidatedGroups.push({
+      id: parentId,
+      bookingId: parentId,
+      bookingIdDisplay: bookingIdDisplay,
+      guestInfo: group.guestInfo,
+      checkIn: group.checkIn,
+      checkOut: group.checkOut,
+      status: group.status,
+      paymentMethod: group.paymentMethod,
+      paymentProofUrl: group.paymentProofUrl,
+      validIdType: group.validIdType,
+      validIdUrl: group.validIdUrl,
+      specialRequest: group.specialRequest,
+      createdAt: group.createdAt,
+      type: 'room',
+      isMultiRoomGroup: true,
+      isExclusiveResortBooking,
+      exclusivePackagePrice: isExclusiveResortBooking ? exclusivePackagePrice : null,
+      roomTypesDisplay,
+      roomTypesArray,
+      totalRooms: totalRoomsCount,
+      totalPrice: displayTotalPrice,
+      downPayment: displayDownPayment,
+      remainingBalance: displayRemainingBalance,
+      totalGuests,
+      childBookings: childBookingsWithGuests,
+      originalChildBookings: group.bookings,
+      tentCount: tentCount,
+      exclusiveAdults: exclusiveAdults,
+      exclusiveKids: exclusiveKids,
+      exclusiveTotalGuests: exclusiveAdults + exclusiveKids,
+      // Preserve edited payment fields (copy from the group object which was set from the first child)
+      manualBalance: group.manualBalance,
+      adminNote: group.adminNote,
+      manualTotalPrice: group.manualTotalPrice
+    });
+  }
+
+  // Enhanced single bookings - ensure they have bookingIdDisplay
+  const enhancedSingleBookings = singleBookings.map(booking => {
+    // For single bookings that came from multi-room-booking with 1 unit, 
+    // they already have bookingIdDisplay set
+    if (!booking.bookingIdDisplay) {
+      return {
+        ...booking,
+        bookingIdDisplay: 'Single Room Type'
+      };
+    }
+    return booking;
+  });
+
+  return [...enhancedSingleBookings, ...consolidatedGroups];
+};
 
   // Real-time listener for room bookings
   useEffect(() => {
@@ -782,6 +795,67 @@ export default function AdminReservations() {
       setIdRequestModal({ show: false, booking: null, message: '', sending: false });
     }
   };
+
+  const handleSavePaymentInfo = async () => {
+  if (!sidebarBooking) return;
+  setSavingPayment(true);
+  try {
+    const newBalance = parseFloat(tempBalance);
+    if (isNaN(newBalance) || newBalance < 0) {
+      showNotification('Please enter a valid balance amount.', 'error');
+      setSavingPayment(false);
+      return;
+    }
+
+    const downPayment = calculateDownPayment(sidebarBooking.totalPrice);
+    const newTotalAmount = newBalance + downPayment;
+    const updateData = {
+      manualBalance: newBalance,
+      adminNote: tempNote.trim() || null,
+      manualTotalPrice: newTotalAmount,
+      updatedAt: new Date().toISOString()
+    };
+
+    // Handle multi‑room groups
+    if (sidebarBooking.isMultiRoomGroup && sidebarBooking.originalChildBookings) {
+      for (const childBooking of sidebarBooking.originalChildBookings) {
+        const bookingRef = doc(db, 'bookings', childBooking.id);
+        await updateDoc(bookingRef, updateData);
+      }
+      // Update local sidebarBooking state for immediate UI feedback
+      setSidebarBooking(prev => ({
+        ...prev,
+        manualBalance: newBalance,
+        adminNote: tempNote.trim() || null,
+        manualTotalPrice: newTotalAmount
+      }));
+    } else {
+      const collectionName = sidebarBooking.type === 'room' ? 'bookings' : 'dayTourBookings';
+      const bookingRef = doc(db, collectionName, sidebarBooking.id);
+      await updateDoc(bookingRef, updateData);
+      setSidebarBooking(prev => ({
+        ...prev,
+        manualBalance: newBalance,
+        adminNote: tempNote.trim() || null,
+        manualTotalPrice: newTotalAmount
+      }));
+    }
+
+    await logAdminAction({
+      action: 'Updated Payment Information',
+      module: 'Reservations',
+      details: `Updated balance to ₱${newBalance.toLocaleString()} and added note: ${tempNote || 'No note'} for booking ${sidebarBooking.bookingId}`
+    });
+
+    showNotification('Payment information updated successfully.', 'success');
+    setEditingPayment(false);
+  } catch (error) {
+    console.error('Error saving payment info:', error);
+    showNotification('Failed to update payment information.', 'error');
+  } finally {
+    setSavingPayment(false);
+  }
+};
 
   const formatDateTime = (timestamp) => {
     if (!timestamp) return 'N/A';
@@ -1784,29 +1858,134 @@ export default function AdminReservations() {
               )}
 
               {/* Payment Information */}
-              <div className="bg-white/70 backdrop-blur-md border border-[#4D8CF5]/10 rounded-xl p-3 shadow-sm">
-                <h3 className="text-xs font-semibold text-[#1E3A8A] uppercase tracking-wide mb-2">Payment Information</h3>
-                <p className="text-sm">
-                  <span className="text-[#1E3A8A]/70">Total Amount:</span>{' '}
-                  <span className="font-bold text-[#1E3A8A]">₱{Number(sidebarBooking.totalPrice).toLocaleString()}</span>
-                </p>
-                <p className="text-sm mt-1">
-                  <span className="text-[#1E3A8A]/70">50% Down Payment:</span>{' '}
-                  <span className="font-bold text-amber-600">₱{calculateDownPayment(sidebarBooking.totalPrice).toLocaleString()}</span>
-                </p>
-                <p className="text-sm mt-1">
-                  <span className="text-[#1E3A8A]/70">Balance:</span>{' '}
-                  <span className={`font-bold ${sidebarBooking.status === 'confirmed' ? 'text-[#1E3A8A]' : 'text-neutral'}`}>
-                    {calculateBalance(sidebarBooking)}
-                  </span>
-                </p>
-                <p className="text-sm mt-1">
-                  <span className="text-[#1E3A8A]/70">Status:</span>{' '}
-                  <span className={`px-2 py-0.5 rounded-full text-[10px] font-medium ${getStatusColor(sidebarBooking.status)}`}>
-                    {sidebarBooking.status?.charAt(0).toUpperCase() + sidebarBooking.status?.slice(1)}
-                  </span>
-                </p>
-              </div>
+{/* Payment Information */}
+<div className="bg-white/70 backdrop-blur-md border border-[#4D8CF5]/10 rounded-xl p-3 shadow-sm">
+  <div className="flex justify-between items-start mb-2">
+    <h3 className="text-xs font-semibold text-[#1E3A8A] uppercase tracking-wide">Payment Information</h3>
+    {(() => {
+      // Determine if balance is editable based on status and tab
+      let balanceEditable = false;
+      if (activeTab === 'rooms') {
+        // Room: Checked-In, Checked-Out, Completed
+        balanceEditable = ['check-in', 'check-out', 'completed'].includes(sidebarBooking.status);
+      } else {
+        // Day tour: Checked-In, Completed
+        balanceEditable = ['check-in', 'completed'].includes(sidebarBooking.status);
+      }
+      if (balanceEditable && !editingPayment) {
+        return (
+          <button
+            onClick={() => {
+              // Initialize temp values from current booking data
+              const currentBalance = sidebarBooking.manualBalance ?? (() => {
+                const total = Number(sidebarBooking.totalPrice) || 0;
+                const down = total * 0.5;
+                if (sidebarBooking.status === 'cancelled' || sidebarBooking.status === 'check-out' || sidebarBooking.status === 'completed') return 0;
+                if (sidebarBooking.status === 'cancelled-by-guest' && (sidebarBooking.refundNotificationSent || sidebarBooking.moveDateNotificationSent)) return 0;
+                return down;
+              })();
+              setTempBalance(currentBalance.toString());
+              setTempNote(sidebarBooking.adminNote || '');
+              setEditingPayment(true);
+            }}
+            className="text-blue-600 hover:text-blue-800 text-xs flex items-center gap-1"
+          >
+            <i className="fas fa-edit text-[10px]"></i> Edit
+          </button>
+        );
+      }
+      return null;
+    })()}
+  </div>
+
+  {editingPayment ? (
+    <div className="space-y-3">
+      <div>
+        <label className="block text-xs font-medium text-[#1E3A8A]/70 mb-1">Balance (₱)</label>
+        <input
+          type="number"
+          min="0"
+          step="0.01"
+          value={tempBalance}
+          onChange={(e) => setTempBalance(e.target.value)}
+          className="w-full px-2 py-1.5 text-sm border border-[#4D8CF5]/30 rounded-lg focus:outline-none focus:border-ocean-mid"
+        />
+      </div>
+      <div>
+        <label className="block text-xs font-medium text-[#1E3A8A]/70 mb-1">Admin Note</label>
+        <textarea
+          value={tempNote}
+          onChange={(e) => setTempNote(e.target.value)}
+          rows={2}
+          placeholder="Add internal note about payment adjustments..."
+          className="w-full px-2 py-1.5 text-sm border border-[#4D8CF5]/30 rounded-lg focus:outline-none focus:border-ocean-mid resize-none"
+        />
+      </div>
+      <div className="flex gap-2 justify-end">
+        <button
+          onClick={() => setEditingPayment(false)}
+          className="px-3 py-1.5 text-xs rounded-lg border border-gray-300 text-gray-700 hover:bg-gray-100"
+        >
+          Cancel
+        </button>
+        <button
+          onClick={handleSavePaymentInfo}
+          disabled={savingPayment}
+          className="px-3 py-1.5 text-xs rounded-lg bg-ocean-mid text-white hover:bg-ocean-dark disabled:opacity-50"
+        >
+          {savingPayment ? 'Saving...' : 'Save Changes'}
+        </button>
+      </div>
+    </div>
+  ) : (
+    // Display mode
+    <div>
+      {/* Total Amount: if manualTotalPrice exists, use it; else compute as balance + downPayment */}
+      {(() => {
+        const downPayment = calculateDownPayment(sidebarBooking.totalPrice);
+        const displayedBalance = (sidebarBooking.manualBalance !== undefined && sidebarBooking.manualBalance !== null)
+          ? sidebarBooking.manualBalance
+          : (() => {
+              const total = Number(sidebarBooking.totalPrice) || 0;
+              const down = total * 0.5;
+              if (sidebarBooking.status === 'cancelled' || sidebarBooking.status === 'check-out' || sidebarBooking.status === 'completed') return 0;
+              if (sidebarBooking.status === 'cancelled-by-guest' && (sidebarBooking.refundNotificationSent || sidebarBooking.moveDateNotificationSent)) return 0;
+              return down;
+            })();
+        const totalAmount = (sidebarBooking.manualTotalPrice !== undefined && sidebarBooking.manualTotalPrice !== null)
+          ? sidebarBooking.manualTotalPrice
+          : (displayedBalance + downPayment);
+        return (
+          <>
+            <p className="text-sm">
+              <span className="text-[#1E3A8A]/70">Total Amount:</span>{' '}
+              <span className="font-bold text-[#1E3A8A]">₱{totalAmount.toLocaleString()}</span>
+            </p>
+            <p className="text-sm mt-1">
+              <span className="text-[#1E3A8A]/70">50% Down Payment:</span>{' '}
+              <span className="font-bold text-amber-600">₱{downPayment.toLocaleString()}</span>
+            </p>
+            <p className="text-sm mt-1">
+              <span className="text-[#1E3A8A]/70">Balance:</span>{' '}
+              <span className="font-bold text-[#1E3A8A]">₱{displayedBalance.toLocaleString()}</span>
+            </p>
+            {sidebarBooking.adminNote && (
+              <p className="text-xs mt-2 pt-1 border-t border-[#4D8CF5]/20 text-gray-600">
+                <span className="font-medium">Note:</span> {sidebarBooking.adminNote}
+              </p>
+            )}
+          </>
+        );
+      })()}
+      <p className="text-sm mt-1">
+        <span className="text-[#1E3A8A]/70">Status:</span>{' '}
+        <span className={`px-2 py-0.5 rounded-full text-[10px] font-medium ${getStatusColor(sidebarBooking.status)}`}>
+          {sidebarBooking.status?.charAt(0).toUpperCase() + sidebarBooking.status?.slice(1)}
+        </span>
+      </p>
+    </div>
+  )}
+</div>
 
               {/* Payment Proof Image - Clickable */}
               {(sidebarBooking.paymentProof || sidebarBooking.paymentProofUrl) && (

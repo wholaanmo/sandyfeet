@@ -1228,7 +1228,7 @@ const handleProceed = () => {
                           }`}>
                             {realTimeAvailable > 0
                               ? `${realTimeAvailable} unit${realTimeAvailable > 1 ? 's' : ''} left`
-                              : 'Sold out'}
+                              : 'No Vacancy'}
                           </span>
                         </div>
                       </div>
@@ -1286,7 +1286,7 @@ const handleProceed = () => {
                                   <>
                                     <i className="fas fa-plus text-xs"></i> Add to Reservation
                                   </>
-                                ) : 'Sold Out'}
+                                ) : 'No Vacancy'}
                               </button>
                            ) : (
                               <div className="w-full flex items-center justify-between bg-blue-50/80 border border-blue-200 rounded-xl p-1.5 shadow-inner relative overflow-hidden">

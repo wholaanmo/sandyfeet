@@ -912,15 +912,29 @@ autoTable(pdf, {
   };
   
   // ==================== FIXED REVENUE COMPUTATION ====================
- const processData = (bookings, dayTours) => {
+const processData = (bookings, dayTours) => {
+  // Helper to get the effective total amount (manual edit > exclusive package > totalPrice)
+  const getEffectiveTotal = (booking) => {
+    // 1. manualTotalPrice overrides everything
+    if (booking.manualTotalPrice !== undefined && booking.manualTotalPrice !== null) {
+      return booking.manualTotalPrice;
+    }
+    // 2. For exclusive resort bookings, use exclusivePackagePrice
+    if (booking.isExclusiveResortBooking && booking.exclusivePackagePrice) {
+      return booking.exclusivePackagePrice;
+    }
+    // 3. Fallback to original totalPrice
+    return booking.totalPrice || 0;
+  };
+
   let totalRoomRevenue = 0;
   let totalRoomUnits = 0;
   let dayTourGuestCount = 0;
   let dayTourRevenueTotal = 0;
-  
+
   const processedBookings = [];
   const multiRoomGroups = new Map();
-  
+
   // First pass: group multi-room bookings and collect non-grouped completed bookings
   bookings.forEach(booking => {
     if (booking.status === 'completed') {
@@ -932,37 +946,36 @@ autoTable(pdf, {
             createdAt: booking.createdAt,
             status: booking.status,
             numberOfRooms: 0,
-            isExclusiveResortBooking: booking.isExclusiveResortBooking || false
+            isExclusiveResortBooking: booking.isExclusiveResortBooking || false,
+            manualTotalPrice: booking.manualTotalPrice,
+            exclusivePackagePrice: booking.exclusivePackagePrice
           });
         }
         const group = multiRoomGroups.get(booking.parentBookingId);
         group.bookings.push(booking);
-        
-        // For exclusive resort bookings, use the exclusivePackagePrice (once)
-        if (booking.isExclusiveResortBooking && booking.exclusivePackagePrice) {
-          // Only set the total price using exclusivePackagePrice, don't accumulate
-          if (group.totalPrice === 0) {
-            group.totalPrice = booking.exclusivePackagePrice;
-          }
-        } else {
-          // For non-exclusive, accumulate individual booking prices
-          group.totalPrice += booking.totalPrice || 0;
-        }
         group.numberOfRooms += (booking.numberOfRooms || 1);
-      } else if (!booking.isMultiRoomBooking) {
-        // Single (non-grouped) completed room booking
-        // For exclusive resort single bookings (should not happen, but handle)
-        let bookingTotal = booking.totalPrice || 0;
-        if (booking.isExclusiveResortBooking && booking.exclusivePackagePrice) {
-          bookingTotal = booking.exclusivePackagePrice;
+
+        // For exclusive resort, only set totalPrice once (from the first child)
+        if (group.isExclusiveResortBooking) {
+          if (group.totalPrice === 0) {
+            // Use effective total of this child (exclusivePackagePrice or manualTotalPrice)
+            group.totalPrice = getEffectiveTotal(booking);
+          }
+          // Do NOT accumulate for other children (avoid multiplying package price)
+        } else {
+          // Normal multi-room (non-exclusive): accumulate each child's effective total
+          group.totalPrice += getEffectiveTotal(booking);
         }
-        totalRoomRevenue += bookingTotal;
+      } else if (!booking.isMultiRoomBooking) {
+        // Single room booking
+        const effectiveTotal = getEffectiveTotal(booking);
+        totalRoomRevenue += effectiveTotal;
         totalRoomUnits += (booking.numberOfRooms || 1);
         processedBookings.push(booking);
       }
     }
   });
-  
+
   // Second pass: add grouped bookings
   multiRoomGroups.forEach((group, parentId) => {
     totalRoomUnits += group.numberOfRooms;
@@ -970,14 +983,16 @@ autoTable(pdf, {
     processedBookings.push({
       ...group.bookings[0],
       id: parentId,
-      totalPrice: group.totalPrice,
+      totalPrice: group.totalPrice,                 // aggregated effective total
+      manualTotalPrice: group.manualTotalPrice,
+      exclusivePackagePrice: group.exclusivePackagePrice,
       isGrouped: true,
       childBookings: group.bookings,
       numberOfRooms: group.numberOfRooms,
       isExclusiveResortBooking: group.isExclusiveResortBooking
     });
   });
-  
+
   // Day tours – unchanged
   dayTours.forEach(tour => {
     if (tour.status === 'completed') {
@@ -988,22 +1003,21 @@ autoTable(pdf, {
       dayTourRevenueTotal += tour.totalPrice || 0;
     }
   });
-  
+
   const totalRevenueCombined = totalRoomRevenue + dayTourRevenueTotal;
   setTotalRevenue(totalRevenueCombined);
   setTotalRoomBookings(totalRoomUnits);
   setTotalDayTourGuests(dayTourGuestCount);
-  
+
   // Monthly data structures
   const yearlyMonthlyRoom = {};
   const yearlyMonthlyRevenue = {};
   const yearlyMonthlyTrend = {};
   const yearsSet = new Set();
   const monthlySplitData = {};
-  
+
   // Process each completed booking for monthly breakdown
   processedBookings.forEach(booking => {
-    // Use the first child booking's createdAt for grouped bookings
     let createdAt;
     if (booking.isGrouped && booking.childBookings && booking.childBookings.length > 0) {
       const firstChild = booking.childBookings[0];
@@ -1011,11 +1025,11 @@ autoTable(pdf, {
     } else {
       createdAt = booking.createdAt?.toDate ? booking.createdAt.toDate() : new Date(booking.createdAt);
     }
-    
+
     const year = createdAt.getFullYear();
     const month = createdAt.getMonth();
     yearsSet.add(year);
-    
+
     if (!yearlyMonthlyRoom[year]) {
       yearlyMonthlyRoom[year] = {
         Tent: new Array(12).fill(0),
@@ -1044,7 +1058,7 @@ autoTable(pdf, {
         singleRoom: 0
       }));
     }
-    
+
     // Booking type split
     let bookingType = 'singleRoom';
     if (booking.isExclusiveResortBooking || (booking.isGrouped && booking.childBookings && booking.childBookings.some(cb => cb.isExclusiveResortBooking))) {
@@ -1053,7 +1067,7 @@ autoTable(pdf, {
       bookingType = 'multiRoom';
     }
     monthlySplitData[year][month][bookingType]++;
-    
+
     // Room type counts
     let roomTypes = [];
     if (booking.isGrouped && booking.childBookings) {
@@ -1075,31 +1089,31 @@ autoTable(pdf, {
         roomTypes.push(booking.roomType);
       }
     }
-    
+
     roomTypes.forEach(roomType => {
       if (roomType === 'Tent') yearlyMonthlyRoom[year].Tent[month]++;
       else if (roomType === 'Ground Floor Rooms' || roomType === 'Ground Floor Room') yearlyMonthlyRoom[year]['Ground Floor Room'][month]++;
       else if (roomType === 'Group Room') yearlyMonthlyRoom[year]['Group Room'][month]++;
       else if (roomType === 'Couple Room') yearlyMonthlyRoom[year]['Couple Room'][month]++;
     });
-    
-    // --- FIXED: Use the already aggregated total price (correct for both single and multi-room) ---
+
+    // Use the aggregated total price (already correct for groups)
     const totalPrice = booking.totalPrice || 0;
     yearlyMonthlyRevenue[year].roomRevenue[month] += totalPrice;
     yearlyMonthlyRevenue[year].total[month] += totalPrice;
-    
+
     const roomUnitCount = booking.numberOfRooms || 1;
     yearlyMonthlyTrend[year].roomBookings[month] += roomUnitCount;
   });
-  
-  // Day tours monthly breakdown
+
+  // Day tours monthly breakdown (unchanged)
   dayTours.forEach(tour => {
     if (tour.status === 'completed') {
       const createdAt = tour.createdAt?.toDate ? tour.createdAt.toDate() : new Date(tour.createdAt);
       const year = createdAt.getFullYear();
       const month = createdAt.getMonth();
       yearsSet.add(year);
-      
+
       if (!yearlyMonthlyRevenue[year]) {
         yearlyMonthlyRevenue[year] = {
           roomRevenue: new Array(12).fill(0),
@@ -1113,21 +1127,21 @@ autoTable(pdf, {
           dayTourGuests: new Array(12).fill(0)
         };
       }
-      
+
       const totalPrice = tour.totalPrice || 0;
       yearlyMonthlyRevenue[year].dayTourRevenue[month] += totalPrice;
       yearlyMonthlyRevenue[year].total[month] += totalPrice;
-      
+
       const guests = (tour.seniors || 0) + (tour.adults || 0) + (tour.kids || 0);
       yearlyMonthlyTrend[year].dayTourGuests[month] += guests;
     }
   });
-  
+
   // Prepare chart data
   const roomTypeChartData = {};
   const revenueChartData = {};
   const trendChartData = {};
-  
+
   for (const year of yearsSet) {
     roomTypeChartData[year] = MONTHS.map((month, idx) => ({
       month: month,
@@ -1148,18 +1162,18 @@ autoTable(pdf, {
       dayTourGuests: yearlyMonthlyTrend[year]?.dayTourGuests[idx] || 0
     }));
   }
-  
+
   setYearlyMonthlyRoomData(roomTypeChartData);
   setYearlyMonthlyRevenueData(revenueChartData);
   setYearlyMonthlyTrendData(trendChartData);
   setMonthlyBookingSplitData(monthlySplitData);
-  
+
   const years = Array.from(yearsSet).sort((a, b) => b - a);
   setAvailableYears(years);
   if (years.length > 0 && !selectedYear) setSelectedYear(years[0]);
   if (years.length > 0 && !selectedSplitYear) setSelectedSplitYear(years[0]);
-  
-  // Booking split data
+
+  // Booking split data (unchanged)
   let entireResortCount = 0, multiRoomCount = 0, singleRoomCount = 0;
   processedBookings.forEach(booking => {
     if (booking.isExclusiveResortBooking || (booking.isGrouped && booking.childBookings?.some(cb => cb.isExclusiveResortBooking))) {
