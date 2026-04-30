@@ -621,18 +621,6 @@ export default function AdminRooms() {
   
   return (
     <div className="px-9 py-1 min-h-screen" style={{ backgroundColor: 'var(--color-blue-whites)' }}>
-<div className="mb-6 flex justify-end">
-<button
-  onClick={openAddModal}
-  className="flex items-center gap-2 px-5 py-2.5 rounded-xl font-medium border border-[#7AAAF8]/30 bg-white/70 backdrop-blur-md text-[#1E3A8A] shadow-sm hover:bg-[#7AAAF8] hover:text-white hover:border-[#7AAAF8] hover:shadow-md hover:-translate-y-0.5 transition-all duration-200"
->
-  <i className="fas fa-plus text-sm"></i>
-  Add New Room
-</button>
-</div>
-
-
-      
       {/* Statistics Cards */}
    <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-6">
   
@@ -688,23 +676,38 @@ export default function AdminRooms() {
   </div>
 
 </div>
+
       
       {/* Notification */}
-      {notification.show && (
-        <div className={`fixed top-20 right-5 z-50 px-5 py-3 rounded-xl shadow-lg flex items-center gap-3 animate-slideInRight ${
-          notification.type === 'error' ? 'bg-red-50 border-l-4 border-red-500 text-red-700' : 'bg-green-50 border-l-4 border-green-500 text-green-700'
-        }`}>
-          <i className={`${notification.type === 'error' ? 'fas fa-exclamation-circle text-red-500' : 'fas fa-check-circle text-green-500'} text-base`}></i>
-          <span className="text-sm font-medium">{notification.message}</span>
-        </div>
-      )}
-      
-      {/* Filters and Search */}
-<div className="flex gap-4 mb-6 flex-wrap">
+{notification.show && (
+  <div
+    className={`fixed top-20 right-5 z-50 px-5 py-3 rounded-xl shadow-lg flex items-center gap-3 animate-slideInRight ${
+      notification.type === 'error'
+        ? 'bg-red-50 border-l-4 border-red-500 text-red-700'
+        : 'bg-green-50 border-l-4 border-green-500 text-green-700'
+    }`}
+  >
+    <i
+      className={`${
+        notification.type === 'error'
+          ? 'fas fa-exclamation-circle text-red-500'
+          : 'fas fa-check-circle text-green-500'
+      } text-base`}
+    ></i>
+    <span className="text-sm font-medium">
+      {notification.message}
+    </span>
+  </div>
+)}
+
+{/* Filters and Search */}
+<div className="flex flex-wrap gap-4 mb-6 items-center">
+  
+  {/* Search */}
   <div className="flex-1 min-w-[250px]">
     <div className="relative w-full group">
       <i className="fas fa-search absolute left-3 top-1/2 -translate-y-1/2 text-[#4D8CF5] text-sm transition-all duration-300 group-focus-within:text-[#3B78E7]"></i>
-      
+
       <input
         type="text"
         placeholder="Search by room type..."
@@ -714,29 +717,41 @@ export default function AdminRooms() {
       />
     </div>
   </div>
-        
-<div className="relative">
-  <select
-    value={filterStatus}
-    onChange={(e) => setFilterStatus(e.target.value)}
-    className="px-4 py-2.5 pr-10 border-2 border-[#4D8CF5]/20 rounded-xl text-sm text-textPrimary bg-white shadow-sm focus:outline-none focus:border-[#4D8CF5] focus:ring-2 focus:ring-[#4D8CF5]/20 hover:border-[#4D8CF5]/70 transition-all duration-200 appearance-none cursor-pointer"
-  >
-    <option value="all">All Status</option>
-    <option value="available">Available</option>
-    <option value="unavailable">Unavailable</option>
-    <option value="maintenance">Under Maintenance</option>
-  </select>
 
-  {/* Custom dropdown arrow */}
-  <div className="absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none text-[#4D8CF5] text-xs">
-    ▼
+  {/* Status Filter */}
+  <div className="relative">
+    <select
+      value={filterStatus}
+      onChange={(e) => setFilterStatus(e.target.value)}
+      className="px-4 py-2.5 pr-10 border-2 border-[#4D8CF5]/20 rounded-xl text-sm text-textPrimary bg-white shadow-sm focus:outline-none focus:border-[#4D8CF5] focus:ring-2 focus:ring-[#4D8CF5]/20 hover:border-[#4D8CF5]/70 transition-all duration-200 appearance-none cursor-pointer"
+    >
+      <option value="all">All Status</option>
+      <option value="available">Available</option>
+      <option value="unavailable">Unavailable</option>
+      <option value="maintenance">Under Maintenance</option>
+    </select>
+
+    {/* Custom dropdown arrow */}
+    <div className="absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none text-[#4D8CF5] text-xs">
+      ▼
+    </div>
   </div>
+
+  {/* Add Button */}
+<div className="ml-auto">
+  <button
+    onClick={openAddModal}
+    className="flex items-center gap-2 px-5 h-[44px] rounded-xl font-medium border-2 border-[#7AAAF8]/30 bg-white/70 backdrop-blur-md text-[#1E3A8A] shadow-sm hover:bg-[#7AAAF8] hover:text-white hover:border-[#7AAAF8] hover:shadow-md hover:-translate-y-0.5 transition-all duration-200"
+  >
+    <i className="fas fa-plus text-sm"></i>
+    Add New Room
+  </button>
 </div>
-      </div>
-      
-      {/* Rooms Table */}
-      {loading ? (
-        <div className="flex justify-center items-center h-64">
+</div>
+
+{/* Rooms Table */}
+{loading ? (
+  <div className="flex justify-center items-center h-64">
           <i className="fas fa-spinner fa-spin text-3xl text-ocean-light"></i>
         </div>
       ) : (
@@ -841,8 +856,7 @@ export default function AdminRooms() {
                   setShowViewModal(false);
                   setSelectedRoom(null);
                 }}
-                className="w-8 h-8 rounded-full bg-ocean-ice hover:bg-ocean-light/20 text-neutral hover:text-textPrimary transition-all duration-200 flex items-center justify-center"
-              >
+                 className="w-7 h-7 rounded-md bg-ocean-ice text-neutral hover:bg-ocean-light/20 hover:text-textPrimary transition-all duration-200 flex items-center justify-center">
                 <i className="fas fa-times"></i>
               </button>
             </div>
@@ -1016,8 +1030,7 @@ export default function AdminRooms() {
                   setSelectedRoom(null);
                   setShowInclusionDropdown(false);
                 }}
-                className="w-8 h-8 rounded-full bg-ocean-ice hover:bg-ocean-light/20 text-neutral hover:text-textPrimary transition-all duration-200 flex items-center justify-center"
-              >
+ className="w-7 h-7 rounded-md bg-ocean-ice text-neutral hover:bg-ocean-light/20 hover:text-textPrimary transition-all duration-200 flex items-center justify-center">
                 <i className="fas fa-times"></i>
               </button>
             </div>
@@ -1071,9 +1084,6 @@ export default function AdminRooms() {
                     {formErrors.maintenanceRooms && <p className="text-red-500 text-[10px] mt-1 font-medium ml-1">{formErrors.maintenanceRooms}</p>}
                   </div>
                 </div>
-                <p className="text-[10px] text-[#1E3A8A]/40 mt-2 px-1">
-                  Available: <span className="font-bold">{parseInt(formData.totalRooms || 0) - parseInt(formData.maintenanceRooms || 0)} units</span>
-                </p>
               </div>
               
               {/* Capacity & Price Group */}
@@ -1271,8 +1281,7 @@ export default function AdminRooms() {
                     setSelectedRoom(null);
                     setShowInclusionDropdown(false);
                   }}
-                  className="px-6 py-2.5 rounded-xl text-textSecondary text-sm font-semibold hover:bg-gray-100 transition-all"
-                >
+className="px-6 py-2.5 border border-ocean-light/20 rounded-xl text-textSecondary text-sm font-medium hover:bg-ocean-ice transition-all duration-300">
                   Cancel
                 </button>
                 <button

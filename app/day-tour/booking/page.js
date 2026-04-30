@@ -742,7 +742,7 @@ function DayTourBookingContent() {
   const paymentNotes = [
     'You only need to pay the 50% down payment to reserve this date.',
     `The remaining balance of ₱${remainingBalance.toLocaleString()} is paid at the resort.`,
-    'If you cancel your reservation, the resort retains 50% of the down payment.'
+    'Cancellations will result in forfeiture of the down payment, unless the booking is rescheduled.'
   ];
 
   const renderPaymentNotesCard = () => (
@@ -945,7 +945,7 @@ function DayTourBookingContent() {
                 </div>
               </div>
               <div className="flex flex-col items-center gap-3">
-                <div className="flex h-48 w-48 items-center justify-center overflow-hidden rounded-xl border border-blue-200 bg-white p-3 shadow-sm">
+                <div className="flex h-60 w-60 items-center justify-center overflow-hidden rounded-xl border border-blue-200 bg-white p-3 shadow-sm">
                   <img
                     src={visibleGuestQrBank.qrCodeUrl}
                     alt={`${visibleGuestQrBank.bankName} QR Code`}

@@ -152,18 +152,18 @@ export default function AdminFeedback() {
     switch(type) {
       case 'publish':
         return {
-          icon: 'fas fa-check-circle',
-          iconBg: 'bg-emerald-100',
-          iconColor: 'text-emerald-500',
+          icon: 'fas fa-check',
+          iconBg: 'bg-green-100',
+          iconColor: 'text-green-500',
           title: 'Publish Feedback',
           message: `Are you sure you want to publish the feedback from "${feedback.guestName || 'Guest'}"? It will be visible to guests on the website.`,
           confirmText: 'Publish',
-          confirmGradient: 'from-emerald-500 to-emerald-600',
+          confirmGradient: 'from-green-500 to-green-600',
           confirmAction: () => handlePublish(feedback)
         };
       case 'dontpublish':
         return {
-          icon: 'fas fa-times-circle',
+          icon: 'fas fa-times',
           iconBg: 'bg-red-100',
           iconColor: 'text-red-500',
           title: "Don't Publish",

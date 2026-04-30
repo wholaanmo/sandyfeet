@@ -39,7 +39,7 @@ export default function StaffLayout({ children }) {
   if (!mounted) return null;
 
   return (
-    <div className="min-h-screen" style={{ backgroundColor: '#FFFBF6' }}>
+    <div className="min-h-screen" style={{ backgroundColor: '#fcfcfc' }}>
       <StaffSidebar isOpen={sidebarOpen} onToggle={setSidebarOpen} isDesktop={isDesktop} />
       <div className="flex flex-col min-h-screen transition-all duration-300 ease-in-out">
         <StaffNavbar toggleSidebar={toggleSidebar} sidebarOpen={sidebarOpen} isDesktop={isDesktop} />

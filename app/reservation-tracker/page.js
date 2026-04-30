@@ -9,7 +9,7 @@ import { sendCancellationEmail, sendDayTourCancellationEmail } from '../../lib/e
 import ChatBot from '@/components/guest/ChatBot';
 
 export default function ReservationTrackerPage() {
-  const [email, setEmail] = useState('');
+  const [contactIdentifier, setContactIdentifier] = useState('');
   const [referenceNumber, setReferenceNumber] = useState('');
   const [loading, setLoading] = useState(false);
   const [reservation, setReservation] = useState(null);
@@ -106,7 +106,7 @@ export default function ReservationTrackerPage() {
     }
   };
 
-const checkForMultiRoomBooking = async (email, bookingId) => {
+const checkForMultiRoomBooking = async (identifier, identifierType, bookingId) => {
   try {
     const bookingsRef = collection(db, 'bookings');
     const childQuery = query(
@@ -127,6 +127,15 @@ const checkForMultiRoomBooking = async (email, bookingId) => {
 
       const firstChild = children[0]; // use first child for shared data
       
+      // Validate identifier matches guest info
+      let isValid = false;
+      if (identifierType === 'email') {
+        isValid = firstChild.guestInfo?.email?.toLowerCase() === identifier.toLowerCase();
+      } else {
+        isValid = firstChild.guestInfo?.phone === identifier;
+      }
+      if (!isValid) return null;
+
       // Determine total price: use exclusivePackagePrice if exclusive resort booking
       let totalPrice = 0;
       if (firstChild.isExclusiveResortBooking) {
@@ -240,14 +249,29 @@ const checkForMultiRoomBooking = async (email, bookingId) => {
 
   const handleSearch = async (e) => {
     e.preventDefault();
-    if (!email.trim() || !referenceNumber.trim()) {
-      setError('Please enter both email and reservation reference number.');
+    const identifierRaw = contactIdentifier.trim();
+    if (!identifierRaw || !referenceNumber.trim()) {
+      setError('Please enter both contact information (email or phone) and reservation reference number.');
       return;
     }
-    if (!validateEmail(email)) {
-      setError('Please enter a valid email address.');
-      return;
+    
+    // Determine identifier type: email or phone
+    const isEmail = identifierRaw.includes('@') && identifierRaw.includes('.');
+    let identifierType = isEmail ? 'email' : 'phone';
+    
+    if (identifierType === 'email') {
+      if (!validateEmail(identifierRaw)) {
+        setError('Please enter a valid email address.');
+        return;
+      }
+    } else {
+      // phone: just ensure it's not empty, basic check
+      if (identifierRaw.length < 5) {
+        setError('Please enter a valid phone number (at least 5 characters).');
+        return;
+      }
     }
+    
     setLoading(true);
     setError('');
     setReservation(null);
@@ -264,13 +288,8 @@ const checkForMultiRoomBooking = async (email, bookingId) => {
     childUnsubscribeRefs.current = [];
     try {
       const bookingId = referenceNumber.trim().toUpperCase();
-      const multiRoomReservation = await checkForMultiRoomBooking(email.toLowerCase().trim(), bookingId);
+      const multiRoomReservation = await checkForMultiRoomBooking(identifierRaw, identifierType, bookingId);
       if (multiRoomReservation) {
-        if (multiRoomReservation.guestInfo?.email?.toLowerCase() !== email.toLowerCase().trim()) {
-          setError('No reservation found. Please check your details and try again.');
-          setLoading(false);
-          return;
-        }
         setReservationType('room');
         setIsMultiRoomBooking(true);
         setReservation(multiRoomReservation);
@@ -327,11 +346,20 @@ const checkForMultiRoomBooking = async (email, bookingId) => {
         return;
       }
       const bookingsRef = collection(db, 'bookings');
-      const roomQuery = query(
-        bookingsRef,
-        where('guestInfo.email', '==', email.toLowerCase().trim()),
-        where('bookingId', '==', bookingId)
-      );
+      let roomQuery;
+      if (identifierType === 'email') {
+        roomQuery = query(
+          bookingsRef,
+          where('guestInfo.email', '==', identifierRaw.toLowerCase()),
+          where('bookingId', '==', bookingId)
+        );
+      } else {
+        roomQuery = query(
+          bookingsRef,
+          where('guestInfo.phone', '==', identifierRaw),
+          where('bookingId', '==', bookingId)
+        );
+      }
       const roomSnapshot = await getDocs(roomQuery);
       if (!roomSnapshot.empty) {
         const bookingDoc = roomSnapshot.docs[0];
@@ -366,11 +394,20 @@ const checkForMultiRoomBooking = async (email, bookingId) => {
         return;
       }
       const dayTourBookingsRef = collection(db, 'dayTourBookings');
-      const dayTourQuery = query(
-        dayTourBookingsRef,
-        where('guestInfo.email', '==', email.toLowerCase().trim()),
-        where('bookingId', '==', bookingId)
-      );
+      let dayTourQuery;
+      if (identifierType === 'email') {
+        dayTourQuery = query(
+          dayTourBookingsRef,
+          where('guestInfo.email', '==', identifierRaw.toLowerCase()),
+          where('bookingId', '==', bookingId)
+        );
+      } else {
+        dayTourQuery = query(
+          dayTourBookingsRef,
+          where('guestInfo.phone', '==', identifierRaw),
+          where('bookingId', '==', bookingId)
+        );
+      }
       const dayTourSnapshot = await getDocs(dayTourQuery);
       if (!dayTourSnapshot.empty) {
         const bookingDoc = dayTourSnapshot.docs[0];
@@ -878,7 +915,7 @@ const paymentBalanceDisplay = reservation
               Track Your Reservation
             </h1>
             <p className="mx-auto max-w-2xl text-sm leading-6 text-slate-600">
-              Enter your email and booking reference to see your reservation status.
+              Enter your email or phone number together with your booking reference to see your reservation status.
             </p>
           </div>
           <div className="grid gap-4 lg:grid-cols-[340px_minmax(0,1fr)]">
@@ -892,13 +929,13 @@ const paymentBalanceDisplay = reservation
                 <form onSubmit={handleSearch} className="space-y-4">
                   <div>
                     <label className="mb-1.5 block text-[11px] font-semibold uppercase tracking-[0.12em] text-slate-500">
-                      Email Address <span className="text-red-500">*</span>
+                      Email or Phone Number <span className="text-red-500">*</span>
                     </label>
                     <input
-                      type="email"
-                      value={email}
-                      onChange={(e) => setEmail(e.target.value)}
-                      placeholder="you@example.com"
+                      type="text"
+                      value={contactIdentifier}
+                      onChange={(e) => setContactIdentifier(e.target.value)}
+                      placeholder="you@example.com or 09123456789"
                       className="w-full rounded-xl border border-slate-200 bg-slate-50 px-3.5 py-3 text-sm text-slate-800 outline-none transition-all placeholder:text-slate-400 focus:border-blue-300 focus:bg-white focus:ring-4 focus:ring-blue-100"
                       disabled={loading}
                     />
@@ -1136,7 +1173,7 @@ const paymentBalanceDisplay = reservation
                     )}
                   </div>
 
-                  {/* Room Details â€“ only room types, no guest counts */}
+                  {/* Room Details – only room types, no guest counts */}
                   {reservation.type === 'room' && (
                     <div className="rounded-2xl border border-white/80 bg-white p-4 shadow-[0_14px_30px_rgba(15,23,42,0.08)]">
                       <h3 className="mb-4 flex items-center gap-3 text-lg font-bold text-slate-900">
@@ -1179,7 +1216,7 @@ const paymentBalanceDisplay = reservation
                     </div>
                   )}
 
-                  {/* Guest Count â€“ separate container, matches admin sidebar */}
+                  {/* Guest Count – separate container, matches admin sidebar */}
                   {reservation.type === 'room' && (
                     <div className="rounded-2xl border border-white/80 bg-white p-4 shadow-[0_14px_30px_rgba(15,23,42,0.08)]">
                       <h3 className="mb-4 flex items-center gap-3 text-lg font-bold text-slate-900">
@@ -1205,7 +1242,7 @@ const paymentBalanceDisplay = reservation
                           </div>
                         </div>
                       ) : reservation.isMultiRoom && reservation.children && reservation.children.length > 0 ? (
-                        // Multiâ€‘room: list each room with Adults | Kids
+                        // Multi‑room: list each room with Adults | Kids
                         <div className="space-y-3">
                           {reservation.children.map((child, idx) => {
                             const adults = child.adults || 0;

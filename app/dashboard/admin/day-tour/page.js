@@ -14,6 +14,7 @@ export default function AdminDayTour({ defaultTab = 'tours', hideTabs = false })
   const [dayTour, setDayTour] = useState(null);
   const [activities, setActivities] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [searchTerm, setSearchTerm] = useState('');
   const [showTourModal, setShowTourModal] = useState(false);
   const [showActivityModal, setShowActivityModal] = useState(false);
   const [showTourDetailsModal, setShowTourDetailsModal] = useState(false);
@@ -854,13 +855,13 @@ export default function AdminDayTour({ defaultTab = 'tours', hideTabs = false })
                     </div>
                   </div>
                   <div className="flex gap-2.5">
-                    <button onClick={() => { setSelectedTour(dayTour); setViewImageIndex(0); setShowTourDetailsModal(true); }} className="w-12 h-12 rounded-2xl bg-white border border-[#4D8CF5]/20 text-[#4D8CF5] hover:bg-[#4D8CF5] hover:text-white hover:border-[#4D8CF5] transition-all shadow-sm flex items-center justify-center" title="View Details">
+                    <button onClick={() => { setSelectedTour(dayTour); setViewImageIndex(0); setShowTourDetailsModal(true); }} className="w-11 h-11 rounded-lg bg-[#7AAAF8]/10 text-[#1E3A8A] border border-[#7AAAF8]/20 hover:bg-[#7AAAF8] hover:text-white transition-all duration-200 flex items-center justify-center">
                       <i className="fas fa-eye"></i>
                     </button>
-                    <button onClick={() => handleEditTour(dayTour)} className="p-1.5 rounded-lg bg-[#93C5FD]/10 text-[#1E3A8A] border border-[#93C5FD]/15 hover:bg-[#4D8CF5] hover:text-white transition-all duration-200" title="Edit Tour">
+                    <button onClick={() => handleEditTour(dayTour)} className="w-11 h-11 rounded-lg bg-[#93C5FD]/10 text-[#1E3A8A] border border-[#93C5FD]/20 hover:bg-[#93C5FD]/80 hover:text-white transition-all duration-200 flex items-center justify-center">
                       <i className="fas fa-edit text-sm"></i>
                     </button>
-                    <button onClick={() => setConfirmArchiveModal({ show: true, tour: dayTour })} className="p-1.5 rounded-lg bg-[#F59E0B]/10 text-[#C2410C] border border-[#F59E0B]/20 hover:bg-[#F59E0B] hover:text-white transition-all duration-200" title="Archive Tour">
+                    <button onClick={() => setConfirmArchiveModal({ show: true, tour: dayTour })} className="w-11 h-11 rounded-lg bg-[#F59E0B]/10 text-[#C2410C] border border-[#F59E0B]/20 hover:bg-[#F59E0B] hover:text-white transition-all duration-200" title="Archive Tour">
                       <i className="fas fa-archive text-sm"></i>
                     </button>
                   </div>
@@ -892,7 +893,7 @@ export default function AdminDayTour({ defaultTab = 'tours', hideTabs = false })
                       <div>
                         <h3 className="text-xs font-bold text-[#1E3A8A]/40 uppercase tracking-[0.2em] mb-5 flex items-center gap-3">
                           <div className="w-1.5 h-1.5 rounded-full bg-[#4D8CF5]"></div>
-                          Package Inclusions
+                          Day Tour Inclusions
                         </h3>
                         <div className="flex flex-wrap gap-2.5">
                           {dayTour.inclusions.map((inclusion, idx) => (
@@ -907,7 +908,7 @@ export default function AdminDayTour({ defaultTab = 'tours', hideTabs = false })
                     <div>
                       <h3 className="text-xs font-bold text-[#1E3A8A]/40 uppercase tracking-[0.2em] mb-5 flex items-center gap-3">
                         <div className="w-1.5 h-1.5 rounded-full bg-[#4D8CF5]"></div>
-                        About this Package
+                        Description
                       </h3>
                       <p className="text-[#1E3A8A]/70 text-sm leading-relaxed max-w-3xl whitespace-pre-wrap px-1">
                         {dayTour.description}
@@ -947,66 +948,142 @@ export default function AdminDayTour({ defaultTab = 'tours', hideTabs = false })
     } else { // activities
       return (
         <>
-          <div className="mb-6 flex justify-end">
-            <button onClick={openAddActivityModal} className="flex items-center gap-2 px-5 py-2.5 rounded-xl font-medium border border-[#7AAAF8]/30 bg-white/70 backdrop-blur-md text-[#1E3A8A] shadow-sm hover:bg-[#7AAAF8] hover:text-white hover:border-[#7AAAF8] hover:shadow-md hover:-translate-y-0.5 transition-all duration-200">
-              <i className="fas fa-plus text-sm"></i> Add New Activity
-            </button>
-          </div>
-          {loading ? (
-            <div className="flex justify-center items-center h-64">
-              <div className="w-12 h-12 rounded-full border-4 border-[#4D8CF5]/20 border-t-[#4D8CF5] animate-spin"></div>
-            </div>
-          ) : activities.length === 0 ? (
-            <div className="bg-white rounded-2xl shadow-md border border-ocean-light/10 p-12 text-center">
-              <i className="fas fa-bicycle text-6xl text-ocean-light/30 mb-4 block"></i>
-              <h3 className="text-xl font-semibold text-textPrimary mb-2">No Activities Yet</h3>
-              <p className="text-textSecondary mb-4">Add activities like ATV, Banana Boat, Jet Ski, etc.</p>
-              <button onClick={openAddActivityModal} className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl font-medium border border-[#7AAAF8]/30 bg-white/70 backdrop-blur-md text-[#1E3A8A] shadow-sm hover:bg-[#7AAAF8] hover:text-white hover:border-[#7AAAF8] hover:shadow-md hover:-translate-y-0.5 transition-all duration-200">
-                <i className="fas fa-plus text-sm"></i> Add First Activity
-              </button>
-            </div>
-          ) : (
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8 max-w-7xl mx-auto px-4 pb-12">
-              {activities.map((activity) => (
-                <div key={activity.id} className="group bg-white rounded-[2.5rem] shadow-xl shadow-gray-100/50 border border-gray-100 overflow-hidden hover:shadow-2xl hover:shadow-[#4D8CF5]/10 hover:-translate-y-1.5 transition-all duration-500">
-                  <div className="relative h-60 bg-gray-50 overflow-hidden">
-                    {activity.images && activity.images[0] ? (
-                      <Image src={activity.images[0]} alt={activity.name} fill className="object-cover transition-transform duration-1000 group-hover:scale-110" />
-                    ) : (
-                      <div className="flex items-center justify-center h-full opacity-20">
-                        <i className="fas fa-bicycle text-6xl text-[#4D8CF5]"></i>
-                      </div>
-                    )}
-                    <div className="absolute top-5 right-5 px-4 py-2.5 bg-white/90 backdrop-blur-md rounded-2xl shadow-sm border border-white/50">
-                      <span className="text-xl font-black text-[#4D8CF5]">₱{activity.priceValue?.toLocaleString()}</span>
-                      <span className="text-[10px] font-bold text-[#1E3A8A]/40 uppercase ml-1 tracking-widest">
-                        {activity.priceType === 'perHour' && '/ hr'}
-                        {activity.priceType === 'per30Mins' && '/ 30m'}
-                        {activity.priceType === 'per2Hrs' && '/ 2h'}
-                        {activity.priceType === 'per1Hr30Mins' && '/ 1.5h'}
-                      </span>
-                    </div>
-                  </div>
-                  <div className="p-8">
-                    <h3 className="text-xl font-bold text-[#1E3A8A] mb-3 group-hover:text-[#4D8CF5] transition-colors">{activity.name}</h3>
-                    <p className="text-sm text-[#1E3A8A]/60 line-clamp-3 mb-8 leading-relaxed h-[3.75rem]">{activity.description}</p>
-                    <div className="flex gap-2 pt-2">
-                      <button onClick={() => { setSelectedActivity(activity); setViewImageIndex(0); setShowActivityDetailsModal(true); }} className="flex-1 py-3.5 rounded-2xl bg-gray-50 text-[#1E3A8A]/60 font-bold hover:bg-[#4D8CF5]/10 hover:text-[#4D8CF5] transition-all border border-gray-100 hover:border-[#4D8CF5]/20 flex items-center justify-center gap-2">
-                        <i className="fas fa-eye text-sm"></i>
-                        <span className="text-xs">View</span>
-                      </button>
-                      <button onClick={() => handleEditActivity(activity)} className="px-3 py-2 rounded-lg bg-[#93C5FD]/10 text-[#1E3A8A] border border-[#93C5FD]/15 hover:bg-[#4D8CF5] hover:text-white transition-all duration-200">
-                        <i className="fas fa-edit"></i>
-                      </button>
-                      <button onClick={() => setConfirmArchiveActivityModal({ show: true, activity })} className="px-3 py-2 rounded-lg bg-[#F59E0B]/10 text-[#C2410C] border border-[#F59E0B]/20 hover:bg-[#F59E0B] hover:text-white transition-all duration-200">
-                        <i className="fas fa-archive"></i>
-                      </button>
-                    </div>
-                  </div>
+ <div className="mb-6 flex flex-wrap items-center gap-4">
+  {/* Search Filter */}
+  <div className="flex-1 min-w-[250px]">
+    <div className="relative w-full group">
+      <i className="fas fa-search absolute left-3 top-1/2 -translate-y-1/2 text-[#4D8CF5] text-sm transition-all duration-300 group-focus-within:text-[#3B78E7]"></i>
+
+      <input
+        type="text"
+        placeholder="Search activity..."
+        value={searchTerm}
+        onChange={(e) => setSearchTerm(e.target.value)}
+        className="w-full pl-9 pr-3 py-2.5 border-2 border-[#4D8CF5]/20 rounded-xl text-sm focus:outline-none focus:border-[#4D8CF5] focus:ring-2 focus:ring-[#4D8CF5]/20 transition-all duration-300 bg-white shadow-sm hover:shadow-md"
+      />
+    </div>
+  </div>
+
+  {/* Add Button */}
+  <div className="ml-auto">
+    <button
+      onClick={openAddActivityModal}
+      className="flex items-center gap-2 px-5 h-[46px] rounded-xl font-medium border-2 border-[#7AAAF8]/30 bg-white/70 backdrop-blur-md text-[#1E3A8A] shadow-sm hover:bg-[#7AAAF8] hover:text-white hover:border-[#7AAAF8] hover:shadow-md hover:-translate-y-0.5 transition-all duration-200"
+    >
+      <i className="fas fa-plus text-sm"></i>
+      Add New Activity
+    </button>
+  </div>
+</div>
+{loading ? (
+  <div className="flex justify-center items-center h-64">
+    <div className="w-12 h-12 rounded-full border-4 border-[#4D8CF5]/20 border-t-[#4D8CF5] animate-spin"></div>
+  </div>
+) : activities.length === 0 ? (
+  <div className="bg-white rounded-2xl shadow-md border border-ocean-light/10 p-12 text-center">
+    <i className="fas fa-bicycle text-6xl text-ocean-light/30 mb-4 block"></i>
+    <h3 className="text-xl font-semibold text-textPrimary mb-2">No Activities Yet</h3>
+    <p className="text-textSecondary mb-4">Add activities like ATV, Banana Boat, Jet Ski, etc.</p>
+    <button onClick={openAddActivityModal} className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl font-medium border border-[#7AAAF8]/30 bg-white/70 backdrop-blur-md text-[#1E3A8A] shadow-sm hover:bg-[#7AAAF8] hover:text-white hover:border-[#7AAAF8] hover:shadow-md hover:-translate-y-0.5 transition-all duration-200">
+      <i className="fas fa-plus text-sm"></i> Add First Activity
+    </button>
+  </div>
+) : (
+  // Filter activities based on search term
+  (() => {
+    const filteredActivities = activities.filter(activity => {
+      const searchLower = searchTerm.toLowerCase().trim();
+      if (searchLower === '') return true;
+      
+      // Search across multiple fields
+      return (
+        activity.name?.toLowerCase().includes(searchLower) ||
+        activity.description?.toLowerCase().includes(searchLower) ||
+        (activity.priceType && getPriceDisplayText(activity.priceType, activity.priceValue).toLowerCase().includes(searchLower)) ||
+        activity.priceValue?.toString().includes(searchLower)
+      );
+    });
+    
+    return filteredActivities.length === 0 ? (
+      <div className="bg-white rounded-2xl shadow-md border border-ocean-light/10 p-12 text-center">
+        <i className="fas fa-search text-6xl text-ocean-light/30 mb-4 block"></i>
+        <h3 className="text-xl font-semibold text-textPrimary mb-2">No matching activities</h3>
+        <p className="text-textSecondary">No activities found matching "{searchTerm}"</p>
+        {searchTerm && (
+          <button 
+            onClick={() => setSearchTerm('')} 
+            className="mt-4 inline-flex items-center gap-2 px-4 py-2 text-sm text-[#4D8CF5] hover:text-[#3B78E7] transition-colors"
+          >
+            <i className="fas fa-times-circle"></i> Clear search
+          </button>
+        )}
+      </div>
+    ) : (
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8 max-w-7xl mx-auto px-4 pb-12">
+        {filteredActivities.map((activity) => (
+          <div key={activity.id} className="group bg-white rounded-[2.5rem] shadow-xl shadow-gray-100/50 border border-gray-100 overflow-hidden hover:shadow-2xl hover:shadow-[#4D8CF5]/10 hover:-translate-y-1.5 transition-all duration-500">
+            <div className="relative h-50 bg-gray-50 overflow-hidden">
+              {activity.images && activity.images[0] ? (
+                <Image src={activity.images[0]} alt={activity.name} fill className="object-cover transition-transform duration-1000 group-hover:scale-110" />
+              ) : (
+                <div className="flex items-center justify-center h-full opacity-20">
+                  <i className="fas fa-bicycle text-6xl text-[#4D8CF5]"></i>
                 </div>
-              ))}
+              )}
+              <div className="absolute top-5 right-5 px-4 py-2.5 bg-white/90 backdrop-blur-md rounded-2xl shadow-sm border border-white/50">
+                <span className="text-xl font-black text-[#4D8CF5]">₱{activity.priceValue?.toLocaleString()}</span>
+                <span className="text-[10px] font-bold text-[#1E3A8A]/40 uppercase ml-1 tracking-widest">
+                  {activity.priceType === 'perHour' && '/ hr'}
+                  {activity.priceType === 'per30Mins' && '/ 30m'}
+                  {activity.priceType === 'per2Hrs' && '/ 2h'}
+                  {activity.priceType === 'per1Hr30Mins' && '/ 1.5h'}
+                </span>
+              </div>
             </div>
-          )}
+<div className="p-6">
+  <h3 className="text-xl font-bold text-[#1E3A8A] mb-3 group-hover:text-[#4D8CF5] transition-colors">
+    {activity.name}
+  </h3>
+
+  <p className="text-sm text-[#1E3A8A]/60 line-clamp-3 mb-4 leading-relaxed h-[3.75rem]">
+    {activity.description}
+  </p>
+
+  <div className="flex gap-2 pt-2 justify-end">
+    <button
+      onClick={() => {
+        setSelectedActivity(activity);
+        setViewImageIndex(0);
+        setShowActivityDetailsModal(true);
+      }}
+      className="px-4 py-3.5 rounded-lg bg-[#7AAAF8]/10 text-[#1E3A8A] font-bold border border-[#7AAAF8]/20 hover:bg-[#4D8CF5]/80 hover:text-white transition-all duration-200 flex items-center justify-center gap-2"
+    >
+      <i className="fas fa-eye text-sm"></i>
+      <span className="text-xs">View</span>
+    </button>
+
+    <button
+      onClick={() => handleEditActivity(activity)}
+className="px-3 py-2 rounded-lg bg-[#93C5FD]/10 text-[#1E3A8A] border border-[#93C5FD]/20 hover:bg-[#93C5FD]/80 hover:text-white transition-all duration-200 flex items-center disabled:opacity-50">
+      <i className="fas fa-edit"></i>
+    </button>
+
+    <button
+      onClick={() =>
+        setConfirmArchiveActivityModal({ show: true, activity })
+      }
+      className="px-3 py-2 rounded-lg bg-[#F59E0B]/10 text-[#C2410C] border border-[#F59E0B]/20 hover:bg-[#F59E0B] hover:text-white transition-all duration-200"
+    >
+      <i className="fas fa-archive"></i>
+    </button>
+  </div>
+            </div>
+          </div>
+        ))}
+      </div>
+    );
+  })()
+)}
         </>
       );
     }
@@ -1068,7 +1145,7 @@ export default function AdminDayTour({ defaultTab = 'tours', hideTabs = false })
                 <i className="fas fa-umbrella-beach text-[#4D8CF5]"></i>
                 Day Tour Details
               </h2>
-              <button onClick={() => { setShowTourDetailsModal(false); setSelectedTour(null); }} className="w-8 h-8 rounded-full bg-ocean-ice hover:bg-ocean-light/20 text-neutral hover:text-textPrimary transition-all duration-200 flex items-center justify-center">
+              <button onClick={() => { setShowTourDetailsModal(false); setSelectedTour(null); }} className="w-7 h-7 rounded-md bg-ocean-ice text-neutral hover:bg-ocean-light/20 hover:text-textPrimary transition-all duration-200 flex items-center justify-center">
                 <i className="fas fa-times"></i>
               </button>
             </div>
@@ -1206,7 +1283,7 @@ export default function AdminDayTour({ defaultTab = 'tours', hideTabs = false })
                 <i className="fas fa-bicycle text-[#4D8CF5]"></i>
                 Activity Details
               </h2>
-              <button onClick={() => { setShowActivityDetailsModal(false); setSelectedActivity(null); }} className="w-8 h-8 rounded-full bg-ocean-ice hover:bg-ocean-light/20 text-neutral hover:text-textPrimary transition-all duration-200 flex items-center justify-center">
+              <button onClick={() => { setShowActivityDetailsModal(false); setSelectedActivity(null); }} className="w-7 h-7 rounded-md bg-ocean-ice text-neutral hover:bg-ocean-light/20 hover:text-textPrimary transition-all duration-200 flex items-center justify-center">
                 <i className="fas fa-times"></i>
               </button>
             </div>
@@ -1319,7 +1396,7 @@ export default function AdminDayTour({ defaultTab = 'tours', hideTabs = false })
                 <i className={`fas ${tourModalType === 'add' ? 'fa-plus-circle' : 'fa-edit'} text-[#4D8CF5]`}></i>
                 {tourModalType === 'add' ? 'Create Day Tour' : 'Edit Day Tour'}
               </h2>
-              <button onClick={() => { setShowTourModal(false); setSelectedTour(null); setOriginalTourData(null); setShowInclusionDropdown(false); }} className="w-8 h-8 rounded-full bg-ocean-ice hover:bg-ocean-light/20 text-neutral hover:text-textPrimary transition-all duration-200 flex items-center justify-center"><i className="fas fa-times"></i></button>
+              <button onClick={() => { setShowTourModal(false); setSelectedTour(null); setOriginalTourData(null); setShowInclusionDropdown(false); }} className="w-7 h-7 rounded-md bg-ocean-ice text-neutral hover:bg-ocean-light/20 hover:text-textPrimary transition-all duration-200 flex items-center justify-center"><i className="fas fa-times"></i></button>
             </div>
             
             <form onSubmit={tourModalType === 'add' ? handleAddTour : handleUpdateTour}>
@@ -1424,8 +1501,8 @@ export default function AdminDayTour({ defaultTab = 'tours', hideTabs = false })
 
               {/* Actions */}
               <div className="flex gap-3 justify-end pt-4 border-t border-gray-100">
-                <button type="button" onClick={() => { setShowTourModal(false); setSelectedTour(null); setOriginalTourData(null); setShowInclusionDropdown(false); }} className="px-6 py-2.5 rounded-xl text-textSecondary text-sm font-semibold hover:bg-gray-100 transition-all">Cancel</button>
-                <button type="submit" disabled={actionLoading || (tourModalType === 'edit' ? !hasTourChanges() : isTourFormIncomplete())} className={`px-8 py-2.5 rounded-xl text-white text-sm font-bold shadow-sm transition-all ${
+                <button type="button" onClick={() => { setShowTourModal(false); setSelectedTour(null); setOriginalTourData(null); setShowInclusionDropdown(false); }} className="px-5 py-2.5 border border-ocean-light/20 rounded-xl text-textSecondary text-sm font-medium hover:bg-ocean-ice transition-all duration-300">Cancel</button>
+                <button type="submit" disabled={actionLoading || (tourModalType === 'edit' ? !hasTourChanges() : isTourFormIncomplete())} className={`px-8 py-2.5 rounded-xl text-white text-sm font-medium shadow-sm transition-all ${
                   actionLoading || (tourModalType === 'edit' ? !hasTourChanges() : isTourFormIncomplete())
                     ? 'bg-gray-200 text-gray-400 cursor-not-allowed'
                     : 'bg-[#4D8CF5] hover:bg-[#3B78E7] hover:shadow-md active:scale-95'
@@ -1447,7 +1524,7 @@ export default function AdminDayTour({ defaultTab = 'tours', hideTabs = false })
                 <i className={`fas ${activityModalType === 'add' ? 'fa-plus-circle' : 'fa-edit'} text-[#4D8CF5]`}></i>
                 {activityModalType === 'add' ? 'Add New Activity' : 'Edit Activity'}
               </h2>
-              <button onClick={() => { setShowActivityModal(false); setSelectedActivity(null); setOriginalActivityData(null); }} className="w-8 h-8 rounded-full bg-ocean-ice hover:bg-ocean-light/20 text-neutral hover:text-textPrimary transition-all duration-200 flex items-center justify-center"><i className="fas fa-times"></i></button>
+              <button onClick={() => { setShowActivityModal(false); setSelectedActivity(null); setOriginalActivityData(null); }} className="w-7 h-7 rounded-md bg-ocean-ice text-neutral hover:bg-ocean-light/20 hover:text-textPrimary transition-all duration-200 flex items-center justify-center"><i className="fas fa-times"></i></button>
             </div>
             
             <form onSubmit={activityModalType === 'add' ? handleAddActivity : handleUpdateActivity}>
@@ -1508,8 +1585,8 @@ export default function AdminDayTour({ defaultTab = 'tours', hideTabs = false })
 
               {/* Actions */}
               <div className="flex gap-3 justify-end pt-4 border-t border-gray-100">
-                <button type="button" onClick={() => { setShowActivityModal(false); setSelectedActivity(null); setOriginalActivityData(null); }} className="px-6 py-2.5 rounded-xl text-textSecondary text-sm font-semibold hover:bg-gray-100 transition-all">Cancel</button>
-                <button type="submit" disabled={actionLoading || (activityModalType === 'edit' ? !hasActivityChanges() : isActivityFormIncomplete())} className={`px-8 py-2.5 rounded-xl text-white text-sm font-bold shadow-sm transition-all ${
+                <button type="button" onClick={() => { setShowActivityModal(false); setSelectedActivity(null); setOriginalActivityData(null); }} className="px-5 py-2.5 border border-ocean-light/20 rounded-xl text-textSecondary text-sm font-medium hover:bg-ocean-ice transition-all duration-300">Cancel</button>
+                <button type="submit" disabled={actionLoading || (activityModalType === 'edit' ? !hasActivityChanges() : isActivityFormIncomplete())} className={`px-8 py-2.5 rounded-xl text-white text-sm font-medium shadow-sm transition-all ${
                   actionLoading || (activityModalType === 'edit' ? !hasActivityChanges() : isActivityFormIncomplete())
                     ? 'bg-gray-200 text-gray-400 cursor-not-allowed'
                     : 'bg-[#4D8CF5] hover:bg-[#3B78E7] hover:shadow-md active:scale-95'

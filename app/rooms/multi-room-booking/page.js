@@ -1220,7 +1220,7 @@ const handleSubmitBooking = async () => {
       <ul className="text-xs text-blue-700/80 space-y-1 ml-5 list-disc leading-relaxed">
         <li>Pay only the <strong>down payment (50%)</strong> to confirm.</li>
         <li>Balance (₱{(totalPrice - downPaymentAmount).toLocaleString()}) is due upon check-in.</li>
-        <li>Cancellations forfeit <strong>50%</strong> of the down payment.</li>
+        <li>Cancellations will result in forfeiture of the down payment, unless the booking is rescheduled.</li>
       </ul>
     </div>
 
@@ -1231,7 +1231,7 @@ const handleSubmitBooking = async () => {
           <label className="text-sm font-semibold text-gray-800">Valid ID *</label>
         </div>
         <p className="text-[11px] text-gray-500 mb-3 leading-tight">
-          Clear front image only. Max size: 10MB.
+          Clear front image only. 
         </p>
         <button
           type="button"
@@ -1264,7 +1264,7 @@ const handleSubmitBooking = async () => {
           <label className="text-sm font-semibold text-gray-800">Receipt *</label>
         </div>
         <p className="text-[11px] text-gray-500 mb-3 leading-tight">
-          Proof of down payment. Max size: 10MB.
+          Proof of down payment. 
         </p>
         <div className="relative">
           <input
@@ -1376,7 +1376,7 @@ const handleSubmitBooking = async () => {
                     <p className="text-sm text-amber-800">
                       <i className="fas fa-info-circle mr-2"></i>
                       Down payment of <strong>₱{downPaymentAmount.toLocaleString()}</strong> has been confirmed.
-                      Remaining balance of <strong>₱{(totalPrice - downPaymentAmount).toLocaleString()}</strong> is payable at the resort.
+                      Remaining balance of <strong>₱{(totalPrice - downPaymentAmount).toLocaleString()}</strong> is payable at the resort. Cancellations will result in forfeiture of the down payment, unless the booking is rescheduled.
                     </p>
                   </div>
                   <div className="flex gap-3">
@@ -1583,7 +1583,6 @@ const handleSubmitBooking = async () => {
                   <li>Full name must match booking details</li>
                   <li>Image must be clear (front only)</li>
                   <li>No blurred images allowed</li>
-                  <li>Max file size: 10MB</li>
                 </ul>
               </div>
 

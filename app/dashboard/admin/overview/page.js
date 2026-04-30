@@ -467,13 +467,13 @@ useEffect(() => {
                 Latest {recentPendingRoomBookings.length} pending room booking requests
               </p>
             </div>
-            <Link 
-              href="/dashboard/admin/reservations"
-              className="px-3 py-1.5 rounded-lg border border-[#7AAAF8]/30 bg-white/70 backdrop-blur-md text-[#1E3A8A] text-xs font-medium hover:bg-[#7AAAF8] hover:text-white transition-all duration-200 flex items-center gap-1 shadow-sm hover:shadow"
-            >
-              View All
-              <i className="fas fa-arrow-right text-xs"></i>
-            </Link>
+<Link 
+  href="/dashboard/admin/reservations"
+  className="px-3 py-1.5 rounded-lg border border-[#7AAAF8]/30 bg-white/70 backdrop-blur-md text-[#1E3A8A] text-xs font-medium hover:bg-[#7AAAF8] hover:text-white transition-all duration-200 flex items-center gap-2 shadow-sm hover:shadow"
+>
+  View All
+  <i className="fas fa-arrow-right text-xs"></i>
+</Link>
           </div>
           
           <div className="p-5">
@@ -547,13 +547,13 @@ useEffect(() => {
                 Latest {recentPendingDayTours.length} pending day tour booking requests
               </p>
             </div>
-            <Link 
-              href="/dashboard/admin/reservations"
-              className="px-3 py-1.5 rounded-lg border border-[#7AAAF8]/30 bg-white/70 backdrop-blur-md text-[#1E3A8A] text-xs font-medium hover:bg-[#7AAAF8] hover:text-white transition-all duration-200 flex items-center gap-1 shadow-sm hover:shadow"
-            >
-              View All
-              <i className="fas fa-arrow-right text-xs"></i>
-            </Link>
+ <Link 
+  href="/dashboard/admin/reservations"
+  className="px-3 py-1.5 rounded-lg border border-[#7AAAF8]/30 bg-white/70 backdrop-blur-md text-[#1E3A8A] text-xs font-medium hover:bg-[#7AAAF8] hover:text-white transition-all duration-200 flex items-center gap-2 shadow-sm hover:shadow"
+>
+  View All
+  <i className="fas fa-arrow-right text-xs"></i>
+</Link>
           </div>
           
           <div className="p-5">
