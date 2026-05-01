@@ -1,7 +1,7 @@
 // components/staff/StaffNavbar.js
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import Image from 'next/image';
 import { auth, db } from '../../lib/firebase';
 import { doc, getDoc } from 'firebase/firestore';
@@ -12,16 +12,20 @@ import {
   setupRoomReservationsListener, 
   setupDayTourReservationsListener, 
   setupGuestCancellationsListener,
+  setupRoomStatusListener,
   markNotificationAsRead,
   markAllNotificationsAsRead
 } from './notificationService';
 
 export default function StaffNavbar({ toggleSidebar, sidebarOpen, isDesktop }) {
+  const STATUS_READ_STORAGE_KEY = 'staff_status_notifications_read';
   const [userName, setUserName] = useState('');
   const [userRole, setUserRole] = useState('');
   const [unreadCount, setUnreadCount] = useState(0);
   const [showNotifications, setShowNotifications] = useState(false);
   const [notifications, setNotifications] = useState([]);
+  const [statusReadMap, setStatusReadMap] = useState({});
+  const statusReadMapRef = useRef({});
 
   useEffect(() => {
     const fetchUserData = async () => {
@@ -43,15 +47,60 @@ export default function StaffNavbar({ toggleSidebar, sidebarOpen, isDesktop }) {
     fetchUserData();
   }, []);
 
-  // Combined notification update handler
-  const handleNotificationsUpdate = (newItems, type) => {
-    setNotifications(prev => {
-      const filtered = prev.filter(n => n.type !== type);
-      const combined = [...filtered, ...newItems];
-      combined.sort((a, b) => asDate(b.createdAt) - asDate(a.createdAt));
-      return combined;
-    });
+  useEffect(() => {
+    try {
+      const raw = localStorage.getItem(STATUS_READ_STORAGE_KEY);
+      if (!raw) return;
+      const parsed = JSON.parse(raw);
+      if (parsed && typeof parsed === 'object') {
+        setStatusReadMap(parsed);
+        statusReadMapRef.current = parsed;
+      }
+    } catch (error) {
+      console.error('Error loading notification read state:', error);
+    }
+  }, []);
+
+  const persistStatusReadMap = (nextMap) => {
+    setStatusReadMap(nextMap);
+    statusReadMapRef.current = nextMap;
+    try {
+      localStorage.setItem(STATUS_READ_STORAGE_KEY, JSON.stringify(nextMap));
+    } catch (error) {
+      console.error('Error saving notification read state:', error);
+    }
   };
+
+  // Combined notification update handler
+ const handleNotificationsUpdate = (newItems, type) => {
+  setNotifications(prev => {
+    const isStatusType = type === 'check_in' || type === 'check_out';
+
+    // For status notifications, don't clear the list if the service emits an empty update.
+    if (isStatusType && (!Array.isArray(newItems) || newItems.length === 0)) {
+      return prev;
+    }
+
+    const filtered = prev.filter(n => n.type !== type);
+
+    // Mark read status for status notifications
+    let itemsWithReadState = isStatusType
+      ? newItems.map(item => ({ ...item, read: statusReadMapRef.current[`${item.type}-${item.id}`] === true }))
+      : newItems;
+
+    // --- DEDUPLICATE based on type + id ---
+    const uniqueMap = new Map();
+    itemsWithReadState.forEach(item => {
+      const key = `${item.type}-${item.id}`;
+      if (!uniqueMap.has(key)) uniqueMap.set(key, item);
+    });
+    const uniqueItems = Array.from(uniqueMap.values());
+
+    const combined = [...filtered, ...uniqueItems];
+    combined.sort((a, b) => asDate(b.createdAt) - asDate(a.createdAt));
+    return combined;
+  });
+};
 
   // Set up all notification listeners
   useEffect(() => {
@@ -60,6 +109,7 @@ export default function StaffNavbar({ toggleSidebar, sidebarOpen, isDesktop }) {
     const unsubscribeRoomReservations = setupRoomReservationsListener(handleNotificationsUpdate);
     const unsubscribeDayTourReservations = setupDayTourReservationsListener(handleNotificationsUpdate);
     const unsubscribeCancellations = setupGuestCancellationsListener(handleNotificationsUpdate);
+    const unsubscribeRoomStatus = setupRoomStatusListener(handleNotificationsUpdate);
 
     return () => {
       unsubscribeBank();
@@ -67,6 +117,7 @@ export default function StaffNavbar({ toggleSidebar, sidebarOpen, isDesktop }) {
       unsubscribeRoomReservations();
       unsubscribeDayTourReservations();
       unsubscribeCancellations();
+      unsubscribeRoomStatus();
     };
   }, []);
 
@@ -79,6 +130,13 @@ export default function StaffNavbar({ toggleSidebar, sidebarOpen, isDesktop }) {
   const handleToggleNotifications = async () => {
     if (!showNotifications && unreadCount > 0) {
       await markAllNotificationsAsRead();
+      const nextReadMap = { ...statusReadMap };
+      notifications.forEach((n) => {
+        if ((n.type === 'check_in' || n.type === 'check_out') && !n.read) {
+          nextReadMap[`${n.type}-${n.id}`] = true;
+        }
+      });
+      persistStatusReadMap(nextReadMap);
       // Update local read status
       setNotifications(prev => prev.map(n => ({ ...n, read: true })));
     }
@@ -87,12 +145,17 @@ export default function StaffNavbar({ toggleSidebar, sidebarOpen, isDesktop }) {
 
   const handleMarkAsRead = async (notification) => {
     await markNotificationAsRead(notification);
+    if (notification.type === 'check_in' || notification.type === 'check_out') {
+      persistStatusReadMap({
+        ...statusReadMap,
+        [`${notification.type}-${notification.id}`]: true
+      });
+    }
     setNotifications(prev => prev.map(n => 
       n.id === notification.id && n.type === notification.type ? { ...n, read: true } : n
     ));
   };
 
-  // Dynamic navbar style (preserved from original)
   const navbarStyle = isDesktop
     ? {
         left: sidebarOpen ? '260px' : '80px',
@@ -105,22 +168,26 @@ export default function StaffNavbar({ toggleSidebar, sidebarOpen, isDesktop }) {
         transition: 'none'
       };
 
-  // Function to get notification icon and color based on type (copied from AdminNavbar)
-  const getNotificationStyle = (type) => {
-    switch(type) {
-      case 'cancellation':
-        return { icon: 'fas fa-calendar-times', bgColor: 'bg-gradient-to-br from-red-50 to-red-100', iconColor: 'text-red-600', borderColor: 'border-red-200' };
-      case 'bank_transfer':
-      case 'bank_transfer_daytour':
-        return { icon: 'fas fa-university', bgColor: 'bg-gradient-to-br from-amber-50 to-amber-100', iconColor: 'text-amber-600', borderColor: 'border-amber-200' };
-      case 'reservation_room':
-        return { icon: 'fas fa-bed', bgColor: 'bg-gradient-to-br from-blue-50 to-blue-100', iconColor: 'text-blue-600', borderColor: 'border-blue-200' };
-      case 'reservation_daytour':
-        return { icon: 'fas fa-sun', bgColor: 'bg-gradient-to-br from-emerald-50 to-emerald-100', iconColor: 'text-emerald-600', borderColor: 'border-emerald-200' };
-      default:
-        return { icon: 'fas fa-bell', bgColor: 'bg-gradient-to-br from-gray-50 to-gray-100', iconColor: 'text-gray-600', borderColor: 'border-gray-200' };
-    }
-  };
+  // Function to get notification icon and color based on type
+const getNotificationStyle = (type) => {
+  switch(type) {
+    case 'cancellation':
+      return { icon: 'fas fa-calendar-times', bgColor: 'bg-gradient-to-br from-red-50 to-red-100', iconColor: 'text-red-600', borderColor: 'border-red-200' };
+    case 'bank_transfer':
+    case 'bank_transfer_daytour':
+      return { icon: 'fas fa-university', bgColor: 'bg-gradient-to-br from-amber-50 to-amber-100', iconColor: 'text-amber-600', borderColor: 'border-amber-200' };
+    case 'reservation_room':
+      return { icon: 'fas fa-bed', bgColor: 'bg-gradient-to-br from-blue-50 to-blue-100', iconColor: 'text-blue-600', borderColor: 'border-blue-200' };
+    case 'reservation_daytour':
+      return { icon: 'fas fa-sun', bgColor: 'bg-gradient-to-br from-emerald-50 to-emerald-100', iconColor: 'text-emerald-600', borderColor: 'border-emerald-200' };
+    case 'check_in':
+      return { icon: 'fas fa-sign-in-alt', bgColor: 'bg-gradient-to-br from-green-50 to-green-100', iconColor: 'text-green-600', borderColor: 'border-green-200' };
+    case 'check_out':
+      return { icon: 'fas fa-sign-out-alt', bgColor: 'bg-gradient-to-br from-purple-50 to-purple-100', iconColor: 'text-purple-600', borderColor: 'border-purple-200' };
+    default:
+      return { icon: 'fas fa-bell', bgColor: 'bg-gradient-to-br from-gray-50 to-gray-100', iconColor: 'text-gray-600', borderColor: 'border-gray-200' };
+  }
+};
 
   return (
     <nav 
@@ -141,7 +208,7 @@ export default function StaffNavbar({ toggleSidebar, sidebarOpen, isDesktop }) {
         </div>
 
         <div className="flex items-center gap-4">
-          {/* Role and Name Badge - Staff version with user-tie icon */}
+          {/* Role and Name Badge - Enhanced */}
           <div className="flex items-center gap-2 px-4 py-1.5 rounded-full bg-gradient-to-r from-[#4D8CF5]/5 to-[#7AAAF8]/5 backdrop-blur-sm shadow-sm border border-[#4D8CF5]/15 hover:shadow-md hover:border-[#4D8CF5]/30 transition-all duration-300">
             <div className="w-7 h-7 rounded-full bg-gradient-to-br from-[#4D8CF5] to-[#7AAAF8] flex items-center justify-center shadow-md">
               <i className="fas fa-user-tie text-white text-xs"></i>
@@ -174,11 +241,11 @@ export default function StaffNavbar({ toggleSidebar, sidebarOpen, isDesktop }) {
                 <div className="px-5 py-4 bg-[#7AAAF8]/5">
                   <div className="flex items-center justify-between">
                     <div className="flex items-center gap-2">
-                      <i className="fas fa-bell text-gray-700 text-lg"></i>
-                      <h3 className="text-gray-800 font-bold text-base">Notifications</h3>
+                      <i className="fas fa-bell text-#1F2937e text-lg"></i>
+                      <h3 className="text-#1F2937 font-bold text-base">Notifications</h3>
                     </div>
                     {unreadCount > 0 && (
-                      <span className="bg-[#4D8CF5]/10 text-[#4D8CF5] text-xs font-semibold px-2.5 py-1 rounded-full">
+                      <span className="bg-white/20 backdrop-blur-sm text-white text-xs font-semibold px-2.5 py-1 rounded-full">
                         {unreadCount} new
                       </span>
                     )}
@@ -214,72 +281,111 @@ export default function StaffNavbar({ toggleSidebar, sidebarOpen, isDesktop }) {
                             
                             {/* Content */}
                             <div className="flex-1 min-w-0">
-                              {notification.type === 'bank_transfer' ? (
-                                <>
-                                  <p className="text-sm font-bold text-gray-800 mb-1">
-                                    Room Bank Transfer Request
+                            {notification.type === 'bank_transfer' ? (
+  <>
+    <p className="text-sm font-bold text-gray-800 mb-1">
+      Room Bank Transfer Request
+    </p>
+    <p className="text-xs text-gray-600 mb-1">
+      <span className="font-semibold">{notification.guestName}</span> requested bank transfer for {notification.roomType || 'room'}
+    </p>
+    <div className="inline-flex items-center gap-1.5 mt-1 px-2 py-0.5 bg-amber-50 rounded-full">
+      <i className="fas fa-building text-amber-500 text-[10px]"></i>
+      <span className="text-[11px] font-medium text-amber-700">{notification.selectedBank}</span>
+    </div>
+  </>
+) : notification.type === 'bank_transfer_daytour' ? (
+  <>
+    <p className="text-sm font-bold text-gray-800 mb-1">
+      Day Tour Bank Transfer Request
+    </p>
+    <p className="text-xs text-gray-600 mb-1">
+      <span className="font-semibold">{notification.guestName}</span> | Booking ID: <span className="font-mono">{notification.bookingId}</span>
+    </p>
+    <div className="inline-flex items-center gap-1.5 mt-1 px-2 py-0.5 bg-amber-50 rounded-full">
+      <i className="fas fa-building text-amber-500 text-[10px]"></i>
+      <span className="text-[11px] font-medium text-amber-700">{notification.selectedBank}</span>
+    </div>
+  </>
+) : notification.type === 'reservation_room' ? (
+  <>
+    <p className="text-sm font-bold text-gray-800 mb-1">
+      Room Reservation
+    </p>
+                                     <p className="text-xs text-gray-600 mb-1">
+                                    <span className="font-semibold">{notification.guestName}</span> 
                                   </p>
-                                  <p className="text-xs text-gray-600 mb-1">
-                                    <span className="font-semibold">{notification.guestName}</span> requested bank transfer for {notification.roomType || 'room'}
-                                  </p>
-                                  <div className="inline-flex items-center gap-1.5 mt-1 px-2 py-0.5 bg-amber-50 rounded-full">
-                                    <i className="fas fa-building text-amber-500 text-[10px]"></i>
-                                    <span className="text-[11px] font-medium text-amber-700">{notification.selectedBank}</span>
-                                  </div>
-                                </>
-                              ) : notification.type === 'bank_transfer_daytour' ? (
-                                <>
-                                  <p className="text-sm font-bold text-gray-800 mb-1">
-                                    Day Tour Bank Transfer Request
-                                  </p>
-                                  <p className="text-xs text-gray-600 mb-1">
-                                    <span className="font-semibold">{notification.guestName}</span> | Booking ID: <span className="font-mono">{notification.bookingId}</span>
-                                  </p>
-                                  <div className="inline-flex items-center gap-1.5 mt-1 px-2 py-0.5 bg-amber-50 rounded-full">
-                                    <i className="fas fa-building text-amber-500 text-[10px]"></i>
-                                    <span className="text-[11px] font-medium text-amber-700">{notification.selectedBank}</span>
-                                  </div>
-                                </>
-                              ) : notification.type === 'reservation_room' ? (
-                                <>
-                                  <p className="text-sm font-bold text-gray-800 mb-1">
-                                    Room Reservation
-                                  </p>
-                                  <p className="text-xs text-gray-600 mb-1">
-                                    <span className="font-semibold">{notification.guestName}</span> | Booking ID: <span className="font-mono">{notification.bookingId}</span>
-                                  </p>
-                                  <div className="inline-flex items-center gap-1.5 mt-1 px-2 py-0.5 bg-blue-50 rounded-full">
-                                    <i className="fas fa-bed text-blue-500 text-[10px]"></i>
-                                    <span className="text-[11px] font-medium text-blue-700">{notification.roomType}</span>
-                                  </div>
-                                </>
-                              ) : notification.type === 'reservation_daytour' ? (
-                                <>
-                                  <p className="text-sm font-bold text-gray-800 mb-1">
-                                    Day Tour Reservation
-                                  </p>
-                                  <p className="text-xs text-gray-600 mb-1">
-                                    <span className="font-semibold">{notification.guestName}</span> | Booking ID: <span className="font-mono">{notification.bookingId}</span>
-                                  </p>
-                                  <div className="inline-flex items-center gap-1.5 mt-1 px-2 py-0.5 bg-emerald-50 rounded-full">
-                                    <i className="fas fa-calendar-alt text-emerald-500 text-[10px]"></i>
-                                    <span className="text-[11px] font-medium text-emerald-700">{notification.reservationDate}</span>
-                                  </div>
-                                </>
-                              ) : (
-                                <>
-                                  <p className="text-sm font-bold text-gray-800 mb-1">
-                                    Guest Cancellation
-                                  </p>
-                                  <p className="text-xs text-gray-600 mb-1">
-                                    <span className="font-semibold">{notification.guestName}</span> cancelled reservation <span className="font-mono">{notification.bookingId}</span>
-                                  </p>
-                                  <div className="inline-flex items-center gap-1.5 mt-1 px-2 py-0.5 bg-red-50 rounded-full">
-                                    <i className="fas fa-door-open text-red-500 text-[10px]"></i>
-                                    <span className="text-[11px] font-medium text-red-700">{notification.roomType || 'Day Tour'}</span>
-                                  </div>
-                                </>
-                              )}
+                                  <p className="text-xs text-gray-600 mb-1"> <span className="font-semibold">  Booking ID: </span> <span className="font-mono">{notification.bookingId}</span></p>
+    <div className="inline-flex items-center gap-1.5 mt-1 px-2 py-0.5 bg-blue-50 rounded-full">
+      <i className="fas fa-bed text-blue-500 text-[10px]"></i>
+      <span className="text-[11px] font-medium text-blue-700">{notification.roomType}</span>
+    </div>
+  </>
+) : notification.type === 'reservation_daytour' ? (
+  <>
+    <p className="text-sm font-bold text-gray-800 mb-1">
+      Day Tour Reservation
+    </p>
+    <p className="text-xs text-gray-600 mb-1">
+      <span className="font-semibold">{notification.guestName}</span> 
+    </p>
+    <p className="text-xs text-gray-600 mb-1"> <span className="font-semibold">  Booking ID: </span><span className="font-mono">{notification.bookingId}</span></p>
+    <div className="inline-flex items-center gap-1.5 mt-1 px-2 py-0.5 bg-emerald-50 rounded-full">
+      <i className="fas fa-calendar-alt text-emerald-500 text-[10px]"></i>
+      <span className="text-[11px] font-medium text-emerald-700">{notification.reservationDate}</span>
+    </div>
+  </>
+) : notification.type === 'check_in' ? (
+  <>
+    <p className="text-sm font-bold text-gray-800 mb-1">
+      Guest Check-In
+    </p>
+    <p className="text-xs text-gray-600 mb-1">
+      <span className="font-semibold">{notification.guestName}</span> is scheduled to check in
+    </p>
+    <p className="text-xs text-gray-600 mb-1"> <span className="font-semibold">Booking ID: </span> {notification.bookingId} </p>
+    <div className="inline-flex items-center gap-1.5 mt-1 px-2 py-0.5 bg-green-50 rounded-full">
+      <i className="fas fa-bed text-green-500 text-[10px]"></i>
+      <span className="text-[11px] font-medium text-green-700">{notification.roomType}</span>
+    </div>
+    <div className="inline-flex items-center gap-1.5 mt-1 ml-1 px-2 py-0.5 bg-blue-50 rounded-full">
+      <i className="fas fa-calendar-check text-blue-500 text-[10px]"></i>
+      <span className="text-[11px] font-medium text-blue-700">Check-in: {notification.eventDate}</span>
+    </div>
+  </>
+) : notification.type === 'check_out' ? (
+  <>
+    <p className="text-sm font-bold text-gray-800 mb-1">
+      Guest Check-Out
+    </p>
+    <p className="text-xs text-gray-600 mb-1">
+      <span className="font-semibold">{notification.guestName}</span>  is scheduled to check out
+    </p>
+    <p className="text-xs text-gray-600 mb-1"> <span className="font-semibold">Booking ID: </span> {notification.bookingId} </p>
+    <div className="inline-flex items-center gap-1.5 mt-1 px-2 py-0.5 bg-purple-50 rounded-full">
+      <i className="fas fa-bed text-purple-500 text-[10px]"></i>
+      <span className="text-[11px] font-medium text-purple-700">{notification.roomType}</span>
+    </div>
+    <div className="inline-flex items-center gap-1.5 mt-1 ml-1 px-2 py-0.5 bg-orange-50 rounded-full">
+      <i className="fas fa-calendar-day text-orange-500 text-[10px]"></i>
+      <span className="text-[11px] font-medium text-orange-700">Check-out: {notification.eventDate}</span>
+    </div>
+  </>
+) : (
+  // Default cancellation case
+  <>
+    <p className="text-sm font-bold text-gray-800 mb-1">
+      Guest Cancellation
+    </p>
+    <p className="text-xs text-gray-600 mb-1">
+      <span className="font-semibold">{notification.guestName}</span> cancelled reservation <span className="font-mono">{notification.bookingId}</span>
+    </p>
+    <div className="inline-flex items-center gap-1.5 mt-1 px-2 py-0.5 bg-red-50 rounded-full">
+      <i className="fas fa-door-open text-red-500 text-[10px]"></i>
+      <span className="text-[11px] font-medium text-red-700">{notification.roomType || 'Day Tour'}</span>
+    </div>
+  </>
+)}
                               {/* Timestamp */}
                               <p className="text-[10px] text-gray-400 mt-2 flex items-center gap-1">
                                 <i className="fas fa-clock text-[8px]"></i>
@@ -298,17 +404,7 @@ export default function StaffNavbar({ toggleSidebar, sidebarOpen, isDesktop }) {
                   )}
                 </div>
                 
-                {/* Footer */}
-                {notifications.length > 0 && (
-                  <div className="px-4 py-3 bg-gray-50 border-t border-gray-100 text-center">
-                    <button 
-                      onClick={() => setShowNotifications(false)}
-                      className="text-xs text-gray-500 hover:text-[#4D8CF5] transition-colors duration-200"
-                    >
-                      Close
-                    </button>
-                  </div>
-                )}
+                {/* Footer - Close button removed as requested */}
               </div>
             )}
           </div>

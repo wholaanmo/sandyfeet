@@ -1,4 +1,4 @@
-// app/dashboard/admin/calendars/page.js
+// app/dashboard/staff/calendars/page.js
 'use client';
 
 import { useState } from 'react';

@@ -41,7 +41,7 @@ export default function GuestNavbar() {
             <Link href="/" onClick={() => setIsMenuOpen(false)} className="flex min-w-0 items-center gap-3 group">
               <div className="relative h-11 w-11 flex-none sm:h-12 sm:w-12">
                 <Image
-                  src="/assets/sandyfeet.png"
+                  src="/SandyFeet_logo2.png"
                   alt="SandyFeet Logo"
                   fill
                   className="object-contain"

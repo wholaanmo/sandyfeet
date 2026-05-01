@@ -4,6 +4,7 @@
 import { useState, useEffect } from 'react';
 import StaffNavbar from '@/components/staff/staffNavbar';
 import StaffSidebar from '@/components/staff/staffSidebar';
+import { SessionGuard } from '@/components/SessionGuard';
 
 export default function StaffLayout({ children }) {
   const [sidebarOpen, setSidebarOpen] = useState(true);
@@ -39,7 +40,7 @@ export default function StaffLayout({ children }) {
   if (!mounted) return null;
 
   return (
-    <div className="min-h-screen" style={{ backgroundColor: '#FFFBF6' }}>
+    <div className="min-h-screen" style={{ backgroundColor: '#fcfcfc' }}>
       <StaffSidebar isOpen={sidebarOpen} onToggle={setSidebarOpen} isDesktop={isDesktop} />
       <div className="flex flex-col min-h-screen transition-all duration-300 ease-in-out">
         <StaffNavbar toggleSidebar={toggleSidebar} sidebarOpen={sidebarOpen} isDesktop={isDesktop} />
@@ -52,7 +53,9 @@ export default function StaffLayout({ children }) {
             transition: 'margin-left 0.3s cubic-bezier(0.4, 0, 0.2, 1)'
           }}
         >
-          {children}
+                   <SessionGuard>  
+            {children}
+          </SessionGuard>
         </main>
       </div>
     </div>

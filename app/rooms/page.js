@@ -6,6 +6,7 @@ import { useRouter } from 'next/navigation';
 import GuestLayout from '@/app/guest/layout';
 import { db } from '@/lib/firebase';
 import { collection, query, where, onSnapshot } from 'firebase/firestore';
+import ChatBot from '@/components/guest/ChatBot';
 
 export default function RoomsPage() {
   const router = useRouter();
@@ -898,16 +899,13 @@ export default function RoomsPage() {
     return total;
   };
 
-  const getExclusiveMaxPax = () => {
-    let totalPax = availableRoomTypes.reduce((sum, roomType) => {
-      if (roomType.type === 'Tent') return sum;
-      const totalUnits = getTotalUnitsForRoomType(roomType);
-      const roomMaxCapacity = Number(roomType.capacityMax || roomType.capacityMin || 1);
-      return sum + (totalUnits * roomMaxCapacity);
-    }, 0);
-    totalPax += tentCount * 4;
-    return totalPax;
-  };
+const getExclusiveMaxPax = () => {
+  // Base capacity for exclusive resort without tents is 38 pax
+  let totalPax = 38;
+  // Add 4 pax per tent
+  totalPax += tentCount * 4;
+  return totalPax;
+};
 
   const handleExclusiveGuestChange = (guestType, rawValue) => {
     const parsedValue = Number.parseInt(rawValue, 10);
@@ -1230,7 +1228,7 @@ const handleProceed = () => {
                           }`}>
                             {realTimeAvailable > 0
                               ? `${realTimeAvailable} unit${realTimeAvailable > 1 ? 's' : ''} left`
-                              : 'Sold out'}
+                              : 'No Vacancy'}
                           </span>
                         </div>
                       </div>
@@ -1288,7 +1286,7 @@ const handleProceed = () => {
                                   <>
                                     <i className="fas fa-plus text-xs"></i> Add to Reservation
                                   </>
-                                ) : 'Sold Out'}
+                                ) : 'No Vacancy'}
                               </button>
                            ) : (
                               <div className="w-full flex items-center justify-between bg-blue-50/80 border border-blue-200 rounded-xl p-1.5 shadow-inner relative overflow-hidden">
@@ -1677,6 +1675,7 @@ const handleProceed = () => {
           </div>
         </div>
       </div>
+      <ChatBot />
     </GuestLayout>
   );
 }

@@ -6,9 +6,10 @@ import { db } from '../../lib/firebase';
 import { collection, query, where, getDocs, updateDoc, doc, addDoc, onSnapshot } from 'firebase/firestore';
 import GuestLayout from '../guest/layout';
 import { sendCancellationEmail, sendDayTourCancellationEmail } from '../../lib/emailService';
+import ChatBot from '@/components/guest/ChatBot';
 
 export default function ReservationTrackerPage() {
-  const [email, setEmail] = useState('');
+  const [contactIdentifier, setContactIdentifier] = useState('');
   const [referenceNumber, setReferenceNumber] = useState('');
   const [loading, setLoading] = useState(false);
   const [reservation, setReservation] = useState(null);
@@ -105,111 +106,172 @@ export default function ReservationTrackerPage() {
     }
   };
 
-  const checkForMultiRoomBooking = async (email, bookingId) => {
-    try {
-      const bookingsRef = collection(db, 'bookings');
-      const childQuery = query(
-        bookingsRef,
-        where('parentBookingId', '==', bookingId),
-        where('isMultiRoomBooking', '==', true)
-      );
-      const childSnapshot = await getDocs(childQuery);
-      if (!childSnapshot.empty) {
-        const firstChild = childSnapshot.docs[0].data();
-        const children = [];
-        let totalPrice = 0;
-        let totalRooms = 0;
-        const roomTypes = {};
-        let totalGuests = 0;
-        childSnapshot.forEach((doc) => {
-          const childData = doc.data();
-          children.push({
-            id: doc.id,
-            ...childData
-          });
-          totalPrice += childData.totalPrice || 0;
-          totalRooms += childData.numberOfRooms || 1;
-          totalGuests += childData.guests || 1;
-          if (!roomTypes[childData.roomType]) {
-            roomTypes[childData.roomType] = {
-              quantity: 1,
-              guestsPerRoom: childData.guests || 1,
-              price: childData.price
-            };
-          } else {
-            roomTypes[childData.roomType].quantity++;
-          }
+const checkForMultiRoomBooking = async (identifier, identifierType, bookingId) => {
+  try {
+    const bookingsRef = collection(db, 'bookings');
+    const childQuery = query(
+      bookingsRef,
+      where('parentBookingId', '==', bookingId),
+      where('isMultiRoomBooking', '==', true)
+    );
+    const childSnapshot = await getDocs(childQuery);
+    
+    if (!childSnapshot.empty) {
+      const children = [];
+      childSnapshot.forEach((doc) => {
+        children.push({
+          id: doc.id,
+          ...doc.data()
         });
-        
-        // If this is an exclusive resort booking, add tents to total rooms
-        if (firstChild.isExclusiveResortBooking) {
-          totalRooms += (firstChild.tentCount || 0);
-        }
-        
-        let overallStatus = firstChild.status;
-        let cancellationReason = null;
-        let cancelledBy = null;
+      });
+
+      const firstChild = children[0]; // use first child for shared data
+      
+      // Validate identifier matches guest info
+      let isValid = false;
+      if (identifierType === 'email') {
+        isValid = firstChild.guestInfo?.email?.toLowerCase() === identifier.toLowerCase();
+      } else {
+        isValid = firstChild.guestInfo?.phone === identifier;
+      }
+      if (!isValid) return null;
+
+      // Determine total price: use exclusivePackagePrice if exclusive resort booking
+      let totalPrice = 0;
+      if (firstChild.isExclusiveResortBooking) {
+        totalPrice = firstChild.exclusivePackagePrice || 0;
+      } else {
         for (const child of children) {
-          if (child.status === 'cancelled') {
-            overallStatus = 'cancelled';
-            cancellationReason = child.cancellationReason;
-            cancelledBy = child.cancelledBy;
-            break;
-          } else if (child.status === 'cancelled-by-guest') {
-            overallStatus = 'cancelled-by-guest';
-            cancellationReason = child.cancellationReason;
-            cancelledBy = child.cancelledBy;
+          totalPrice += child.totalPrice || 0;
+        }
+      }
+
+      let totalRooms = 0;
+      let totalGuests = 0;
+      const roomTypes = {};
+
+      for (const child of children) {
+        totalRooms += child.numberOfRooms || 1;
+        totalGuests += child.guests || 1;
+        if (!roomTypes[child.roomType]) {
+          roomTypes[child.roomType] = {
+            quantity: 1,
+            guestsPerRoom: child.guests || 1,
+            price: child.price
+          };
+        } else {
+          roomTypes[child.roomType].quantity++;
+        }
+      }
+
+      // If exclusive resort booking, avoid double-counting tents:
+      // total rooms = non-tent rooms + tentCount
+      if (firstChild.isExclusiveResortBooking) {
+        const tentCount = firstChild.tentCount || 0;
+        const nonTentRooms = Object.entries(roomTypes).reduce((sum, [type, data]) => {
+          if (type === 'Tent') return sum;
+          return sum + (data.quantity || 0);
+        }, 0);
+        totalRooms = nonTentRooms + tentCount;
+      }
+
+      // Build roomTypesArray and rename 'Tent' → 'Tent(s)' for exclusive resort
+      let roomTypesArray = Object.entries(roomTypes).map(([type, data]) => ({
+        type: type,
+        quantity: data.quantity,
+        guestsPerRoom: data.guestsPerRoom,
+        price: data.price
+      }));
+
+      if (firstChild.isExclusiveResortBooking) {
+        const tentCount = firstChild.tentCount || 0;
+        if (tentCount > 0) {
+          const tentIndex = roomTypesArray.findIndex(item => item.type === 'Tent');
+          if (tentIndex !== -1) {
+            roomTypesArray[tentIndex].type = 'Tent(s)';
+            roomTypesArray[tentIndex].quantity = tentCount;
+          } else {
+            roomTypesArray.push({ type: 'Tent(s)', quantity: tentCount, guestsPerRoom: 0, price: 0 });
           }
         }
-        const multiRoomReservation = {
-          id: bookingId,
-          bookingId: bookingId,
-          guestInfo: firstChild.guestInfo,
-          checkIn: firstChild.checkIn,
-          checkOut: firstChild.checkOut,
-          status: overallStatus,
-          totalPrice: totalPrice,
-          type: 'room',
-          isMultiRoom: true,
-          totalRooms: totalRooms,
-          totalGuests: totalGuests,
-          roomTypes: roomTypes,
-          roomTypesArray: Object.entries(roomTypes).map(([type, data]) => ({
-            type: type,
-            quantity: data.quantity,
-            guestsPerRoom: data.guestsPerRoom,
-            price: data.price
-          })),
-          createdAt: firstChild.createdAt,
-          children: children,
-          cancellationReason: cancellationReason,
-          cancelledBy: cancelledBy,
-          adminNote: firstChild.adminNote || null,
-          isExclusiveResortBooking: firstChild.isExclusiveResortBooking || false,
-          exclusivePackagePrice: firstChild.exclusivePackagePrice || null,
-          tentCount: firstChild.tentCount || 0,
-          exclusiveAdults: firstChild.exclusiveAdults || 0,
-          exclusiveKids: firstChild.exclusiveKids || 0
-        };
-        return multiRoomReservation;
       }
-      return null;
-    } catch (err) {
-      console.error('Error checking for multi-room booking:', err);
-      return null;
+
+      // Determine overall status & cancellation details
+      let overallStatus = firstChild.status;
+      let cancellationReason = null;
+      let cancelledBy = null;
+      for (const child of children) {
+        if (child.status === 'cancelled') {
+          overallStatus = 'cancelled';
+          cancellationReason = child.cancellationReason;
+          cancelledBy = child.cancelledBy;
+          break;
+        } else if (child.status === 'cancelled-by-guest') {
+          overallStatus = 'cancelled-by-guest';
+          cancellationReason = child.cancellationReason;
+          cancelledBy = child.cancelledBy;
+        }
+      }
+
+      const multiRoomReservation = {
+        id: bookingId,
+        bookingId: bookingId,
+        guestInfo: firstChild.guestInfo,
+        checkIn: firstChild.checkIn,
+        checkOut: firstChild.checkOut,
+        status: overallStatus,
+        totalPrice: totalPrice,
+        type: 'room',
+        isMultiRoom: true,
+        totalRooms: totalRooms,
+        totalGuests: totalGuests,
+        roomTypes: roomTypes,
+        roomTypesArray: roomTypesArray,
+        createdAt: firstChild.createdAt,
+        children: children,
+        cancellationReason: cancellationReason,
+        cancelledBy: cancelledBy,
+        adminNote: firstChild.adminNote || null,
+        isExclusiveResortBooking: firstChild.isExclusiveResortBooking || false,
+        exclusivePackagePrice: firstChild.exclusivePackagePrice || null,
+        tentCount: firstChild.tentCount || 0,
+        exclusiveAdults: firstChild.exclusiveAdults || 0,
+        exclusiveKids: firstChild.exclusiveKids || 0
+      };
+      return multiRoomReservation;
     }
-  };
+    return null;
+  } catch (err) {
+    console.error('Error checking for multi-room booking:', err);
+    return null;
+  }
+};
 
   const handleSearch = async (e) => {
     e.preventDefault();
-    if (!email.trim() || !referenceNumber.trim()) {
-      setError('Please enter both email and reservation reference number.');
+    const identifierRaw = contactIdentifier.trim();
+    if (!identifierRaw || !referenceNumber.trim()) {
+      setError('Please enter both contact information (email or phone) and reservation reference number.');
       return;
     }
-    if (!validateEmail(email)) {
-      setError('Please enter a valid email address.');
-      return;
+    
+    // Determine identifier type: email or phone
+    const isEmail = identifierRaw.includes('@') && identifierRaw.includes('.');
+    let identifierType = isEmail ? 'email' : 'phone';
+    
+    if (identifierType === 'email') {
+      if (!validateEmail(identifierRaw)) {
+        setError('Please enter a valid email address.');
+        return;
+      }
+    } else {
+      // phone: just ensure it's not empty, basic check
+      if (identifierRaw.length < 5) {
+        setError('Please enter a valid phone number (at least 5 characters).');
+        return;
+      }
     }
+    
     setLoading(true);
     setError('');
     setReservation(null);
@@ -226,13 +288,8 @@ export default function ReservationTrackerPage() {
     childUnsubscribeRefs.current = [];
     try {
       const bookingId = referenceNumber.trim().toUpperCase();
-      const multiRoomReservation = await checkForMultiRoomBooking(email.toLowerCase().trim(), bookingId);
+      const multiRoomReservation = await checkForMultiRoomBooking(identifierRaw, identifierType, bookingId);
       if (multiRoomReservation) {
-        if (multiRoomReservation.guestInfo?.email?.toLowerCase() !== email.toLowerCase().trim()) {
-          setError('No reservation found. Please check your details and try again.');
-          setLoading(false);
-          return;
-        }
         setReservationType('room');
         setIsMultiRoomBooking(true);
         setReservation(multiRoomReservation);
@@ -289,11 +346,20 @@ export default function ReservationTrackerPage() {
         return;
       }
       const bookingsRef = collection(db, 'bookings');
-      const roomQuery = query(
-        bookingsRef,
-        where('guestInfo.email', '==', email.toLowerCase().trim()),
-        where('bookingId', '==', bookingId)
-      );
+      let roomQuery;
+      if (identifierType === 'email') {
+        roomQuery = query(
+          bookingsRef,
+          where('guestInfo.email', '==', identifierRaw.toLowerCase()),
+          where('bookingId', '==', bookingId)
+        );
+      } else {
+        roomQuery = query(
+          bookingsRef,
+          where('guestInfo.phone', '==', identifierRaw),
+          where('bookingId', '==', bookingId)
+        );
+      }
       const roomSnapshot = await getDocs(roomQuery);
       if (!roomSnapshot.empty) {
         const bookingDoc = roomSnapshot.docs[0];
@@ -328,11 +394,20 @@ export default function ReservationTrackerPage() {
         return;
       }
       const dayTourBookingsRef = collection(db, 'dayTourBookings');
-      const dayTourQuery = query(
-        dayTourBookingsRef,
-        where('guestInfo.email', '==', email.toLowerCase().trim()),
-        where('bookingId', '==', bookingId)
-      );
+      let dayTourQuery;
+      if (identifierType === 'email') {
+        dayTourQuery = query(
+          dayTourBookingsRef,
+          where('guestInfo.email', '==', identifierRaw.toLowerCase()),
+          where('bookingId', '==', bookingId)
+        );
+      } else {
+        dayTourQuery = query(
+          dayTourBookingsRef,
+          where('guestInfo.phone', '==', identifierRaw),
+          where('bookingId', '==', bookingId)
+        );
+      }
       const dayTourSnapshot = await getDocs(dayTourQuery);
       if (!dayTourSnapshot.empty) {
         const bookingDoc = dayTourSnapshot.docs[0];
@@ -749,22 +824,22 @@ try {
     return total * 0.5;
   };
 
-  const calculateBalance = (totalPrice, status) => {
-    if (status === 'cancelled' || status === 'cancelled-by-guest') {
-      return 'PHP 0';
-    }
-    const total = typeof totalPrice === 'number' ? totalPrice : Number(totalPrice) || 0;
-    const downPayment = total * 0.5;
-    if (status === 'pending' || status === 'confirmed') {
-      const remainingBalance = total - downPayment;
-      return `PHP ${remainingBalance.toLocaleString()}`;
-    }
-    if (status === 'check-in' || status === 'check-out') {
-      const remainingBalance = total - downPayment;
-      return `PHP ${remainingBalance.toLocaleString()}`;
-    }
-    return 'Not Confirmed';
-  };
+const calculateBalance = (totalPrice, status) => {
+  if (status === 'cancelled' || status === 'cancelled-by-guest' || status === 'completed') {
+    return 'PHP 0';
+  }
+  const total = typeof totalPrice === 'number' ? totalPrice : Number(totalPrice) || 0;
+  const downPayment = total * 0.5;
+  if (status === 'pending' || status === 'confirmed') {
+    const remainingBalance = total - downPayment;
+    return `PHP ${remainingBalance.toLocaleString()}`;
+  }
+  if (status === 'check-in' || status === 'check-out') {
+    const remainingBalance = total - downPayment;
+    return `PHP ${remainingBalance.toLocaleString()}`;
+  }
+  return 'Not Confirmed';
+};
 
   const canCancel = (status, isMultiRoom = false, cancelledBy = null) => {
     if (isMultiRoom && (status === 'cancelled' || status === 'cancelled-by-guest')) return false;
@@ -806,11 +881,11 @@ try {
   const totalPriceValue = reservation ? Number(reservation.totalPrice || 0) : 0;
   const downPaymentValue = reservation ? calculateDownPayment(reservation.totalPrice) : 0;
   const remainingBalanceValue = Math.max(0, totalPriceValue - downPaymentValue);
-  const paymentBalanceDisplay = reservation
-    ? (reservation.status === 'cancelled' || reservation.status === 'cancelled-by-guest'
-        ? 'PHP 0'
-        : `PHP ${remainingBalanceValue.toLocaleString()}`)
-    : 'PHP 0';
+const paymentBalanceDisplay = reservation
+  ? (reservation.status === 'cancelled' || reservation.status === 'cancelled-by-guest' || reservation.status === 'completed'
+      ? 'PHP 0'
+      : `PHP ${remainingBalanceValue.toLocaleString()}`)
+  : 'PHP 0';
   const totalPriceDisplay = `PHP ${totalPriceValue.toLocaleString()}`;
   const downPaymentDisplay = `PHP ${downPaymentValue.toLocaleString()}`;
   const reservationGuestTotal = reservation
@@ -840,7 +915,7 @@ try {
               Track Your Reservation
             </h1>
             <p className="mx-auto max-w-2xl text-sm leading-6 text-slate-600">
-              Enter your email and booking reference to see your reservation status.
+              Enter your email or phone number together with your booking reference to see your reservation status.
             </p>
           </div>
           <div className="grid gap-4 lg:grid-cols-[340px_minmax(0,1fr)]">
@@ -854,13 +929,13 @@ try {
                 <form onSubmit={handleSearch} className="space-y-4">
                   <div>
                     <label className="mb-1.5 block text-[11px] font-semibold uppercase tracking-[0.12em] text-slate-500">
-                      Email Address <span className="text-red-500">*</span>
+                      Email or Phone Number <span className="text-red-500">*</span>
                     </label>
                     <input
-                      type="email"
-                      value={email}
-                      onChange={(e) => setEmail(e.target.value)}
-                      placeholder="you@example.com"
+                      type="text"
+                      value={contactIdentifier}
+                      onChange={(e) => setContactIdentifier(e.target.value)}
+                      placeholder="you@example.com or 09123456789"
                       className="w-full rounded-xl border border-slate-200 bg-slate-50 px-3.5 py-3 text-sm text-slate-800 outline-none transition-all placeholder:text-slate-400 focus:border-blue-300 focus:bg-white focus:ring-4 focus:ring-blue-100"
                       disabled={loading}
                     />
@@ -874,7 +949,7 @@ try {
                         type="text"
                         value={referenceNumber}
                         onChange={(e) => setReferenceNumber(e.target.value.toUpperCase())}
-                        placeholder="BOOK-1734567890123-456"
+                        placeholder="BOOK-... or DAYTOUR-..."
                         className="w-full rounded-xl border border-slate-200 bg-slate-50 px-3.5 py-3 pr-11 font-mono text-xs text-slate-800 outline-none transition-all placeholder:text-slate-400 focus:border-blue-300 focus:bg-white focus:ring-4 focus:ring-blue-100 sm:text-sm"
                         disabled={loading}
                       />
@@ -914,9 +989,6 @@ try {
                     </div>
                   </div>
                 )}
-                <div className="mt-4 rounded-xl border border-slate-200 bg-slate-50 p-3">
-                  <p className="text-[11px] text-slate-600">Tip: use the same email from your booking form.</p>
-                </div>
               </div>
             </div>
             </div>
@@ -1022,14 +1094,6 @@ try {
                         </p>
                       </div>
                     )}
-
-                    {/* Footer: Cancel button + Booked on */}
-                    <div className="flex justify-end">
-                      <p className="text-sm text-slate-500">
-                        <i className="fas fa-calendar-check mr-1"></i>
-                        Booked on: {formatDateTime(reservation.createdAt)}
-                      </p>
-                    </div>
                     </div>
                   </div>
 
@@ -1109,7 +1173,7 @@ try {
                     )}
                   </div>
 
-                  {/* Room Details â€“ only room types, no guest counts */}
+                  {/* Room Details – only room types, no guest counts */}
                   {reservation.type === 'room' && (
                     <div className="rounded-2xl border border-white/80 bg-white p-4 shadow-[0_14px_30px_rgba(15,23,42,0.08)]">
                       <h3 className="mb-4 flex items-center gap-3 text-lg font-bold text-slate-900">
@@ -1124,7 +1188,7 @@ try {
                             <div className="space-y-2">
                               {reservation.roomTypesArray && reservation.roomTypesArray.map((room, idx) => (
                                 <div key={idx} className="flex justify-between items-center border-b border-ocean-light/10 pb-2">
-                                  <span className="font-medium text-textPrimary">{room.quantity} x {room.type}</span>
+                                  <span className="font-medium text-textPrimary">{room.quantity} × {room.type}</span>
                                 </div>
                               ))}
                             </div>
@@ -1152,7 +1216,7 @@ try {
                     </div>
                   )}
 
-                  {/* Guest Count â€“ separate container, matches admin sidebar */}
+                  {/* Guest Count – separate container, matches admin sidebar */}
                   {reservation.type === 'room' && (
                     <div className="rounded-2xl border border-white/80 bg-white p-4 shadow-[0_14px_30px_rgba(15,23,42,0.08)]">
                       <h3 className="mb-4 flex items-center gap-3 text-lg font-bold text-slate-900">
@@ -1178,7 +1242,7 @@ try {
                           </div>
                         </div>
                       ) : reservation.isMultiRoom && reservation.children && reservation.children.length > 0 ? (
-                        // Multiâ€‘room: list each room with Adults | Kids
+                        // Multi‑room: list each room with Adults | Kids
                         <div className="space-y-3">
                           {reservation.children.map((child, idx) => {
                             const adults = child.adults || 0;
@@ -1360,7 +1424,7 @@ try {
 )}
         </div>
       </div>
+      <ChatBot />
     </GuestLayout>
   );
 }
-

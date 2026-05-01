@@ -7,6 +7,7 @@ import { useRouter, useParams } from 'next/navigation';
 import GuestLayout from '@/app/guest/layout';
 import { db } from '@/lib/firebase';
 import { collection, query, where, onSnapshot } from 'firebase/firestore';
+import ChatBot from '@/components/guest/ChatBot';
 
 const formatHour = (hour) => {
   const period = hour >= 12 ? 'PM' : 'AM';
@@ -92,6 +93,15 @@ export default function RoomDetailsPage({ params }) {
     return defaultGallery;
   }, [roomData]);
 
+  // Helper: check if a given date is tomorrow (the immediate next calendar day after today)
+  const isTomorrow = (date) => {
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    const tomorrow = new Date(today);
+    tomorrow.setDate(today.getDate() + 1);
+    return date.toDateString() === tomorrow.toDateString();
+  };
+
   const minBookableDate = useMemo(() => {
     const d = new Date();
     d.setDate(d.getDate() + 2);
@@ -160,7 +170,8 @@ export default function RoomDetailsPage({ params }) {
   };
 
   const handleDateSelect = (date) => {
-    if (isDatePast(date) || isDateTooSoon(date) || isDateFullyBooked(date)) return;
+    // Disable tomorrow explicitly per requirement
+    if (isDatePast(date) || isDateTooSoon(date) || isDateFullyBooked(date) || isTomorrow(date)) return;
     setCheckInDate(toDateKey(date));
     setActionError('');
   };
@@ -433,8 +444,14 @@ export default function RoomDetailsPage({ params }) {
           if (draft.checkInDate) {
             const draftDate = new Date(draft.checkInDate);
             if (!Number.isNaN(draftDate.getTime())) {
-              setCheckInDate(toDateKey(draftDate));
-              setCurrentMonth(new Date(draftDate.getFullYear(), draftDate.getMonth(), 1));
+              // Block tomorrow from draft restoration
+              if (!isTomorrow(draftDate) && !isDatePast(draftDate) && !isDateTooSoon(draftDate)) {
+                setCheckInDate(toDateKey(draftDate));
+                setCurrentMonth(new Date(draftDate.getFullYear(), draftDate.getMonth(), 1));
+              } else {
+                // If the stored date is tomorrow/past/too soon, clear the draft date
+                setCheckInDate('');
+              }
             }
           }
           if (draft.numberOfNights) {
@@ -517,101 +534,107 @@ export default function RoomDetailsPage({ params }) {
     router.push('/rooms');
   };
 
-const handleBookNow = () => {
-  setActionError('');
+  const handleBookNow = () => {
+    setActionError('');
 
-  if (!checkInDate) {
-    setActionError('Please select a check-in date first.');
-    return;
-  }
-
-  if (availabilityForStay <= 0) {
-    setActionError('No available rooms for the selected schedule. Please change dates.');
-    return;
-  }
-
-  if (roomQuantity > availabilityForStay) {
-    setActionError(`Only ${availabilityForStay} room(s) are available for your selected stay.`);
-    return;
-  }
-
-  const capacityMin = roomData.capacityMin || 1;
-  const capacityMax = roomData.capacityMax || capacityMin;
-  const totalAdults = perRoomAdults.reduce((s, a) => s + a, 0);
-  const totalKids = perRoomKids.reduce((s, k) => s + k, 0);
-  const totalGuests = totalAdults + totalKids;
-  const minTotalGuests = roomQuantity * capacityMin;
-  const maxTotalGuests = roomQuantity * capacityMax;
-
-  // Validate each room individually
-  let roomError = false;
-  for (let i = 0; i < roomQuantity; i++) {
-    const roomTotal = perRoomAdults[i] + perRoomKids[i];
-    if (roomTotal < capacityMin || roomTotal > capacityMax) {
-      roomError = true;
-      break;
+    if (!checkInDate) {
+      setActionError('Please select a check-in date first.');
+      return;
     }
-    if (perRoomAdults[i] < 1) {
-      roomError = true;
-      break;
+
+    const selectedDate = new Date(checkInDate);
+    if (isTomorrow(selectedDate)) {
+      setActionError('Booking the next day is not allowed. Please choose a different date.');
+      return;
     }
-  }
-  if (roomError) {
-    setActionError(`Each room must have between ${capacityMin} and ${capacityMax} guests, with at least 1 adult.`);
-    return;
-  }
 
-  if (totalGuests < minTotalGuests || totalGuests > maxTotalGuests) {
-    setActionError(`Total guests must be between ${minTotalGuests} and ${maxTotalGuests} for ${roomQuantity} room(s).`);
-    return;
-  }
+    if (availabilityForStay <= 0) {
+      setActionError('No available rooms for the selected schedule. Please change dates.');
+      return;
+    }
 
-  const checkIn = new Date(checkInDate);
-  checkIn.setHours(checkInHour, 0, 0, 0);
-  const checkOut = new Date(checkIn);
-  checkOut.setDate(checkOut.getDate() + numberOfNights);
-  checkOut.setHours(checkOutHour, 0, 0, 0);
-  const totalPrice = (roomData.price || 0) * roomQuantity * numberOfNights;
+    if (roomQuantity > availabilityForStay) {
+      setActionError(`Only ${availabilityForStay} room(s) are available for your selected stay.`);
+      return;
+    }
 
-  // Build per‑room guest array for the multi‑room booking page
-  const perRoomGuests = [];
-  for (let i = 0; i < roomQuantity; i++) {
-    perRoomGuests.push({
-      adults: perRoomAdults[i],
-      kids: perRoomKids[i]
-    });
-  }
+    const capacityMin = roomData.capacityMin || 1;
+    const capacityMax = roomData.capacityMax || capacityMin;
+    const totalAdults = perRoomAdults.reduce((s, a) => s + a, 0);
+    const totalKids = perRoomKids.reduce((s, k) => s + k, 0);
+    const totalGuests = totalAdults + totalKids;
+    const minTotalGuests = roomQuantity * capacityMin;
+    const maxTotalGuests = roomQuantity * capacityMax;
 
-  const bookingData = {
-    selectedRooms: { [roomData.type]: roomQuantity },
-    perRoomGuests: { [roomData.type]: perRoomGuests },   // <-- per‑room breakdown
-    totalGuestsPerType: { [roomData.type]: totalGuests },
-    adultsPerType: { [roomData.type]: totalAdults },
-    kidsPerType: { [roomData.type]: totalKids },
-    checkInDate: checkIn.toISOString(),
-    checkOutDate: checkOut.toISOString(),
-    checkInHour,
-    checkOutHour,
-    checkInDisplay: formatHour(checkInHour),
-    checkOutDisplay: formatHour(checkOutHour),
-    numberOfNights,
-    specialRequest: '',
-    totalPrice,
-    totalGuests,
-    roomTypes: [{
-      type: roomData.type,
-      quantity: roomQuantity,
+    // Validate each room individually
+    let roomError = false;
+    for (let i = 0; i < roomQuantity; i++) {
+      const roomTotal = perRoomAdults[i] + perRoomKids[i];
+      if (roomTotal < capacityMin || roomTotal > capacityMax) {
+        roomError = true;
+        break;
+      }
+      if (perRoomAdults[i] < 1) {
+        roomError = true;
+        break;
+      }
+    }
+    if (roomError) {
+      setActionError(`Each room must have between ${capacityMin} and ${capacityMax} guests, with at least 1 adult.`);
+      return;
+    }
+
+    if (totalGuests < minTotalGuests || totalGuests > maxTotalGuests) {
+      setActionError(`Total guests must be between ${minTotalGuests} and ${maxTotalGuests} for ${roomQuantity} room(s).`);
+      return;
+    }
+
+    const checkIn = new Date(checkInDate);
+    checkIn.setHours(checkInHour, 0, 0, 0);
+    const checkOut = new Date(checkIn);
+    checkOut.setDate(checkOut.getDate() + numberOfNights);
+    checkOut.setHours(checkOutHour, 0, 0, 0);
+    const totalPrice = (roomData.price || 0) * roomQuantity * numberOfNights;
+
+    // Build per‑room guest array for the multi‑room booking page
+    const perRoomGuests = [];
+    for (let i = 0; i < roomQuantity; i++) {
+      perRoomGuests.push({
+        adults: perRoomAdults[i],
+        kids: perRoomKids[i]
+      });
+    }
+
+    const bookingData = {
+      selectedRooms: { [roomData.type]: roomQuantity },
+      perRoomGuests: { [roomData.type]: perRoomGuests },   // <-- per‑room breakdown
+      totalGuestsPerType: { [roomData.type]: totalGuests },
+      adultsPerType: { [roomData.type]: totalAdults },
+      kidsPerType: { [roomData.type]: totalKids },
+      checkInDate: checkIn.toISOString(),
+      checkOutDate: checkOut.toISOString(),
+      checkInHour,
+      checkOutHour,
+      checkInDisplay: formatHour(checkInHour),
+      checkOutDisplay: formatHour(checkOutHour),
+      numberOfNights,
+      specialRequest: '',
+      totalPrice,
       totalGuests,
-      price: roomData.price,
-      roomIds: roomData.roomIds || [roomData.id],
-      capacityMin,
-      capacityMax
-    }]
-  };
+      roomTypes: [{
+        type: roomData.type,
+        quantity: roomQuantity,
+        totalGuests,
+        price: roomData.price,
+        roomIds: roomData.roomIds || [roomData.id],
+        capacityMin,
+        capacityMax
+      }]
+    };
 
-  sessionStorage.setItem('multiRoomBooking', JSON.stringify(bookingData));
-  router.push('/rooms/multi-room-booking');
-};
+    sessionStorage.setItem('multiRoomBooking', JSON.stringify(bookingData));
+    router.push('/rooms/multi-room-booking');
+  };
 
   // ─── LOADING STATE ───
   if (loading) {
@@ -755,29 +778,29 @@ const handleBookNow = () => {
                     {roomData.description || `Experience comfort and relaxation in our ${roomData.type.toLowerCase()}. Enjoy easy access to camp facilities, great ambiance, and a restful stay.`}
                   </p>
 
- <div className="flex flex-wrap items-center gap-2 mt-4">
-  <span className="inline-flex items-center px-2.5 py-1 rounded-full bg-emerald-50 text-emerald-700 text-[10px] font-bold uppercase tracking-wider">
-    <span className="w-1.5 h-1.5 bg-emerald-500 rounded-full mr-1.5 animate-pulse"></span>
-    {availabilityForStay} Available
-  </span>
-  <span className="px-2.5 py-1 rounded-full bg-blue-50 text-blue-600 text-[10px] font-bold uppercase tracking-wider">
-    <i className="fas fa-user-friends mr-1 text-[9px]"></i>
-    {capacityMin}–{capacityMax} guests per unit
-  </span>
-  {/* Dynamic inclusions from Firebase */}
-  {roomData.inclusions && roomData.inclusions.length > 0 ? (
-    roomData.inclusions.map((inclusion, idx) => (
-      <span key={idx} className="px-2.5 py-1 rounded-full bg-gray-50 text-gray-600 text-[10px] font-bold uppercase tracking-wider">
-        <i className="fas fa-tag mr-1 text-[9px]"></i>
-        {inclusion}
-      </span>
-    ))
-  ) : (
-    <span className="px-2.5 py-1 rounded-full bg-gray-50 text-gray-400 text-[10px] font-bold uppercase tracking-wider">
-      No inclusions listed
-    </span>
-  )}
-</div>
+                  <div className="flex flex-wrap items-center gap-2 mt-4">
+                    <span className="inline-flex items-center px-2.5 py-1 rounded-full bg-emerald-50 text-emerald-700 text-[10px] font-bold uppercase tracking-wider">
+                      <span className="w-1.5 h-1.5 bg-emerald-500 rounded-full mr-1.5 animate-pulse"></span>
+                      {availabilityForStay} Available
+                    </span>
+                    <span className="px-2.5 py-1 rounded-full bg-blue-50 text-blue-600 text-[10px] font-bold uppercase tracking-wider">
+                      <i className="fas fa-user-friends mr-1 text-[9px]"></i>
+                      {capacityMin}–{capacityMax} guests per unit
+                    </span>
+                    {/* Dynamic inclusions from Firebase */}
+                    {roomData.inclusions && roomData.inclusions.length > 0 ? (
+                      roomData.inclusions.map((inclusion, idx) => (
+                        <span key={idx} className="px-2.5 py-1 rounded-full bg-gray-50 text-gray-600 text-[10px] font-bold uppercase tracking-wider">
+                          <i className="fas fa-tag mr-1 text-[9px]"></i>
+                          {inclusion}
+                        </span>
+                      ))
+                    ) : (
+                      <span className="px-2.5 py-1 rounded-full bg-gray-50 text-gray-400 text-[10px] font-bold uppercase tracking-wider">
+                        No inclusions listed
+                      </span>
+                    )}
+                  </div>
                 </section>
 
                 {/* Gallery thumbnails */}
@@ -882,10 +905,11 @@ const handleBookNow = () => {
                             const isPast = isDatePast(day);
                             const isTooSoon = isDateTooSoon(day);
                             const fullyBooked = isDateFullyBooked(day);
+                            const tomorrowBlocked = isTomorrow(day);
                             const isSelected = checkInDateObject && checkInDateObject.toDateString() === day.toDateString();
                             const isCheckoutDay = checkOutDate && checkOutDate.toDateString() === day.toDateString();
                             const inRange = checkInDateObject && checkOutDate && day > checkInDateObject && day < checkOutDate;
-                            const disabled = isPast || isTooSoon || fullyBooked;
+                            const disabled = isPast || isTooSoon || fullyBooked || tomorrowBlocked;
 
                             let bg = 'bg-white border border-gray-100';
                             let text = 'text-gray-700';
@@ -1154,6 +1178,7 @@ const handleBookNow = () => {
           </div>
         </div>
       )}
+      <ChatBot />
     </GuestLayout>
   );
 }

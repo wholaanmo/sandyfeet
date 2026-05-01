@@ -22,45 +22,45 @@ export default function AdminSidebar({ isOpen, onToggle, isDesktop }) {
     setShowSignOutModal(true);
   };
 
- const confirmSignOut = async () => {
-  try {
-    await signOut(auth);
-    
-    // Clear localStorage
-    localStorage.removeItem('userType');
-    localStorage.removeItem('userEmail');
-    localStorage.removeItem('uid');
-    localStorage.removeItem('sessionToken');
-    localStorage.removeItem('sessionExpiry');
-    localStorage.removeItem('rememberMe');
-    
-    // Clear cookies for middleware
-    document.cookie = 'sessionToken=; path=/; expires=Thu, 01 Jan 1970 00:00:01 GMT; SameSite=Lax';
-    document.cookie = 'userType=; path=/; expires=Thu, 01 Jan 1970 00:00:01 GMT; SameSite=Lax';
-    document.cookie = 'sessionExpiry=; path=/; expires=Thu, 01 Jan 1970 00:00:01 GMT; SameSite=Lax';
-    
-    setShowSignOutModal(false);
-    router.push('/login');
-  } catch (error) {
-    console.error('Sign out error:', error);
-    
-    // Still clear local data even if Firebase signOut fails
-    localStorage.removeItem('userType');
-    localStorage.removeItem('userEmail');
-    localStorage.removeItem('uid');
-    localStorage.removeItem('sessionToken');
-    localStorage.removeItem('sessionExpiry');
-    localStorage.removeItem('rememberMe');
-    
-    // Clear cookies as well
-    document.cookie = 'sessionToken=; path=/; expires=Thu, 01 Jan 1970 00:00:01 GMT; SameSite=Lax';
-    document.cookie = 'userType=; path=/; expires=Thu, 01 Jan 1970 00:00:01 GMT; SameSite=Lax';
-    document.cookie = 'sessionExpiry=; path=/; expires=Thu, 01 Jan 1970 00:00:01 GMT; SameSite=Lax';
-    
-    setShowSignOutModal(false);
-    router.push('/login');
-  }
-};
+  const confirmSignOut = async () => {
+    try {
+      await signOut(auth);
+
+      // Clear localStorage
+      localStorage.removeItem('userType');
+      localStorage.removeItem('userEmail');
+      localStorage.removeItem('uid');
+      localStorage.removeItem('sessionToken');
+      localStorage.removeItem('sessionExpiry');
+      localStorage.removeItem('rememberMe');
+
+      // Clear cookies for middleware
+      document.cookie = 'sessionToken=; path=/; expires=Thu, 01 Jan 1970 00:00:01 GMT; SameSite=Lax';
+      document.cookie = 'userType=; path=/; expires=Thu, 01 Jan 1970 00:00:01 GMT; SameSite=Lax';
+      document.cookie = 'sessionExpiry=; path=/; expires=Thu, 01 Jan 1970 00:00:01 GMT; SameSite=Lax';
+
+      setShowSignOutModal(false);
+      router.push('/login');
+    } catch (error) {
+      console.error('Sign out error:', error);
+
+      // Still clear local data even if Firebase signOut fails
+      localStorage.removeItem('userType');
+      localStorage.removeItem('userEmail');
+      localStorage.removeItem('uid');
+      localStorage.removeItem('sessionToken');
+      localStorage.removeItem('sessionExpiry');
+      localStorage.removeItem('rememberMe');
+
+      // Clear cookies as well
+      document.cookie = 'sessionToken=; path=/; expires=Thu, 01 Jan 1970 00:00:01 GMT; SameSite=Lax';
+      document.cookie = 'userType=; path=/; expires=Thu, 01 Jan 1970 00:00:01 GMT; SameSite=Lax';
+      document.cookie = 'sessionExpiry=; path=/; expires=Thu, 01 Jan 1970 00:00:01 GMT; SameSite=Lax';
+
+      setShowSignOutModal(false);
+      router.push('/login');
+    }
+  };
 
   const cancelSignOut = () => {
     setShowSignOutModal(false);
@@ -85,28 +85,25 @@ export default function AdminSidebar({ isOpen, onToggle, isDesktop }) {
   const menuItems = [
     { path: '/dashboard/admin/overview', icon: 'dashboard', label: 'Overview', materialIcon: 'dashboard' },
     { path: '/dashboard/admin/reservations', icon: 'event', label: 'Reservations', materialIcon: 'event' },
-    { path: '/dashboard/admin/rooms', icon: 'hotel', label: 'Rooms', materialIcon: 'hotel' },
-    { path: '/dashboard/admin/day-tour', icon: 'wb_sunny', label: 'Day Tour', materialIcon: 'wb_sunny' },
-    { path: '/dashboard/admin/calendars', icon: 'event', label: 'Calendar', materialIcon: 'event' },
+    { path: '/dashboard/admin/manage', icon: 'event_available', label: 'Availability Management', materialIcon: 'event_available' },
+    { path: '/dashboard/admin/calendars', icon: 'calendar_month', label: 'Calendar Management', materialIcon: 'calendar_month' },
     { path: '/dashboard/admin/payment', icon: 'payment', label: 'Payment', materialIcon: 'payment' },
     { path: '/dashboard/admin/reports', icon: 'assessment', label: 'Reports', materialIcon: 'assessment' },
     { path: '/dashboard/admin/feedback', icon: 'feedback', label: 'Feedback', materialIcon: 'feedback' },
+    { path: '/dashboard/admin/staff', icon: 'badge', label: 'User Management', materialIcon: 'badge' },
+    { path: '/dashboard/admin/archive', icon: 'archive', label: 'Archive', materialIcon: 'archive' },
     { path: '/dashboard/admin/audit', icon: 'history', label: 'Audit Logs', materialIcon: 'history' },
-    { path: '/dashboard/admin/staff', icon: 'badge', label: 'Staff Management', materialIcon: 'badge' },
-    { path: '/dashboard/admin/archive', icon: 'archive', label: 'Archive', materialIcon: 'archive' } 
   ];
 
   const getSidebarClasses = () => {
     if (!isDesktop) {
-      // Mobile: 40% width, slide from left, 3s transition
-      return `fixed left-0 h-screen z-40 transition-all duration-[3000ms] ease-in-out flex flex-col shadow-xl overflow-x-visible ${
-        isOpen ? 'translate-x-0' : '-translate-x-full'
-      }`;
+      // Mobile: 280px width, slide from left, smooth 300ms transition
+      return `fixed left-0 h-screen z-40 transform transition-transform duration-300 ease-in-out flex flex-col shadow-xl overflow-x-visible ${isOpen ? 'translate-x-0' : '-translate-x-full'
+        }`;
     }
     // Desktop: original behavior (0.3s transition)
-    return `fixed left-0 top-0 h-screen z-40 transition-all duration-300 ease-in-out flex flex-col shadow-xl overflow-x-visible ${
-      is_expanded ? 'w-sidebar-expanded' : 'w-sidebar-collapsed'
-    } ${isOpen ? 'translate-x-0' : '-translate-x-full'} lg:translate-x-0`;
+    return `fixed left-0 top-0 h-screen z-40 transition-all duration-300 ease-in-out flex flex-col shadow-xl overflow-x-visible ${is_expanded ? 'w-sidebar-expanded' : 'w-sidebar-collapsed'
+      } ${isOpen ? 'translate-x-0' : '-translate-x-full'} lg:translate-x-0`;
   };
 
   const getSidebarStyle = () => {
@@ -114,9 +111,9 @@ export default function AdminSidebar({ isOpen, onToggle, isDesktop }) {
       return {
         backgroundColor: '#FFFFFF',
         boxShadow: '2px 0 20px rgba(0, 0, 0, 0.06)',
-        transition: 'transform 3s cubic-bezier(0.4, 0, 0.2, 1)',
         top: '60px',
-        width: '40%',
+        width: '280px', // Standard mobile sidebar width
+        maxWidth: '85%',
         height: 'calc(100vh - 60px)'
       };
     }
@@ -130,16 +127,19 @@ export default function AdminSidebar({ isOpen, onToggle, isDesktop }) {
   return (
     <>
       {/* Mobile Overlay - covers the remaining 60% of the screen */}
-      {isOpen && !isDesktop && (
+      {!isDesktop && (
         <div
-          className="fixed inset-0 bg-black/50 backdrop-blur-sm z-30 transition-opacity duration-300"
+          className={`fixed inset-0 bg-black/50 backdrop-blur-sm z-30 transition-opacity duration-300 ${isOpen ? 'opacity-100 pointer-events-auto' : 'opacity-0 pointer-events-none'
+            }`}
           style={{ top: '60px' }}
           onClick={() => onToggle(false)}
         />
       )}
-      {isOpen && isDesktop && (
+      {/* Desktop Overlay */}
+      {isDesktop && (
         <div
-          className="fixed inset-0 bg-black/50 backdrop-blur-sm z-30 lg:hidden transition-opacity duration-300"
+          className={`fixed inset-0 bg-black/50 backdrop-blur-sm z-30 lg:hidden transition-opacity duration-300 ${isOpen ? 'opacity-100 pointer-events-auto' : 'opacity-0 pointer-events-none'
+            }`}
           onClick={() => onToggle(false)}
         />
       )}
@@ -154,9 +154,9 @@ export default function AdminSidebar({ isOpen, onToggle, isDesktop }) {
           <div className={`pt-6 pb-4 ${is_expanded ? 'px-5' : 'px-3'} border-b border-gray-100 flex-shrink-0`}>
             <div className={`flex items-center gap-2 ${is_expanded ? 'justify-start' : 'justify-center'}`}>
               <div className="w-10 h-10 relative flex-shrink-0">
-                <Image 
-                  src="/assets/sandyfeet.png" 
-                  alt="SandyFeet Reservation" 
+                <Image
+                  src="/SandyFeet_logo2.png"
+                  alt="SandyFeet Reservation"
                   width={40}
                   height={40}
                   priority
@@ -205,34 +205,30 @@ export default function AdminSidebar({ isOpen, onToggle, isDesktop }) {
                 display: none;
               }
             `}</style>
-            
+
             <div className="flex flex-col gap-1.5">
               {menuItems.map((item) => (
                 <Link
                   key={item.path}
                   href={item.path}
                   onClick={handleMobileMenuClick}
-                  className={`group relative flex items-center p-2.5 rounded-lg transition-all duration-300 w-full ${
-                    (!isDesktop || is_expanded) ? 'justify-start' : 'justify-center'
-                  } ${
-                    isActive(item.path) 
+                  className={`group relative flex items-center p-2.5 rounded-lg transition-all duration-300 w-full ${(!isDesktop || is_expanded) ? 'justify-start' : 'justify-center'
+                    } ${isActive(item.path)
                       ? 'bg-[#2169F3]/15 text-[#174FCC] shadow-md shadow-[#2169F3]/10 scale-[1.02]'
                       : 'text-gray-700 hover:bg-[#2169F3]/5 hover:text-[#174FCC] hover:shadow-sm'
-                  }`}
+                    }`}
                 >
-                  <span className={`material-icons text-xl min-w-5 text-center transition-all duration-300 ${
-                    isActive(item.path) 
-    ? 'text-[#174FCC] scale-110' 
-    : 'text-gray-400 group-hover:text-[#174FCC] group-hover:scale-110'
-                  }`}>
+                  <span className={`material-icons text-xl min-w-5 text-center transition-all duration-300 ${isActive(item.path)
+                      ? 'text-[#174FCC] scale-110'
+                      : 'text-gray-400 group-hover:text-[#174FCC] group-hover:scale-110'
+                    }`}>
                     {item.materialIcon}
                   </span>
                   {(!isDesktop || is_expanded) && (
-                    <span className={`ml-3 text-xs font-medium transition-all duration-300 ${
-                      isActive(item.path) 
-  ? 'text-[#174FCC]' 
-  : 'text-gray-700 group-hover:text-[#174FCC]'
-                    }`}>
+                    <span className={`ml-3 text-xs font-medium transition-all duration-300 ${isActive(item.path)
+                        ? 'text-[#174FCC]'
+                        : 'text-gray-700 group-hover:text-[#174FCC]'
+                      }`}>
                       {item.label}
                     </span>
                   )}
@@ -251,9 +247,8 @@ export default function AdminSidebar({ isOpen, onToggle, isDesktop }) {
           <div className="p-3 border-t border-gray-100 flex-shrink-0">
             <button
               onClick={handleSignOut}
-              className={`group relative flex items-center p-2.5 rounded-lg transition-all duration-300 w-full ${
-                (!isDesktop || is_expanded) ? 'justify-start' : 'justify-center'
-              } text-gray-600 hover:bg-[#2169F3]/5 hover:text-[#2169F3]`}
+              className={`group relative flex items-center p-2.5 rounded-lg transition-all duration-300 w-full ${(!isDesktop || is_expanded) ? 'justify-start' : 'justify-center'
+                } text-gray-600 hover:bg-[#2169F3]/5 hover:text-[#2169F3]`}
             >
               <span className="material-icons text-xl min-w-5 text-center transition-all duration-300 text-gray-400 group-hover:text-[#2169F3] group-hover:scale-110">
                 logout
@@ -283,26 +278,28 @@ export default function AdminSidebar({ isOpen, onToggle, isDesktop }) {
             className="bg-white rounded-2xl w-full max-w-sm p-5 shadow-2xl transform transition-all duration-300 scale-100"
             onClick={(e) => e.stopPropagation()}
           >
-            <div className="text-center mb-4">
-              <div className="w-14 h-14 bg-gradient-to-br from-ocean-light/20 to-ocean-mid/20 rounded-full flex items-center justify-center mx-auto mb-3">
-                <span className="material-icons text-3xl text-ocean-light">logout</span>
+            <div className="text-center mb-6">
+              <div className="w-16 h-16 bg-[#2169F3]/10 rounded-full flex items-center justify-center mx-auto mb-4">
+                <span className="material-icons text-3xl text-[#2169F3]">logout</span>
               </div>
-              <h3 className="text-xl font-semibold text-ocean-deep font-playfair mb-1">
+              <h3 className="text-xl font-bold text-slate-900 mb-2">
                 Sign Out
               </h3>
-              <p className="text-sm text-ocean-mid">Are you sure you want to sign out of your account?</p>
+              <p className="text-sm text-slate-500 px-4">
+                Are you sure you want to end your session and sign out of your account?
+              </p>
             </div>
 
-            <div className="flex gap-2 justify-center">
+            <div className="flex gap-3 justify-center">
               <button
                 onClick={cancelSignOut}
-                className="px-4 py-1.5 rounded-lg border-2 border-ocean-light text-ocean-light bg-transparent hover:bg-ocean-light hover:text-white transition-all duration-300 font-medium text-sm"
+                className="flex-1 px-4 py-2.5 rounded-xl text-slate-600 bg-slate-100 hover:bg-slate-200 transition-all duration-200 font-semibold text-sm"
               >
                 Cancel
               </button>
               <button
                 onClick={confirmSignOut}
-                className="px-4 py-1.5 rounded-lg bg-gradient-to-r from-ocean-mid to-ocean-light text-white hover:shadow-lg transition-all duration-300 font-medium text-sm"
+                className="flex-1 px-4 py-2.5 rounded-xl bg-[#2169F3] text-white hover:bg-[#1a54c3] shadow-lg shadow-[#2169F3]/20 transition-all duration-200 font-semibold text-sm"
               >
                 Sign Out
               </button>

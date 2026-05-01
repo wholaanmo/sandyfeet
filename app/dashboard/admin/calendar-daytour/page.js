@@ -118,6 +118,18 @@ export default function AdminDayTourCalendar() {
     return () => unsubscribe();
   }, [dayTour]);
 
+  // Handle body scroll when sidebar is open
+  useEffect(() => {
+    if (isSidebarOpen) {
+      document.body.style.overflow = 'hidden';
+    } else {
+      document.body.style.overflow = 'unset';
+    }
+    return () => {
+      document.body.style.overflow = 'unset';
+    };
+  }, [isSidebarOpen]);
+
   const getDaysInMonth = (date) => {
     const year = date.getFullYear();
     const month = date.getMonth();
@@ -214,7 +226,7 @@ export default function AdminDayTourCalendar() {
         });
         await logAdminAction({
           action: 'Updated Day Tour Unavailable Entry',
-          module: 'Day Tour Calendar Management',
+          module: 'Calendar Management',
           details: `Updated unavailable entry on ${selectedDate.toDateString()} to ${unavailableGuestsNumber} unavailable guests. Reason: ${reason}`
         });
       } else {
@@ -227,7 +239,7 @@ export default function AdminDayTourCalendar() {
         });
         await logAdminAction({
           action: 'Marked Day Tour Date Unavailable',
-          module: 'Day Tour Calendar Management',
+          module: 'Calendar Management',
           details: `Marked ${selectedDate.toDateString()} as unavailable with ${unavailableGuestsNumber} guests. Reason: ${reason}`
         });
       }
@@ -264,7 +276,7 @@ export default function AdminDayTourCalendar() {
       
       await logAdminAction({
         action: 'Removed Day Tour Date Unavailable',
-        module: 'Day Tour Calendar Management',
+        module: 'Calendar Management',
         details: `Removed unavailable date: ${dateKey}`
       });
       
@@ -341,7 +353,7 @@ export default function AdminDayTourCalendar() {
   }
 
   return (
-    <div className="p-8 min-h-screen" style={{ backgroundColor: 'var(--color-blue-white)' }}>
+    <div className="px-4 sm:px-9 py-1 min-h-screen pb-12" style={{ backgroundColor: 'var(--color-blue-whites)' }}>
       {/* Notification */}
       {notification.show && (
         <div className={`fixed top-20 right-5 z-50 px-5 py-3 rounded-xl shadow-lg flex items-center gap-3 animate-slideInRight ${
@@ -360,11 +372,11 @@ export default function AdminDayTourCalendar() {
         <div className="xl:w-[60%]">
           <div className="bg-white rounded-2xl shadow-lg overflow-hidden">
 <div className="bg-[#4D8CF5]/10 px-6 py-4 border-b border-[#4D8CF5]/20">
-  <h2 className="text-xl font-bold text-[#1E3A8A] flex items-center gap-2">
+  <h2 className="text-lg sm:text-xl font-bold text-[#1E3A8A] flex items-center gap-2">
     Availability Calendar
   </h2>
 
-  <p className="text-[#1E3A8A]/70 text-sm mt-1">
+  <p className="text-[#1E3A8A]/70 text-xs sm:text-sm mt-1">
     Click on a date to limit the number of guests
   </p>
 </div>
@@ -454,7 +466,7 @@ export default function AdminDayTourCalendar() {
         <div className="xl:w-[40%] space-y-6">
           {/* Book for Guest Button */}
  <Link
-  href="/day-tour/calendar"
+  href="/day-tour"
   target="_blank"
   className="w-full flex items-center justify-center gap-2 px-5 py-3
              bg-[#4D8CF5] text-white border border-[#4D8CF5]
@@ -614,99 +626,52 @@ export default function AdminDayTourCalendar() {
     >
 
       {/* Header */}
-<div className="sticky top-0 bg-white/10 backdrop-blur-md border-b border-white/30 px-5 py-4 flex justify-between items-center z-10 flex-shrink-0">
-
-  <div>
-    <div className="flex items-center gap-3">
-
-      <h2 className="text-lg font-bold text-[#1E3A8A] leading-tight">
-        Dates with Guest Limits
-      </h2>
-
-    </div>
-
-    <p className="text-[#1E3A8A]/70 text-xs mt-1">
-      List of all dates with set guest limits
-    </p>
-  </div>
-
-  {/* Close button (X) */}
-<button
-  onClick={() => setIsSidebarOpen(false)}
-  className="w-9 h-9 flex items-center justify-center rounded-lg bg-white/60 backdrop-blur-md border border-[#4D8CF5]/20 text-[#1E3A8A] shadow-sm transition-all duration-200 hover:bg-[#4D8CF5]/80 hover:text-white hover:shadow-lg hover:-translate-y-0.5 active:translate-y-0 active:scale-95">
-  <i className="fas fa-times"></i>
-</button>
+      <div className="sticky top-0 bg-white/80 backdrop-blur-lg border-b border-[#4D8CF5]/10 px-6 py-4 flex justify-between items-center z-10 flex-shrink-0 shadow-sm">
+        <div>
+          <h2 className="text-lg font-bold text-[#1E3A8A] leading-tight flex flex-col items-start gap-1">
+            Dates with Guest Limits
+          </h2>
+          <p className="text-[#1E3A8A]/70 text-xs mt-1 font-medium">
+            List of all dates with set guest limits
+          </p>
+        </div>
+        <button
+          onClick={() => setIsSidebarOpen(false)}
+          className="w-9 h-9 flex items-center justify-center rounded-lg bg-white/60 backdrop-blur-md border border-[#4D8CF5]/20 text-[#1E3A8A] shadow-sm transition-all duration-200 hover:bg-[#4D8CF5]/80 hover:text-white hover:shadow-lg hover:-translate-y-0.5 active:translate-y-0 active:scale-95"
+        >
+          <i className="fas fa-times"></i>
+        </button>
       </div>
-
+ 
       {/* Content */}
-      <div className="flex-1 overflow-y-auto p-5">
+      <div className="flex-1 overflow-y-auto p-5 space-y-4">
         {unavailableDatesList.length === 0 ? (
-          <div className="text-center py-12 text-[#1E3A8A]/60">
-            <i className="fas fa-check-circle text-4xl mb-3 block text-green-400"></i>
-            <p className="text-sm">No unavailable dates</p>
-            <p className="text-xs mt-1">All dates are available for booking</p>
+          <div className="flex items-center justify-center min-h-[300px] w-full">
+            <div className="text-center bg-white/50 backdrop-blur-sm p-8 rounded-2xl border border-[#4D8CF5]/10 shadow-sm">
+              <div className="w-16 h-16 bg-green-50 rounded-full flex items-center justify-center mx-auto mb-4">
+                <i className="fas fa-check-circle text-2xl text-green-500"></i>
+              </div>
+              <p className="text-[#1E3A8A] font-bold text-lg">No guest limits set</p>
+              <p className="text-[#1E3A8A]/60 text-sm mt-1">No unavailable guest limits have been set for all dates yet.</p>
+            </div>
           </div>
         ) : (
-          <div className="flex flex-col gap-3">
-
+          <div className="flex flex-col gap-4">
             {unavailableDatesList.map((item) => (
               <div
                 key={item.id}
-                className="p-4 bg-white/70 backdrop-blur-md border border-[#4D8CF5]/10 rounded-xl shadow-sm"
+                className="bg-white/70 backdrop-blur-md border border-[#4D8CF5]/10 rounded-xl p-4 shadow-sm group hover:border-[#4D8CF5]/30 transition-all duration-300"
               >
-                <div className="flex justify-between items-start">
-
-                  <div className="flex-1">
-
-                    <p className="text-sm font-semibold text-[#1E3A8A]">
-                      {formatDateDisplay(item.date)}
-                    </p>
-
-                    <p className="text-xs text-[#1E3A8A]/70 mt-2">
-                      <span className="font-medium">Number of Unavailable Guests:</span>{" "}
-                      {item.unavailableGuests || 0}
-                    </p>
-
-                    <p className="text-xs text-[#1E3A8A]/70 mt-1">
-                      <span className="font-medium">Total Unavailable Guests:</span>{" "}
-                      {unavailableDates[item.date] || 0}
-                    </p>
-
-                    <p className="text-xs text-[#1E3A8A]/70 mt-1">
-                      <span className="font-medium">Number of Reserved Guests:</span>{" "}
-                      {bookedDates[item.date] || 0}
-                    </p>
-
-                    <p className="text-xs text-[#1E3A8A]/70 mt-1">
-                      <span className="font-medium">Remaining Available Slots:</span>{" "}
-                      {Math.max(
-                        0,
-                        (dayTour?.maxCapacity || 0) -
-                          ((bookedDates[item.date] || 0) +
-                            (unavailableDates[item.date] || 0))
-                      )}
-                    </p>
-
-                    <p className="text-xs text-[#1E3A8A]/70 mt-1">
-                      <span className="font-medium">Reason:</span>{" "}
-                      {item.reason || '-'}
-                    </p>
-
-                    <p className="text-xs text-[#1E3A8A]/40 mt-1">
-                      <span className="font-medium">Date & Timestamp:</span>{" "}
-                      {new Date(item.createdAt).toLocaleString()}
-                    </p>
-
-                  </div>
-
-                  <div className="ml-2 flex items-center gap-2 flex-shrink-0">
-
+                <div className="flex justify-between items-center mb-4 pb-2 border-b border-[#4D8CF5]/10">
+                  <h3 className="text-xs font-bold text-[#1E3A8A] uppercase tracking-wider flex items-center gap-2">
+                    <i className="fas fa-calendar-day text-[#4D8CF5]"></i>
+                    {formatDateDisplay(item.date)}
+                  </h3>
+                  <div className="flex items-center gap-2">
                     <button
                       type="button"
                       onClick={() => {
-                        const [year, month, day] = item.date
-                          .split('-')
-                          .map(Number);
+                        const [year, month, day] = item.date.split('-').map(Number);
                         setSelectedDate(new Date(year, month - 1, day));
                         setReason(item.reason || '');
                         setUnavailableGuests(String(item.unavailableGuests || 0));
@@ -719,7 +684,6 @@ export default function AdminDayTourCalendar() {
                     >
                       <i className="fas fa-edit text-xs"></i>
                     </button>
-
                     <button
                       type="button"
                       onClick={() => setRemoveConfirm(item)}
@@ -729,13 +693,55 @@ export default function AdminDayTourCalendar() {
                     >
                       <i className="fas fa-trash-alt text-xs"></i>
                     </button>
-
                   </div>
-
                 </div>
+ 
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="space-y-3">
+                    <div>
+                      <p className="text-[10px] text-[#1E3A8A]/50 uppercase font-bold tracking-wider mb-1">Unavailable Guests</p>
+                      <div className="flex items-center gap-2">
+                        <i className="fas fa-user-minus text-[#4D8CF5]/60 text-xs"></i>
+                        <p className="text-sm font-semibold text-[#1E3A8A]">{item.unavailableGuests || 0}</p>
+                      </div>
+                    </div>
+                    <div>
+                      <p className="text-[10px] text-[#1E3A8A]/50 uppercase font-bold tracking-wider mb-1">Total Reserved</p>
+                      <div className="flex items-center gap-2">
+                        <i className="fas fa-users text-[#4D8CF5]/60 text-xs"></i>
+                        <p className="text-sm font-semibold text-[#1E3A8A]">{bookedDates[item.date] || 0}</p>
+                      </div>
+                    </div>
+                  </div>
+                  <div className="space-y-3 border-l border-[#4D8CF5]/10 pl-4">
+                    <div>
+                      <p className="text-[10px] text-[#1E3A8A]/50 uppercase font-bold tracking-wider mb-1">Remaining Slots</p>
+                      <div className="flex items-center gap-2">
+                        <i className="fas fa-check-circle text-green-500/60 text-xs"></i>
+                        <p className="text-sm font-bold text-green-600">
+                          {Math.max(0, (dayTour?.maxCapacity || 0) - ((bookedDates[item.date] || 0) + (unavailableDates[item.date] || 0)))}
+                        </p>
+                      </div>
+                    </div>
+                    <div>
+                      <p className="text-[10px] text-[#1E3A8A]/50 uppercase font-bold tracking-wider mb-1">Setting Date</p>
+                      <p className="text-[11px] text-[#1E3A8A]/60 font-medium">
+                        {new Date(item.createdAt).toLocaleDateString()}
+                      </p>
+                    </div>
+                  </div>
+                </div>
+ 
+                {item.reason && (
+                  <div className="mt-4 pt-3 border-t border-[#4D8CF5]/5">
+                    <p className="text-[10px] text-[#1E3A8A]/50 uppercase font-bold tracking-wider mb-1">Note / Reason</p>
+                    <p className="text-xs text-[#1E3A8A]/80 bg-[#4D8CF5]/5 p-2 rounded-lg border border-[#4D8CF5]/10">
+                      {item.reason}
+                    </p>
+                  </div>
+                )}
               </div>
             ))}
-
           </div>
         )}
       </div>
@@ -744,40 +750,43 @@ export default function AdminDayTourCalendar() {
   </>
 )}
 
-      {/* Remove Confirmation Modal */}
       {removeConfirm && (
-        <div
-          className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/50"
-          role="dialog"
-          aria-modal="true"
-        >
-          <div className="bg-white rounded-2xl shadow-xl max-w-md w-full p-6 border border-ocean-light/10">
-            <h4 className="text-lg font-bold text-textPrimary mb-2">Remove unavailable date?</h4>
-            <p className="text-sm text-textSecondary mb-1">
-              {formatDateDisplay(removeConfirm.date)}
-            </p>
-            <p className="text-sm text-textSecondary mb-4">
-              Reason: {removeConfirm.reason}
-            </p>
-            <p className="text-sm text-textPrimary mb-6">
-              This will make this date available for day tour bookings again.
-            </p>
-            <div className="flex gap-3 justify-end">
-              <button
-                type="button"
-                onClick={() => setRemoveConfirm(null)}
-                disabled={actionLoading}
-                className="px-4 py-2 rounded-xl border border-ocean-light/20 text-textSecondary text-sm font-medium hover:bg-ocean-ice transition disabled:opacity-50"
+        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-[200] p-4">
+          <div className="bg-white rounded-2xl w-full max-w-sm p-6 shadow-2xl animate-scaleIn">
+            <div className="text-center mb-5">
+              <div className="w-14 h-14 mx-auto mb-3 rounded-full bg-red-100 flex items-center justify-center">
+                <i className="fas fa-trash-alt text-red-500 text-2xl"></i>
+              </div>
+              <h3 className="text-lg font-bold text-textPrimary mb-2">Remove Guest Limit?</h3>
+              <div className="space-y-1 mb-4">
+                <p className="text-textSecondary text-sm font-medium">
+                  {formatDateDisplay(removeConfirm.date)}
+                </p>
+                {removeConfirm.reason && (
+                  <p className="text-textSecondary text-xs">
+                    Reason: {removeConfirm.reason}
+                  </p>
+                )}
+              </div>
+              <p className="text-textSecondary text-sm">
+                This will make this date available for full capacity day tour bookings again. This action cannot be undone.
+              </p>
+            </div>
+            <div className="flex gap-3 justify-center">
+              <button 
+                onClick={() => setRemoveConfirm(null)} 
+                disabled={actionLoading} 
+                className="px-5 py-2 border border-ocean-light/20 rounded-xl text-textSecondary text-sm font-medium hover:bg-ocean-ice transition-all duration-300 disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 Cancel
               </button>
-              <button
-                type="button"
-                onClick={() => handleRemoveUnavailable(removeConfirm.date, removeConfirm.id)}
-                disabled={actionLoading}
-                className="px-4 py-2 rounded-xl bg-red-600 hover:bg-red-700 text-white text-sm font-medium transition disabled:opacity-50"
+              <button 
+                onClick={() => handleRemoveUnavailable(removeConfirm.date, removeConfirm.id)} 
+                disabled={actionLoading} 
+                className="px-5 py-2 bg-gradient-to-r from-red-500 to-red-600 rounded-xl text-white text-sm font-medium hover:shadow-lg hover:-translate-y-0.5 transition-all duration-300 disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:translate-y-0 flex items-center gap-2"
               >
-                {actionLoading ? <i className="fas fa-spinner fa-spin"></i> : 'Remove'}
+                {actionLoading && <i className="fas fa-spinner fa-spin"></i>}
+                {actionLoading ? 'Removing...' : 'Remove Limit'}
               </button>
             </div>
           </div>
@@ -789,6 +798,11 @@ export default function AdminDayTourCalendar() {
           from { transform: translateX(100%); opacity: 0; }
           to { transform: translateX(0); opacity: 1; }
         }
+        @keyframes scaleIn {
+          from { transform: scale(0.95); opacity: 0; }
+          to { transform: scale(1); opacity: 1; }
+        }
+        .animate-scaleIn { animation: scaleIn 0.2s ease-out; }
         .animate-slideInRight { animation: slideInRight 0.3s ease-out; }
       `}</style>
     </div>

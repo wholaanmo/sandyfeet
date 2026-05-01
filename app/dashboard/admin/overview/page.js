@@ -31,31 +31,18 @@ export default function AdminOverview() {
   // Fetch admin name from Firebase Auth and Firestore
 useEffect(() => {
   const fetchAdminName = async () => {
-    // Try to get uid from localStorage first (fastest after login)
-    let uid = localStorage.getItem('uid');
-    if (!uid && auth.currentUser) {
-      uid = auth.currentUser.uid;
-    }
-    
-    if (uid) {
-      try {
-        const userDoc = await getDoc(doc(db, 'users', uid));
-        if (userDoc.exists()) {
-          const userData = userDoc.data();
-          if (userData.name) {
-            setAdminName(userData.name);
-            return;
-          }
-        }
-      } catch (error) {
-        console.error('Error fetching user name:', error);
+    const user = auth.currentUser;
+    if (user) {
+      const userDoc = await getDoc(doc(db, 'users', user.uid));
+      if (userDoc.exists() && userDoc.data().name) {
+        setAdminName(userDoc.data().name);
+      } else {
+        setAdminName('Admin');
       }
     }
-    // Fallback to 'Admin' only if no name found (never show email)
-    setAdminName('Admin');
   };
-  
-  fetchAdminName();
+  const unsubscribe = auth.onAuthStateChanged(fetchAdminName);
+  return () => unsubscribe();
 }, []);
 
   // Fetch room check-ins today (status 'check-in' for today)
@@ -342,7 +329,7 @@ useEffect(() => {
 
   if (loading) {
     return (
-      <div className="px-9 py-1 min-h-screen" style={{ backgroundColor: 'var(--color-blue-whites)' }}>
+      <div className="px-4 sm:px-9 py-1 min-h-screen" style={{ backgroundColor: 'var(--color-blue-whites)' }}>
         <div className="flex justify-center items-center h-64">
           <i className="fas fa-spinner fa-spin text-3xl text-ocean-light"></i>
         </div>
@@ -351,9 +338,9 @@ useEffect(() => {
   }
 
   return (
-    <div className="px-9 py-1 min-h-screen" style={{ backgroundColor: 'var(--color-blue-whites)' }}>
+    <div className="px-4 sm:px-9 py-1 min-h-screen" style={{ backgroundColor: 'var(--color-blue-whites)' }}>
       {/* Header Section */}
-      <div className="mb-8 rounded-xl border border-[#7AAAF8]/20 bg-[#7AAAF8]/5 px-5 py-4 shadow-sm">
+      <div className="mb-8 rounded-xl border border-[#7AAAF8]/20 bg-[#7AAAF8]/5 px-4 sm:px-5 py-4 shadow-sm">
         <h1 className="text-3xl font-bold text-[#1E3A8A] font-playfair tracking-tight">
           Dashboard Overview
         </h1>
@@ -467,13 +454,13 @@ useEffect(() => {
                 Latest {recentPendingRoomBookings.length} pending room booking requests
               </p>
             </div>
-            <Link 
-              href="/dashboard/admin/reservations"
-              className="px-3 py-1.5 rounded-lg border border-[#7AAAF8]/30 bg-white/70 backdrop-blur-md text-[#1E3A8A] text-xs font-medium hover:bg-[#7AAAF8] hover:text-white transition-all duration-200 flex items-center gap-1 shadow-sm hover:shadow"
-            >
-              View All
-              <i className="fas fa-arrow-right text-xs"></i>
-            </Link>
+<Link 
+  href="/dashboard/admin/reservations"
+  className="px-3 py-1.5 rounded-lg border border-[#7AAAF8]/30 bg-white/70 backdrop-blur-md text-[#1E3A8A] text-xs font-medium hover:bg-[#7AAAF8] hover:text-white transition-all duration-200 flex items-center gap-2 shadow-sm hover:shadow"
+>
+  View All
+  <i className="fas fa-arrow-right text-xs"></i>
+</Link>
           </div>
           
           <div className="p-5">
@@ -488,7 +475,7 @@ useEffect(() => {
             ) : (
               <div className="space-y-3">
                 {recentPendingRoomBookings.map((booking) => (
-                  <div key={booking.id} className="group border border-[#4D8CF5]/10 rounded-xl p-3 hover:shadow-md hover:border-[#4D8CF5]/20 transition-all duration-200 bg-white">
+                  <div key={booking.id} className="group border border-[#4D8CF5]/10 rounded-xl p-3 hover:shadow-md hover:border-[#4D8CF5]/20 transition-all duration-200 bg-white h-[110px] flex flex-col justify-center">
                     <div className="flex justify-between items-start">
                       <div className="flex-1">
                         <div className="flex items-center gap-2 flex-wrap mb-1">
@@ -547,13 +534,13 @@ useEffect(() => {
                 Latest {recentPendingDayTours.length} pending day tour booking requests
               </p>
             </div>
-            <Link 
-              href="/dashboard/admin/reservations"
-              className="px-3 py-1.5 rounded-lg border border-[#7AAAF8]/30 bg-white/70 backdrop-blur-md text-[#1E3A8A] text-xs font-medium hover:bg-[#7AAAF8] hover:text-white transition-all duration-200 flex items-center gap-1 shadow-sm hover:shadow"
-            >
-              View All
-              <i className="fas fa-arrow-right text-xs"></i>
-            </Link>
+ <Link 
+  href="/dashboard/admin/reservations"
+  className="px-3 py-1.5 rounded-lg border border-[#7AAAF8]/30 bg-white/70 backdrop-blur-md text-[#1E3A8A] text-xs font-medium hover:bg-[#7AAAF8] hover:text-white transition-all duration-200 flex items-center gap-2 shadow-sm hover:shadow"
+>
+  View All
+  <i className="fas fa-arrow-right text-xs"></i>
+</Link>
           </div>
           
           <div className="p-5">
@@ -568,7 +555,7 @@ useEffect(() => {
             ) : (
               <div className="space-y-3">
                 {recentPendingDayTours.map((booking) => (
-                  <div key={booking.id} className="group border border-[#4D8CF5]/10 rounded-xl p-3 hover:shadow-md hover:border-[#4D8CF5]/20 transition-all duration-200 bg-white">
+                  <div key={booking.id} className="group border border-[#4D8CF5]/10 rounded-xl p-3 hover:shadow-md hover:border-[#4D8CF5]/20 transition-all duration-200 bg-white h-[110px] flex flex-col justify-center">
                     <div className="flex justify-between items-start">
                       <div className="flex-1">
                         <div className="flex items-center gap-2 flex-wrap mb-1">
@@ -581,6 +568,13 @@ useEffect(() => {
                         </div>
                         <p className="text-xs text-[#1E3A8A]/70">
                           Booking ID: <span className="font-mono">{booking.bookingId}</span>
+                        </p>
+                        <p className="text-xs text-[#1E3A8A]/70 mt-1">
+                          <span className="font-medium">Tour Type:</span>{' '}
+                          <span className="text-orange-600 inline-flex items-center gap-1">
+                            <i className="fas fa-sun fa-xs"></i>
+                            Day Tour
+                          </span>
                         </p>
                         <p className="text-xs text-[#1E3A8A]/70 mt-1">
                           Tour Date: {booking.selectedDate ? formatDate(booking.selectedDate) : 'N/A'}

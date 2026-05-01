@@ -73,17 +73,34 @@ export default function AdminNavbar({ toggleSidebar, sidebarOpen, isDesktop }) {
 
   // Combined notification update handler
   const handleNotificationsUpdate = (newItems, type) => {
-    setNotifications(prev => {
-      const filtered = prev.filter(n => n.type !== type);
-      const isStatusType = type === 'check_in' || type === 'check_out';
-      const itemsWithReadState = isStatusType
-        ? newItems.map(item => ({ ...item, read: statusReadMapRef.current[`${item.type}-${item.id}`] === true }))
-        : newItems;
-      const combined = [...filtered, ...itemsWithReadState];
-      combined.sort((a, b) => asDate(b.createdAt) - asDate(a.createdAt));
-      return combined;
+  setNotifications(prev => {
+    const isStatusType = type === 'check_in' || type === 'check_out';
+
+    // For status notifications, don't clear the list if the service emits an empty update.
+    if (isStatusType && (!Array.isArray(newItems) || newItems.length === 0)) {
+      return prev;
+    }
+
+    const filtered = prev.filter(n => n.type !== type);
+
+    // Mark read status for status notifications
+    let itemsWithReadState = isStatusType
+      ? newItems.map(item => ({ ...item, read: statusReadMapRef.current[`${item.type}-${item.id}`] === true }))
+      : newItems;
+
+    // --- DEDUPLICATE based on type + id ---
+    const uniqueMap = new Map();
+    itemsWithReadState.forEach(item => {
+      const key = `${item.type}-${item.id}`;
+      if (!uniqueMap.has(key)) uniqueMap.set(key, item);
     });
-  };
+    const uniqueItems = Array.from(uniqueMap.values());
+
+    const combined = [...filtered, ...uniqueItems];
+    combined.sort((a, b) => asDate(b.createdAt) - asDate(a.createdAt));
+    return combined;
+  });
+};
 
   // Set up all notification listeners
   useEffect(() => {
@@ -295,9 +312,10 @@ const getNotificationStyle = (type) => {
     <p className="text-sm font-bold text-gray-800 mb-1">
       Room Reservation
     </p>
-    <p className="text-xs text-gray-600 mb-1">
-      <span className="font-semibold">{notification.guestName}</span> | Booking ID: <span className="font-mono">{notification.bookingId}</span>
-    </p>
+                                     <p className="text-xs text-gray-600 mb-1">
+                                    <span className="font-semibold">{notification.guestName}</span> 
+                                  </p>
+                                  <p className="text-xs text-gray-600 mb-1"> <span className="font-semibold">  Booking ID: </span> <span className="font-mono">{notification.bookingId}</span></p>
     <div className="inline-flex items-center gap-1.5 mt-1 px-2 py-0.5 bg-blue-50 rounded-full">
       <i className="fas fa-bed text-blue-500 text-[10px]"></i>
       <span className="text-[11px] font-medium text-blue-700">{notification.roomType}</span>
@@ -309,8 +327,9 @@ const getNotificationStyle = (type) => {
       Day Tour Reservation
     </p>
     <p className="text-xs text-gray-600 mb-1">
-      <span className="font-semibold">{notification.guestName}</span> | Booking ID: <span className="font-mono">{notification.bookingId}</span>
+      <span className="font-semibold">{notification.guestName}</span> 
     </p>
+    <p className="text-xs text-gray-600 mb-1"> <span className="font-semibold">  Booking ID: </span><span className="font-mono">{notification.bookingId}</span></p>
     <div className="inline-flex items-center gap-1.5 mt-1 px-2 py-0.5 bg-emerald-50 rounded-full">
       <i className="fas fa-calendar-alt text-emerald-500 text-[10px]"></i>
       <span className="text-[11px] font-medium text-emerald-700">{notification.reservationDate}</span>
@@ -322,8 +341,9 @@ const getNotificationStyle = (type) => {
       Guest Check-In
     </p>
     <p className="text-xs text-gray-600 mb-1">
-      <span className="font-semibold">{notification.guestName}</span> has checked in
+      <span className="font-semibold">{notification.guestName}</span> is scheduled to check in
     </p>
+    <p className="text-xs text-gray-600 mb-1"> <span className="font-semibold">Booking ID: </span> {notification.bookingId} </p>
     <div className="inline-flex items-center gap-1.5 mt-1 px-2 py-0.5 bg-green-50 rounded-full">
       <i className="fas fa-bed text-green-500 text-[10px]"></i>
       <span className="text-[11px] font-medium text-green-700">{notification.roomType}</span>
@@ -339,8 +359,9 @@ const getNotificationStyle = (type) => {
       Guest Check-Out
     </p>
     <p className="text-xs text-gray-600 mb-1">
-      <span className="font-semibold">{notification.guestName}</span> has checked out
+      <span className="font-semibold">{notification.guestName}</span>  is scheduled to check out
     </p>
+    <p className="text-xs text-gray-600 mb-1"> <span className="font-semibold">Booking ID: </span> {notification.bookingId} </p>
     <div className="inline-flex items-center gap-1.5 mt-1 px-2 py-0.5 bg-purple-50 rounded-full">
       <i className="fas fa-bed text-purple-500 text-[10px]"></i>
       <span className="text-[11px] font-medium text-purple-700">{notification.roomType}</span>
@@ -383,17 +404,7 @@ const getNotificationStyle = (type) => {
                   )}
                 </div>
                 
-                {/* Footer */}
-                {notifications.length > 0 && (
-                  <div className="px-4 py-3 bg-gray-50 border-t border-gray-100 text-center">
-                    <button 
-                      onClick={() => setShowNotifications(false)}
-                      className="text-xs text-gray-500 hover:text-[#4D8CF5] transition-colors duration-200"
-                    >
-                      Close
-                    </button>
-                  </div>
-                )}
+                {/* Footer - Close button removed as requested */}
               </div>
             )}
           </div>

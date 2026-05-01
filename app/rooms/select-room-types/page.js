@@ -7,6 +7,7 @@ import GuestLayout from '@/app/guest/layout';
 import { db } from '@/lib/firebase';
 import { collection, query, where, onSnapshot } from 'firebase/firestore';
 
+
 export default function SelectRoomTypesPage() {
   const router = useRouter();
   const [availableRoomTypes, setAvailableRoomTypes] = useState([]);

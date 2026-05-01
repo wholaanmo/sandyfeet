@@ -9,6 +9,12 @@ import { collection, addDoc, serverTimestamp, updateDoc, doc, getDoc, query, whe
 import Image from 'next/image';
 import { uploadImage } from '@/lib/cloudinary';
 import { compressImage } from '@/lib/imageUtils';
+import { sendRoomPendingEmail } from '@/lib/emailService';
+import ChatBot from '@/components/guest/ChatBot';
+
+// Storage keys for persisting data
+const MULTI_ROOM_STORAGE_KEY = 'multi_room_booking_data';
+const MULTI_ROOM_STEP_KEY = 'multi_room_booking_step';
 
 export default function MultiRoomBookingPage() {
   const router = useRouter();
@@ -39,6 +45,7 @@ export default function MultiRoomBookingPage() {
   const [tempValidIdType, setTempValidIdType] = useState('Passport');
   const [tempValidIdFile, setTempValidIdFile] = useState(null);
   const [validIdUploading, setValidIdUploading] = useState(false);
+  const [isConfirmed, setIsConfirmed] = useState(false);
 
   const FIXED_CHECK_IN_HOUR = 14;
   const FIXED_CHECK_OUT_HOUR = 12;
@@ -56,7 +63,7 @@ export default function MultiRoomBookingPage() {
     'Other Government IDs'
   ];
 
-  // Load booking data from session storage
+  // Load booking data from session storage (room selection) AND localStorage (persisted form data)
   useEffect(() => {
     const storedData = sessionStorage.getItem('multiRoomBooking');
     if (!storedData) {
@@ -65,17 +72,60 @@ export default function MultiRoomBookingPage() {
     }
 
     const data = JSON.parse(storedData);
+    
+    // Try to load persisted form data from localStorage
+    let persistedFormData = {};
+    try {
+      const savedData = localStorage.getItem(MULTI_ROOM_STORAGE_KEY);
+      if (savedData) {
+        const parsed = JSON.parse(savedData);
+        persistedFormData = parsed;
+      }
+    } catch (error) {
+      console.error('Error loading persisted booking data:', error);
+    }
+    
+    // Try to load persisted step
+    try {
+      const savedStep = localStorage.getItem(MULTI_ROOM_STEP_KEY);
+      if (savedStep && !isNaN(parseInt(savedStep))) {
+        const stepNum = parseInt(savedStep);
+        if (stepNum >= 2 && stepNum <= 4) {
+          setStep(stepNum);
+        }
+      }
+    } catch (error) {
+      console.error('Error loading persisted step:', error);
+    }
+    
+    // Try to load persisted payment method
+    if (persistedFormData.paymentMethod) {
+      setPaymentMethod(persistedFormData.paymentMethod);
+    }
+    
+    // Try to load persisted bank request state
+    if (persistedFormData.bankRequestSent) {
+      setBankRequestSent(persistedFormData.bankRequestSent);
+    }
+    if (persistedFormData.bankRequestId) {
+      setBankRequestId(persistedFormData.bankRequestId);
+    }
+    if (persistedFormData.bankDetailsProvided) {
+      setBankDetailsProvided(persistedFormData.bankDetailsProvided);
+    }
+    
     setBookingData({
       ...data,
       checkIn: new Date(data.checkInDate),
       checkOut: new Date(data.checkOutDate),
-      firstName: '',
-      lastName: '',
-      email: '',
-      phone: '',
-      paymentProofUrl: null,
-      validIdType: '',
-      validIdUrl: null,
+      firstName: persistedFormData.firstName || '',
+      lastName: persistedFormData.lastName || '',
+      email: persistedFormData.email || '',
+      phone: persistedFormData.phone || '',
+      paymentProofUrl: persistedFormData.paymentProofUrl || null,
+      validIdType: persistedFormData.validIdType || '',
+      validIdUrl: persistedFormData.validIdUrl || null,
+      specialRequest: persistedFormData.specialRequest || '',
       nights: 1
     });
     const initialTotalPrice = Number(data.exclusivePackagePrice || data.totalPrice || 0);
@@ -83,6 +133,52 @@ export default function MultiRoomBookingPage() {
     setDownPaymentAmount(initialTotalPrice * 0.5);
     setLoading(false);
   }, [router]);
+
+  // Save booking data to localStorage whenever it changes
+  useEffect(() => {
+    if (!bookingData) return;
+    
+    try {
+      const dataToSave = {
+        firstName: bookingData.firstName,
+        lastName: bookingData.lastName,
+        email: bookingData.email,
+        phone: bookingData.phone,
+        paymentProofUrl: bookingData.paymentProofUrl,
+        validIdType: bookingData.validIdType,
+        validIdUrl: bookingData.validIdUrl,
+        specialRequest: bookingData.specialRequest,
+        paymentMethod: paymentMethod,
+        bankRequestSent: bankRequestSent,
+        bankRequestId: bankRequestId,
+        bankDetailsProvided: bankDetailsProvided
+      };
+      localStorage.setItem(MULTI_ROOM_STORAGE_KEY, JSON.stringify(dataToSave));
+    } catch (error) {
+      console.error('Error saving booking data to localStorage:', error);
+    }
+  }, [bookingData, paymentMethod, bankRequestSent, bankRequestId, bankDetailsProvided]);
+
+  // Save step to localStorage whenever it changes
+  useEffect(() => {
+    try {
+      localStorage.setItem(MULTI_ROOM_STEP_KEY, String(step));
+    } catch (error) {
+      console.error('Error saving step to localStorage:', error);
+    }
+  }, [step]);
+
+  // Clear persisted data when booking is completed (step 4)
+  useEffect(() => {
+    if (step === 4) {
+      try {
+        localStorage.removeItem(MULTI_ROOM_STORAGE_KEY);
+        localStorage.removeItem(MULTI_ROOM_STEP_KEY);
+      } catch (error) {
+        console.error('Error clearing persisted data:', error);
+      }
+    }
+  }, [step]);
 
   // Generate booking reference
   const generateBookingReference = () => {
@@ -178,6 +274,14 @@ export default function MultiRoomBookingPage() {
   const validatePhone = (phone) => {
     const phoneRegex = /^\d{11}$/;
     return phoneRegex.test(phone);
+  };
+
+  const handlePhoneChange = (value) => {
+    // Only allow numeric values
+    const numericValue = value.replace(/[^0-9]/g, '');
+    // Limit to 11 digits
+    const limitedValue = numericValue.slice(0, 11);
+    handleInputChange('phone', limitedValue);
   };
 
   const validateStep2 = () => {
@@ -395,6 +499,9 @@ const handleSubmitBooking = async () => {
       }
     }
 
+    // Store created booking IDs for email
+    const createdBookings = [];
+
     if (allRoomIds.length <= 1) {
       const roomTypeObj = bookingData.roomTypes?.[0];
       const singleRoomId = allRoomIds[0] || roomTypeObj?.roomIds?.[0];
@@ -457,7 +564,8 @@ const handleSubmitBooking = async () => {
         booking.bankDetailsProvided = bankDetailsProvided;
       }
 
-      await addDoc(collection(db, 'bookings'), booking);
+      const docRef = await addDoc(collection(db, 'bookings'), booking);
+      createdBookings.push({ ...booking, id: docRef.id });
     } else {
       // Create individual bookings for each room
       let unitIndex = 0;
@@ -531,13 +639,54 @@ const handleSubmitBooking = async () => {
             booking.bankDetailsProvided = bankDetailsProvided;
           }
 
-          await addDoc(collection(db, 'bookings'), booking);
+          const docRef = await addDoc(collection(db, 'bookings'), booking);
+          createdBookings.push({ ...booking, id: docRef.id });
           unitIndex++;
         }
       }
     }
     
     sessionStorage.setItem('resetRoomsPage', 'true');
+    
+    // Send email notification to guest
+    try {
+      // Prepare booking data for email
+      const selectedRoomsList = Object.entries(bookingData.selectedRooms || {})
+        .filter(([_, qty]) => qty > 0)
+        .map(([type, qty]) => `${qty} × ${type}`);
+      
+      const roomTypesDisplay = selectedRoomsList.join(', ') || 'Room';
+      const totalRoomsCount = Object.values(bookingData.selectedRooms || {}).reduce((a, b) => a + b, 0);
+      
+      const emailBookingData = {
+        bookingId: generatedBookingId,
+        guestInfo: {
+          firstName: bookingData.firstName,
+          lastName: bookingData.lastName,
+          email: bookingData.email,
+          phone: bookingData.phone
+        },
+        checkIn: bookingData.checkIn,
+        checkOut: bookingData.checkOut,
+        totalPrice: packageTotalPrice,
+        downPayment: packageDownPayment,
+        roomTypesDisplay: roomTypesDisplay,
+        totalRooms: totalRoomsCount,
+        roomTypes: bookingData.roomTypes?.filter(rt => (bookingData.selectedRooms?.[rt.type] || 0) > 0),
+        isExclusiveResortBooking: isExclusiveResortBooking,
+        tentCount: bookingData.tentCount || 0,
+        specialRequest: bookingData.specialRequest || null
+      };
+      
+      await sendRoomPendingEmail(emailBookingData);
+      console.log('Pending confirmation email sent to guest');
+    } catch (emailError) {
+      console.error('Failed to send pending confirmation email:', emailError);
+      // Don't block the booking flow if email fails
+    }
+    
+    // Mark as confirmed and auto-check confirmation number 4
+    setIsConfirmed(true);
     setStep(4);
   } catch (error) {
     console.error('Error creating booking:', error);
@@ -557,6 +706,7 @@ const handleSubmitBooking = async () => {
     });
   };
 
+  // Filter selected rooms to only show those with quantity > 0
   const getSelectedRoomsSummary = () => {
     if (!bookingData?.selectedRooms) return 'No rooms selected';
     const selected = Object.entries(bookingData.selectedRooms).filter(([_, qty]) => qty > 0);
@@ -565,6 +715,12 @@ const handleSubmitBooking = async () => {
       const totalGuests = bookingData.totalGuestsPerType?.[type] || 1;
       return `${qty} × ${type} (${totalGuests} total guest${totalGuests !== 1 ? 's' : ''})`;
     }).join(', ');
+  };
+
+  // Get filtered room types for display (only those with quantity > 0)
+  const getFilteredRoomTypes = () => {
+    if (!bookingData?.roomTypes) return [];
+    return bookingData.roomTypes.filter(room => (bookingData.selectedRooms?.[room.type] || 0) > 0);
   };
 
   if (loading) {
@@ -599,6 +755,12 @@ const handleSubmitBooking = async () => {
   const isExclusiveBooking = Boolean(bookingData.isExclusiveResortBooking);
   const stayNights = Math.max(1, Number(bookingData.numberOfNights || 1));
   const derivedNightlyRate = stayNights > 0 ? (totalPrice / stayNights) : totalPrice;
+  const visibleGuestQrBank = paymentSettings.bankAccounts.find(
+    (account) => account.qrCodeUrl && account.showToGuest === true
+  ) || null;
+  const requestableBankAccounts = paymentSettings.bankAccounts.filter(
+    (account) => account.accountNumber && String(account.accountNumber).trim().length > 0
+  );
   const exclusiveAdults = Math.max(0, Number(bookingData.exclusiveAdults || 0));
   const exclusiveKids = Math.max(0, Number(bookingData.exclusiveKids || 0));
   const exclusiveTotalGuests = Math.max(0, Number(bookingData.totalGuests || 0));
@@ -635,36 +797,38 @@ const handleSubmitBooking = async () => {
                     <div className={`w-1/3 h-full transition-all duration-300 ${step >= 4 ? 'bg-blue-500' : 'bg-gray-200'}`}></div>
                   </div>
 
-                  {[
-                    { id: 1, label: 'Select Rooms' },
-                    { id: 2, label: 'Guest Details' },
-                    { id: 3, label: 'Payment' },
-                    { id: 4, label: 'Confirmation' }
-                  ].map((item) => {
-                    const isCompleted = item.id < step;
-                    const isActive = item.id === step;
-                    const isUpcoming = item.id > step;
+{[
+  { id: 1, label: 'Select Rooms' },
+  { id: 2, label: 'Guest Details' },
+  { id: 3, label: 'Payment' },
+  { id: 4, label: 'Confirmation' }
+].map((item) => {
+  const isCompleted = item.id < step;
+  const isActive = item.id === step;
+  const isUpcoming = item.id > step;
+  // Show check icon for confirmation step when step reaches 4
+  const showCheckIcon = isCompleted || (item.id === 4 && step === 4);
 
-                    return (
-                      <div key={item.id} className="flex flex-col items-center relative z-10 w-1/4">
-                        <div className={`w-10 h-10 rounded-full flex items-center justify-center text-sm font-bold border-2 transition-colors ${
-                          isActive
-                            ? 'bg-blue-600 border-blue-600 text-white shadow-md shadow-blue-200'
-                            : isCompleted || item.id === 1
-                              ? 'bg-emerald-500 border-emerald-500 text-white'
-                              : 'bg-white border-gray-300 text-gray-400'
-                        }`}>
-                          {item.id === 1 || isCompleted ? <i className="fas fa-check text-xs"></i> : item.id}
-                        </div>
+  return (
+    <div key={item.id} className="flex flex-col items-center relative z-10 w-1/4">
+      <div className={`w-10 h-10 rounded-full flex items-center justify-center text-sm font-bold border-2 transition-colors ${
+        isActive
+          ? 'bg-blue-600 border-blue-600 text-white shadow-md shadow-blue-200'
+          : showCheckIcon
+            ? 'bg-blue-500 border-blue-500 text-white'
+            : 'bg-white border-gray-300 text-gray-400'
+      }`}>
+        {showCheckIcon ? <i className="fas fa-check text-xs"></i> : item.id}
+      </div>
 
-                        <div className={`text-center text-[10px] sm:text-[11px] mt-2 font-bold uppercase tracking-wider w-full ${
-                          isActive ? 'text-blue-700' : isUpcoming ? 'text-gray-400' : 'text-gray-600'
-                        }`}>
-                          {item.label}
-                        </div>
-                      </div>
-                    );
-                  })}
+      <div className={`text-center text-[10px] sm:text-[11px] mt-2 font-bold uppercase tracking-wider w-full ${
+        isActive ? 'text-blue-700' : isUpcoming ? 'text-gray-400' : 'text-gray-600'
+      }`}>
+        {item.label}
+      </div>
+    </div>
+  );
+})}
                 </div>
               </div>
 
@@ -675,7 +839,7 @@ const handleSubmitBooking = async () => {
                   
                   <div className="space-y-5">
                     <div>
-                      <label className="block text-sm font-semibold text-textPrimary mb-2">First Name *</label>
+                      <label className="block text-sm font-semibold text-textPrimary mb-2">First Name</label>
                       <input
                         type="text"
                         value={bookingData.firstName}
@@ -686,7 +850,7 @@ const handleSubmitBooking = async () => {
                     </div>
                     
                     <div>
-                      <label className="block text-sm font-semibold text-textPrimary mb-2">Last Name *</label>
+                      <label className="block text-sm font-semibold text-textPrimary mb-2">Last Name</label>
                       <input
                         type="text"
                         value={bookingData.lastName}
@@ -697,7 +861,7 @@ const handleSubmitBooking = async () => {
                     </div>
                     
                     <div>
-                      <label className="block text-sm font-semibold text-textPrimary mb-2">Email Address *</label>
+                      <label className="block text-sm font-semibold text-textPrimary mb-2">Email Address</label>
                       <input
                         type="email"
                         value={bookingData.email}
@@ -708,11 +872,11 @@ const handleSubmitBooking = async () => {
                     </div>
                     
                     <div>
-                      <label className="block text-sm font-semibold text-textPrimary mb-2">Phone Number * (11 digits)</label>
+                      <label className="block text-sm font-semibold text-textPrimary mb-2">Phone Number (11 digits)</label>
                       <input
                         type="tel"
                         value={bookingData.phone}
-                        onChange={(e) => handleInputChange('phone', e.target.value)}
+                        onChange={(e) => handlePhoneChange(e.target.value)}
                         placeholder="09123456789"
                         className={`w-full px-4 py-2.5 border ${errors.phone ? 'border-red-500' : 'border-gray-200'} rounded-xl focus:outline-none focus:border-blue-400`}
                       />
@@ -756,7 +920,7 @@ const handleSubmitBooking = async () => {
                             : 'border-gray-200 bg-white hover:border-blue-300'
                         }`}
                       >
-                        <i className={`fab fa-gcash text-2xl sm:text-3xl ${paymentMethod === 'gcash' ? 'text-blue-600' : 'text-gray-400'}`}></i>
+                        <i className={`fas fa-wallet text-2xl sm:text-3xl ${paymentMethod === 'gcash' ? 'text-blue-600' : 'text-gray-400'}`}></i>
                         <span className={`text-sm font-medium ${paymentMethod === 'gcash' ? 'text-blue-600' : 'text-gray-500'}`}>GCash</span>
                       </button>
                       <button
@@ -768,7 +932,7 @@ const handleSubmitBooking = async () => {
                             : 'border-gray-200 bg-white hover:border-blue-300'
                         }`}
                       >
-                        <i className={`fas fa-university text-xl sm:text-2xl ${paymentMethod === 'bank_transfer' ? 'text-blue-600' : 'text-gray-400'}`}></i>
+                        <i className={`fas fa-credit-card text-xl sm:text-2xl ${paymentMethod === 'bank_transfer' ? 'text-blue-600' : 'text-gray-400'}`}></i>
                         <span className={`text-sm font-medium ${paymentMethod === 'bank_transfer' ? 'text-blue-600' : 'text-gray-500'}`}>Bank Transfer</span>
                       </button>
                     </div>
@@ -786,12 +950,12 @@ const handleSubmitBooking = async () => {
 
                         <div className="flex-1 p-4 sm:p-5 bg-ocean-ice/50 rounded-xl text-center border border-ocean-light/20">
                           <h3 className="text-sm font-semibold text-textPrimary mb-2 flex items-center justify-center gap-1.5">
-                            <i className="fab fa-gcash text-ocean-mid"></i>
+                            <i className="fas fa-qrcode text-ocean-mid"></i>
                             Scan to Pay
                           </h3>
                           {paymentSettings.gcashQRCode ? (
                             <div className="flex flex-col items-center">
-                              <div className="w-32 h-32 sm:w-40 sm:h-40 bg-white rounded-lg flex items-center justify-center border border-ocean-light/20 overflow-hidden shadow-sm">
+                              <div className="w-60 h-60 sm:w-70 sm:h-70 bg-white rounded-lg flex items-center justify-center border border-ocean-light/20 overflow-hidden shadow-sm">
                                 <img
                                   src={paymentSettings.gcashQRCode}
                                   alt="GCash QR Code"
@@ -813,7 +977,7 @@ const handleSubmitBooking = async () => {
                         <ul className="text-xs text-blue-700/80 space-y-1 ml-5 list-disc leading-relaxed">
                           <li>Pay only the <strong>down payment (50%)</strong> to confirm.</li>
                           <li>Balance (₱{(totalPrice - downPaymentAmount).toLocaleString()}) is due upon check-in.</li>
-                          <li>Cancellations forfeit <strong>50%</strong> of the down payment.</li>
+                          <li>Cancellations will result in forfeiture of the down payment, unless the booking is rescheduled.</li>
                         </ul>
                       </div>
 
@@ -821,10 +985,10 @@ const handleSubmitBooking = async () => {
                         <div className="bg-white rounded-xl border border-gray-200 p-4 sm:p-5 shadow-sm hover:border-blue-200 transition-colors">
                           <div className="flex items-center gap-2 mb-2">
                             <i className="fas fa-id-card text-blue-500 text-lg"></i>
-                            <label className="text-sm font-semibold text-gray-800">Valid ID *</label>
+                            <label className="text-sm font-semibold text-gray-800">Valid ID</label>
                           </div>
                           <p className="text-[11px] text-gray-500 mb-3 leading-tight">
-                            Clear front image only. Max size: 10MB.
+                            Clear front image only.
                           </p>
                           <button
                             type="button"
@@ -846,7 +1010,7 @@ const handleSubmitBooking = async () => {
                           {bookingData.validIdUrl && (
                             <p className="mt-1 text-[11px] text-emerald-600 flex items-center gap-1.5">
                               <i className="fas fa-check-circle text-emerald-500"></i>
-                              Successfully attached
+                              Valid ID uploaded
                             </p>
                           )}
                         </div>
@@ -854,10 +1018,10 @@ const handleSubmitBooking = async () => {
                         <div className="bg-white rounded-xl border border-gray-200 p-4 sm:p-5 shadow-sm hover:border-blue-200 transition-colors">
                           <div className="flex items-center gap-2 mb-2">
                             <i className="fas fa-file-invoice-dollar text-blue-500 text-lg"></i>
-                            <label className="text-sm font-semibold text-gray-800">Reciept *</label>
+                            <label className="text-sm font-semibold text-gray-800">Receipt</label>
                           </div>
                           <p className="text-[11px] text-gray-500 mb-3 leading-tight">
-                            Proof of down payment. Max size: 10MB.
+                            Proof of down payment.
                           </p>
                           <div className="relative">
                             <input
@@ -886,7 +1050,7 @@ const handleSubmitBooking = async () => {
                           {bookingData.paymentProofUrl && (
                             <p className="mt-2.5 text-[11px] text-emerald-600 flex items-center gap-1.5">
                               <i className="fas fa-check-circle text-emerald-500"></i>
-                              Successfully attached
+                              Payment proof uploaded
                             </p>
                           )}
                         </div>
@@ -894,193 +1058,254 @@ const handleSubmitBooking = async () => {
                     </div>
                   )}
                   
-                  {/* Bank Transfer Section */}
-                  {paymentMethod === 'bank_transfer' && (
-                    <div className="space-y-4 sm:space-y-5">
-                      <div className="flex flex-col md:flex-row gap-4 sm:gap-5">
-                        <div className="flex-1 p-4 sm:p-5 bg-gradient-to-r from-ocean-ice to-blue-white rounded-xl flex flex-col justify-center items-center md:items-start text-center md:text-left border border-blue-100/50">
-                          <p className="text-sm font-semibold text-textPrimary mb-1">Down Payment Required</p>
-                          <p className="text-2xl sm:text-3xl font-bold text-amber-600">₱{downPaymentAmount.toLocaleString()}</p>
-                          <p className="text-xs text-textSecondary mt-1">50% of total price</p>
-                        </div>
+             {/* Bank Transfer Section */}
+{paymentMethod === 'bank_transfer' && (
+  <div className="space-y-4 sm:space-y-5">
+    <div className="flex flex-col md:flex-row gap-4 sm:gap-5">
+      <div className="flex-1 p-4 sm:p-5 bg-gradient-to-r from-ocean-ice to-blue-white rounded-xl flex flex-col justify-center items-center md:items-start text-center md:text-left border border-blue-100/50">
+        <p className="text-sm font-semibold text-textPrimary mb-1">Down Payment Required</p>
+        <p className="text-2xl sm:text-3xl font-bold text-amber-600">₱{downPaymentAmount.toLocaleString()}</p>
+        <p className="text-xs text-textSecondary mt-1">50% of total price</p>
+      </div>
 
-                        <div className="flex-1 p-4 sm:p-5 bg-ocean-ice/50 rounded-xl text-center border border-ocean-light/20 flex flex-col justify-center relative overflow-hidden">
-                          {modalNotification && (
-                            <div className="absolute top-0 left-0 w-full p-2 text-[10px] z-10 font-medium">
-                              <span className={`px-2 py-1 rounded inline-block shadow-sm ${modalNotification.type === 'error' ? 'bg-red-500 text-white' : 'bg-emerald-500 text-white'}`}>
-                                {modalNotification.message}
-                              </span>
-                            </div>
-                          )}
-                          
-                          {bankDetailsProvided ? (
-                            <div className="text-left w-full h-full flex flex-col justify-center">
-                              <h3 className="text-sm font-semibold text-textPrimary mb-2 flex items-center gap-1.5 border-b border-gray-200 pb-2">
-                                <i className="fas fa-university text-ocean-mid"></i>
-                                {bankDetailsProvided.bankName}
-                              </h3>
-                              <p className="text-xs text-gray-700 mt-1"><span className="font-semibold">Name:</span> {bankDetailsProvided.accountName}</p>
-                              {bankDetailsProvided.accountNumber && bankDetailsProvided.accountNumber !== 'QR Code Provided' ? (
-                                <p className="text-xs text-gray-700 mt-1"><span className="font-semibold">Acct #:</span> {bankDetailsProvided.accountNumber}</p>
-                              ) : bankDetailsProvided.qrCodeUrl ? (
-                                <a href={bankDetailsProvided.qrCodeUrl} target="_blank" rel="noopener noreferrer" className="mt-2 text-xs text-blue-600 hover:underline flex items-center">
-                                  <i className="fas fa-qrcode mr-1"></i> View QR Code
-                                </a>
-                              ) : null}
-                            </div>
-                          ) : bankRequestSent ? (
-                            <div className="flex flex-col items-center justify-center">
-                              <i className="fas fa-clock text-blue-500 text-2xl mb-2 animate-pulse"></i>
-                              <p className="text-xs font-semibold text-gray-800">Request Sent!</p>
-                              <p className="text-[10px] text-gray-500 mt-1 px-2">Waiting for resort to provide {requestedBankInfo?.bankName || 'bank'} details...</p>
-                            </div>
-                          ) : (!showBankSelection ? (
-                              <div className="w-full">
-                                <h3 className="text-sm font-semibold text-textPrimary mb-2 flex items-center justify-center gap-1.5">
-                                  <i className="fas fa-university text-ocean-mid"></i>
-                                  Select Bank
-                                </h3>
-                                {paymentSettings.bankAccounts.length > 0 ? (
-                                  <select 
-                                    className="w-full p-2 text-xs border border-gray-200 rounded-lg focus:outline-none focus:border-blue-400 bg-white"
-                                    onChange={(e) => {
-                                      if (e.target.value !== '') {
-                                        const bank = paymentSettings.bankAccounts.find(b => b.id === e.target.value || b.bankName === e.target.value);
-                                        if (bank) {
-                                          setSelectedBankAccount(bank);
-                                          setShowBankSelection(true);
-                                        }
-                                      }
-                                    }}
-                                    defaultValue=""
-                                  >
-                                    <option value="" disabled>-- Choose a bank --</option>
-                                    {paymentSettings.bankAccounts.map((bank) => (
-                                      <option key={bank.id || bank.bankName} value={bank.id || bank.bankName}>
-                                        {bank.bankName}
-                                      </option>
-                                    ))}
-                                  </select>
-                                ) : (
-                                  <p className="text-xs text-amber-600 mt-2">No bank accounts available.</p>
-                                )}
-                              </div>
-                            ) : (
-                              <div className="w-full flex flex-col justify-center h-full text-left">
-                                <p className="text-[11px] text-gray-500 uppercase tracking-wider font-bold mb-1">Selected Bank</p>
-                                <p className="text-sm font-bold text-gray-800 truncate">{selectedBankAccount?.bankName}</p>
-                                <div className="mt-auto flex gap-2 pt-3">
-                                  <button
-                                    onClick={() => setShowBankSelection(false)}
-                                    className="flex-1 py-1.5 px-2 bg-gray-100 hover:bg-gray-200 text-gray-600 rounded text-xs font-semibold transition"
-                                  >
-                                    Change
-                                  </button>
-                                  <button
-                                    onClick={handleNotifyResort}
-                                    disabled={notifyingResort}
-                                    className="flex-[2] py-1.5 px-2 bg-blue-600 hover:bg-blue-700 text-white rounded text-xs font-semibold transition flex items-center justify-center"
-                                  >
-                                    {notifyingResort ? <i className="fas fa-spinner fa-spin"></i> : 'Request Details'}
-                                  </button>
-                                </div>
-                              </div>
-                            )
-                          )}
-                        </div>
-                      </div>
+      <div className="flex-1 space-y-3">
 
-                      <div className="p-3 sm:p-4 bg-blue-50/50 rounded-xl border border-blue-100">
-                        <p className="text-xs sm:text-sm text-blue-800 mb-1.5 font-medium flex items-center">
-                          <i className="fas fa-info-circle mr-1.5"></i>
-                          Payment Notes
-                        </p>
-                        <ul className="text-xs text-blue-700/80 space-y-1 ml-5 list-disc leading-relaxed">
-                          <li>Pay only the <strong>down payment (50%)</strong> to confirm.</li>
-                          <li>Balance (₱{(totalPrice - downPaymentAmount).toLocaleString()}) is due upon check-in.</li>
-                          <li>Cancellations forfeit <strong>50%</strong> of the down payment.</li>
-                        </ul>
-                      </div>
+      
 
-                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4 sm:gap-5">
-                        <div className="bg-white rounded-xl border border-gray-200 p-4 sm:p-5 shadow-sm hover:border-blue-200 transition-colors">
-                          <div className="flex items-center gap-2 mb-2">
-                            <i className="fas fa-id-card text-blue-500 text-lg"></i>
-                            <label className="text-sm font-semibold text-gray-800">Valid ID *</label>
-                          </div>
-                          <p className="text-[11px] text-gray-500 mb-3 leading-tight">
-                            Clear front image only. Max size: 10MB.
-                          </p>
-                          <button
-                            type="button"
-                            onClick={() => {
-                              setTempValidIdType(bookingData.validIdType || 'Passport');
-                              setShowValidIdModal(true);
-                            }}
-                            className="w-full inline-flex justify-center items-center gap-2 px-4 py-2.5 rounded-lg border border-gray-200 text-sm font-medium text-gray-700 bg-gray-50 hover:bg-gray-100 hover:text-gray-900 transition-all duration-200"
-                          >
-                            <i className="fas fa-cloud-upload-alt text-gray-500"></i>
-                            {bookingData.validIdUrl ? 'Change ID' : 'Upload ID'}
-                          </button>
-                          {bookingData.validIdType && (
-                            <p className="mt-2.5 text-[11px] text-gray-600 flex items-center gap-1.5">
-                              <i className="fas fa-check-circle text-blue-500"></i>
-                              {bookingData.validIdType}
-                            </p>
-                          )}
-                          {bookingData.validIdUrl && (
-                            <p className="mt-1 text-[11px] text-emerald-600 flex items-center gap-1.5">
-                              <i className="fas fa-check-circle text-emerald-500"></i>
-                              Successfully attached
-                            </p>
-                          )}
-                        </div>
+        {/* QR CODE CONTAINER - Separate section for QR code details */}
+        {visibleGuestQrBank && (
+          <div className="rounded-xl border border-blue-200 bg-blue-50/40 p-4">
+            <div className="flex items-center gap-2 mb-3 border-b border-blue-200 pb-2">
+              <div className="flex h-7 w-7 items-center justify-center rounded-full bg-blue-100 text-blue-600">
+                <i className="fas fa-qrcode text-xs"></i>
+              </div>
+              <h3 className="text-sm font-semibold text-blue-900">QR Code Payment</h3>
+            </div>
+            <div className="flex flex-col items-center gap-3">
+              <div className="flex w-60 h-60 sm:w-70 sm:h-70 items-center justify-center overflow-hidden rounded-lg border border-blue-200 bg-white p-2 shadow-sm">
+                <img
+                  src={visibleGuestQrBank.qrCodeUrl}
+                  alt={`${visibleGuestQrBank.bankName} QR Code`}
+                  className="h-full w-full object-contain"
+                />
+              </div>
+              <div className="text-center">
+                <p className="font-semibold text-textPrimary text-sm">{visibleGuestQrBank.bankName}</p>
+                <p className="text-xs text-textSecondary">{visibleGuestQrBank.accountName}</p>
+              </div>
+            </div>
+          </div>
+        )}
+        
+        {/* REQUESTED BANK DETAILS CONTAINER - Separate section for bank details */}
+        {bankDetailsProvided ? (
+          <div className="rounded-xl border border-green-200 bg-green-50/40 p-4">
+            <div className="flex items-center gap-2 mb-3 border-b border-green-200 pb-2">
+              <div className="flex h-7 w-7 items-center justify-center rounded-full bg-green-100 text-green-600">
+                <i className="fas fa-credit-card text-xs"></i>
+              </div>
+              <h3 className="text-sm font-semibold text-green-900">Bank Details Provided</h3>
+            </div>
+            <div className="space-y-2">
+              <div>
+                <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Bank Name</p>
+                <p className="text-sm font-medium text-gray-800 mt-0.5">{bankDetailsProvided.bankName}</p>
+              </div>
+              <div>
+                <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Account Name</p>
+                <p className="text-sm font-medium text-gray-800 mt-0.5">{bankDetailsProvided.accountName}</p>
+              </div>
+              {bankDetailsProvided.accountNumber && bankDetailsProvided.accountNumber !== 'QR Code Provided' ? (
+                <div>
+                  <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Account Number</p>
+                  <p className="text-sm font-mono font-medium text-gray-800 mt-0.5">{bankDetailsProvided.accountNumber}</p>
+                </div>
+              ) : bankDetailsProvided.qrCodeUrl ? (
+                <div>
+                  <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">QR Code</p>
+                  <a href={bankDetailsProvided.qrCodeUrl} target="_blank" rel="noopener noreferrer" className="text-xs text-blue-600 hover:underline flex items-center gap-1">
+                    <i className="fas fa-qrcode mr-1"></i> View QR Code
+                  </a>
+                </div>
+              ) : null}
+            </div>
+          </div>
+        ) : bankRequestSent ? (
+          <div className="rounded-xl border border-blue-200 bg-blue-50/40 p-4 text-center">
+            <div className="flex flex-col items-center justify-center">
+              <div className="flex h-12 w-12 items-center justify-center rounded-full bg-blue-100 text-blue-600 mb-2">
+                <i className="fas fa-clock text-lg"></i>
+              </div>
+              <p className="text-sm font-semibold text-gray-800">Request Sent!</p>
+              <p className="text-xs text-gray-500 mt-1">Waiting for resort to provide bank details...</p>
+            </div>
+          </div>
+        ) : (!showBankSelection ? (
+          <div className="rounded-xl border border-gray-200 bg-white p-4">
+            <div className="flex items-center gap-2 mb-3 border-b border-gray-200 pb-2">
+              <div className="flex h-7 w-7 items-center justify-center rounded-full bg-gray-100 text-gray-600">
+                <i className="fas fa-credit-card text-xs"></i>
+              </div>
+              <h3 className="text-sm font-semibold text-gray-800">Choose your other preferred bank:</h3>
+            </div>
+            {requestableBankAccounts.length > 0 ? (
+              <select 
+                className="w-full p-2.5 text-sm border border-gray-200 rounded-lg focus:outline-none focus:border-blue-400 focus:ring-2 focus:ring-blue-500/20 bg-white"
+                onChange={(e) => {
+                  if (e.target.value !== '') {
+                    const bank = requestableBankAccounts.find(b => b.id === e.target.value || b.bankName === e.target.value);
+                    if (bank) {
+                      setSelectedBankAccount(bank);
+                      setShowBankSelection(true);
+                    }
+                  }
+                }}
+                defaultValue=""
+              >
+                <option value="" disabled>-- Select a bank --</option>
+                {requestableBankAccounts.map((bank) => (
+                  <option key={bank.id || bank.bankName} value={bank.id || bank.bankName}>
+                    {bank.bankName}
+                  </option>
+                ))}
+              </select>
+            ) : (
+              <p className="text-xs text-amber-600">No bank accounts are available right now.</p>
+            )}
+          </div>
+        ) : (
+          <div className="rounded-xl border border-amber-200 bg-amber-50/40 p-4">
+            <div className="flex items-center gap-2 mb-3 border-b border-amber-200 pb-2">
+              <div className="flex h-7 w-7 items-center justify-center rounded-full bg-amber-100 text-amber-600">
+                <i className="fas fa-check-circle text-xs"></i>
+              </div>
+              <h3 className="text-sm font-semibold text-amber-900">Selected Bank</h3>
+            </div>
+            <div className="mb-3">
+              <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Bank Name</p>
+              <p className="text-sm font-semibold text-gray-800 mt-0.5">{selectedBankAccount?.bankName}</p>
+              <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mt-2">Account Name</p>
+              <p className="text-sm text-gray-700 mt-0.5">{selectedBankAccount?.accountName}</p>
+            </div>
+
+            
+            <div className="flex gap-2 pt-2">
+              <button
+                onClick={() => setShowBankSelection(false)}
+                className="flex-1 py-2 px-3 bg-white border border-gray-200 hover:bg-gray-50 text-gray-600 rounded-lg text-xs font-semibold transition"
+              >
+                Change
+              </button>
+              <button
+                onClick={handleNotifyResort}
+                disabled={notifyingResort}
+                className="flex-1 py-2 px-3 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-xs font-semibold transition flex items-center justify-center gap-1"
+              >
+                {notifyingResort ? <i className="fas fa-spinner fa-spin"></i> : <><i className="fas fa-paper-plane"></i> Request</>}
+              </button>
+            </div>
+          </div>
+        ))}
+
+        
+      </div>
+    </div>
+    
+
+    <div className="p-3 sm:p-4 bg-blue-50/50 rounded-xl border border-blue-100">
+      <p className="text-xs sm:text-sm text-blue-800 mb-1.5 font-medium flex items-center">
+        <i className="fas fa-info-circle mr-1.5"></i>
+        Payment Notes
+      </p>
+      <ul className="text-xs text-blue-700/80 space-y-1 ml-5 list-disc leading-relaxed">
+        <li>Pay only the <strong>down payment (50%)</strong> to confirm.</li>
+        <li>Balance (₱{(totalPrice - downPaymentAmount).toLocaleString()}) is due upon check-in.</li>
+        <li>Cancellations will result in forfeiture of the down payment, unless the booking is rescheduled.</li>
+      </ul>
+    </div>
+
+    <div className="grid grid-cols-1 md:grid-cols-2 gap-4 sm:gap-5">
+      <div className="bg-white rounded-xl border border-gray-200 p-4 sm:p-5 shadow-sm hover:border-blue-200 transition-colors">
+        <div className="flex items-center gap-2 mb-2">
+          <i className="fas fa-id-card text-blue-500 text-lg"></i>
+          <label className="text-sm font-semibold text-gray-800">Valid ID</label>
+        </div>
+        <p className="text-[11px] text-gray-500 mb-3 leading-tight">
+          Clear front image only. 
+        </p>
+        <button
+          type="button"
+          onClick={() => {
+            setTempValidIdType(bookingData.validIdType || 'Passport');
+            setShowValidIdModal(true);
+          }}
+          className="w-full inline-flex justify-center items-center gap-2 px-4 py-2.5 rounded-lg border border-gray-200 text-sm font-medium text-gray-700 bg-gray-50 hover:bg-gray-100 hover:text-gray-900 transition-all duration-200"
+        >
+          <i className="fas fa-cloud-upload-alt text-gray-500"></i>
+          {bookingData.validIdUrl ? 'Change ID' : 'Upload ID'}
+        </button>
+        {bookingData.validIdType && (
+          <p className="mt-2.5 text-[11px] text-gray-600 flex items-center gap-1.5">
+            <i className="fas fa-check-circle text-blue-500"></i>
+            {bookingData.validIdType}
+          </p>
+        )}
+        {bookingData.validIdUrl && (
+          <p className="mt-1 text-[11px] text-emerald-600 flex items-center gap-1.5">
+            <i className="fas fa-check-circle text-emerald-500"></i>
+            Valid ID uploaded
+          </p>
+        )}
+      </div>
+      
+      <div className={`bg-white rounded-xl border border-gray-200 p-4 sm:p-5 shadow-sm transition-colors ${(bankDetailsProvided || visibleGuestQrBank) ? 'hover:border-blue-200' : 'opacity-50'}`}>
+        <div className="flex items-center gap-2 mb-2">
+          <i className="fas fa-file-invoice-dollar text-blue-500 text-lg"></i>
+          <label className="text-sm font-semibold text-gray-800">Receipt</label>
+        </div>
+        <p className="text-[11px] text-gray-500 mb-3 leading-tight">
+          Proof of down payment. 
+        </p>
+        <div className="relative">
+          <input
+            type="file"
+            accept="image/*"
+            onChange={handlePaymentProofUpload}
+            className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
+            id="payment-proof-upload-bank"
+            disabled={uploading || (!bankDetailsProvided && !visibleGuestQrBank)}
+          />
+          <label
+            htmlFor="payment-proof-upload-bank"
+            className={`w-full inline-flex justify-center items-center gap-2 px-4 py-2.5 rounded-lg text-sm font-medium transition-all duration-200 ${
+              uploading || (!bankDetailsProvided && !visibleGuestQrBank)
+                ? 'bg-gray-100 text-gray-400 cursor-not-allowed border border-gray-200'
+                : 'bg-blue-600 text-white hover:bg-blue-700 shadow-sm shadow-blue-200/50 cursor-pointer'
+            }`}
+          >
+            {uploading ? (
+              <><i className="fas fa-spinner fa-spin"></i> Processing...</>
+            ) : (
+              <><i className="fas fa-upload"></i> Upload Receipt</>
+            )}
+          </label>
+        </div>
+        {!bankDetailsProvided && !visibleGuestQrBank && (
+          <p className="mt-2.5 text-[11px] text-amber-600 flex items-center gap-1.5">
+            <i className="fas fa-exclamation-circle"></i>
+            Waiting for bank details...
+          </p>
+        )}
+        {bookingData.paymentProofUrl && (bankDetailsProvided || visibleGuestQrBank) && (
+          <p className="mt-2.5 text-[11px] text-emerald-600 flex items-center gap-1.5">
+            <i className="fas fa-check-circle text-emerald-500"></i>
+            Payment proof uploaded
+          </p>
+        )}
+      </div>
+  
                         
-                        <div className={`bg-white rounded-xl border border-gray-200 p-4 sm:p-5 shadow-sm transition-colors ${bankDetailsProvided ? 'hover:border-blue-200' : 'opacity-50'}`}>
-                          <div className="flex items-center gap-2 mb-2">
-                            <i className="fas fa-file-invoice-dollar text-blue-500 text-lg"></i>
-                            <label className="text-sm font-semibold text-gray-800">Receipt *</label>
-                          </div>
-                          <p className="text-[11px] text-gray-500 mb-3 leading-tight">
-                            Proof of down payment. Max size: 10MB.
-                          </p>
-                          <div className="relative">
-                            <input
-                              type="file"
-                              accept="image/*"
-                              onChange={handlePaymentProofUpload}
-                              className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
-                              id="payment-proof-upload"
-                              disabled={uploading || !bankDetailsProvided}
-                            />
-                            <label
-                              htmlFor="payment-proof-upload"
-                              className={`w-full inline-flex justify-center items-center gap-2 px-4 py-2.5 rounded-lg text-sm font-medium transition-all duration-200 ${
-                                uploading || !bankDetailsProvided
-                                  ? 'bg-gray-100 text-gray-400 cursor-not-allowed border border-gray-200'
-                                  : 'bg-blue-600 text-white hover:bg-blue-700 shadow-sm shadow-blue-200/50 cursor-pointer'
-                              }`}
-                            >
-                              {uploading ? (
-                                <><i className="fas fa-spinner fa-spin"></i> Processing...</>
-                              ) : (
-                                <><i className="fas fa-upload"></i> Upload Receipt</>
-                              )}
-                            </label>
-                          </div>
-                          {!bankDetailsProvided && (
-                            <p className="mt-2.5 text-[11px] text-amber-600 flex items-center gap-1.5">
-                              <i className="fas fa-exclamation-circle"></i>
-                              Waiting for bank details...
-                            </p>
-                          )}
-                          {bookingData.paymentProofUrl && bankDetailsProvided && (
-                            <p className="mt-2.5 text-[11px] text-emerald-600 flex items-center gap-1.5">
-                              <i className="fas fa-check-circle text-emerald-500"></i>
-                              Successfully attached
-                            </p>
-                          )}
-                        </div>
+
                       </div>
                     </div>
                   )}
@@ -1099,13 +1324,13 @@ const handleSubmitBooking = async () => {
                         !bookingData.paymentProofUrl ||
                         !bookingData.validIdUrl ||
                         submitting ||
-                        (paymentMethod === 'bank_transfer' && !bankDetailsProvided)
+                        (paymentMethod === 'bank_transfer' && !bankDetailsProvided && !visibleGuestQrBank)
                       }
                       className={`flex-1 py-3 rounded-xl font-medium transition-all duration-300 ${
                         bookingData.paymentProofUrl &&
                         bookingData.validIdUrl &&
                         !submitting &&
-                        (paymentMethod !== 'bank_transfer' || bankDetailsProvided)
+                        (paymentMethod !== 'bank_transfer' || bankDetailsProvided || visibleGuestQrBank)
                           ? 'bg-gradient-to-r from-blue-500 to-blue-600 text-white hover:shadow-lg hover:shadow-blue-500/30'
                           : 'bg-gray-200 text-gray-500 cursor-not-allowed'
                       }`}
@@ -1119,8 +1344,8 @@ const handleSubmitBooking = async () => {
               {/* Step 4: Confirmation */}
               {step === 4 && (
                 <div className="bg-white rounded-2xl border border-gray-200 shadow-[0_10px_30px_rgb(0,0,0,0.05)] p-6 sm:p-8 text-center">
-                  <div className="w-20 h-20 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-4">
-                    <i className="fas fa-check text-3xl text-green-600"></i>
+                  <div className="w-20 h-20 bg-emerald-100 rounded-full flex items-center justify-center mx-auto mb-4">
+                    <i className="fas fa-check text-3xl text-emerald-600"></i>
                   </div>
                   <h2 className="text-2xl font-bold text-textPrimary mb-2">Booking Confirmed!</h2>
                   <p className="text-textSecondary mb-4">
@@ -1151,7 +1376,7 @@ const handleSubmitBooking = async () => {
                     <p className="text-sm text-amber-800">
                       <i className="fas fa-info-circle mr-2"></i>
                       Down payment of <strong>₱{downPaymentAmount.toLocaleString()}</strong> has been confirmed.
-                      Remaining balance of <strong>₱{(totalPrice - downPaymentAmount).toLocaleString()}</strong> is payable at the resort.
+                      Remaining balance of <strong>₱{(totalPrice - downPaymentAmount).toLocaleString()}</strong> is payable at the resort. Cancellations will result in forfeiture of the down payment, unless the booking is rescheduled.
                     </p>
                   </div>
                   <div className="flex gap-3">
@@ -1177,7 +1402,7 @@ const handleSubmitBooking = async () => {
               <div className="bg-white rounded-[2rem] border border-gray-100 shadow-[0_12px_40px_rgb(0,0,0,0.06)] overflow-hidden sticky top-32">
                 <div className="px-5 py-4 border-b border-gray-100 bg-[#F8FCFF]">
                   <h3 className="font-bold text-gray-900 text-base flex items-center gap-2 uppercase tracking-wider">
-                    <i className="fas fa-receipt text-blue-500"></i>
+                    <i className="fas fa-receipt text-blue-500 "></i>
                     Booking Summary
                   </h3>
                 </div>
@@ -1201,49 +1426,37 @@ const handleSubmitBooking = async () => {
                         <p className="text-xs text-blue-700">Adults: {exclusiveAdults} | Kids: {exclusiveKids}</p>
                       </div>
                     ) : (
-                      // Non‑exclusive: show per‑room breakdown if perRoomGuests exists, otherwise aggregated
+                      // Non‑exclusive: show filtered rooms (only those with quantity > 0)
                       <div className="bg-white rounded-xl border border-gray-200 p-3 space-y-2">
-                        {bookingData.perRoomGuests && Object.keys(bookingData.perRoomGuests).length > 0 ? (
-                          // Per‑room guest breakdown
-                          Object.entries(bookingData.perRoomGuests).map(([roomType, guestsArray]) => {
-                            const quantity = bookingData.selectedRooms?.[roomType] || 0;
-                            const pricePerNight = bookingData.roomTypes?.find(t => t.type === roomType)?.price || 0;
+                        {getFilteredRoomTypes().length > 0 ? (
+                          getFilteredRoomTypes().map((roomType, idx) => {
+                            const quantity = bookingData.selectedRooms?.[roomType.type] || 0;
                             return (
-                              <div key={roomType} className="border-b border-gray-100 last:border-b-0 pb-2 mb-2 last:pb-0">
+                              <div key={`${roomType.type}-${idx}`} className="text-xs text-gray-700 leading-relaxed border-b border-gray-100 last:border-b-0 pb-1.5 last:pb-0">
                                 <div className="flex justify-between items-start">
-                                  <span className="font-medium text-sm">{quantity} × {roomType}</span>
-                                  <span className="text-gray-500 text-xs">₱{pricePerNight.toLocaleString()}/night</span>
+                                  <span className="font-medium">{quantity} × {roomType.type}</span>
+                                  <span className="text-gray-500">₱{roomType.price.toLocaleString()}/night</span>
                                 </div>
-                                <div className="mt-2 space-y-1">
-                                  {guestsArray.map((guest, idx) => (
-                                    <div key={idx} className="text-xs text-gray-600 flex justify-between pl-2">
-                                      <span>Unit {idx + 1}:</span>
-                                      <span>Adults: {guest.adults} | Kids: {guest.kids}</span>
-                                    </div>
-                                  ))}
-                                </div>
+                                {bookingData.perRoomGuests && bookingData.perRoomGuests[roomType.type]?.length > 0 && (
+                                  <div className="mt-1 space-y-0.5">
+                                    {bookingData.perRoomGuests[roomType.type].map((guest, guestIdx) => (
+                                      <div key={guestIdx} className="text-[10px] text-gray-500 flex justify-between pl-2">
+                                        <span>Unit {guestIdx + 1}:</span>
+                                        <span>Adults: {guest.adults} | Kids: {guest.kids}</span>
+                                      </div>
+                                    ))}
+                                  </div>
+                                )}
+                                {bookingData.totalGuestsPerType?.[roomType.type] && !bookingData.perRoomGuests?.[roomType.type] && (
+                                  <div className="mt-1 text-gray-500">
+                                    Total Guests: {bookingData.totalGuestsPerType[roomType.type]}
+                                  </div>
+                                )}
                               </div>
                             );
                           })
                         ) : (
-                          // Fallback to aggregated totals (for backward compatibility)
-                          bookingData.roomTypes && bookingData.roomTypes.length > 0 ? bookingData.roomTypes.map((type, idx) => {
-                            const adultsCount = bookingData.adultsPerType?.[type.type] || (type.totalGuests || 1);
-                            const kidsCount = bookingData.kidsPerType?.[type.type] || 0;
-                            return (
-                              <div key={`${type.type}-${idx}`} className="text-xs text-gray-700 leading-relaxed border-b border-gray-100 last:border-b-0 pb-1.5 last:pb-0">
-                                <div className="flex justify-between items-start">
-                                  <span className="font-medium">{type.quantity} × {type.type}</span>
-                                  <span className="text-gray-500">₱{type.price.toLocaleString()}/night</span>
-                                </div>
-                                <div className="mt-1 text-gray-500">
-                                  Adults: {adultsCount} | Kids: {kidsCount}
-                                </div>
-                              </div>
-                            );
-                          }) : (
-                            <p className="text-xs text-gray-500">No room selections found.</p>
-                          )
+                          <p className="text-xs text-gray-500">No room selections found.</p>
                         )}
                       </div>
                     )}
@@ -1307,7 +1520,12 @@ const handleSubmitBooking = async () => {
                       onChange={(e) => setBookingData(prev => ({ ...prev, specialRequest: e.target.value }))}
                       placeholder="e.g., Request early check-in, room preferences, special occasion, etc."
                       rows="3"
-                      className="w-full px-3 py-2 border border-blue-200 rounded-xl text-sm focus:outline-none focus:border-blue-400 resize-none bg-white"
+                      readOnly={step === 4}
+                      className={`w-full px-3 py-2 border rounded-xl text-sm focus:outline-none resize-none ${
+                        step === 4 
+                          ? 'bg-gray-50 border-gray-200 text-gray-500 cursor-not-allowed' 
+                          : 'border-blue-200 focus:border-blue-400 bg-white'
+                      }`}
                     />
                     <p className="text-xs text-blue-700/80 mt-1">
                       <i className="fas fa-clock mr-1"></i>
@@ -1323,110 +1541,98 @@ const handleSubmitBooking = async () => {
 
       {/* Valid ID Modal */}
       {showValidIdModal && (
-        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4 animate-in fade-in duration-200">
-          <div className="bg-white rounded-2xl w-full max-w-sm p-0 shadow-2xl overflow-hidden" onClick={(e) => e.stopPropagation()}>
-            <div className="px-5 py-4 border-b border-gray-100 flex justify-between items-center bg-gray-50/50">
-              <h3 className="text-base font-bold text-gray-900 flex items-center gap-2">
-                <i className="fas fa-id-card text-blue-500"></i>
-                Upload Valid ID
-              </h3>
+        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-2xl w-full max-w-[380px] p-5 shadow-2xl" onClick={(e) => e.stopPropagation()}>
+            <div className="flex justify-between items-center mb-3">
+              <h3 className="text-base font-bold text-gray-900">Upload Valid ID</h3>
               <button
                 onClick={() => setShowValidIdModal(false)}
-                className="w-8 h-8 rounded-full bg-white border border-gray-200 flex items-center justify-center text-gray-500 hover:bg-gray-100 hover:text-gray-700 transition-colors"
-                title="Close"
-              >
-                <i className="fas fa-times"></i>
+ className="w-7 h-7 rounded-md bg-ocean-ice text-neutral hover:bg-ocean-light/20 hover:text-textPrimary transition-all duration-200 flex items-center justify-center">
+                <i className="fas fa-times text-xs"></i>
               </button>
             </div>
-
-            <div className="p-5 space-y-5">
+ 
+            <div className="space-y-3">
               <div>
-                <label className="block text-xs font-bold text-gray-700 uppercase tracking-wide mb-2">ID Type</label>
-                <div className="relative">
-                  <select
-                    value={tempValidIdType}
-                    onChange={(e) => setTempValidIdType(e.target.value)}
-                    className="w-full pl-3 pr-10 py-2.5 bg-white border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 appearance-none transition-shadow"
-                  >
-                    {validIdOptions.map((option) => (
-                      <option key={option} value={option}>{option}</option>
-                    ))}
-                  </select>
-                  <i className="fas fa-chevron-down absolute right-4 top-1/2 -translate-y-1/2 text-gray-400 text-xs pointer-events-none"></i>
-                </div>
+                <label className="block text-[11px] font-bold uppercase tracking-wider text-gray-500 mb-1.5">ID Type</label>
+                <select
+                  value={tempValidIdType}
+                  onChange={(e) => setTempValidIdType(e.target.value)}
+                  className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:border-blue-300 focus:ring-2 focus:ring-blue-500/10 bg-gray-50/50 transition-all"
+                >
+                  {validIdOptions.map((option) => (
+                    <option key={option} value={option}>
+                      {option}
+                    </option>
+                  ))}
+                </select>
               </div>
-
-              <div className="bg-blue-50/50 border border-blue-100 rounded-xl p-3.5">
-                <p className="text-xs font-semibold text-blue-900 mb-1.5 flex items-center gap-1.5">
-                  <i className="fas fa-info-circle text-blue-500"></i>
-                  Requirements
-                </p>
-                <ul className="text-[11px] text-blue-800 space-y-1 ml-5 list-disc leading-relaxed">
-                  <li>Full name must match booking details</li>
-                  <li>Image must be clear (front only)</li>
-                  <li>No blurred images allowed</li>
-                  <li>Max file size: 10MB</li>
+ 
+              <div className="bg-blue-50/50 p-2.5 rounded-lg border border-blue-100/50">
+                <p className="text-[11px] font-semibold text-blue-900 mb-1">Upload Requirements:</p>
+                <ul className="text-[11px] text-blue-800 space-y-0.5 list-disc pl-3">
+                  <li>Full name must match booking</li>
+                  <li>Front image only, must be clear</li>
+                  <li>No blurred or cut-off images</li>
                 </ul>
               </div>
-
-              <div>
-                <label className="block text-xs font-bold text-gray-700 uppercase tracking-wide mb-2">ID Image (Front Only)</label>
-                <div className="relative">
-                  <input
-                    type="file"
-                    accept="image/*"
-                    onChange={handleValidIdFileChange}
-                    className="absolute inset-0 w-full h-full opacity-0 cursor-pointer object-cover z-20"
-                    disabled={validIdUploading}
-                  />
-                  <div className={`w-full flex flex-col items-center justify-center p-6 rounded-xl text-sm font-medium transition-all duration-200 border-2 border-dashed ${
-                    validIdUploading
-                      ? 'bg-gray-50 border-gray-300 text-gray-400 cursor-wait'
-                      : tempValidIdFile
-                      ? 'bg-emerald-50/50 border-emerald-300 text-emerald-700 p-2 border-solid'
-                      : 'bg-gray-50 border-gray-300 text-gray-600 hover:bg-blue-50 hover:border-blue-400 hover:text-blue-600'
-                  }`}>
-                    {validIdUploading ? (
-                      <div className="flex flex-col items-center gap-2">
-                        <i className="fas fa-circle-notch fa-spin text-2xl text-blue-500"></i>
-                        <span className="text-xs">Compressing & Uploading...</span>
-                      </div>
-                    ) : tempValidIdFile ? (
-                      <div className="relative w-full h-32 rounded-lg overflow-hidden group pointer-events-none">
-                        <img src={tempValidIdFile} alt="Valid ID" className="w-full h-full object-cover" />
-                        <div className="absolute inset-0 bg-black/40 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
-                          <span className="text-white text-xs font-semibold flex items-center gap-2"><i className="fas fa-sync-alt"></i> Change Image</span>
-                        </div>
-                      </div>
-                    ) : (
-                      <div className="flex flex-col items-center gap-2 text-center pointer-events-none">
-                        <div className="w-10 h-10 rounded-full bg-blue-100 flex items-center justify-center mb-1">
-                          <i className="fas fa-cloud-upload-alt text-xl text-blue-600"></i>
-                        </div>
-                        <span className="text-sm font-bold">Click to upload</span>
-                        <span className="text-xs text-gray-400 font-normal">PNG, JPG up to 10MB</span>
-                      </div>
-                    )}
+ 
+              <div className="pt-2 border-t border-gray-100">
+                <div className="flex items-center justify-between mb-2">
+                  <label className="text-[13px] font-bold uppercase tracking-wider text-gray-500">ID Photo (Front)</label>
+                  <div className="relative">
+                    <input
+                      type="file"
+                      accept="image/*"
+                      onChange={handleValidIdFileChange}
+                      className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
+                      id="valid-id-upload-multiroom"
+                      disabled={validIdUploading}
+                    />
+                    <label
+                      htmlFor="valid-id-upload-multiroom"
+                      className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition-all duration-300 cursor-pointer ${
+                        validIdUploading
+                          ? 'bg-gray-200 text-gray-400 cursor-not-allowed'
+                          : 'bg-blue-600 text-white hover:bg-blue-700 shadow-sm'
+                      }`}
+                    >
+                      <i className={`fas ${validIdUploading ? 'fa-spinner fa-spin' : 'fa-camera'}`}></i>
+                      {validIdUploading ? 'Uploading...' : tempValidIdFile ? 'Change Image' : 'Select Photo'}
+                    </label>
                   </div>
+                </div>
+ 
+                <div className="h-44 border-2 border-dashed border-gray-200 rounded-xl overflow-hidden bg-gray-50 flex items-center justify-center">
+                  {tempValidIdFile ? (
+                    <img
+                      src={tempValidIdFile}
+                      alt="Valid ID Preview"
+                      className="w-full h-full object-contain bg-white"
+                    />
+                  ) : (
+                    <div className="text-center">
+                      <i className="fas fa-id-card text-2xl text-gray-300 mb-2 block"></i>
+                      <p className="text-[10px] text-gray-400">Preview will appear here</p>
+                    </div>
+                  )}
                 </div>
               </div>
             </div>
-
-            <div className="px-5 py-4 border-t border-gray-100 bg-gray-50/50 flex justify-end gap-3">
+ 
+            <div className="flex justify-end gap-2 mt-5 pt-3 border-t border-gray-100">
               <button
+                type="button"
                 onClick={() => setShowValidIdModal(false)}
-                className="px-4 py-2 border border-gray-200 bg-white text-gray-600 rounded-lg text-sm font-semibold hover:bg-gray-50 transition-colors"
+                className="px-4 py-2.5 rounded-lg text-xs font-semibold text-gray-500 hover:bg-gray-50 transition-all duration-200"
               >
                 Cancel
               </button>
               <button
+                type="button"
                 onClick={handleSaveValidId}
-                disabled={!tempValidIdFile || validIdUploading}
-                className={`px-5 py-2 rounded-lg text-sm font-semibold transition-all shadow-sm ${
-                  tempValidIdFile && !validIdUploading
-                    ? 'bg-blue-600 text-white hover:bg-blue-700 hover:shadow-md'
-                    : 'bg-gray-200 text-gray-400 cursor-not-allowed'
-                }`}
+                disabled={!tempValidIdFile || !tempValidIdType || validIdUploading}
+                className="px-5 py-2.5 bg-gradient-to-r from-blue-600 to-blue-500 rounded-lg text-xs font-bold text-white shadow-md hover:shadow-lg transition-all duration-200 disabled:opacity-50 disabled:grayscale disabled:cursor-not-allowed"
               >
                 Confirm ID
               </button>
@@ -1450,6 +1656,7 @@ const handleSubmitBooking = async () => {
           animation: fadeIn 0.3s ease-out;
         }
       `}</style>
+      <ChatBot />
     </GuestLayout>
   );
 }

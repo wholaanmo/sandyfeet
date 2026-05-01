@@ -3,9 +3,11 @@ import { join } from 'path';
 
 const QUOTA_COOLDOWN_MS = 15 * 60 * 1000;
 let deepSeekCircuitOpenUntil = 0;
+let openAICircuitOpenUntil = 0;
 let geminiCircuitOpenUntil = 0;
-const GEMINI_MODELS = ['gemini-1.5-flash', 'gemini-1.5-flash-8b', 'gemini-2.0-flash', 'gemini-2.5-flash'];
+const OPENAI_MODELS = ['gpt-4o-mini', 'gpt-4.1-mini'];
 const DEEPSEEK_MODELS = ['deepseek-chat', 'deepseek-reasoner'];
+const GEMINI_MODELS = ['gemini-1.5-flash', 'gemini-1.5-flash-8b', 'gemini-2.0-flash', 'gemini-2.5-flash'];
 const MAX_RESPONSE_TOKENS = 700;
 const MAX_LOCAL_SECTIONS = 3;
 const SHOW_AI_UNAVAILABLE_NOTICE = process.env.CHATBOT_SHOW_AI_STATUS === 'true';
@@ -148,7 +150,7 @@ function buildConversationMessages(history, trimmedMessage) {
 }
 
 async function tryDeepSeek(messages) {
-  const apiKey = process.env.FALLBACK_API_KEY_2;
+  const apiKey = process.env.DEEPSEEK_API_KEY || process.env.FALLBACK_API_KEY_2;
   if (!apiKey) {
     return null;
   }
@@ -200,6 +202,72 @@ async function tryDeepSeek(messages) {
 
       if (!isRetryableModelError(error)) {
         console.error('DeepSeek hard failure:', {
+          message: error?.message,
+          status: error?.status,
+          code: error?.code,
+          type: error?.type,
+        });
+        break;
+      }
+    }
+  }
+
+  return null;
+}
+
+async function tryOpenAI(messages) {
+  const apiKey = process.env.OPENAI_API_KEY || process.env.FALLBACK_API_KEY_2;
+  if (!apiKey) {
+    return null;
+  }
+
+  if (Date.now() < openAICircuitOpenUntil) {
+    return null;
+  }
+
+  for (const model of OPENAI_MODELS) {
+    try {
+      const response = await fetch('https://api.openai.com/v1/chat/completions', {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${apiKey}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          model,
+          messages,
+          temperature: 0.7,
+          max_tokens: MAX_RESPONSE_TOKENS,
+        }),
+      });
+
+      const payload = await response.json().catch(() => ({}));
+      if (!response.ok) {
+        const err = new Error(payload?.error?.message || 'OpenAI request failed');
+        err.status = response.status;
+        err.code = payload?.error?.code;
+        err.type = payload?.error?.type;
+        throw err;
+      }
+
+      const reply = payload?.choices?.[0]?.message?.content?.trim();
+      if (reply) {
+        return reply;
+      }
+    } catch (error) {
+      if (isQuotaOrRateLimitError(error)) {
+        openAICircuitOpenUntil = Date.now() + QUOTA_COOLDOWN_MS;
+        console.warn('OpenAI quota/rate limit reached; opening OpenAI circuit.', {
+          status: error?.status,
+          code: error?.code,
+          type: error?.type,
+          cooldownMs: QUOTA_COOLDOWN_MS,
+        });
+        break;
+      }
+
+      if (!isRetryableModelError(error)) {
+        console.error('OpenAI hard failure:', {
           message: error?.message,
           status: error?.status,
           code: error?.code,
@@ -409,6 +477,11 @@ export async function POST(request) {
     }
 
     const messages = buildConversationMessages(history, trimmedMessage);
+
+    const openAIReply = await tryOpenAI(messages);
+    if (openAIReply) {
+      return Response.json({ reply: openAIReply, source: 'openai' }, { status: 200 });
+    }
 
     const deepSeekReply = await tryDeepSeek(messages);
     if (deepSeekReply) {

@@ -1,3 +1,4 @@
+// app/page.js
 'use client';
 
 import { useEffect, useState } from 'react';
@@ -6,6 +7,7 @@ import Image from 'next/image';
 import Link from 'next/link';
 import { db } from '@/lib/firebase';
 import { addDoc, collection, getDocs, limit, onSnapshot, query, serverTimestamp, where } from 'firebase/firestore';
+import ChatBot from '@/components/guest/ChatBot';
 
 const galleryImages = [
   { src: '/assets/View/Front view.jpg', alt: 'Sandyfeet front view' },
@@ -15,35 +17,6 @@ const galleryImages = [
   { src: '/assets/Tent/Tents.jpg', alt: 'Camping tents' },
   { src: '/assets/Facilities/Bonfire.jpg', alt: 'Bonfire night setup' },
 ];
-
-const testimonials = [
-  {
-    name: 'Aira M.',
-    role: 'WEEKEND GUEST',
-    review:
-      'Super easy booking process and the place looked exactly like the photos. The pool vibe at sunset is 10/10.',
-  },
-  {
-    name: 'Jules P.',
-    role: 'BIRTHDAY CELEBRANT',
-    review:
-      'We reserved for a small celebration and everything felt smooth from payment upload to confirmation update.',
-  },
-  {
-    name: 'Mark & Elle',
-    role: 'COUPLE ROOM STAY',
-    review:
-      'The room was cozy and clean, staff was responsive, and tracking our booking status gave us peace of mind.',
-  },
-  {
-    name: 'Nika R.',
-    role: 'DAY TOUR GUEST',
-    review:
-      'The reservation flow is clear and fast. We arrived with everything ready and enjoyed the whole day without hassle.',
-  },
-];
-
-const completedStatuses = new Set(['completed']);
 
 const toRoomSlug = (value) => {
   return String(value || '')
@@ -91,6 +64,24 @@ const getFallbackFeaturedImage = (roomType) => {
   return '/assets/GroundFloor/Room 1.jpg';
 };
 
+// Star rating component for testimonials
+const StarRating = ({ rating }) => {
+  return (
+    <div className="flex gap-1">
+      {[1, 2, 3, 4, 5].map((star) => (
+        <svg
+          key={star}
+          className={`w-4 h-4 ${star <= rating ? 'text-yellow-400' : 'text-gray-300'}`}
+          fill="currentColor"
+          viewBox="0 0 20 20"
+        >
+          <path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z" />
+        </svg>
+      ))}
+    </div>
+  );
+};
+
 export default function HomePage() {
   const [featuredRooms, setFeaturedRooms] = useState([]);
   const [featuredRoomsLoading, setFeaturedRoomsLoading] = useState(true);
@@ -102,6 +93,38 @@ export default function HomePage() {
   const [verifiedFeedbackBooking, setVerifiedFeedbackBooking] = useState(null);
   const [verifyingBooking, setVerifyingBooking] = useState(false);
   const [submittingFeedback, setSubmittingFeedback] = useState(false);
+  const [publishedFeedbacks, setPublishedFeedbacks] = useState([]);
+
+  // Fetch published feedbacks for testimonials with real-time updates
+  useEffect(() => {
+    const feedbacksRef = collection(db, 'feedbacks');
+    // Only filter by status in the query; archived filtering will be done in memory
+    const q = query(feedbacksRef, where('status', '==', 'Published'));
+
+    const unsubscribe = onSnapshot(q, (querySnapshot) => {
+      const feedbacksList = [];
+      querySnapshot.forEach((doc) => {
+        const data = doc.data();
+        // Filter out archived feedbacks
+        if (data.archived === true) return;
+        // Only include feedbacks that have a comment
+        if (data.comment && data.comment.trim().length > 0) {
+          feedbacksList.push({
+            id: doc.id,
+            ...data,
+            createdAt: data.createdAt?.toDate?.() || new Date(data.createdAt || 0),
+          });
+        }
+      });
+      // Sort by creation date (newest first)
+      feedbacksList.sort((a, b) => b.createdAt - a.createdAt);
+      setPublishedFeedbacks(feedbacksList);
+    }, (error) => {
+      console.error('Error fetching published feedbacks:', error);
+    });
+
+    return () => unsubscribe();
+  }, []);
 
   useEffect(() => {
     const roomsRef = collection(db, 'rooms');
@@ -198,32 +221,73 @@ export default function HomePage() {
 
   const fetchBookingByReference = async (collectionName, bookingId) => {
     const bookingsRef = collection(db, collectionName);
+    // 1) Search by bookingId field
     const bookingQuery = query(bookingsRef, where('bookingId', '==', bookingId), limit(1));
-    const bookingSnapshot = await getDocs(bookingQuery);
+    let bookingSnapshot = await getDocs(bookingQuery);
 
-    if (bookingSnapshot.empty) return null;
+    if (!bookingSnapshot.empty) {
+      const bookingData = bookingSnapshot.docs[0].data();
+      // Check if it's a multi-room child booking (has parentBookingId)
+      if (bookingData.isMultiRoomBooking && bookingData.parentBookingId) {
+        // For child bookings, fetch the parent to get consolidated status
+        const parentQuery = query(bookingsRef, where('bookingId', '==', bookingData.parentBookingId), limit(1));
+        const parentSnapshot = await getDocs(parentQuery);
+        if (!parentSnapshot.empty) {
+          const parentData = parentSnapshot.docs[0].data();
+          return {
+            docId: bookingSnapshot.docs[0].id,
+            collectionName,
+            data: {
+              ...bookingData,
+              status: parentData.status,
+            },
+          };
+        }
+      }
+      // Normal booking (single room or parent booking)
+      return {
+        docId: bookingSnapshot.docs[0].id,
+        collectionName,
+        data: bookingData,
+      };
+    }
 
-    return {
-      docId: bookingSnapshot.docs[0].id,
-      collectionName,
-      data: bookingSnapshot.docs[0].data(),
-    };
+    // 2) Not found by bookingId → try to find multi‑room group by parentBookingId
+    const groupQuery = query(bookingsRef, where('parentBookingId', '==', bookingId));
+    const groupSnapshot = await getDocs(groupQuery);
+
+    if (!groupSnapshot.empty) {
+      // Take the first child as representative (all share same parentBookingId, guestInfo, dates, and status)
+      const representativeDoc = groupSnapshot.docs[0];
+      const representativeData = representativeDoc.data();
+
+      // For a multi‑room group, all children have the same status (updated together by admin)
+      // Use the status from the first child
+      const groupStatus = representativeData.status;
+
+      // Build a synthetic booking object that mimics a normal booking for verification
+      const syntheticBooking = {
+        ...representativeData,
+        bookingId: bookingId,                     // the reference the guest entered
+        isMultiRoomGroup: true,                  // flag for downstream logic
+        originalChildBookings: groupSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })),
+        // Keep the status from the children
+        status: groupStatus,
+      };
+
+      return {
+        docId: representativeDoc.id,             // any child ID is fine for reference
+        collectionName,
+        data: syntheticBooking,
+      };
+    }
+
+    return null;
   };
 
+  // Updated handleVerifyFeedbackBooking function with status validation
   const handleVerifyFeedbackBooking = async (event) => {
     event.preventDefault();
-
-    // Temporary preview mode: bypass verification and open the rating form directly.
-    setVerifiedFeedbackBooking({
-      bookingId: (feedbackCredentials.reference || 'PREVIEW-BOOKING').trim().toUpperCase(),
-      guestEmail: (feedbackCredentials.email || 'preview@sandyfeet.local').trim().toLowerCase(),
-      guestName: 'Preview Guest',
-      sourceCollection: 'preview',
-      sourceDocId: 'preview',
-    });
-    setFeedbackMessage({ text: 'Preview mode enabled. Verification is temporarily bypassed.', type: 'info' });
-    setFeedbackStep('form');
-    return;
 
     const normalizedEmail = feedbackCredentials.email.trim().toLowerCase();
     const normalizedReference = feedbackCredentials.reference.trim().toUpperCase();
@@ -237,27 +301,79 @@ export default function HomePage() {
     setFeedbackMessage({ text: '', type: '' });
 
     try {
-      const roomBooking = await fetchBookingByReference('bookings', normalizedReference);
-      const dayTourBooking = roomBooking ? null : await fetchBookingByReference('dayTourBookings', normalizedReference);
-      const foundBooking = roomBooking || dayTourBooking;
+      // First try to find the booking in 'bookings' collection (rooms)
+      let booking = await fetchBookingByReference('bookings', normalizedReference);
+      let isDayTour = false;
 
-      if (!foundBooking) {
+      // If not found in rooms, try dayTourBookings
+      if (!booking) {
+        booking = await fetchBookingByReference('dayTourBookings', normalizedReference);
+        isDayTour = true;
+      }
+
+      if (!booking) {
         setFeedbackMessage({ text: 'No booking found for that reference number.', type: 'error' });
         return;
       }
 
-      const guestEmail = String(foundBooking.data?.guestInfo?.email || '').trim().toLowerCase();
+      const guestEmail = String(booking.data?.guestInfo?.email || '').trim().toLowerCase();
       if (!guestEmail || guestEmail !== normalizedEmail) {
         setFeedbackMessage({ text: 'Email does not match this booking reference.', type: 'error' });
         return;
       }
 
-      const bookingStatus = String(foundBooking.data?.status || '').toLowerCase();
-      if (!completedStatuses.has(bookingStatus)) {
-        setFeedbackMessage({ text: 'Only completed bookings can submit feedback.', type: 'error' });
+      const bookingStatus = String(booking.data?.status || '').toLowerCase().trim();
+      console.log(`[DEBUG] Booking status: "${bookingStatus}", isDayTour: ${isDayTour}`); // You can remove this later
+
+      // Define allowed statuses for feedback submission
+      const allowedStatuses = new Set(['check-in', 'check-out', 'completed']);
+      const restrictedStatuses = new Set(['pending', 'confirmed', 'cancelled', 'cancelled-by-guest']);
+
+      // Check if status is restricted (not allowed at all)
+      if (restrictedStatuses.has(bookingStatus)) {
+        let statusMessage = '';
+        switch (bookingStatus) {
+          case 'pending':
+            statusMessage = 'Pending - Your booking is still being reviewed.';
+            break;
+          case 'confirmed':
+            statusMessage = 'Confirmed - Your booking has been confirmed but the stay hasn\'t started yet.';
+            break;
+          case 'cancelled':
+            statusMessage = 'Cancelled - This booking has been cancelled by the admin.';
+            break;
+          case 'cancelled-by-guest':
+            statusMessage = 'Cancelled - This booking has been cancelled by the guest.';
+            break;
+          default:
+            statusMessage = 'This booking status does not allow feedback submission.';
+        }
+        setFeedbackMessage({
+          text: `You may submit feedback only after experiencing your stay at our resort. Feedback becomes available once your stay has started or been completed.`,
+          type: 'error'
+        });
         return;
       }
 
+      // DAY TOUR: allow only 'completed' or 'check-in'
+      if (isDayTour && !['completed', 'check-in'].includes(bookingStatus)) {
+        setFeedbackMessage({
+          text: 'Only completed or ongoing (Check-In) day tour bookings can submit feedback.',
+          type: 'error'
+        });
+        return;
+      }
+
+      // ROOM BOOKING: allow check-in, check-out, completed
+      if (!isDayTour && !allowedStatuses.has(bookingStatus)) {
+        setFeedbackMessage({
+          text: 'Only bookings with status Check-In, Check-Out, or Completed can submit feedback.',
+          type: 'error'
+        });
+        return;
+      }
+
+      // Check for duplicate feedback
       const duplicateQuery = query(collection(db, 'feedbacks'), where('bookingId', '==', normalizedReference), limit(1));
       const duplicateSnapshot = await getDocs(duplicateQuery);
       if (!duplicateSnapshot.empty) {
@@ -265,14 +381,15 @@ export default function HomePage() {
         return;
       }
 
-      const guestName = `${foundBooking.data?.guestInfo?.firstName || ''} ${foundBooking.data?.guestInfo?.lastName || ''}`.trim();
+      const guestName = `${booking.data?.guestInfo?.firstName || ''} ${booking.data?.guestInfo?.lastName || ''}`.trim();
 
       setVerifiedFeedbackBooking({
         bookingId: normalizedReference,
         guestEmail: normalizedEmail,
         guestName: guestName || 'Guest',
-        sourceCollection: foundBooking.collectionName,
-        sourceDocId: foundBooking.docId,
+        sourceCollection: booking.collectionName,
+        sourceDocId: booking.docId,
+        isDayTour: isDayTour,
       });
       setFeedbackStep('form');
       setFeedbackMessage({ text: 'Booking verified. You can now write your feedback.', type: 'success' });
@@ -283,6 +400,7 @@ export default function HomePage() {
       setVerifyingBooking(false);
     }
   };
+
 
   const handleFeedbackSubmit = async (event) => {
     event.preventDefault();
@@ -312,6 +430,7 @@ export default function HomePage() {
         sourceCollection: verifiedFeedbackBooking.sourceCollection,
         sourceDocId: verifiedFeedbackBooking.sourceDocId,
         createdAt: serverTimestamp(),
+        status: 'Pending', // Default status when newly submitted
       });
 
       setFeedbackMessage({ text: 'Thank you. Your feedback has been submitted.', type: 'success' });
@@ -345,90 +464,90 @@ export default function HomePage() {
 
           <div className="relative z-10 mx-auto flex w-full max-w-7xl flex-col px-6 xl:flex-row xl:items-center xl:gap-10">
 
-          {/* Left Content */}
-          <div className="z-10 max-w-2xl xl:w-5/12">
-            <span className="text-[#3B82F6] font-bold text-[10px] tracking-widest uppercase mb-4 block">
-              Sandyfeet Resort & Camp
-            </span>
-            <h1 className="mb-6 font-playfair text-[2.85rem] leading-[1.02] tracking-tight text-[#0f2824] sm:text-[3.6rem] lg:text-[4.35rem] xl:text-[5rem]">
-              Escape to the shore.
-              <span className="block">Book your stay.</span>
-            </h1>
-            <p className="mb-10 max-w-xl pr-0 text-base leading-relaxed text-[#4A6762] sm:text-lg xl:max-w-md xl:pr-8">
-              Reserve rooms and day tours in minutes. Enjoy a quick and smooth booking flow from search to confirmation.
-            </p>
-            <div className="flex flex-col items-stretch gap-3 sm:flex-row sm:items-center sm:gap-4">
-              <Link
-                href="/rooms"
-                className="rounded-full bg-[#3B82F6] px-8 py-3.5 text-center text-base font-semibold text-white shadow-xl shadow-blue-500/20 transition-all hover:-translate-y-0.5 hover:bg-[#2563EB]"
-              >
-                Explore Rooms
-              </Link>
-              <Link
-                href="/day-tour"
-                className="rounded-full border border-gray-200 bg-white px-8 py-3.5 text-center text-base font-semibold text-gray-800 shadow-sm transition-all hover:-translate-y-0.5 hover:bg-gray-50"
-              >
-                Book a Day Tour
-              </Link>
+            {/* Left Content */}
+            <div className="z-10 max-w-2xl xl:w-5/12">
+              <span className="text-[#3B82F6] font-bold text-[10px] tracking-widest uppercase mb-4 block">
+                Sandyfeet Resort & Camp
+              </span>
+              <h1 className="mb-6 font-playfair text-[2.85rem] leading-[1.02] tracking-tight text-[#0f2824] sm:text-[3.6rem] lg:text-[4.35rem] xl:text-[5rem]">
+                Escape to the shore.
+                <span className="block">Book your stay.</span>
+              </h1>
+              <p className="mb-10 max-w-xl pr-0 text-base leading-relaxed text-[#4A6762] sm:text-lg xl:max-w-md xl:pr-8">
+                Reserve rooms and day tours in minutes. Enjoy a quick and smooth booking flow from search to confirmation.
+              </p>
+              <div className="flex flex-col items-stretch gap-3 sm:flex-row sm:items-center sm:gap-4">
+                <Link
+                  href="/rooms"
+                  className="rounded-full bg-[#3B82F6] px-8 py-3.5 text-center text-base font-semibold text-white shadow-xl shadow-blue-500/20 transition-all hover:-translate-y-0.5 hover:bg-[#2563EB]"
+                >
+                  Explore Rooms
+                </Link>
+                <Link
+                  href="/day-tour"
+                  className="rounded-full border border-gray-200 bg-white px-8 py-3.5 text-center text-base font-semibold text-gray-800 shadow-sm transition-all hover:-translate-y-0.5 hover:bg-gray-50"
+                >
+                  Book a Day Tour
+                </Link>
+              </div>
             </div>
-          </div>
 
-          {/* Right Images (Collage) */}
-          <div className="relative mt-10 grid w-full max-w-3xl grid-cols-2 gap-3 sm:mx-auto sm:gap-4 lg:mt-12 xl:mx-0 xl:mt-2 xl:block xl:h-[520px] xl:w-7/12 xl:max-w-none">
-            {/* Main Center Image */}
-            <div className="relative col-span-2 aspect-[4/3] overflow-hidden rounded-[2rem] border-4 border-white shadow-2xl transition-transform duration-500 hover:rotate-0 sm:border-6 xl:absolute xl:right-6 xl:top-16 xl:z-20 xl:h-[320px] xl:w-[470px] xl:-rotate-2 xl:border-8 xl:transform-gpu">
-              <Image
-                src="/assets/View/IMG3.jpg"
-                alt="Pool View"
-                fill
-                priority
-                sizes="(max-width: 639px) 100vw, (max-width: 1279px) 50vw, 470px"
-                className="object-cover"
-              />
+            {/* Right Images (Collage) */}
+            <div className="relative mt-10 grid w-full max-w-3xl grid-cols-2 gap-3 sm:mx-auto sm:gap-4 lg:mt-12 xl:mx-0 xl:mt-2 xl:block xl:h-[520px] xl:w-7/12 xl:max-w-none">
+              {/* Main Center Image */}
+              <div className="relative col-span-2 aspect-[4/3] overflow-hidden rounded-[2rem] border-4 border-white shadow-2xl transition-transform duration-500 hover:rotate-0 sm:border-6 xl:absolute xl:right-6 xl:top-16 xl:z-20 xl:h-[320px] xl:w-[470px] xl:-rotate-2 xl:border-8 xl:transform-gpu">
+                <Image
+                  src="/assets/View/IMG3.jpg"
+                  alt="Pool View"
+                  fill
+                  priority
+                  sizes="(max-width: 639px) 100vw, (max-width: 1279px) 50vw, 470px"
+                  className="object-cover"
+                />
+              </div>
+              {/* Top Left Smaller Image */}
+              <div className="relative aspect-square overflow-hidden rounded-3xl border-4 border-white shadow-xl transition-transform duration-500 hover:-rotate-6 sm:border-6 xl:absolute xl:left-8 xl:top-4 xl:z-30 xl:h-[205px] xl:w-[205px] xl:-rotate-[11deg] xl:border-8 xl:transform-gpu">
+                <Image
+                  src="/assets/View/Banner.jpg"
+                  alt="Camp View"
+                  fill
+                  priority
+                  sizes="(max-width: 639px) 48vw, (max-width: 1279px) 33vw, 205px"
+                  className="object-cover"
+                />
+              </div>
+              {/* Top Right Image */}
+              <div className="relative aspect-square overflow-hidden rounded-2xl border-4 border-white shadow-xl transition-transform duration-500 hover:rotate-6 sm:border-6 xl:absolute xl:right-14 xl:top-6 xl:z-30 xl:h-[150px] xl:w-[150px] xl:rotate-[9deg] xl:border-[6px] xl:transform-gpu">
+                <Image
+                  src="/assets/GroupRoom/GroupRoom1.1.jpg"
+                  alt="Group Room"
+                  fill
+                  priority
+                  sizes="(max-width: 639px) 48vw, (max-width: 1279px) 33vw, 150px"
+                  className="object-cover"
+                />
+              </div>
+              {/* Bottom Left Image */}
+              <div className="relative aspect-[4/3] overflow-hidden rounded-3xl border-4 border-white shadow-xl transition-transform duration-500 hover:rotate-6 sm:border-6 xl:absolute xl:left-0 xl:bottom-6 xl:z-30 xl:h-[175px] xl:w-[270px] xl:rotate-[2deg] xl:border-8 xl:transform-gpu">
+                <Image
+                  src="/assets/GroundFloor/Ground floor room.jpg"
+                  alt="Room View"
+                  fill
+                  sizes="(max-width: 639px) 48vw, (max-width: 1279px) 33vw, 270px"
+                  className="object-cover"
+                />
+              </div>
+              {/* Bottom Right Image */}
+              <div className="relative aspect-[4/3] overflow-hidden rounded-3xl border-4 border-white shadow-xl transition-transform duration-500 hover:rotate-12 sm:border-6 xl:absolute xl:right-3 xl:bottom-2 xl:z-40 xl:h-[150px] xl:w-[150px] xl:rotate-[7deg] xl:border-8 xl:transform-gpu">
+                <Image
+                  src="/assets/View/Front view.jpg"
+                  alt="Signage"
+                  fill
+                  sizes="(max-width: 639px) 48vw, (max-width: 1279px) 33vw, 150px"
+                  className="object-cover"
+                />
+              </div>
             </div>
-            {/* Top Left Smaller Image */}
-            <div className="relative aspect-square overflow-hidden rounded-3xl border-4 border-white shadow-xl transition-transform duration-500 hover:-rotate-6 sm:border-6 xl:absolute xl:left-8 xl:top-4 xl:z-30 xl:h-[205px] xl:w-[205px] xl:-rotate-[11deg] xl:border-8 xl:transform-gpu">
-              <Image
-                src="/assets/View/Banner.jpg"
-                alt="Camp View"
-                fill
-                priority
-                sizes="(max-width: 639px) 48vw, (max-width: 1279px) 33vw, 205px"
-                className="object-cover"
-              />
-            </div>
-            {/* Top Right Image */}
-            <div className="relative aspect-square overflow-hidden rounded-2xl border-4 border-white shadow-xl transition-transform duration-500 hover:rotate-6 sm:border-6 xl:absolute xl:right-14 xl:top-6 xl:z-30 xl:h-[150px] xl:w-[150px] xl:rotate-[9deg] xl:border-[6px] xl:transform-gpu">
-              <Image
-                src="/assets/GroupRoom/GroupRoom1.1.jpg"
-                alt="Group Room"
-                fill
-                priority
-                sizes="(max-width: 639px) 48vw, (max-width: 1279px) 33vw, 150px"
-                className="object-cover"
-              />
-            </div>
-            {/* Bottom Left Image */}
-            <div className="relative aspect-[4/3] overflow-hidden rounded-3xl border-4 border-white shadow-xl transition-transform duration-500 hover:rotate-6 sm:border-6 xl:absolute xl:left-0 xl:bottom-6 xl:z-30 xl:h-[175px] xl:w-[270px] xl:rotate-[2deg] xl:border-8 xl:transform-gpu">
-              <Image
-                src="/assets/GroundFloor/Ground floor room.jpg"
-                alt="Room View"
-                fill
-                sizes="(max-width: 639px) 48vw, (max-width: 1279px) 33vw, 270px"
-                className="object-cover"
-              />
-            </div>
-            {/* Bottom Right Image */}
-            <div className="relative aspect-[4/3] overflow-hidden rounded-3xl border-4 border-white shadow-xl transition-transform duration-500 hover:rotate-12 sm:border-6 xl:absolute xl:right-3 xl:bottom-2 xl:z-40 xl:h-[150px] xl:w-[150px] xl:rotate-[7deg] xl:border-8 xl:transform-gpu">
-              <Image
-                src="/assets/View/Front view.jpg"
-                alt="Signage"
-                fill
-                sizes="(max-width: 639px) 48vw, (max-width: 1279px) 33vw, 150px"
-                className="object-cover"
-              />
-            </div>
-          </div>
           </div>
         </section>
 
@@ -444,7 +563,7 @@ export default function HomePage() {
             <p className="text-gray-500 max-w-2xl mx-auto mb-10 px-4">
               A quick look at the vibe around Sandyfeet, from bright mornings by the pool to laid-back sunsets.
             </p>
-            
+
             <div className="relative overflow-hidden px-1">
               <div className="pointer-events-none absolute left-0 top-0 z-10 h-full w-16 bg-gradient-to-r from-white/90 to-transparent" />
               <div className="pointer-events-none absolute right-0 top-0 z-10 h-full w-16 bg-gradient-to-l from-white/90 to-transparent" />
@@ -467,89 +586,89 @@ export default function HomePage() {
         </section>
 
         {/* --- FEATURED PACKAGES --- */}
-           <section className="py-16 relative">
-           <div className="max-w-7xl mx-auto px-6">
-             <div className="text-center mb-12 relative">
-                {/* Decorative sandals */}
-                <div className="absolute -left-10 top-0 hidden h-24 w-24 rotate-[15deg] opacity-70 md:block">
-                  <Image src="/assets/Icon/Sadals.png" alt="Sandals icon" fill className="object-contain" />
+        <section className="py-16 relative">
+          <div className="max-w-7xl mx-auto px-6">
+            <div className="text-center mb-12 relative">
+              {/* Decorative sandals */}
+              <div className="absolute -left-10 top-0 hidden h-24 w-24 rotate-[15deg] opacity-70 md:block">
+                <Image src="/assets/Icon/Sadals.png" alt="Sandals icon" fill className="object-contain" />
+              </div>
+
+              <h2 className="font-playfair text-4xl md:text-5xl text-[#0f2824] mb-6">
+                Featured packages
+              </h2>
+              <p className="text-[#3B82F6] max-w-xl mx-auto">
+                Explore our top-picked stays designed for your perfect getaway.
+              </p>
+            </div>
+
+            <div className="grid grid-cols-1 gap-8 md:grid-cols-3">
+              {featuredRoomsLoading ? (
+                Array.from({ length: 3 }).map((_, index) => (
+                  <div key={index} className="rounded-[2rem] border border-gray-50 bg-white p-4 shadow-[0_12px_40px_rgb(0,0,0,0.06)]">
+                    <div className="mb-6 h-[240px] animate-pulse rounded-3xl bg-gray-100" />
+                    <div className="space-y-3 px-2">
+                      <div className="h-3 w-28 animate-pulse rounded bg-gray-100" />
+                      <div className="h-8 w-40 animate-pulse rounded bg-gray-100" />
+                      <div className="flex flex-col gap-4 pt-4 sm:flex-row sm:items-center sm:justify-between">
+                        <div className="h-6 w-24 animate-pulse rounded bg-gray-100" />
+                        <div className="h-10 w-28 animate-pulse rounded-full bg-gray-100" />
+                      </div>
+                    </div>
+                  </div>
+                ))
+              ) : featuredRooms.length > 0 ? (
+                featuredRooms.map((room) => (
+                  <div key={room.slug} className="flex flex-col rounded-[2rem] border border-gray-50 bg-white p-4 shadow-[0_12px_40px_rgb(0,0,0,0.06)] transition-all hover:shadow-[0_12px_40px_rgb(0,0,0,0.1)]">
+                    <div className="relative mb-6 h-[240px] w-full overflow-hidden rounded-3xl">
+                      <Image
+                        src={room.image}
+                        alt={room.type}
+                        fill
+                        sizes="(max-width: 767px) 100vw, (max-width: 1023px) 50vw, 33vw"
+                        className="object-cover"
+                      />
+                      <span className="absolute left-4 top-4 rounded-full bg-white/95 px-3 py-1.5 text-[10px] font-bold uppercase tracking-wider text-gray-800">
+                        {getFeaturedBadge(room.type)}
+                      </span>
+                    </div>
+                    <div className="flex flex-grow flex-col px-2">
+                      <span className="mb-2 text-xs font-bold uppercase tracking-wider text-gray-400">
+                        {getCapacityCopy(room.capacityMin, room.capacityMax)}
+                      </span>
+                      <h3 className="mb-8 font-playfair text-2xl font-bold text-[#0f2824]">
+                        {room.type}
+                      </h3>
+
+                      <div className="mt-auto flex flex-col items-start gap-4 sm:flex-row sm:items-center sm:justify-between">
+                        <span className="text-xl font-bold text-[#3B82F6]">
+                          PHP {room.price.toLocaleString()}
+                        </span>
+                        <Link
+                          href={`/rooms/${encodeURIComponent(room.slug)}`}
+                          className="rounded-full border border-gray-200 px-5 py-2.5 text-sm font-semibold text-gray-600 transition-colors hover:bg-gray-50"
+                        >
+                          View Details
+                        </Link>
+                      </div>
+                    </div>
+                  </div>
+                ))
+              ) : (
+                <div className="col-span-full rounded-[2rem] border border-gray-100 bg-white px-6 py-12 text-center shadow-[0_12px_40px_rgb(0,0,0,0.06)]">
+                  <h3 className="font-playfair text-2xl text-[#0f2824]">No featured rooms available right now</h3>
+                  <p className="mt-3 text-sm text-gray-500">The home page will update automatically once rooms are available.</p>
                 </div>
+              )}
+            </div>
 
-               <h2 className="font-playfair text-4xl md:text-5xl text-[#0f2824] mb-6">
-                 Featured packages
-               </h2>
-               <p className="text-[#3B82F6] max-w-xl mx-auto">
-                 Explore our top-picked stays designed for your perfect getaway.
-               </p>
-             </div>
-
-             <div className="grid grid-cols-1 gap-8 md:grid-cols-3">
-               {featuredRoomsLoading ? (
-                 Array.from({ length: 3 }).map((_, index) => (
-                   <div key={index} className="rounded-[2rem] border border-gray-50 bg-white p-4 shadow-[0_12px_40px_rgb(0,0,0,0.06)]">
-                     <div className="mb-6 h-[240px] animate-pulse rounded-3xl bg-gray-100" />
-                     <div className="space-y-3 px-2">
-                       <div className="h-3 w-28 animate-pulse rounded bg-gray-100" />
-                       <div className="h-8 w-40 animate-pulse rounded bg-gray-100" />
-                       <div className="flex flex-col gap-4 pt-4 sm:flex-row sm:items-center sm:justify-between">
-                         <div className="h-6 w-24 animate-pulse rounded bg-gray-100" />
-                         <div className="h-10 w-28 animate-pulse rounded-full bg-gray-100" />
-                       </div>
-                     </div>
-                   </div>
-                 ))
-               ) : featuredRooms.length > 0 ? (
-                 featuredRooms.map((room) => (
-                   <div key={room.slug} className="flex flex-col rounded-[2rem] border border-gray-50 bg-white p-4 shadow-[0_12px_40px_rgb(0,0,0,0.06)] transition-all hover:shadow-[0_12px_40px_rgb(0,0,0,0.1)]">
-                     <div className="relative mb-6 h-[240px] w-full overflow-hidden rounded-3xl">
-                       <Image
-                         src={room.image}
-                         alt={room.type}
-                         fill
-                         sizes="(max-width: 767px) 100vw, (max-width: 1023px) 50vw, 33vw"
-                         className="object-cover"
-                       />
-                       <span className="absolute left-4 top-4 rounded-full bg-white/95 px-3 py-1.5 text-[10px] font-bold uppercase tracking-wider text-gray-800">
-                         {getFeaturedBadge(room.type)}
-                       </span>
-                     </div>
-                     <div className="flex flex-grow flex-col px-2">
-                       <span className="mb-2 text-xs font-bold uppercase tracking-wider text-gray-400">
-                         {getCapacityCopy(room.capacityMin, room.capacityMax)}
-                       </span>
-                       <h3 className="mb-8 font-playfair text-2xl font-bold text-[#0f2824]">
-                         {room.type}
-                       </h3>
-
-                       <div className="mt-auto flex flex-col items-start gap-4 sm:flex-row sm:items-center sm:justify-between">
-                         <span className="text-xl font-bold text-[#3B82F6]">
-                           PHP {room.price.toLocaleString()}
-                         </span>
-                         <Link
-                           href={`/rooms/${encodeURIComponent(room.slug)}`}
-                           className="rounded-full border border-gray-200 px-5 py-2.5 text-sm font-semibold text-gray-600 transition-colors hover:bg-gray-50"
-                         >
-                           View Details
-                         </Link>
-                       </div>
-                     </div>
-                   </div>
-                 ))
-               ) : (
-                 <div className="col-span-full rounded-[2rem] border border-gray-100 bg-white px-6 py-12 text-center shadow-[0_12px_40px_rgb(0,0,0,0.06)]">
-                   <h3 className="font-playfair text-2xl text-[#0f2824]">No featured rooms available right now</h3>
-                   <p className="mt-3 text-sm text-gray-500">The home page will update automatically once rooms are available.</p>
-                 </div>
-               )}
-             </div>
-
-             {/* Explore All Rooms Button */}
-             <div className="text-center mt-8">
-               <Link href="/rooms" className="inline-block bg-white hover:bg-gray-50 text-gray-800 border border-gray-200 px-8 py-3.5 rounded-full text-sm font-semibold shadow-sm transition-all hover:-translate-y-0.5">
-                 Explore All Rooms
-               </Link>
-             </div>
-           </div>
+            {/* Explore All Rooms Button */}
+            <div className="text-center mt-8">
+              <Link href="/rooms" className="inline-block bg-white hover:bg-gray-50 text-gray-800 border border-gray-200 px-8 py-3.5 rounded-full text-sm font-semibold shadow-sm transition-all hover:-translate-y-0.5">
+                Explore All Rooms
+              </Link>
+            </div>
+          </div>
         </section>
 
         {/* --- WHY GUESTS LOVE IT & STATS --- */}
@@ -583,7 +702,7 @@ export default function HomePage() {
             <div className="flex flex-col gap-6">
               <div className="bg-[#4285F4] rounded-3xl p-8 text-white relative overflow-hidden shadow-lg shadow-blue-500/20">
                 <span className="text-white/80 font-bold text-[10px] tracking-widest uppercase mb-4 block relative z-10">HAPPY GUESTS</span>
-                <div className="font-playfair text-5xl font-bold mb-2 relative z-10">1,200+</div>
+                <div className="font-playfair text-5xl font-bold mb-2 relative z-10">30,000+</div>
                 <p className="text-white/90 text-sm relative z-10">Bookings handled with a smooth flow</p>
                 <div className="absolute -right-8 -bottom-8 w-40 h-40 bg-white/10 rounded-full blur-2xl"></div>
               </div>
@@ -599,66 +718,90 @@ export default function HomePage() {
         </section>
 
         {/* --- TESTIMONIALS --- */}
-           <section className="py-16 bg-white border-t border-gray-50 pb-24">
-           <div className="max-w-7xl mx-auto px-6">
-             <div className="mb-12 text-center">
-               <span className="text-gray-500 font-bold text-[10px] tracking-[0.2em] uppercase mb-4 block">
-                 GUEST STORIES
-               </span>
-               <h2 className="font-playfair text-4xl md:text-5xl text-[#0f2824]">
-                 Testimonials
-               </h2>
-             </div>
+        <section className="py-16 bg-white border-t border-gray-50 pb-24">
+          <div className="max-w-7xl mx-auto px-6">
+            <div className="mb-12 text-center">
+              <span className="text-gray-500 font-bold text-[10px] tracking-[0.2em] uppercase mb-4 block">
+                GUEST STORIES
+              </span>
+              <h2 className="font-playfair text-4xl md:text-5xl text-[#0f2824]">
+                Testimonials
+              </h2>
+            </div>
 
-             <div className="relative">
-                {/* Decorative palm tree */}
-                <div className="absolute -left-12 -top-12 z-0 opacity-80 decoration-clip hidden md:block">
-                 <Image src="/assets/Icon/Coconut tree.png" alt="Palm tree" width={100} height={100} />
-                </div>
+            <div className="relative">
+              {/* Decorative palm tree */}
+              <div className="absolute -left-12 -top-12 z-0 opacity-80 decoration-clip hidden md:block">
+                <Image src="/assets/Icon/Coconut tree.png" alt="Palm tree" width={100} height={100} />
+              </div>
 
-               <div className="relative overflow-hidden px-1">
-                 <div className="pointer-events-none absolute left-0 top-0 z-10 h-full w-12 bg-gradient-to-r from-white to-transparent" />
-                 <div className="pointer-events-none absolute right-0 top-0 z-10 h-full w-12 bg-gradient-to-l from-white to-transparent" />
+              <div className={`relative overflow-hidden px-1 ${publishedFeedbacks.length > 0 && publishedFeedbacks.length <= 2 ? 'flex justify-center' : ''}`}>
+                <div className="pointer-events-none absolute left-0 top-0 z-10 h-full w-12 bg-gradient-to-r from-white to-transparent" />
+                <div className="pointer-events-none absolute right-0 top-0 z-10 h-full w-12 bg-gradient-to-l from-white to-transparent" />
 
-                 <div className="testimonials-track flex w-max gap-6 pb-2">
-                   {[...testimonials, ...testimonials].map((item, index) => (
-                     <div
-                       key={`${item.name}-${index}`}
-                       className="w-[320px] flex-none rounded-3xl border border-gray-100 bg-white p-8 shadow-[0_8px_30px_rgb(0,0,0,0.03)] md:w-[360px]"
-                     >
-                       <div className="mb-6 flex items-center gap-4">
-                         <div className="flex h-12 w-12 items-center justify-center rounded-full bg-blue-50 text-lg font-bold text-[#3B82F6]">
-                           {item.name.charAt(0)}
-                         </div>
-                         <div>
-                           <h4 className="font-bold text-[#0f2824]">{item.name}</h4>
-                           <p className="text-[10px] uppercase tracking-widest text-gray-400">{item.role}</p>
-                         </div>
-                       </div>
-                       <p className="mb-8 text-[15px] leading-relaxed text-gray-600">
-                         &quot;{item.review}&quot;
-                       </p>
-                       <div className="mt-auto flex gap-1">
-                         {[1, 2, 3, 4, 5].map((i) => (
-                           <div key={i} className="h-2.5 w-2.5 rounded-full bg-[#fbc674]" />
-                         ))}
-                       </div>
-                     </div>
-                   ))}
-                 </div>
-               </div>
+                {publishedFeedbacks.length > 0 ? (
+                  <div className="testimonials-track flex w-max gap-6 pb-2">
+                    {(publishedFeedbacks.length <= 2
+                      ? [...publishedFeedbacks, ...publishedFeedbacks, ...publishedFeedbacks, ...publishedFeedbacks]
+                      : [...publishedFeedbacks, ...publishedFeedbacks]
+                    ).map((item, index) => (
+                      <div
+                        key={`${item.id}-${index}`}
+                        className="w-[320px] flex-none rounded-3xl border border-gray-100 bg-white p-8 shadow-[0_8px_30px_rgb(0,0,0,0.03)] md:w-[360px]"
+                      >
+                        <div className="mb-6 flex items-center gap-4">
+                          <div className="flex h-12 w-12 items-center justify-center rounded-full bg-blue-50 text-lg font-bold text-[#3B82F6]">
+                            {(item.guestName || 'Guest').charAt(0)}
+                          </div>
+                          <div>
+                            <h4 className="font-bold text-[#0f2824]">
+                              {item.guestName ? item.guestName.split(' ')[0] : 'Guest'}
+                            </h4>
+                            <div className="mt-1">
+                              <StarRating rating={item.rating} />
+                            </div>
+                          </div>
+                        </div>
+                        <p className="mb-8 text-[15px] leading-relaxed text-gray-600">
+                          &quot;{item.comment}&quot;
+                        </p>
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  // Show empty state centered within the viewable area
+                  <div className="flex items-center justify-center min-h-[400px] w-full">
+                    <div className="text-center">
+                      <div className="flex justify-center mb-4">
+                        <div className="w-16 h-16 rounded-full bg-gray-100 flex items-center justify-center animate-bounce">
+                          <span className="material-icons text-3xl text-gray-400">
+                            rate_review
+                          </span>
+                        </div>
+                      </div>
 
-               <div className="mt-8 flex justify-center">
-                 <button
-                   type="button"
-                   onClick={() => setShowFeedbackModal(true)}
-                   className="rounded-full bg-[#3B82F6] px-6 py-3 text-sm font-semibold text-white shadow-md shadow-blue-500/20 transition-all hover:-translate-y-0.5 hover:bg-[#2563EB]"
-                 >
-                   Add Feedback
-                 </button>
-               </div>
-             </div>
-           </div>
+                      <p className="text-gray-500 text-lg font-semibold">
+                        No testimonials available yet
+                      </p>
+                      <p className="text-gray-400 text-sm mt-2">
+                        Be the first to share your experience!
+                      </p>
+                    </div>
+                  </div>
+                )}
+              </div>
+
+              <div className="mt-8 flex justify-center">
+                <button
+                  type="button"
+                  onClick={() => setShowFeedbackModal(true)}
+                  className="rounded-full bg-[#3B82F6] px-6 py-3 text-sm font-semibold text-white shadow-md shadow-blue-500/20 transition-all hover:-translate-y-0.5 hover:bg-[#2563EB]"
+                >
+                  Add Feedback
+                </button>
+              </div>
+            </div>
+          </div>
         </section>
 
         {showFeedbackModal ? (
@@ -674,7 +817,7 @@ export default function HomePage() {
                 <div>
                   <h3 className="font-playfair text-2xl text-[#0f2824] sm:text-3xl">Add Feedback</h3>
                   <p className="mt-1 text-xs text-gray-500 sm:text-sm">
-                    Completed bookings only. Verify your email and reference number first.
+                    Feedback is only available for started or completed bookings.<br /> Only your first name will be displayed on the website once you submit feedback.
                   </p>
                 </div>
                 <button
@@ -710,20 +853,40 @@ export default function HomePage() {
                       <label htmlFor="feedback-reference" className="mb-2 block text-sm font-semibold text-[#0f2824]">
                         Reference Number
                       </label>
-                      <input
-                        id="feedback-reference"
-                        type="text"
-                        value={feedbackCredentials.reference}
-                        onChange={(event) =>
-                          setFeedbackCredentials((prev) => ({
-                            ...prev,
-                            reference: event.target.value.toUpperCase(),
-                          }))
-                        }
-                        placeholder="BOOK-... or DAYTOUR-..."
-                        required
-                        className="w-full rounded-xl border border-gray-200 px-4 py-3 text-sm uppercase text-gray-700 outline-none transition focus:border-[#3B82F6]"
-                      />
+                      <div className="relative">
+                        <input
+                          id="feedback-reference"
+                          type="text"
+                          value={feedbackCredentials.reference}
+                          onChange={(event) =>
+                            setFeedbackCredentials((prev) => ({
+                              ...prev,
+                              reference: event.target.value.toUpperCase(),
+                            }))
+                          }
+                          placeholder="BOOK-... or DAYTOUR-..."
+                          required
+                          className="w-full rounded-xl border border-gray-200 pl-4 pr-12 py-3 text-sm uppercase text-gray-700 outline-none transition focus:border-[#3B82F6]"
+                        />
+                        <button
+                          type="button"
+                          onClick={async () => {
+                            try {
+                              const text = await navigator.clipboard.readText();
+                              setFeedbackCredentials((prev) => ({
+                                ...prev,
+                                reference: text.trim().toUpperCase(),
+                              }));
+                            } catch (err) {
+                              console.error('Failed to read clipboard:', err);
+                            }
+                          }}
+                          className="absolute right-3 top-1/2 -translate-y-1/2 flex h-8 w-8 items-center justify-center rounded-lg text-gray-400 hover:bg-gray-100 hover:text-[#3B82F6] transition-all"
+                          title="Paste from clipboard"
+                        >
+                          <i className="fas fa-paste text-sm"></i>
+                        </button>
+                      </div>
                     </div>
 
                     <button
@@ -736,9 +899,7 @@ export default function HomePage() {
                   </form>
                 ) : (
                   <form onSubmit={handleFeedbackSubmit} className="space-y-4">
-                    <div className="rounded-xl border border-emerald-100 bg-emerald-50 px-4 py-3 text-sm text-emerald-700">
-                      Verified booking: <strong>{verifiedFeedbackBooking?.bookingId}</strong>
-                    </div>
+
 
                     <div>
                       <label htmlFor="feedback-rating" className="mb-2 block text-sm font-semibold text-[#0f2824]">
@@ -791,13 +952,12 @@ export default function HomePage() {
 
                 {feedbackMessage.text ? (
                   <div
-                    className={`mt-4 rounded-xl border px-4 py-3 text-sm ${
-                      feedbackMessage.type === 'error'
+                    className={`mt-4 rounded-xl border px-4 py-3 text-sm ${feedbackMessage.type === 'error'
                         ? 'border-red-100 bg-red-50 text-red-700'
                         : feedbackMessage.type === 'success'
-                        ? 'border-emerald-100 bg-emerald-50 text-emerald-700'
-                        : 'border-blue-100 bg-blue-50 text-blue-700'
-                    }`}
+                          ? 'border-emerald-100 bg-emerald-50 text-emerald-700'
+                          : 'border-blue-100 bg-blue-50 text-blue-700'
+                      }`}
                   >
                     {feedbackMessage.text}
                   </div>
@@ -818,15 +978,15 @@ export default function HomePage() {
             </h2>
 
             <div className="grid grid-cols-1 md:grid-cols-4 gap-12 relative">
-               {/* Connecting Line */}
-               <div className="hidden md:block absolute top-[44px] left-[15%] right-[15%] h-[1px] bg-gray-200 z-0"></div>
+              {/* Connecting Line */}
+              <div className="hidden md:block absolute top-[44px] left-[15%] right-[15%] h-[1px] bg-gray-200 z-0"></div>
 
               {/* Step 1 */}
               <div className="relative z-10 flex flex-col items-center">
                 <div className="w-24 h-24 bg-white border border-gray-100 rounded-full flex items-center justify-center mb-6 relative">
                   <span className="absolute -top-2 -right-2 w-6 h-6 bg-[#3B82F6] rounded-full text-white text-xs font-bold flex items-center justify-center">1</span>
                   <div className="relative w-12 h-12">
-                     <Image src="/assets/Icon/Coconut tree.png" alt="Pick a Stay" fill className="object-contain" />
+                    <Image src="/assets/Icon/Coconut tree.png" alt="Pick a Stay" fill className="object-contain" />
                   </div>
                 </div>
                 <h4 className="font-bold text-[#0f2824] mb-2">Pick a Stay</h4>
@@ -838,7 +998,7 @@ export default function HomePage() {
                 <div className="w-24 h-24 bg-white border border-gray-100 rounded-full flex items-center justify-center mb-6 relative">
                   <span className="absolute -top-2 -right-2 w-6 h-6 bg-[#3B82F6] rounded-full text-white text-xs font-bold flex items-center justify-center">2</span>
                   <div className="relative w-12 h-12">
-                     <Image src="/assets/Icon/Shell.png" alt="Details" fill className="object-contain" />
+                    <Image src="/assets/Icon/Shell.png" alt="Details" fill className="object-contain" />
                   </div>
                 </div>
                 <h4 className="font-bold text-[#0f2824] mb-2">Details</h4>
@@ -850,7 +1010,7 @@ export default function HomePage() {
                 <div className="w-24 h-24 bg-white border border-gray-100 rounded-full flex items-center justify-center mb-6 relative">
                   <span className="absolute -top-2 -right-2 w-6 h-6 bg-[#3B82F6] rounded-full text-white text-xs font-bold flex items-center justify-center">3</span>
                   <div className="relative w-12 h-12">
-                     <Image src="/assets/Icon/Sand Castle.png" alt="Pay" fill className="object-contain" />
+                    <Image src="/assets/Icon/Sand Castle.png" alt="Pay" fill className="object-contain" />
                   </div>
                 </div>
                 <h4 className="font-bold text-[#0f2824] mb-2">Pay</h4>
@@ -862,7 +1022,7 @@ export default function HomePage() {
                 <div className="w-24 h-24 bg-white border border-gray-100 rounded-full flex items-center justify-center mb-6 relative">
                   <span className="absolute -top-2 -right-2 w-6 h-6 bg-[#3B82F6] rounded-full text-white text-xs font-bold flex items-center justify-center">4</span>
                   <div className="relative w-12 h-12">
-                     <Image src="/assets/Icon/Floters.png" alt="Relax" fill className="object-contain" />
+                    <Image src="/assets/Icon/Floters.png" alt="Relax" fill className="object-contain" />
                   </div>
                 </div>
                 <h4 className="font-bold text-[#0f2824] mb-2">Relax</h4>
@@ -884,7 +1044,7 @@ export default function HomePage() {
               <p className="text-gray-600 mb-8 max-w-sm">
                 Sandyfeet Camp and Event Site is located in Liwliwa, San Felipe, Zambales. Open the map below for direct navigation.
               </p>
-              
+
               <div className="mb-10 text-sm text-gray-500">
                 <p className="font-bold text-gray-800 mb-1">Sandyfeet #Liwliwa Camp and Event Site</p>
                 <p>San Felipe, Zambales, Philippines</p>
@@ -924,7 +1084,7 @@ export default function HomePage() {
         {/* --- FOOTER --- */}
         <footer className="py-14 bg-white border-t border-gray-100">
           <div className="max-w-7xl mx-auto px-6 grid grid-cols-1 md:grid-cols-3 gap-12 mb-10">
-            
+
             {/* Column 1: Brand & Info */}
             <div className="flex flex-col">
               <Link href="/" className="flex items-center gap-3 group mb-6">
@@ -945,7 +1105,7 @@ export default function HomePage() {
               </p>
               <div className="flex gap-4">
                 <a href="#" className="w-10 h-10 rounded-full bg-blue-50 text-[#3B82F6] flex items-center justify-center hover:bg-[#3B82F6] hover:text-white transition-all">
-                   <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 24 24" aria-hidden="true"><path fillRule="evenodd" d="M22 12c0-5.523-4.477-10-10-10S2 6.477 2 12c0 4.991 3.657 9.128 8.438 9.878v-6.987h-2.54V12h2.54V9.797c0-2.506 1.492-3.89 3.777-3.89 1.094 0 2.238.195 2.238.195v2.46h-1.26c-1.243 0-1.63.771-1.63 1.562V12h2.773l-.443 2.89h-2.33v6.988C18.343 21.128 22 16.991 22 12z" clipRule="evenodd"></path></svg>
+                  <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 24 24" aria-hidden="true"><path fillRule="evenodd" d="M22 12c0-5.523-4.477-10-10-10S2 6.477 2 12c0 4.991 3.657 9.128 8.438 9.878v-6.987h-2.54V12h2.54V9.797c0-2.506 1.492-3.89 3.777-3.89 1.094 0 2.238.195 2.238.195v2.46h-1.26c-1.243 0-1.63.771-1.63 1.562V12h2.773l-.443 2.89h-2.33v6.988C18.343 21.128 22 16.991 22 12z" clipRule="evenodd"></path></svg>
                 </a>
               </div>
             </div>
@@ -993,7 +1153,30 @@ export default function HomePage() {
           </div>
         </footer>
 
+        <style>
+          {`
+            .gallery-track {
+              animation: scrollGallery 25s linear infinite;
+            }
+            .testimonials-track {
+              animation: scrollTestimonials 25s linear infinite;
+            }
+            @keyframes scrollGallery {
+              0% { transform: translateX(0); }
+              100% { transform: translateX(-50%); }
+            }
+            @keyframes scrollTestimonials {
+              0% { transform: translateX(0); }
+              100% { transform: translateX(-50%); }
+            }
+            .gallery-track:hover, .testimonials-track:hover {
+              animation-play-state: paused;
+            }
+          `}
+        </style>
+
       </div>
+      <ChatBot />
     </GuestLayout>
   );
 }
