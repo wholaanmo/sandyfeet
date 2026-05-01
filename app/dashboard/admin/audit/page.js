@@ -162,7 +162,7 @@ export default function AuditLogs() {
   };
 
   return (
-    <div className="px-9 py-1 min-h-screen" style={{ backgroundColor: 'var(--color-blue-whites)' }}>
+    <div className="px-4 sm:px-9 py-1 min-h-screen" style={{ backgroundColor: 'var(--color-blue-whites)' }}>
       {/* Notification */}
       {notification.show && (
         <div className={`fixed top-20 right-5 z-50 px-5 py-3 rounded-xl shadow-lg flex items-center gap-3 animate-slideInRight ${notification.type === 'error' ? 'bg-red-50 border-l-4 border-red-500 text-red-700' : 'bg-green-50 border-l-4 border-green-500 text-green-700'
@@ -173,11 +173,11 @@ export default function AuditLogs() {
       )}
 
       {/* Header */}
-      <div className="mb-8 rounded-xl border border-[#7AAAF8]/20 bg-[#7AAAF8]/5 px-5 py-4 shadow-sm">
-        <h1 className="text-3xl font-bold text-[#1E3A8A] font-playfair tracking-tight">
+      <div className="mb-6 sm:mb-8 rounded-xl border border-[#7AAAF8]/20 bg-[#7AAAF8]/5 px-4 sm:px-5 py-4 shadow-sm">
+        <h1 className="text-2xl sm:text-3xl font-bold text-[#1E3A8A] font-playfair tracking-tight mb-1">
           Audit Logs
         </h1>
-        <p className="text-[#4D6FA8] text-sm leading-relaxed mt-1">
+        <p className="text-[#4D6FA8] text-xs sm:text-sm leading-relaxed mt-1">
           Track all actions across the system
         </p>
       </div>
@@ -223,7 +223,7 @@ export default function AuditLogs() {
       ) : (
         <div className="bg-white rounded-2xl shadow-md border border-ocean-light/10 overflow-hidden">
           <div className="overflow-x-auto">
-            <table className="w-full border-collapse">
+            <table className="w-full min-w-[1000px] border-collapse">
               <thead>
                 <tr className="bg-ocean-pale/50 border-b border-ocean-light/20">
                   <th className="px-6 py-4 text-left text-xs font-semibold text-textPrimary uppercase tracking-wider">Timestamp</th>

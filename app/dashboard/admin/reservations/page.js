@@ -27,6 +27,10 @@ export default function AdminReservations() {
   const buttonRefs = useRef({});
   const [idRequestModal, setIdRequestModal] = useState({ show: false, booking: null, message: '', sending: false });
 
+  const [editingNote, setEditingNote] = useState(false);
+const [tempNoteForEdit, setTempNoteForEdit] = useState('');
+const [savingNote, setSavingNote] = useState(false);
+
   // New state for confirmation modals
   const [confirmModal, setConfirmModal] = useState({ show: false, booking: null, type: '', note: '', loading: false });
   const [cancelModal, setCancelModal] = useState({ show: false, booking: null, type: '', note: '', loading: false });
@@ -154,6 +158,7 @@ export default function AdminReservations() {
           validIdType: booking.validIdType,
           validIdUrl: booking.validIdUrl,
           specialRequest: booking.specialRequest,
+          manualDownPayment: booking.manualDownPayment,
           createdAt: booking.createdAt,
           type: 'room',
           isMultiRoomGroup: true,
@@ -303,6 +308,7 @@ export default function AdminReservations() {
       validIdType: group.validIdType,
       validIdUrl: group.validIdUrl,
       specialRequest: group.specialRequest,
+      manualDownPayment: group.manualDownPayment,
       createdAt: group.createdAt,
       type: 'room',
       isMultiRoomGroup: true,
@@ -327,7 +333,8 @@ export default function AdminReservations() {
       manualTotalPrice: group.manualTotalPrice,
       // NEW: aggregated notification flags
       refundNotificationSent: hasRefundNotification,
-      moveDateNotificationSent: hasMoveDateNotification
+      moveDateNotificationSent: hasMoveDateNotification,
+      manualDownPayment: group.manualDownPayment
     });
   }
 
@@ -816,6 +823,45 @@ export default function AdminReservations() {
       setSavingPayment(false);
     }
   };
+
+  const handleSaveNote = async () => {
+  if (!sidebarBooking) return;
+  setSavingNote(true);
+  try {
+    const updateData = {
+      adminNote: tempNoteForEdit.trim() || null,
+      updatedAt: new Date().toISOString()
+    };
+
+    // Handle multi‑room groups
+    if (sidebarBooking.isMultiRoomGroup && sidebarBooking.originalChildBookings) {
+      for (const child of sidebarBooking.originalChildBookings) {
+        const bookingRef = doc(db, 'bookings', child.id);
+        await updateDoc(bookingRef, updateData);
+      }
+      setSidebarBooking(prev => ({ ...prev, adminNote: tempNoteForEdit.trim() || null }));
+    } else {
+      const collectionName = sidebarBooking.type === 'room' ? 'bookings' : 'dayTourBookings';
+      const bookingRef = doc(db, collectionName, sidebarBooking.id);
+      await updateDoc(bookingRef, updateData);
+      setSidebarBooking(prev => ({ ...prev, adminNote: tempNoteForEdit.trim() || null }));
+    }
+
+    await logAdminAction({
+      action: 'Updated Note for Cancelled Booking',
+      module: 'Reservations',
+      details: `Updated note for ${sidebarBooking.isMultiRoomGroup ? 'multi-room' : ''} booking ${sidebarBooking.bookingId}: ${tempNoteForEdit || 'No note'}`
+    });
+
+    showNotification('Note updated successfully.', 'success');
+    setEditingNote(false);
+  } catch (error) {
+    console.error('Error saving note:', error);
+    showNotification('Failed to update note.', 'error');
+  } finally {
+    setSavingNote(false);
+  }
+};
 
   const formatDateTime = (timestamp) => {
     if (!timestamp) return 'N/A';
@@ -1323,15 +1369,17 @@ const isNotificationDisabled = (booking) => {
   };
 
   return (
-    <div className="px-9 py-1 min-h-screen" style={{ backgroundColor: 'var(--color-blue-whites)' }}>
+    <div className="px-4 sm:px-9 py-1 min-h-screen" style={{ backgroundColor: 'var(--color-blue-whites)' }}>
       {/* Header */}
-      <div className="mb-6 rounded-xl border border-[#7AAAF8]/20 bg-[#7AAAF8]/5 px-5 py-4 shadow-sm">
-        <h1 className="text-3xl font-bold text-[#1E3A8A] font-playfair tracking-tight">
-          Reservations Management
-        </h1>
-        <p className="text-[#4D6FA8] text-sm leading-relaxed mt-1">
-          Manage all room and day tour reservations
-        </p>
+      <div className="mb-6 rounded-xl border border-[#7AAAF8]/20 bg-[#7AAAF8]/5 px-4 sm:px-5 py-4 shadow-sm flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+        <div>
+          <h1 className="text-2xl sm:text-3xl font-bold text-[#1E3A8A] font-playfair tracking-tight">
+            Reservations Management
+          </h1>
+          <p className="text-[#4D6FA8] text-xs sm:text-sm leading-relaxed mt-1">
+            Manage all room and day tour reservations
+          </p>
+        </div>
       </div>
 
       {/* Notification */}
@@ -1410,7 +1458,7 @@ const isNotificationDisabled = (booking) => {
       </div>
 
       {/* Status Filters */}
-      <div className="flex gap-2 mb-6 overflow-x-auto pb-1 no-scrollbar justify-center">
+      <div className="flex flex-wrap gap-2 mb-6 justify-center">
         {(activeTab === 'rooms' ? roomStatuses : dayTourStatuses).map((status) => {
           const isActive = statusFilter === status;
           
@@ -1432,13 +1480,13 @@ const isNotificationDisabled = (booking) => {
             <button
               key={status}
               onClick={() => setStatusFilter(status)}
-              className={`group flex items-center gap-2.5 ${activeTab === 'daytour' ? 'px-6' : 'px-4'} py-2.5 rounded-xl text-sm font-bold transition-all duration-300 whitespace-nowrap active:scale-95 ${
+              className={`group flex items-center gap-2.5 ${activeTab === 'daytour' ? 'px-4 sm:px-6' : 'px-3 sm:px-4'} py-2 sm:py-2.5 rounded-xl text-xs sm:text-sm font-bold transition-all duration-300 whitespace-nowrap active:scale-95 ${
                 isActive
                   ? `${config.active} text-white shadow-md`
                   : 'bg-white border border-[#4D8CF5]/10 text-[#4D6FA8] hover:bg-[#4D8CF5]/5 hover:border-[#4D8CF5]/30 hover:text-[#3B78E7]'
               }`}
             >
-              <i className={`fas ${config.icon} ${isActive ? 'text-white' : 'text-[#4D8CF5] opacity-70 group-hover:opacity-100'} transition-all duration-300 text-sm`}></i>
+              <i className={`fas ${config.icon} ${isActive ? 'text-white' : 'text-[#4D8CF5] opacity-70 group-hover:opacity-100'} transition-all duration-300 text-xs sm:text-sm`}></i>
               {config.text}
             </button>
           );
@@ -1455,7 +1503,7 @@ const isNotificationDisabled = (booking) => {
           ) : (
             <div className="bg-white rounded-2xl shadow-md border border-ocean-light/10 overflow-hidden">
               <div className="overflow-x-auto">
-                <table className="w-full min-w-[700px]">
+                <table className="w-full min-w-[1000px]">
                   <thead>
                     <tr className="bg-ocean-pale/50 border-b border-ocean-light/20">
                       <th className="px-4 py-3 text-left text-sm font-semibold text-textPrimary">Booking ID</th>
@@ -1575,7 +1623,7 @@ const isNotificationDisabled = (booking) => {
           ) : (
             <div className="bg-white rounded-2xl shadow-md border border-ocean-light/10 overflow-hidden">
               <div className="overflow-x-auto">
-                <table className="w-full min-w-[650px]">
+                <table className="w-full min-w-[1000px]">
                   <thead>
                     <tr className="bg-ocean-pale/50 border-b border-ocean-light/20">
                       <th className="px-4 py-3 text-left text-sm font-semibold text-textPrimary">Booking ID</th>
@@ -1857,140 +1905,188 @@ const isNotificationDisabled = (booking) => {
               )}
 
               {/* Payment Information */}
-              <div className="bg-white/70 backdrop-blur-md border border-[#4D8CF5]/10 rounded-xl p-4 shadow-sm">
-                <div className="flex justify-between items-center mb-3 pb-2 border-b border-[#4D8CF5]/10">
-                  <h3 className="text-xs font-semibold text-[#1E3A8A] uppercase tracking-wide flex items-center gap-2">
-                    <i className="fas fa-credit-card text-[#4D8CF5]"></i>
-                    Payment Information
-                  </h3>
-                  {(() => {
-                    // Determine if balance is editable based on status and tab
-                    let balanceEditable = false;
-                    if (activeTab === 'rooms') {
-                      // Room: Checked-In, Checked-Out, Completed
-                      balanceEditable = ['check-in', 'check-out', 'completed'].includes(sidebarBooking.status);
-                    } else {
-                      // Day tour: Checked-In, Completed
-                      balanceEditable = ['check-in', 'completed'].includes(sidebarBooking.status);
-                    }
-                    if (balanceEditable && !editingPayment) {
-                      return (
-                        <button
-                          onClick={() => {
-                            // Initialize temp values from current booking data
-                            const currentBalance = sidebarBooking.manualBalance ?? (() => {
-                              const total = Number(sidebarBooking.totalPrice) || 0;
-                              const down = total * 0.5;
-                              if (sidebarBooking.status === 'cancelled' || sidebarBooking.status === 'check-out' || sidebarBooking.status === 'completed') return 0;
-                              if (sidebarBooking.status === 'cancelled-by-guest' && (sidebarBooking.refundNotificationSent || sidebarBooking.moveDateNotificationSent)) return 0;
-                              return down;
-                            })();
-                            setTempBalance(currentBalance.toString());
-                            setTempNote(sidebarBooking.adminNote || '');
-                            setEditingPayment(true);
-                          }}
-                          className="flex items-center gap-1.5 px-3 py-1 rounded-md bg-[#4D8CF5]/10 text-[#4D8CF5] hover:bg-[#4D8CF5] hover:text-white transition-all duration-200 text-[10px] font-bold uppercase tracking-wider shadow-sm active:scale-95"
-                        >
-                          <i className="fas fa-edit"></i> Edit
-                        </button>
-                      );
-                    }
-                    return null;
-                  })()}
-                </div>
+ <div className="bg-white/70 backdrop-blur-md border border-[#4D8CF5]/10 rounded-xl p-4 shadow-sm">
+  <div className="flex justify-between items-center mb-3 pb-2 border-b border-[#4D8CF5]/10">
+    <h3 className="text-xs font-semibold text-[#1E3A8A] uppercase tracking-wide flex items-center gap-2">
+      <i className="fas fa-credit-card text-[#4D8CF5]"></i>
+      Payment Information
+    </h3>
+    {(() => {
+      const isCancelled = ['cancelled', 'cancelled-by-guest'].includes(sidebarBooking.status);
+      // Regular balance editing for check-in/completed (existing logic)
+      let balanceEditable = false;
+      if (activeTab === 'rooms') {
+        balanceEditable = ['check-in', 'check-out', 'completed'].includes(sidebarBooking.status);
+      } else {
+        balanceEditable = ['check-in', 'completed'].includes(sidebarBooking.status);
+      }
 
-                {editingPayment ? (
-                  <div className="space-y-3">
-                    <div>
-                      <label className="block text-xs font-medium text-[#1E3A8A]/70 mb-1">Balance (₱)</label>
-                      <input
-                        type="number"
-                        min="0"
-                        step="0.01"
-                        value={tempBalance}
-                        onChange={(e) => setTempBalance(e.target.value)}
-                        className="w-full px-2 py-1.5 text-sm border border-[#4D8CF5]/30 rounded-lg focus:outline-none focus:border-ocean-mid"
-                      />
-                    </div>
-                    <div>
-                      <label className="block text-xs font-medium text-[#1E3A8A]/70 mb-1">Admin Note</label>
-                      <textarea
-                        value={tempNote}
-                        onChange={(e) => setTempNote(e.target.value)}
-                        rows={2}
-                        placeholder="Add internal note about payment adjustments..."
-                        className="w-full px-2 py-1.5 text-sm border border-[#4D8CF5]/30 rounded-lg focus:outline-none focus:border-ocean-mid resize-none"
-                      />
-                    </div>
-                    <div className="flex gap-2 justify-end">
-                      <button
-                        onClick={() => setEditingPayment(false)}
-                        className="px-3 py-1.5 text-xs rounded-lg border border-gray-300 text-gray-700 hover:bg-gray-100"
-                      >
-                        Cancel
-                      </button>
-                      <button
-                        onClick={handleSavePaymentInfo}
-                        disabled={savingPayment}
-                        className="px-3 py-1.5 text-xs rounded-lg bg-ocean-mid text-white hover:bg-ocean-dark disabled:opacity-50"
-                      >
-                        {savingPayment ? 'Saving...' : 'Save Changes'}
-                      </button>
-                    </div>
-                  </div>
-                ) : (
-                  // Display mode
-                  <div className="space-y-3">
-                    {/* Total Amount: if manualTotalPrice exists, use it; else compute as balance + downPayment */}
-                    {(() => {
-                      const downPayment = calculateDownPayment(sidebarBooking.totalPrice);
-                      const displayedBalance = (sidebarBooking.manualBalance !== undefined && sidebarBooking.manualBalance !== null)
-                        ? sidebarBooking.manualBalance
-                        : (() => {
-                          const total = Number(sidebarBooking.totalPrice) || 0;
-                          const down = total * 0.5;
-                          if (sidebarBooking.status === 'cancelled' || sidebarBooking.status === 'check-out' || sidebarBooking.status === 'completed') return 0;
-                          if (sidebarBooking.status === 'cancelled-by-guest' && (sidebarBooking.refundNotificationSent || sidebarBooking.moveDateNotificationSent)) return 0;
-                          return down;
-                        })();
-                      const totalAmount = (sidebarBooking.manualTotalPrice !== undefined && sidebarBooking.manualTotalPrice !== null)
-                        ? sidebarBooking.manualTotalPrice
-                        : (displayedBalance + downPayment);
-                      return (
-                        <div className="grid grid-cols-2 gap-4">
-                          <div className="bg-blue-50/50 p-3 rounded-lg border border-blue-100/50">
-                            <p className="text-xs text-[#1E3A8A]/70 mb-1">Total Amount</p>
-                            <p className="font-bold text-[#1E3A8A] text-lg">₱{totalAmount.toLocaleString()}</p>
-                          </div>
-                          <div className="bg-blue-50/50 p-3 rounded-lg border border-blue-100/50">
-                            <p className="text-xs text-[#1E3A8A]/70 mb-1">Balance</p>
-                            <p className="font-bold text-[#1E3A8A] text-lg">₱{displayedBalance.toLocaleString()}</p>
-                          </div>
-                          <div className="col-span-2 flex justify-between items-center bg-gray-50/80 p-3 rounded-lg border border-gray-100">
-                            <p className="text-sm">
-                              <span className="text-[#1E3A8A]/70">50% Down:</span>{' '}
-                              <span className="font-bold text-amber-600">₱{downPayment.toLocaleString()}</span>
-                            </p>
-                            <p className="text-sm flex items-center">
-                              <span className="text-[#1E3A8A]/70 mr-2">Status:</span>
-                              <span className={`px-2 py-0.5 rounded-full text-[10px] font-medium ${getStatusColor(sidebarBooking.status)}`}>
-                                {sidebarBooking.status?.charAt(0).toUpperCase() + sidebarBooking.status?.slice(1)}
-                              </span>
-                            </p>
-                          </div>
-                          {sidebarBooking.adminNote && (
-                            <div className="col-span-2 mt-1">
-                              <p className="text-xs p-2 rounded-lg bg-gray-50 border border-gray-100 text-gray-600">
-                                <span className="font-medium">Note:</span> {sidebarBooking.adminNote}
-                              </p>
-                            </div>
-                          )}
-                        </div>
-                      );
-                    })()}
-                  </div>
-                )}
+      if (isCancelled && !editingNote && !editingPayment) {
+        return (
+          <button
+            onClick={() => {
+              setTempNoteForEdit(sidebarBooking.adminNote || '');
+              setEditingNote(true);
+            }}
+            className="flex items-center gap-1.5 px-3 py-1 rounded-md bg-[#4D8CF5]/10 text-[#4D8CF5] hover:bg-[#4D8CF5] hover:text-white transition-all duration-200 text-[10px] font-bold uppercase tracking-wider shadow-sm active:scale-95"
+          >
+            <i className="fas fa-edit"></i> Add Note
+          </button>
+        );
+      }
+      if (balanceEditable && !editingPayment) {
+        return (
+          <button
+            onClick={() => {
+              const currentBalance = sidebarBooking.manualBalance ?? (() => {
+                const total = Number(sidebarBooking.totalPrice) || 0;
+                const down = total * 0.5;
+                if (sidebarBooking.status === 'cancelled' || sidebarBooking.status === 'check-out' || sidebarBooking.status === 'completed') return 0;
+                if (sidebarBooking.status === 'cancelled-by-guest' && (sidebarBooking.refundNotificationSent || sidebarBooking.moveDateNotificationSent)) return 0;
+                return down;
+              })();
+              setTempBalance(currentBalance.toString());
+              setTempNote(sidebarBooking.adminNote || '');
+              setEditingPayment(true);
+            }}
+            className="flex items-center gap-1.5 px-3 py-1 rounded-md bg-[#4D8CF5]/10 text-[#4D8CF5] hover:bg-[#4D8CF5] hover:text-white transition-all duration-200 text-[10px] font-bold uppercase tracking-wider shadow-sm active:scale-95"
+          >
+            <i className="fas fa-edit"></i> Edit Balance
+          </button>
+        );
+      }
+      return null;
+    })()}
+  </div>
+
+  {/* Edit Note Mode (for cancelled bookings) */}
+  {editingNote && (
+    <div className="space-y-3">
+      <div>
+        <label className="block text-xs font-medium text-[#1E3A8A]/70 mb-1">Note:</label>
+        <textarea
+          value={tempNoteForEdit}
+          onChange={(e) => setTempNoteForEdit(e.target.value)}
+          rows={3}
+          placeholder="Add internal note about this booking..."
+          className="w-full px-2 py-1.5 text-sm border border-[#4D8CF5]/30 rounded-lg focus:outline-none focus:border-ocean-mid resize-none"
+        />
+      </div>
+      <div className="flex gap-2 justify-end">
+        <button
+          onClick={() => setEditingNote(false)}
+          className="px-3 py-1.5 text-xs rounded-lg border border-gray-300 text-gray-700 hover:bg-gray-100"
+        >
+          Cancel
+        </button>
+        <button
+          onClick={handleSaveNote}
+          disabled={savingNote}
+          className="px-3 py-1.5 text-xs rounded-lg bg-ocean-mid text-white hover:bg-ocean-dark disabled:opacity-50"
+        >
+          {savingNote ? 'Saving...' : 'Save Note'}
+        </button>
+      </div>
+    </div>
+  )}
+
+  {/* Existing Balance Edit Mode (unchanged) */}
+  {!editingNote && editingPayment && (
+    <div className="space-y-3">
+      <div>
+        <label className="block text-xs font-medium text-[#1E3A8A]/70 mb-1">Balance (₱)</label>
+        <input
+          type="number"
+          min="0"
+          step="0.01"
+          value={tempBalance}
+          onChange={(e) => setTempBalance(e.target.value)}
+          className="w-full px-2 py-1.5 text-sm border border-[#4D8CF5]/30 rounded-lg focus:outline-none focus:border-ocean-mid"
+        />
+      </div>
+      <div>
+        <label className="block text-xs font-medium text-[#1E3A8A]/70 mb-1">Admin Note</label>
+        <textarea
+          value={tempNote}
+          onChange={(e) => setTempNote(e.target.value)}
+          rows={2}
+          placeholder="Add internal note about payment adjustments..."
+          className="w-full px-2 py-1.5 text-sm border border-[#4D8CF5]/30 rounded-lg focus:outline-none focus:border-ocean-mid resize-none"
+        />
+      </div>
+      <div className="flex gap-2 justify-end">
+        <button onClick={() => setEditingPayment(false)} className="px-3 py-1.5 text-xs rounded-lg border border-gray-300 text-gray-700 hover:bg-gray-100">Cancel</button>
+        <button onClick={handleSavePaymentInfo} disabled={savingPayment} className="px-3 py-1.5 text-xs rounded-lg bg-ocean-mid text-white hover:bg-ocean-dark disabled:opacity-50">
+          {savingPayment ? 'Saving...' : 'Save Changes'}
+        </button>
+      </div>
+    </div>
+  )}
+
+  {/* Display Mode */}
+  {!editingNote && !editingPayment && (
+    <div className="space-y-3">
+      {(() => {
+     const isCancelled = ['cancelled', 'cancelled-by-guest'].includes(sidebarBooking.status);
+let downPayment, totalAmount;
+
+if (isCancelled) {
+  // For cancelled: Total = Down Payment (balance = 0)
+  if (sidebarBooking.manualDownPayment !== undefined && sidebarBooking.manualDownPayment !== null) {
+    downPayment = sidebarBooking.manualDownPayment;
+  } else {
+    const originalTotal = Number(sidebarBooking.totalPrice) || 0;
+    downPayment = originalTotal * 0.5;
+  }
+  totalAmount = downPayment; // Total = Down + 0
+} else {
+  // Non-cancelled bookings: use existing logic (balance editing, etc.)
+  if (sidebarBooking.manualTotalPrice !== undefined && sidebarBooking.manualTotalPrice !== null) {
+    totalAmount = sidebarBooking.manualTotalPrice;
+    downPayment = totalAmount * 0.5;
+  } else {
+    const originalTotal = Number(sidebarBooking.totalPrice) || 0;
+    totalAmount = originalTotal;
+    downPayment = originalTotal * 0.5;
+  }
+}
+const balance = isCancelled ? 0 : (sidebarBooking.manualBalance !== undefined ? sidebarBooking.manualBalance : downPayment);
+
+        return (
+          <div className="grid grid-cols-2 gap-4">
+            <div className="bg-blue-50/50 p-3 rounded-lg border border-blue-100/50">
+              <p className="text-xs text-[#1E3A8A]/70 mb-1">Total Amount</p>
+              <p className="font-bold text-[#1E3A8A] text-lg">₱{totalAmount.toLocaleString()}</p>
+            </div>
+            <div className="bg-blue-50/50 p-3 rounded-lg border border-blue-100/50">
+              <p className="text-xs text-[#1E3A8A]/70 mb-1">Balance</p>
+              <p className="font-bold text-[#1E3A8A] text-lg">₱{balance.toLocaleString()}</p>
+            </div>
+            <div className="col-span-2 flex justify-between items-center bg-gray-50/80 p-3 rounded-lg border border-gray-100">
+              <p className="text-sm">
+                <span className="text-[#1E3A8A]/70">50% Down:</span>{' '}
+                <span className="font-bold text-amber-600">₱{downPayment.toLocaleString()}</span>
+              </p>
+              <p className="text-sm flex items-center">
+                <span className="text-[#1E3A8A]/70 mr-2">Status:</span>
+                <span className={`px-2 py-0.5 rounded-full text-[10px] font-medium ${getStatusColor(sidebarBooking.status)}`}>
+                  {sidebarBooking.status?.charAt(0).toUpperCase() + sidebarBooking.status?.slice(1)}
+                </span>
+              </p>
+            </div>
+            {sidebarBooking.adminNote && (
+              <div className="col-span-2 mt-1">
+                <p className="text-xs p-2 rounded-lg bg-gray-50 border border-gray-100 text-gray-600">
+                  <span className="font-medium">Note:</span> {sidebarBooking.adminNote}
+                </p>
               </div>
+            )}
+          </div>
+        );
+      })()}
+    </div>
+  )}
+</div>
 
               {/* Payment Proof Image - Clickable */}
               {(sidebarBooking.paymentProof || sidebarBooking.paymentProofUrl) && (
@@ -2544,7 +2640,7 @@ const isNotificationDisabled = (booking) => {
                 className="w-full px-3 py-2 border border-ocean-light/20 rounded-xl text-sm focus:outline-none focus:border-red-300 focus:ring-2 focus:ring-red-200 transition-all duration-300 bg-white resize-none"
               ></textarea>
               <p className="text-xs text-textSecondary mt-1">
-                This reason will be logged for audit purposes.
+                This reason will be included in the confirmation email sent to the guest.
               </p>
             </div>
 

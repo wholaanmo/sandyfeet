@@ -1,4 +1,4 @@
-// app/dashboard/staff/overview/page.js
+// app/dashboard/admin/overview/page.js
 'use client';
 
 import { useState, useEffect } from 'react';
@@ -7,8 +7,8 @@ import { collection, query, where, onSnapshot, Timestamp, orderBy, limit, doc, g
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 
-export default function StaffOverview() {
-  const [staffName, setStaffName] = useState('Staff');
+export default function AdminOverview() {
+  const [adminName, setAdminName] = useState('Admin');
   const [roomCheckInsToday, setRoomCheckInsToday] = useState(0);
   const [dayTourGuestsToday, setDayTourGuestsToday] = useState(0);
   const [dayTourBookingsToday, setDayTourBookingsToday] = useState(0);
@@ -28,20 +28,20 @@ export default function StaffOverview() {
     return { startOfDay, endOfDay };
   };
 
-  // Fetch staff name from Firebase Auth and Firestore
+  // Fetch admin name from Firebase Auth and Firestore
 useEffect(() => {
-  const fetchStaffName = async () => {
+  const fetchAdminName = async () => {
     const user = auth.currentUser;
     if (user) {
       const userDoc = await getDoc(doc(db, 'users', user.uid));
       if (userDoc.exists() && userDoc.data().name) {
-        setStaffName(userDoc.data().name);
+        setAdminName(userDoc.data().name);
       } else {
-        setStaffName('Staff');
+        setAdminName('Admin');
       }
     }
   };
-  const unsubscribe = auth.onAuthStateChanged(fetchStaffName);
+  const unsubscribe = auth.onAuthStateChanged(fetchAdminName);
   return () => unsubscribe();
 }, []);
 
@@ -74,88 +74,88 @@ useEffect(() => {
   }, []);
 
   // Fetch day tour guests today (bookings with selectedDate = today and status check-in or confirmed)
-  useEffect(() => {
-    const today = new Date();
-    const year = today.getFullYear();
-    const month = String(today.getMonth() + 1).padStart(2, '0');
-    const day = String(today.getDate()).padStart(2, '0');
-    const todayStr = `${year}-${month}-${day}`;
-    
-    const dayTourBookingsRef = collection(db, 'dayTourBookings');
-    const q = query(
-      dayTourBookingsRef,
-      where('selectedDate', '==', todayStr),
-      where('status', '==', 'check-in')
-    );
-    
-    const unsubscribe = onSnapshot(q, (snapshot) => {
-      let totalGuests = 0;
-      snapshot.forEach((doc) => {
-        const booking = doc.data();
-        const seniors = booking.seniors || 0;
-        const adults = booking.adults || 0;
-        const kids = booking.kids || 0;
-        totalGuests += seniors + adults + kids;
-      });
-      setDayTourGuestsToday(totalGuests);
-    }, (error) => {
-      console.error('Error fetching day tour guests:', error);
+useEffect(() => {
+  const today = new Date();
+  const year = today.getFullYear();
+  const month = String(today.getMonth() + 1).padStart(2, '0');
+  const day = String(today.getDate()).padStart(2, '0');
+  const todayStr = `${year}-${month}-${day}`;
+  
+  const dayTourBookingsRef = collection(db, 'dayTourBookings');
+  const q = query(
+    dayTourBookingsRef,
+    where('selectedDate', '==', todayStr),
+    where('status', '==', 'check-in')
+  );
+  
+  const unsubscribe = onSnapshot(q, (snapshot) => {
+    let totalGuests = 0;
+    snapshot.forEach((doc) => {
+      const booking = doc.data();
+      const seniors = booking.seniors || 0;
+      const adults = booking.adults || 0;
+      const kids = booking.kids || 0;
+      totalGuests += seniors + adults + kids;
     });
-    
-    return () => unsubscribe();
-  }, []);
+    setDayTourGuestsToday(totalGuests);
+  }, (error) => {
+    console.error('Error fetching day tour guests:', error);
+  });
+  
+  return () => unsubscribe();
+}, []);
 
   // Fetch day tour bookings today (bookings with selectedDate = today)
-  useEffect(() => {
-    const { startOfDay, endOfDay } = getTodayRange();
-    
-    const dayTourBookingsRef = collection(db, 'dayTourBookings');
-    
-    const unsubscribe = onSnapshot(dayTourBookingsRef, (snapshot) => {
-      let count = 0;
-      snapshot.forEach((doc) => {
-        const booking = doc.data();
-        const createdAt = booking.createdAt?.toDate ? booking.createdAt.toDate() : new Date(booking.createdAt);
-        if (createdAt >= startOfDay && createdAt <= endOfDay) {
-          count++;
-        }
-      });
-      setDayTourBookingsToday(count);
-    }, (error) => {
-      console.error('Error fetching day tour bookings:', error);
+useEffect(() => {
+  const { startOfDay, endOfDay } = getTodayRange();
+  
+  const dayTourBookingsRef = collection(db, 'dayTourBookings');
+  
+  const unsubscribe = onSnapshot(dayTourBookingsRef, (snapshot) => {
+    let count = 0;
+    snapshot.forEach((doc) => {
+      const booking = doc.data();
+      const createdAt = booking.createdAt?.toDate ? booking.createdAt.toDate() : new Date(booking.createdAt);
+      if (createdAt >= startOfDay && createdAt <= endOfDay) {
+        count++;
+      }
     });
-    
-    return () => unsubscribe();
-  }, []);
+    setDayTourBookingsToday(count);
+  }, (error) => {
+    console.error('Error fetching day tour bookings:', error);
+  });
+  
+  return () => unsubscribe();
+}, []);
 
   // Fetch room bookings today - TOTAL NUMBER OF ROOM RESERVATIONS MADE TODAY (by createdAt)
-  useEffect(() => {
-    const { startOfDay, endOfDay } = getTodayRange();
+useEffect(() => {
+  const { startOfDay, endOfDay } = getTodayRange();
+  
+  const bookingsRef = collection(db, 'bookings');
+  
+  const unsubscribe = onSnapshot(bookingsRef, (snapshot) => {
+    const uniqueBookingIds = new Set();
     
-    const bookingsRef = collection(db, 'bookings');
-    
-    const unsubscribe = onSnapshot(bookingsRef, (snapshot) => {
-      const uniqueBookingIds = new Set();
-      
-      snapshot.forEach((doc) => {
-        const booking = doc.data();
-        if (booking.type === 'room') {
-          const createdAt = booking.createdAt?.toDate ? booking.createdAt.toDate() : new Date(booking.createdAt);
-          if (createdAt >= startOfDay && createdAt <= endOfDay) {
-            // For multi-room bookings, use parentBookingId; otherwise use bookingId
-            const bookingKey = booking.parentBookingId || booking.bookingId;
-            uniqueBookingIds.add(bookingKey);
-          }
+    snapshot.forEach((doc) => {
+      const booking = doc.data();
+      if (booking.type === 'room') {
+        const createdAt = booking.createdAt?.toDate ? booking.createdAt.toDate() : new Date(booking.createdAt);
+        if (createdAt >= startOfDay && createdAt <= endOfDay) {
+          // For multi-room bookings, use parentBookingId; otherwise use bookingId
+          const bookingKey = booking.parentBookingId || booking.bookingId;
+          uniqueBookingIds.add(bookingKey);
         }
-      });
-      
-      setRoomBookingsToday(uniqueBookingIds.size);
-    }, (error) => {
-      console.error('Error fetching room bookings:', error);
+      }
     });
     
-    return () => unsubscribe();
-  }, []);
+    setRoomBookingsToday(uniqueBookingIds.size);
+  }, (error) => {
+    console.error('Error fetching room bookings:', error);
+  });
+  
+  return () => unsubscribe();
+}, []);
 
   // Function to get booking display type (matches reservations page logic)
   const getBookingDisplayType = (booking) => {
@@ -329,7 +329,7 @@ useEffect(() => {
 
   if (loading) {
     return (
-      <div className="px-9 py-1 min-h-screen" style={{ backgroundColor: 'var(--color-blue-whites)' }}>
+      <div className="px-4 sm:px-9 py-1 min-h-screen" style={{ backgroundColor: 'var(--color-blue-whites)' }}>
         <div className="flex justify-center items-center h-64">
           <i className="fas fa-spinner fa-spin text-3xl text-ocean-light"></i>
         </div>
@@ -338,104 +338,105 @@ useEffect(() => {
   }
 
   return (
-    <div className="px-9 py-1 min-h-screen" style={{ backgroundColor: 'var(--color-blue-whites)' }}>
+    <div className="px-4 sm:px-9 py-1 min-h-screen" style={{ backgroundColor: 'var(--color-blue-whites)' }}>
       {/* Header Section */}
-      <div className="mb-8 rounded-xl border border-[#7AAAF8]/20 bg-[#7AAAF8]/5 px-5 py-4 shadow-sm">
+      <div className="mb-8 rounded-xl border border-[#7AAAF8]/20 bg-[#7AAAF8]/5 px-4 sm:px-5 py-4 shadow-sm">
         <h1 className="text-3xl font-bold text-[#1E3A8A] font-playfair tracking-tight">
           Dashboard Overview
         </h1>
         <p className="text-[#4D6FA8] text-sm leading-relaxed mt-1">
-          Welcome back, {staffName}! Here's what's happening at SandyFeet today.
+          Welcome back, {adminName}! Here's what's happening at SandyFeet today.
         </p>
       </div>
 
       {/* Summary Containers - 4 in a row with improved UI */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5 mb-8">
-        {/* Container 1: Room Check-ins Today */}
-        <div className="group bg-gradient-to-br from-white to-[#F8FCFF] rounded-2xl shadow-lg border border-[#4D8CF5]/15 overflow-hidden hover:shadow-xl hover:border-[#4D8CF5]/30 transition-all duration-300">
-          <div className="p-5 flex flex-col h-full">
-            <div className="flex items-center justify-between mb-3">
-              <div className="w-11 h-11 rounded-xl bg-gradient-to-br from-[#4D8CF5]/20 to-[#4D8CF5]/5 flex items-center justify-center group-hover:scale-105 transition-transform duration-300">
-                <i className="fas fa-bed text-[#4D8CF5] text-xl"></i>
-              </div>
-              <span className="text-4xl font-extrabold text-[#1E3A8A] tracking-tight">{roomCheckInsToday}</span>
-            </div>
-
-            <div className="mt-auto">
-              <h3 className="text-sm font-bold text-[#1E3A8A] mb-1">Room Check-ins Today</h3>
-              <div className="mt-3 h-1 w-full bg-[#4D8CF5]/10 rounded-full overflow-hidden">
-                <div className="h-full w-full bg-gradient-to-r from-[#4D8CF5] to-[#7AAAF8] rounded-full transform origin-left transition-transform duration-500" style={{ transform: `scaleX(${Math.min(roomCheckInsToday / 10, 1)})` }}></div>
-              </div>
-            </div>
-          </div>
+<div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5 mb-8">
+  {/* Container 1: Room Check-ins Today */}
+  <div className="group bg-gradient-to-br from-white to-[#F8FCFF] rounded-2xl shadow-lg border border-[#4D8CF5]/15 overflow-hidden hover:shadow-xl hover:border-[#4D8CF5]/30 transition-all duration-300">
+    <div className="p-5 flex flex-col h-full">
+      <div className="flex items-center justify-between mb-3">
+        <div className="w-11 h-11 rounded-xl bg-gradient-to-br from-[#4D8CF5]/20 to-[#4D8CF5]/5 flex items-center justify-center group-hover:scale-105 transition-transform duration-300">
+          <i className="fas fa-bed text-[#4D8CF5] text-xl"></i>
         </div>
+        <span className="text-4xl font-extrabold text-[#1E3A8A] tracking-tight">{roomCheckInsToday}</span>
+      </div>
 
-        {/* Container 2: Day Tour Guests Today */}
-        <div className="group bg-gradient-to-br from-white to-[#F8FCFF] rounded-2xl shadow-lg border border-[#F59E0B]/15 overflow-hidden hover:shadow-xl hover:border-[#F59E0B]/30 transition-all duration-300">
-          <div className="p-5 flex flex-col h-full">
-            <div className="flex items-center justify-between mb-3">
-              <div className="w-11 h-11 rounded-xl bg-gradient-to-br from-[#F59E0B]/20 to-[#F59E0B]/5 flex items-center justify-center group-hover:scale-105 transition-transform duration-300">
-                <i className="fas fa-users text-[#F59E0B] text-xl"></i>
-              </div>
-              <span className="text-4xl font-extrabold text-[#1E3A8A] tracking-tight">{dayTourGuestsToday}</span>
-            </div>
-
-            <div className="mt-auto">
-              <h3 className="text-sm font-bold text-[#1E3A8A] mb-1">Day Tour Guests Today</h3>
-              <div className="mt-3 h-1 w-full bg-[#F59E0B]/10 rounded-full overflow-hidden">
-                <div
-                  className="h-full w-full bg-gradient-to-r from-[#F59E0B] to-[#FBBF24] rounded-full transform origin-left transition-transform duration-500"
-                  style={{ transform: `scaleX(${Math.min(dayTourGuestsToday / 30, 1)})` }}
-                ></div>
-              </div>
-            </div>
-          </div>
-        </div>
-
-        {/* Container 3: Day Tour Bookings Today */}
-        <div className="group bg-gradient-to-br from-white to-[#F8FCFF] rounded-2xl shadow-lg border border-[#10B981]/15 overflow-hidden hover:shadow-xl hover:border-[#10B981]/30 transition-all duration-300">
-          <div className="p-5 flex flex-col h-full">
-            <div className="flex items-center justify-between mb-3">
-              <div className="w-11 h-11 rounded-xl bg-gradient-to-br from-[#10B981]/20 to-[#10B981]/5 flex items-center justify-center group-hover:scale-105 transition-transform duration-300">
-                <i className="fas fa-sun text-[#10B981] text-xl"></i>
-              </div>
-              <span className="text-4xl font-extrabold text-[#1E3A8A] tracking-tight">{dayTourBookingsToday}</span>
-            </div>
-
-            <div className="mt-auto">
-              <h3 className="text-sm font-bold text-[#1E3A8A] mb-1">Day Tour Bookings Today</h3>
-              <div className="mt-3 h-1 w-full bg-[#10B981]/10 rounded-full overflow-hidden">
-                <div
-                  className="h-full w-full bg-gradient-to-r from-[#10B981] to-[#34D399] rounded-full transform origin-left transition-transform duration-500"
-                  style={{ transform: `scaleX(${Math.min(dayTourBookingsToday / 15, 1)})` }}
-                ></div>
-              </div>
-            </div>
-          </div>
-        </div>
-
-        {/* Container 4: Room Bookings Today - Total reservations made today */}
-        <div className="group bg-gradient-to-br from-white to-[#F8FCFF] rounded-2xl shadow-lg border border-[#8B5CF6]/15 overflow-hidden hover:shadow-xl hover:border-[#8B5CF6]/30 transition-all duration-300">
-          <div className="p-5 flex flex-col h-full">
-            <div className="flex items-center justify-between mb-3">
-              <div className="w-11 h-11 rounded-xl bg-gradient-to-br from-[#8B5CF6]/20 to-[#8B5CF6]/5 flex items-center justify-center group-hover:scale-105 transition-transform duration-300">
-                <i className="fas fa-calendar-plus text-[#8B5CF6] text-xl"></i>
-              </div>
-              <span className="text-4xl font-extrabold text-[#1E3A8A] tracking-tight">{roomBookingsToday}</span>
-            </div>
-
-            <div className="mt-auto">
-              <h3 className="text-sm font-bold text-[#1E3A8A] mb-1">Room Bookings Today</h3>
-              <div className="mt-3 h-1 w-full bg-[#8B5CF6]/10 rounded-full overflow-hidden">
-                <div
-                  className="h-full w-full bg-gradient-to-r from-[#8B5CF6] to-[#A78BFA] rounded-full transform origin-left transition-transform duration-500"
-                  style={{ transform: `scaleX(${Math.min(roomBookingsToday / 15, 1)})` }}
-                ></div>
-              </div>
-            </div>
-          </div>
+      <div className="mt-auto">
+        <h3 className="text-sm font-bold text-[#1E3A8A] mb-1">Room Check-ins Today</h3>
+        <div className="mt-3 h-1 w-full bg-[#4D8CF5]/10 rounded-full overflow-hidden">
+          <div className="h-full w-full bg-gradient-to-r from-[#4D8CF5] to-[#7AAAF8] rounded-full transform origin-left transition-transform duration-500" style={{ transform: `scaleX(${Math.min(roomCheckInsToday / 10, 1)})` }}></div>
         </div>
       </div>
+    </div>
+  </div>
+
+
+        {/* Container 2: Day Tour Guests Today */}
+  <div className="group bg-gradient-to-br from-white to-[#F8FCFF] rounded-2xl shadow-lg border border-[#F59E0B]/15 overflow-hidden hover:shadow-xl hover:border-[#F59E0B]/30 transition-all duration-300">
+  <div className="p-5 flex flex-col h-full">
+    <div className="flex items-center justify-between mb-3">
+      <div className="w-11 h-11 rounded-xl bg-gradient-to-br from-[#F59E0B]/20 to-[#F59E0B]/5 flex items-center justify-center group-hover:scale-105 transition-transform duration-300">
+        <i className="fas fa-users text-[#F59E0B] text-xl"></i>
+      </div>
+      <span className="text-4xl font-extrabold text-[#1E3A8A] tracking-tight">{dayTourGuestsToday}</span>
+    </div>
+
+    <div className="mt-auto">
+      <h3 className="text-sm font-bold text-[#1E3A8A] mb-1">Day Tour Guests Today</h3>
+      <div className="mt-3 h-1 w-full bg-[#F59E0B]/10 rounded-full overflow-hidden">
+        <div
+          className="h-full w-full bg-gradient-to-r from-[#F59E0B] to-[#FBBF24] rounded-full transform origin-left transition-transform duration-500"
+          style={{ transform: `scaleX(${Math.min(dayTourGuestsToday / 30, 1)})` }}
+        ></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+        {/* Container 3: Day Tour Bookings Today */}
+ <div className="group bg-gradient-to-br from-white to-[#F8FCFF] rounded-2xl shadow-lg border border-[#10B981]/15 overflow-hidden hover:shadow-xl hover:border-[#10B981]/30 transition-all duration-300">
+  <div className="p-5 flex flex-col h-full">
+    <div className="flex items-center justify-between mb-3">
+      <div className="w-11 h-11 rounded-xl bg-gradient-to-br from-[#10B981]/20 to-[#10B981]/5 flex items-center justify-center group-hover:scale-105 transition-transform duration-300">
+        <i className="fas fa-sun text-[#10B981] text-xl"></i>
+      </div>
+      <span className="text-4xl font-extrabold text-[#1E3A8A] tracking-tight">{dayTourBookingsToday}</span>
+    </div>
+
+    <div className="mt-auto">
+      <h3 className="text-sm font-bold text-[#1E3A8A] mb-1">Day Tour Bookings Today</h3>
+      <div className="mt-3 h-1 w-full bg-[#10B981]/10 rounded-full overflow-hidden">
+        <div
+          className="h-full w-full bg-gradient-to-r from-[#10B981] to-[#34D399] rounded-full transform origin-left transition-transform duration-500"
+          style={{ transform: `scaleX(${Math.min(dayTourBookingsToday / 15, 1)})` }}
+        ></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+        {/* Container 4: Room Bookings Today - Total reservations made today */}
+   <div className="group bg-gradient-to-br from-white to-[#F8FCFF] rounded-2xl shadow-lg border border-[#8B5CF6]/15 overflow-hidden hover:shadow-xl hover:border-[#8B5CF6]/30 transition-all duration-300">
+  <div className="p-5 flex flex-col h-full">
+    <div className="flex items-center justify-between mb-3">
+      <div className="w-11 h-11 rounded-xl bg-gradient-to-br from-[#8B5CF6]/20 to-[#8B5CF6]/5 flex items-center justify-center group-hover:scale-105 transition-transform duration-300">
+        <i className="fas fa-calendar-plus text-[#8B5CF6] text-xl"></i>
+      </div>
+      <span className="text-4xl font-extrabold text-[#1E3A8A] tracking-tight">{roomBookingsToday}</span>
+    </div>
+
+    <div className="mt-auto">
+      <h3 className="text-sm font-bold text-[#1E3A8A] mb-1">Room Bookings Today</h3>
+      <div className="mt-3 h-1 w-full bg-[#8B5CF6]/10 rounded-full overflow-hidden">
+        <div
+          className="h-full w-full bg-gradient-to-r from-[#8B5CF6] to-[#A78BFA] rounded-full transform origin-left transition-transform duration-500"
+          style={{ transform: `scaleX(${Math.min(roomBookingsToday / 15, 1)})` }}
+        ></div>
+      </div>
+    </div>
+  </div>
+</div>
+</div>
 
       {/* Recent Reservations Section - Two columns side by side */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
@@ -453,8 +454,8 @@ useEffect(() => {
                 Latest {recentPendingRoomBookings.length} pending room booking requests
               </p>
             </div>
- <Link 
-  href="/dashboard/staff/reservations"
+<Link 
+  href="/dashboard/admin/reservations"
   className="px-3 py-1.5 rounded-lg border border-[#7AAAF8]/30 bg-white/70 backdrop-blur-md text-[#1E3A8A] text-xs font-medium hover:bg-[#7AAAF8] hover:text-white transition-all duration-200 flex items-center gap-2 shadow-sm hover:shadow"
 >
   View All
@@ -533,8 +534,8 @@ useEffect(() => {
                 Latest {recentPendingDayTours.length} pending day tour booking requests
               </p>
             </div>
-<Link 
-  href="/dashboard/staff/reservations"
+ <Link 
+  href="/dashboard/admin/reservations"
   className="px-3 py-1.5 rounded-lg border border-[#7AAAF8]/30 bg-white/70 backdrop-blur-md text-[#1E3A8A] text-xs font-medium hover:bg-[#7AAAF8] hover:text-white transition-all duration-200 flex items-center gap-2 shadow-sm hover:shadow"
 >
   View All

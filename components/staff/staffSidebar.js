@@ -91,8 +91,8 @@ export default function StaffSidebar({ isOpen, onToggle, isDesktop }) {
 
   const getSidebarClasses = () => {
     if (!isDesktop) {
-      // Mobile: 40% width, slide from left, 3s transition
-      return `fixed left-0 h-screen z-40 transition-all duration-[3000ms] ease-in-out flex flex-col shadow-xl overflow-x-visible ${
+      // Mobile: 280px width, slide from left, smooth 300ms transition
+      return `fixed left-0 h-screen z-40 transform transition-transform duration-300 ease-in-out flex flex-col shadow-xl overflow-x-visible ${
         isOpen ? 'translate-x-0' : '-translate-x-full'
       }`;
     }
@@ -107,9 +107,9 @@ export default function StaffSidebar({ isOpen, onToggle, isDesktop }) {
       return {
         backgroundColor: '#FFFFFF',
         boxShadow: '2px 0 20px rgba(0, 0, 0, 0.06)',
-        transition: 'transform 3s cubic-bezier(0.4, 0, 0.2, 1)',
         top: '60px',
-        width: '40%',
+        width: '280px', // Standard mobile sidebar width
+        maxWidth: '85%',
         height: 'calc(100vh - 60px)'
       };
     }
@@ -123,16 +123,21 @@ export default function StaffSidebar({ isOpen, onToggle, isDesktop }) {
   return (
     <>
       {/* Mobile Overlay - covers the remaining 60% of the screen */}
-      {isOpen && !isDesktop && (
+      {!isDesktop && (
         <div
-          className="fixed inset-0 bg-black/50 backdrop-blur-sm z-30 transition-opacity duration-300"
+          className={`fixed inset-0 bg-black/50 backdrop-blur-sm z-30 transition-opacity duration-300 ${
+            isOpen ? 'opacity-100 pointer-events-auto' : 'opacity-0 pointer-events-none'
+          }`}
           style={{ top: '60px' }}
           onClick={() => onToggle(false)}
         />
       )}
-      {isOpen && isDesktop && (
+      {/* Desktop Overlay */}
+      {isDesktop && (
         <div
-          className="fixed inset-0 bg-black/50 backdrop-blur-sm z-30 lg:hidden transition-opacity duration-300"
+          className={`fixed inset-0 bg-black/50 backdrop-blur-sm z-30 lg:hidden transition-opacity duration-300 ${
+            isOpen ? 'opacity-100 pointer-events-auto' : 'opacity-0 pointer-events-none'
+          }`}
           onClick={() => onToggle(false)}
         />
       )}

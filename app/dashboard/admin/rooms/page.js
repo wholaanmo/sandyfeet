@@ -620,9 +620,9 @@ export default function AdminRooms() {
   const totalMaintenanceRooms = rooms.reduce((sum, room) => sum + (room.maintenanceRooms || 0), 0);
   
   return (
-    <div className="px-9 py-1 min-h-screen" style={{ backgroundColor: 'var(--color-blue-whites)' }}>
+    <div className="px-4 sm:px-9 py-1 min-h-screen" style={{ backgroundColor: 'var(--color-blue-whites)' }}>
       {/* Statistics Cards */}
-   <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-6">
+   <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6 mb-6">
   
   {/* Total Units */}
   <div className="bg-gradient-to-br from-white to-ocean-light/5 rounded-2xl shadow-md border border-ocean-light/10 p-5 hover:shadow-xl hover:-translate-y-0.5 transition-all duration-300">
@@ -701,10 +701,10 @@ export default function AdminRooms() {
 )}
 
 {/* Filters and Search */}
-<div className="flex flex-wrap gap-4 mb-6 items-center">
+<div className="flex flex-col sm:flex-row gap-4 mb-6 items-start sm:items-center">
   
   {/* Search */}
-  <div className="flex-1 min-w-[250px]">
+  <div className="w-full sm:flex-1 min-w-[250px]">
     <div className="relative w-full group">
       <i className="fas fa-search absolute left-3 top-1/2 -translate-y-1/2 text-[#4D8CF5] text-sm transition-all duration-300 group-focus-within:text-[#3B78E7]"></i>
 
@@ -719,11 +719,11 @@ export default function AdminRooms() {
   </div>
 
   {/* Status Filter */}
-  <div className="relative">
+  <div className="relative w-full sm:w-auto">
     <select
       value={filterStatus}
       onChange={(e) => setFilterStatus(e.target.value)}
-      className="px-4 py-2.5 pr-10 border-2 border-[#4D8CF5]/20 rounded-xl text-sm text-textPrimary bg-white shadow-sm focus:outline-none focus:border-[#4D8CF5] focus:ring-2 focus:ring-[#4D8CF5]/20 hover:border-[#4D8CF5]/70 transition-all duration-200 appearance-none cursor-pointer"
+      className="w-full sm:w-auto px-4 py-2.5 pr-10 border-2 border-[#4D8CF5]/20 rounded-xl text-sm text-textPrimary bg-white shadow-sm focus:outline-none focus:border-[#4D8CF5] focus:ring-2 focus:ring-[#4D8CF5]/20 hover:border-[#4D8CF5]/70 transition-all duration-200 appearance-none cursor-pointer"
     >
       <option value="all">All Status</option>
       <option value="available">Available</option>
@@ -738,10 +738,10 @@ export default function AdminRooms() {
   </div>
 
   {/* Add Button */}
-<div className="ml-auto">
+<div className="w-full sm:w-auto sm:ml-auto">
   <button
     onClick={openAddModal}
-    className="flex items-center gap-2 px-5 h-[44px] rounded-xl font-medium border-2 border-[#7AAAF8]/30 bg-white/70 backdrop-blur-md text-[#1E3A8A] shadow-sm hover:bg-[#7AAAF8] hover:text-white hover:border-[#7AAAF8] hover:shadow-md hover:-translate-y-0.5 transition-all duration-200"
+    className="w-full sm:w-auto flex items-center justify-center gap-2 px-5 h-[44px] rounded-xl font-medium border-2 border-[#7AAAF8]/30 bg-white/70 backdrop-blur-md text-[#1E3A8A] shadow-sm hover:bg-[#7AAAF8] hover:text-white hover:border-[#7AAAF8] hover:shadow-md hover:-translate-y-0.5 transition-all duration-200"
   >
     <i className="fas fa-plus text-sm"></i>
     Add New Room
@@ -757,7 +757,7 @@ export default function AdminRooms() {
       ) : (
         <div className="bg-white rounded-2xl shadow-md border border-ocean-light/10 overflow-hidden">
           <div className="overflow-x-auto">
-            <table className="w-full">
+            <table className="w-full min-w-[800px]">
               <thead>
                 <tr className="bg-ocean-pale/50 border-b border-ocean-light/20">
                   <th className="px-4 py-3 text-left text-sm font-semibold text-textPrimary">Room Type</th>

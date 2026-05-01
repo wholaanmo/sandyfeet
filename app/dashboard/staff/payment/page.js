@@ -365,13 +365,13 @@ export default function StaffPaymentPage() {
   }
 
   return (
-    <div className="px-9 py-1 min-h-screen" style={{ backgroundColor: 'var(--color-blue-whites)' }}>
+    <div className="px-4 sm:px-9 py-1 min-h-screen" style={{ backgroundColor: 'var(--color-blue-whites)' }}>
       {/* Header */}
-<div className="mb-8 rounded-xl border border-[#7AAAF8]/20 bg-[#7AAAF8]/5 px-5 py-4 shadow-sm">
-  <h1 className="text-3xl font-bold text-[#1E3A8A] font-playfair tracking-tight">
+<div className="mb-6 sm:mb-8 rounded-xl border border-[#7AAAF8]/20 bg-[#7AAAF8]/5 px-4 sm:px-5 py-4 shadow-sm">
+  <h1 className="text-2xl sm:text-3xl font-bold text-[#1E3A8A] font-playfair tracking-tight">
     Payment Settings
   </h1>
-  <p className="text-[#4D6FA8] text-sm leading-relaxed mt-1">
+  <p className="text-[#4D6FA8] text-xs sm:text-sm leading-relaxed mt-1">
     View payment settings and provide bank transfer information for guest payment requests.
   </p>
 </div>
@@ -597,10 +597,10 @@ export default function StaffPaymentPage() {
       {/* Bank Transfer Requests Tab Content - Staff CAN provide bank details */}
      {activeMainTab === 'bankTransferRequests' && (
   <div className="bg-white rounded-2xl shadow-lg border border-[#4D8CF5]/10 overflow-hidden">
-    {/* Tabs for Room vs Day Tour - IMPROVED ACTIVE STATE */}
-    <div className="relative flex items-center justify-between border-b border-[#4D8CF5]/20 px-6 bg-gradient-to-r from-white to-[#F8FBFF]">
+    {/* Tabs for Room vs Day Tour */}
+    <div className="relative flex items-center justify-between border-b border-[#4D8CF5]/20 px-4 sm:px-6 bg-gradient-to-r from-white to-[#F8FBFF] overflow-x-auto scrollbar-hide">
       <div
-        className="relative flex justify-between items-center w-full gap-8"
+        className="relative flex justify-between items-center w-full gap-4 sm:gap-8 min-w-[350px]"
         ref={requestsTabsContainerRef}
       >
         {/* Sliding background */}
@@ -649,7 +649,7 @@ export default function StaffPaymentPage() {
       </div>
     </div>
 
-<div className="px-6 pt-5 pb-3">
+<div className="px-4 sm:px-6 pt-5 pb-3">
   <div className="relative w-full group">
     <i className="fas fa-search absolute left-4 top-1/2 -translate-y-1/2 text-[#4D8CF5] text-sm transition-all duration-300 group-focus-within:text-[#3B78E7]"></i>
     
@@ -657,13 +657,13 @@ export default function StaffPaymentPage() {
       type="text"
       value={requestsSearchTerm}
       onChange={(e) => setRequestsSearchTerm(e.target.value)}
-      placeholder="Search by name, email, bank account, or date"
+      placeholder="Search name, email, bank, or date"
       className="w-full pl-11 pr-4 py-3 border-2 border-[#4D8CF5]/20 rounded-xl text-sm focus:outline-none focus:border-[#4D8CF5] focus:ring-2 focus:ring-[#4D8CF5]/20 transition-all duration-300 bg-white shadow-sm hover:shadow-md"
     />
   </div>
 </div>
           
-          <div className="p-6 pt-2">
+          <div className="p-4 sm:p-6 pt-2">
             {/* Room Bookings Requests */}
             {activeRequestsTab === 'room' && (
               <>

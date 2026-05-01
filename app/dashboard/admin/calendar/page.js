@@ -544,7 +544,7 @@ export default function AdminCalendar() {
     : true;
 
   return (
-    <div className="p-8 min-h-screen" style={{ backgroundColor: 'var(--color-blue-whites)' }}>
+    <div className="px-4 sm:px-9 py-1 min-h-screen pb-12" style={{ backgroundColor: 'var(--color-blue-whites)' }}>
       {notification.show && (
         <div className={`fixed top-20 right-5 z-50 px-5 py-3 rounded-xl shadow-lg flex items-center gap-3 animate-slideInRight ${
           notification.type === 'error' ? 'bg-red-50 border-l-4 border-red-500 text-red-700' : 'bg-green-50 border-l-4 border-green-500 text-green-700'
@@ -560,11 +560,11 @@ export default function AdminCalendar() {
         <div className="xl:w-[60%]">
           <div className="bg-white rounded-2xl shadow-lg overflow-hidden h-full">
            <div className="bg-[#4D8CF5]/10 px-6 py-4 border-b border-[#4D8CF5]/20">
-  <h2 className="text-xl font-bold text-[#1E3A8A] flex items-center gap-2">
+  <h2 className="text-lg sm:text-xl font-bold text-[#1E3A8A] flex items-center gap-2">
     Availability Calendar
   </h2>
 
-  <p className="text-[#1E3A8A]/70 text-sm mt-1">
+  <p className="text-[#1E3A8A]/70 text-xs sm:text-sm mt-1">
     {roomDetails?.type || selectedRoomId} –{" "}
     <span>
       {totalRoomUnits} unit(s)

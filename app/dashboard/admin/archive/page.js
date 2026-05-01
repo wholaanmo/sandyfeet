@@ -1021,17 +1021,15 @@ className="w-7 h-7 rounded-md bg-ocean-ice text-neutral hover:bg-ocean-light/20 
   };
 
   return (
-    <div className="px-9 py-1 min-h-screen" style={{ backgroundColor: 'var(--color-blue-whites)' }}>
+    <div className="px-4 sm:px-9 py-1 min-h-screen" style={{ backgroundColor: 'var(--color-blue-whites)' }}>
       {/* Header */}
-      <div className="flex justify-between items-center mb-6">
-        <div className="w-full rounded-xl border border-[#7AAAF8]/20 bg-[#7AAAF8]/5 px-5 py-4 shadow-sm">
-          <h1 className="text-3xl font-bold text-[#1E3A8A] font-playfair tracking-tight mb-1">
-            Archive Management
-          </h1>
-          <p className="text-[#4D6FA8] text-sm leading-relaxed">
-            Restore or permanently delete archived items
-          </p>
-        </div>
+      <div className="mb-6 sm:mb-8 rounded-xl border border-[#7AAAF8]/20 bg-[#7AAAF8]/5 px-4 sm:px-5 py-4 shadow-sm">
+        <h1 className="text-2xl sm:text-3xl font-bold text-[#1E3A8A] font-playfair tracking-tight mb-1">
+          Archive Management
+        </h1>
+        <p className="text-[#4D6FA8] text-xs sm:text-sm leading-relaxed">
+          Restore or permanently delete archived items
+        </p>
       </div>
       
       {/* Notification */}
@@ -1044,8 +1042,7 @@ className="w-7 h-7 rounded-md bg-ocean-ice text-neutral hover:bg-ocean-light/20 
         </div>
       )}
       
-      {/* Tabs with sliding underline */}
-      <div className="relative flex justify-between gap-2 mb-6 border-b border-[#4D8CF5]/20 overflow-x-auto" ref={tabsContainerRef}>
+      <div className="relative flex justify-between gap-2 mb-6 border-b border-[#4D8CF5]/20 overflow-x-auto scrollbar-hide" ref={tabsContainerRef}>
         <div ref={sliderRef} className="absolute top-1 bottom-1 rounded-lg bg-[#4D8CF5]/10 transition-all duration-300 ease-in-out shadow-sm" style={{ transform: 'translateX(0px)', width: '0px' }} />
         <button ref={(el) => (buttonRefs.current.rooms = el)} onClick={() => setActiveTab('rooms')} className={`relative z-10 px-6 py-3 font-medium transition-all duration-200 whitespace-nowrap flex items-center gap-2 ${activeTab === 'rooms' ? 'text-[#1E3A8A]' : 'text-[#1E3A8A]/60 hover:text-[#4D8CF5]'}`}>
           <i className="fas fa-bed"></i> Rooms
@@ -1093,7 +1090,7 @@ className="w-7 h-7 rounded-md bg-ocean-ice text-neutral hover:bg-ocean-light/20 
       {activeTab === 'rooms' && (
         <div className="bg-white rounded-2xl shadow-md border border-ocean-light/10 overflow-hidden">
           <div className="overflow-x-auto">
-            <table className="w-full">
+            <table className="w-full min-w-[1000px]">
               <thead>
                 <tr className="bg-ocean-pale/50 border-b border-ocean-light/20">
                   <th className="px-4 py-3 text-left text-sm font-semibold text-textPrimary">Room Type</th>
@@ -1143,7 +1140,7 @@ className="w-7 h-7 rounded-md bg-ocean-ice text-neutral hover:bg-ocean-light/20 
       {activeTab === 'daytours' && (
         <div className="bg-white rounded-2xl shadow-md border border-ocean-light/10 overflow-hidden">
           <div className="overflow-x-auto">
-            <table className="w-full">
+            <table className="w-full min-w-[1000px]">
               <thead>
                 <tr className="bg-ocean-pale/50 border-b border-ocean-light/20">
                   <th className="px-4 py-3 text-left text-sm font-semibold text-textPrimary">Adult Price</th>
@@ -1193,7 +1190,7 @@ className="w-7 h-7 rounded-md bg-ocean-ice text-neutral hover:bg-ocean-light/20 
       {activeTab === 'activities' && (
         <div className="bg-white rounded-2xl shadow-md border border-ocean-light/10 overflow-hidden">
           <div className="overflow-x-auto">
-            <table className="w-full">
+            <table className="w-full min-w-[1000px]">
               <thead>
                 <tr className="bg-ocean-pale/50 border-b border-ocean-light/20">
                   <th className="px-4 py-3 text-left text-sm font-semibold text-textPrimary">Activity Name</th>
@@ -1253,7 +1250,7 @@ className="w-7 h-7 rounded-md bg-ocean-ice text-neutral hover:bg-ocean-light/20 
       {activeTab === 'bankaccounts' && (
         <div className="bg-white rounded-2xl shadow-md border border-ocean-light/10 overflow-hidden">
           <div className="overflow-x-auto">
-            <table className="w-full min-w-[800px]">
+            <table className="w-full min-w-[1000px]">
               <thead>
                 <tr className="bg-ocean-pale/50 border-b border-ocean-light/20">
                   <th className="px-4 py-3 text-left text-sm font-semibold text-textPrimary">Bank Name</th>
@@ -1307,7 +1304,7 @@ className="w-7 h-7 rounded-md bg-ocean-ice text-neutral hover:bg-ocean-light/20 
       {activeTab === 'gcashqr' && (
         <div className="bg-white rounded-2xl shadow-md border border-ocean-light/10 overflow-hidden">
           <div className="overflow-x-auto">
-            <table className="w-full">
+            <table className="w-full min-w-[800px]">
               <thead>
                 <tr className="bg-ocean-pale/50 border-b border-ocean-light/20">
                   <th className="px-4 py-3 text-left text-sm font-semibold text-textPrimary">QR Code Preview</th>
@@ -1353,7 +1350,7 @@ className="w-7 h-7 rounded-md bg-ocean-ice text-neutral hover:bg-ocean-light/20 
       {activeTab === 'feedback' && (
         <div className="bg-white rounded-2xl shadow-md border border-ocean-light/10 overflow-hidden">
           <div className="overflow-x-auto">
-            <table className="w-full min-w-[600px]">
+            <table className="w-full min-w-[1000px]">
               <thead>
                 <tr className="bg-ocean-pale/50 border-b border-ocean-light/20">
                   <th className="px-4 py-3 text-left text-sm font-semibold text-textPrimary">Guest</th>

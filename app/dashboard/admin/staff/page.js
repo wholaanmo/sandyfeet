@@ -531,26 +531,26 @@ const handleResendVerification = async () => {
   };
 
   return (
-    <div className="px-9 py-1 min-h-screen" style={{ backgroundColor: 'var(--color-blue-whites)' }}>
+    <div className="px-4 sm:px-9 py-4 sm:py-6 min-h-screen" style={{ backgroundColor: 'var(--color-blue-whites)' }}>
       {/* Header */}
-<div className="flex justify-between items-center mb-8 rounded-xl border border-[#7AAAF8]/20 bg-[#7AAAF8]/5 px-5 py-4 shadow-sm">
-  <div>
-    <h1 className="text-3xl font-bold text-[#1E3A8A] font-playfair tracking-tight mb-1">
-      User Management
-    </h1>
-    <p className="text-[#4D6FA8] text-sm leading-relaxed">
-      Manage user accounts, roles, and status
-    </p>
-  </div>
+      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-6 sm:mb-8 rounded-xl border border-[#7AAAF8]/20 bg-[#7AAAF8]/5 px-4 sm:px-5 py-4 shadow-sm gap-4">
+        <div>
+          <h1 className="text-2xl sm:text-3xl font-bold text-[#1E3A8A] font-playfair tracking-tight mb-1">
+            User Management
+          </h1>
+          <p className="text-[#4D6FA8] text-xs sm:text-sm leading-relaxed">
+            Manage user accounts, roles, and status
+          </p>
+        </div>
 
-<button
-  onClick={openAddModal}
-  className="flex items-center gap-2 px-5 py-2.5 rounded-xl font-medium border border-[#7AAAF8]/30 bg-white/70 backdrop-blur-md text-[#1E3A8A] shadow-sm hover:bg-[#7AAAF8] hover:text-white hover:border-[#7AAAF8] hover:shadow-md hover:-translate-y-0.5 transition-all duration-200"
->
-  <i className="fas fa-plus text-sm"></i>
-  Add New User
-</button>
-</div>
+        <button
+          onClick={openAddModal}
+          className="w-full sm:w-auto flex items-center justify-center gap-2 px-5 py-2.5 rounded-xl font-medium border border-[#7AAAF8]/30 bg-white/70 backdrop-blur-md text-[#1E3A8A] shadow-sm hover:bg-[#7AAAF8] hover:text-white hover:border-[#7AAAF8] hover:shadow-md hover:-translate-y-0.5 transition-all duration-200"
+        >
+          <i className="fas fa-plus text-sm"></i>
+          Add New User
+        </button>
+      </div>
 
       {/* Notification - Lower position to avoid navbar overlap */}
       {notification.show && (
@@ -595,38 +595,38 @@ const handleResendVerification = async () => {
 )}
 
       {/* Filters and Search */}
-<div className="flex gap-4 mb-6 flex-wrap">
-  <div className="flex-1 min-w-[250px]">
-    <div className="relative w-full group">
-      <i className="fas fa-search absolute left-3 top-1/2 -translate-y-1/2 text-[#4D8CF5] text-sm transition-all duration-300 group-focus-within:text-[#3B78E7]"></i>
-      
-      <input
-        type="text"
-        placeholder="Search by name, email, or phone..."
-        value={searchTerm}
-        onChange={(e) => setSearchTerm(e.target.value)}
-        className="w-full pl-9 pr-3 py-2.5 border-2 border-[#4D8CF5]/20 rounded-xl text-sm focus:outline-none focus:border-[#4D8CF5] focus:ring-2 focus:ring-[#4D8CF5]/20 transition-all duration-300 bg-white shadow-sm hover:shadow-md"
-      />
-    </div>
-  </div>
+      <div className="flex flex-col md:flex-row gap-4 mb-6">
+        <div className="flex-1 min-w-0">
+          <div className="relative w-full group">
+            <i className="fas fa-search absolute left-3 top-1/2 -translate-y-1/2 text-[#4D8CF5] text-sm transition-all duration-300 group-focus-within:text-[#3B78E7]"></i>
+            
+            <input
+              type="text"
+              placeholder="Search by name, email, or phone..."
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              className="w-full pl-9 pr-3 py-2.5 border-2 border-[#4D8CF5]/20 rounded-xl text-sm focus:outline-none focus:border-[#4D8CF5] focus:ring-2 focus:ring-[#4D8CF5]/20 transition-all duration-300 bg-white shadow-sm hover:shadow-md"
+            />
+          </div>
+        </div>
         
-<div className="relative">
-  <select
-    value={filterStatus}
-    onChange={(e) => setFilterStatus(e.target.value)}
-    className="px-4 py-2.5 pr-10 border-2 border-[#4D8CF5]/20 rounded-xl text-sm text-textPrimary bg-white shadow-sm focus:outline-none focus:border-[#4D8CF5] focus:ring-2 focus:ring-[#4D8CF5]/20 hover:border-[#4D8CF5]/70 transition-all duration-200 appearance-none cursor-pointer"
-  >
-    <option value="all">All Status</option>
-    <option value="active">Active</option>
-    <option value="pending_verification">Pending Verification</option>
-    <option value="inactive">Inactive</option>
-  </select>
+        <div className="relative w-full md:w-48">
+          <select
+            value={filterStatus}
+            onChange={(e) => setFilterStatus(e.target.value)}
+            className="w-full px-4 py-2.5 pr-10 border-2 border-[#4D8CF5]/20 rounded-xl text-sm text-textPrimary bg-white shadow-sm focus:outline-none focus:border-[#4D8CF5] focus:ring-2 focus:ring-[#4D8CF5]/20 hover:border-[#4D8CF5]/70 transition-all duration-200 appearance-none cursor-pointer"
+          >
+            <option value="all">All Status</option>
+            <option value="active">Active</option>
+            <option value="pending_verification">Pending Verification</option>
+            <option value="inactive">Inactive</option>
+          </select>
 
-  {/* Custom dropdown arrow */}
-  <div className="absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none text-[#4D8CF5] text-xs">
-    ▼
-  </div>
-</div>
+          {/* Custom dropdown arrow */}
+          <div className="absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none text-[#4D8CF5] text-xs">
+            ▼
+          </div>
+        </div>
       </div>
 
       {/* Staff Table */}
@@ -636,7 +636,8 @@ const handleResendVerification = async () => {
         </div>
       ) : (
         <div className="bg-white rounded-2xl shadow-md border border-ocean-light/10 overflow-hidden">
-          <table className="w-full border-collapse">
+          <div className="overflow-x-auto">
+            <table className="w-full border-collapse min-w-[800px]">
             <thead>
               <tr className="bg-ocean-pale/50 border-b border-ocean-light/20">
                 <th className="px-4 py-3 text-left text-sm font-semibold text-textPrimary">Name</th>
@@ -739,6 +740,7 @@ const handleResendVerification = async () => {
             </tbody>
           </table>
         </div>
+      </div>
       )}
 
       {/* Add/View/Edit Staff Modal */}
@@ -1068,23 +1070,23 @@ const handleResendVerification = async () => {
     <div className="bg-white rounded-2xl w-full max-w-sm p-6 shadow-2xl animate-scaleIn">
       <div className="text-center mb-5">
         <div
-  className={`w-14 h-14 mx-auto mb-3 rounded-full flex items-center justify-center ${
-    confirmationModal.action === 'promote' || confirmationModal.action === 'demote'
-      ? 'bg-green-100'
-      : confirmationModal.action === 'toggleStatus'
-        ? 'className="w-14 h-14 mx-auto mb-3 rounded-full bg-amber-100 flex items-center justify-center'
-        : ''
-  }`}
->
+          className={`w-14 h-14 mx-auto mb-3 rounded-full flex items-center justify-center ${
+            confirmationModal.action === 'promote' || confirmationModal.action === 'demote'
+              ? 'bg-green-100'
+              : confirmationModal.action === 'toggleStatus'
+                ? 'bg-amber-100'
+                : ''
+          }`}
+        >
           <i
-  className={`fas fa-exclamation-triangle text-2xl ${
-    confirmationModal.action === 'promote' || confirmationModal.action === 'demote'
-      ? 'text-green-500'
-      : confirmationModal.action === 'toggleStatus'
-        ? 'text-amber-500'
-        : ''
-  }`}
-/>
+            className={`fas fa-exclamation-triangle text-2xl ${
+              confirmationModal.action === 'promote' || confirmationModal.action === 'demote'
+                ? 'text-green-500'
+                : confirmationModal.action === 'toggleStatus'
+                  ? 'text-amber-500'
+                  : ''
+            }`}
+          />
         </div>
 
         <h3 className="text-lg font-bold text-textPrimary mb-2">
@@ -1119,12 +1121,12 @@ const handleResendVerification = async () => {
             else if (confirmationModal.action === 'demote') confirmDemoteToStaff();
           }}
           className={`px-5 py-2 rounded-xl text-white text-sm font-medium hover:shadow-lg hover:-translate-y-0.5 transition-all duration-300 ${
-  confirmationModal.action === 'promote' || confirmationModal.action === 'demote'
-    ? 'bg-gradient-to-r from-green-500 to-green-600'
-    : confirmationModal.action === 'toggleStatus'
-      ? 'className="px-5 py-2 bg-gradient-to-r from-amber-500 to-amber-600 rounded-xl text-white text-sm font-medium hover:shadow-lg hover:-translate-y-0.5 transition-all duration-300'
-      : ''
-}`}
+            confirmationModal.action === 'promote' || confirmationModal.action === 'demote'
+              ? 'bg-gradient-to-r from-green-500 to-green-600'
+              : confirmationModal.action === 'toggleStatus'
+                ? 'bg-gradient-to-r from-amber-500 to-amber-600'
+                : ''
+          }`}
         >
           Confirm
         </button>

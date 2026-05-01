@@ -27,26 +27,26 @@ import fontBase64 from '../../../../src/fonts/DejaVuSans.js';
 export default function AdminReports() {
   const [activeTab, setActiveTab] = useState('roomTypes');
   const [loading, setLoading] = useState(true);
-  
+
   // Data states (unchanged)
   const [totalRevenue, setTotalRevenue] = useState(0);
   const [totalRoomBookings, setTotalRoomBookings] = useState(0);
   const [totalDayTourGuests, setTotalDayTourGuests] = useState(0);
-  
+
   // Chart data states (unchanged)
   const [yearlyMonthlyRoomData, setYearlyMonthlyRoomData] = useState({});
   const [yearlyMonthlyRevenueData, setYearlyMonthlyRevenueData] = useState({});
   const [yearlyMonthlyTrendData, setYearlyMonthlyTrendData] = useState({});
   const [bookingSplitData, setBookingSplitData] = useState([]);
-  
+
   // Store monthly booking split data for accurate PDF/Excel export
   const [monthlyBookingSplitData, setMonthlyBookingSplitData] = useState({});
-  
+
   // Annual revenue summary states (unchanged)
   const [annualRoomRevenue, setAnnualRoomRevenue] = useState(0);
   const [annualDayTourRevenue, setAnnualDayTourRevenue] = useState(0);
   const [annualTotalRevenue, setAnnualTotalRevenue] = useState(0);
-  
+
   // Annual room type totals (unchanged)
   const [annualRoomTypeTotals, setAnnualRoomTypeTotals] = useState({
     Tent: 0,
@@ -54,34 +54,34 @@ export default function AdminReports() {
     'Group Room': 0,
     'Couple Room': 0
   });
-  
+
   // Annual trend totals (unchanged)
   const [annualTrendTotals, setAnnualTrendTotals] = useState({
     roomBookings: 0,
     dayTourGuests: 0
   });
-  
+
   // Filter states (unchanged)
   const [selectedYear, setSelectedYear] = useState('');
   const [selectedSplitFilter, setSelectedSplitFilter] = useState('year');
   const [selectedSplitYear, setSelectedSplitYear] = useState('');
   const [selectedSplitMonth, setSelectedSplitMonth] = useState('');
-  
+
   // Available years (unchanged)
   const [availableYears, setAvailableYears] = useState([]);
-  
+
   // Refs for capturing charts (unchanged)
   const roomTypesChartRef = useRef(null);
   const revenueChartRef = useRef(null);
   const bookingSplitChartRef = useRef(null);
   const roomBookingsTrendRef = useRef(null);
   const dayTourTrendRef = useRef(null);
-  
+
   // Tab refs (unchanged)
   const tabsContainerRef = useRef(null);
   const sliderRef = useRef(null);
   const buttonRefs = useRef({});
-  
+
   // Colors (unchanged)
   const COLORS = ['#8B5CF6', '#4D8CF5', '#F59E0B'];
   const ROOM_TYPE_COLORS = {
@@ -90,9 +90,9 @@ export default function AdminReports() {
     'Group Room': '#8B5CF6',
     'Couple Room': '#F59E0B'
   };
-  
+
   const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
-  
+
   // --- State for export confirmation modal ---
   const [confirmExport, setConfirmExport] = useState({
     show: false,
@@ -103,7 +103,7 @@ export default function AdminReports() {
     tableHeaders: [],
     includeChart: false
   });
-  
+
   // Helper function to open confirmation modal directly (no visualization modal)
   const openExportConfirm = (type, section, chartRefs, tableData, tableHeaders) => {
     setConfirmExport({
@@ -116,7 +116,7 @@ export default function AdminReports() {
       includeChart: false  // Always false - no charts in PDF
     });
   };
-  
+
   // Helper function to execute export after confirmation
   const executeExport = () => {
     const { type, section, chartRefs, tableData, tableHeaders, includeChart } = confirmExport;
@@ -143,7 +143,7 @@ export default function AdminReports() {
     }
     setConfirmExport({ show: false, type: '', section: '', chartRefs: [], tableData: [], tableHeaders: [], includeChart: false });
   };
-  
+
   // Helper function to format date (date only, no time)
   const getFormattedDate = () => {
     const date = new Date();
@@ -153,23 +153,23 @@ export default function AdminReports() {
       day: 'numeric'
     });
   };
-  
+
   // Helper function to format currency for Excel (adds ₱ prefix for non-zero values)
   const formatCurrencyForExcel = (value) => {
     if (value === 0 || value === '0') return '0';
     return `₱${value.toLocaleString()}`;
   };
-  
+
   // ==================== UPDATED PDF HEADER LAYOUT ====================
   // Helper function to draw the header with vertical stacking on the right of the logo
   const drawImprovedHeader = async (pdf, reportTitle, margin, pageWidth) => {
     let yOffset = 20;
-    
+
     // Load logo
     let logoBase64 = '';
     let logoHeight = 0;
     let logoWidth = 0;
-    
+
     try {
       const img = new Image();
       img.src = '/assets/sandyfeet.png';
@@ -177,12 +177,12 @@ export default function AdminReports() {
         img.onload = resolve;
         img.onerror = reject;
       });
-      
+
       // Calculate logo dimensions to match text height
       const targetHeight = 12;
       logoHeight = targetHeight;
       logoWidth = (img.width / img.height) * logoHeight;
-      
+
       const canvas = document.createElement('canvas');
       canvas.width = img.width;
       canvas.height = img.height;
@@ -192,51 +192,51 @@ export default function AdminReports() {
     } catch (err) {
       console.warn('Could not load sandyfeet.png', err);
     }
-    
+
     // Logo on the left
     const leftMargin = margin;
     let currentX = leftMargin;
-    
+
     if (logoBase64) {
       pdf.addImage(logoBase64, 'PNG', currentX, yOffset + 2, logoWidth, logoHeight);
       currentX += logoWidth + 8;
     }
-    
+
     // Right side of logo: "Sandyfeet Reservation" (line 1)
     pdf.setFontSize(14);
     pdf.setFont('helvetica', 'bold');
     pdf.setTextColor(30, 58, 138);
     pdf.text('Sandyfeet Reservation', currentX, yOffset + 6);
-    
+
     // Report title (line 2, directly below "Sandyfeet Reservation")
     pdf.setFontSize(10);
     pdf.setFont('helvetica', 'normal');
     pdf.setTextColor(80, 80, 80);
     pdf.text(reportTitle, currentX, yOffset + 12);
-    
+
     // Date Generated (line 3, directly below report title)
     pdf.setFontSize(8);
     pdf.setFont('helvetica', 'italic');
     pdf.setTextColor(120, 120, 120);
     const dateText = `Generated: ${getFormattedDate()}`;
     pdf.text(dateText, currentX, yOffset + 18);
-    
+
     yOffset += 32;
-    
+
     // Add separator line
     pdf.setDrawColor(200, 200, 200);
     pdf.line(margin, yOffset, pageWidth - margin, yOffset);
     yOffset += 10;
-    
+
     return yOffset;
   };
-  
+
   // Helper function to format currency for PDF (adds ₱ prefix for non-zero values, no parentheses)
   const formatCurrencyForPDF = (value) => {
     if (value === 0 || value === '0') return '0';
     return `₱${value.toLocaleString()}`;
   };
-  
+
   // --- PDF generator for Most Booked Room Types (NO CHARTS) ---
   const downloadRoomTypesPDF = async () => {
     const pdf = new jsPDF('portrait');
@@ -276,14 +276,14 @@ export default function AdminReports() {
 
     pdf.save('most_booked_room_types_report.pdf');
   };
-  
+
   // --- UPDATED PDF generator for Revenue Summary (with ₱ prefix and no parentheses) ---
   const downloadRevenuePDF = async () => {
     const pdf = new jsPDF('portrait');
-    
+
     pdf.addFileToVFS("DejaVuSans.ttf", fontBase64);
-pdf.addFont("DejaVuSans.ttf", "DejaVuSans", "normal");
-pdf.setFont("DejaVuSans");
+    pdf.addFont("DejaVuSans.ttf", "DejaVuSans", "normal");
+    pdf.setFont("DejaVuSans");
 
     let yOffset = 20;
     const pageWidth = pdf.internal.pageSize.getWidth();
@@ -309,31 +309,31 @@ pdf.setFont("DejaVuSans");
     rows.push(['Total', formatCurrencyForPDF(totalRoomRev), formatCurrencyForPDF(totalDayRev), formatCurrencyForPDF(totalAll)]);
 
     const { default: autoTable } = await import('jspdf-autotable');
-autoTable(pdf, {
-  head: [headers],
-  body: rows,
-  startY: yOffset,
-  margin: { left: margin, right: margin },
+    autoTable(pdf, {
+      head: [headers],
+      body: rows,
+      startY: yOffset,
+      margin: { left: margin, right: margin },
 
-  styles: {
-    font: "DejaVuSans",   // 👈 IMPORTANT FIX
-    fontSize: 9,
-    cellPadding: 3,
-    textColor: [50, 50, 50],
-  },
+      styles: {
+        font: "DejaVuSans",   // 👈 IMPORTANT FIX
+        fontSize: 9,
+        cellPadding: 3,
+        textColor: [50, 50, 50],
+      },
 
-  headStyles: {
-    font: "DejaVuSans",   // 👈 also here
-    fillColor: [77, 140, 245],
-    textColor: 255,
-    fontStyle: 'bold',
-    fontSize: 10
-  }
-});
+      headStyles: {
+        font: "DejaVuSans",   // 👈 also here
+        fillColor: [77, 140, 245],
+        textColor: 255,
+        fontStyle: 'bold',
+        fontSize: 10
+      }
+    });
 
     pdf.save('revenue_summary_report.pdf');
   };
-  
+
   // --- UPDATED PDF generator for Room Booking Type Split (with accurate monthly data) ---
   const downloadBookingSplitPDF = async () => {
     const pdf = new jsPDF('portrait');
@@ -347,22 +347,22 @@ autoTable(pdf, {
 
     // Get accurate monthly booking split data from stored state
     const monthlySplitData = getAccurateMonthlyBookingSplitData();
-    
+
     // Define the columns based on requirements
     const headers = ['Month', 'Entire Resort', 'Multi-Room Types', 'Single Room Type', 'Total'];
-    
+
     // Build rows for all 12 months
     const rows = [];
     let totalEntireResort = 0;
     let totalMultiRoom = 0;
     let totalSingleRoom = 0;
     let totalOverall = 0;
-    
+
     for (let i = 0; i < MONTHS.length; i++) {
       const monthName = MONTHS[i];
       const data = monthlySplitData[i] || { entireResort: 0, multiRoom: 0, singleRoom: 0 };
       const monthTotal = data.entireResort + data.multiRoom + data.singleRoom;
-      
+
       rows.push([
         monthName,
         data.entireResort,
@@ -370,13 +370,13 @@ autoTable(pdf, {
         data.singleRoom,
         monthTotal
       ]);
-      
+
       totalEntireResort += data.entireResort;
       totalMultiRoom += data.multiRoom;
       totalSingleRoom += data.singleRoom;
       totalOverall += monthTotal;
     }
-    
+
     // Add total row
     rows.push(['Total', totalEntireResort, totalMultiRoom, totalSingleRoom, totalOverall]);
 
@@ -394,7 +394,7 @@ autoTable(pdf, {
 
     pdf.save('room_booking_type_split_report.pdf');
   };
-  
+
   // Helper function to get accurate monthly booking split data from stored state
   const getAccurateMonthlyBookingSplitData = () => {
     if (!selectedSplitYear || !monthlyBookingSplitData[selectedSplitYear]) {
@@ -406,12 +406,12 @@ autoTable(pdf, {
     }
     return monthlyBookingSplitData[selectedSplitYear];
   };
-  
+
   // Helper function to get monthly booking split data for the selected year (legacy, replaced by above)
   const getMonthlyBookingSplitData = () => {
     return getAccurateMonthlyBookingSplitData();
   };
-  
+
   // --- PDF generator for Monthly/Seasonal Trend (NO CHARTS) ---
   const downloadTrendPDF = async () => {
     const pdf = new jsPDF('portrait');
@@ -452,9 +452,9 @@ autoTable(pdf, {
 
     pdf.save('monthly_seasonal_trend_report.pdf');
   };
-  
+
   // ==================== EXCEL EXPORT FUNCTIONS ====================
-  
+
   // --- UPDATED Excel generator for Most Booked Room Types (left-aligned) ---
   const downloadRoomTypesExcel = () => {
     const tableData = getRoomTypesTableData();
@@ -462,47 +462,47 @@ autoTable(pdf, {
       alert('No data available to export.');
       return;
     }
-    
+
     const wb = XLSX.utils.book_new();
-    
+
     // Prepare data rows with proper values
     const excelRows = [];
-    
+
     // Add title rows
     excelRows.push(['Sandyfeet Reservation']);
     excelRows.push(['Most Booked Room Types Report']);
     excelRows.push([`Generated: ${getFormattedDate()}`]);
     excelRows.push([]);
-    
+
     // Add headers
     excelRows.push(['Month', 'Tent', 'Ground Floor Room', 'Couple Room', 'Group Room', 'Total']);
-    
+
     // Add monthly data
     let totalTent = 0;
     let totalGroundFloor = 0;
     let totalCouple = 0;
     let totalGroup = 0;
     let totalOverall = 0;
-    
+
     for (const row of tableData) {
       const monthTotal = row.tent + row.groundFloorRoom + row.coupleRoom + row.groupRoom;
       excelRows.push([row.month, row.tent, row.groundFloorRoom, row.coupleRoom, row.groupRoom, monthTotal]);
-      
+
       totalTent += row.tent;
       totalGroundFloor += row.groundFloorRoom;
       totalCouple += row.coupleRoom;
       totalGroup += row.groupRoom;
       totalOverall += monthTotal;
     }
-    
+
     // Add total row
     excelRows.push(['Total', totalTent, totalGroundFloor, totalCouple, totalGroup, totalOverall]);
-    
+
     const ws = XLSX.utils.aoa_to_sheet(excelRows);
-    
+
     // Set column widths and alignment (left-aligned by default)
     ws['!cols'] = [{ wch: 12 }, { wch: 12 }, { wch: 18 }, { wch: 14 }, { wch: 14 }, { wch: 12 }];
-    
+
     // Apply left alignment to all cells
     for (let i = 0; i < excelRows.length; i++) {
       for (let j = 0; j < excelRows[i].length; j++) {
@@ -511,18 +511,18 @@ autoTable(pdf, {
         ws[cellAddress].s = { alignment: { horizontal: 'left' } };
       }
     }
-    
+
     // Merge title cells
     ws['!merges'] = [
       { s: { r: 0, c: 0 }, e: { r: 0, c: 5 } },
       { s: { r: 1, c: 0 }, e: { r: 1, c: 5 } },
       { s: { r: 2, c: 0 }, e: { r: 2, c: 5 } }
     ];
-    
+
     XLSX.utils.book_append_sheet(wb, ws, 'Most Booked Room Types');
     XLSX.writeFile(wb, 'most_booked_room_types_report.xlsx');
   };
-  
+
   // --- UPDATED Excel generator for Revenue Summary (left-aligned with ₱ prefix) ---
   const downloadRevenueExcel = () => {
     const tableData = getRevenueTableData();
@@ -530,46 +530,46 @@ autoTable(pdf, {
       alert('No data available to export.');
       return;
     }
-    
+
     const wb = XLSX.utils.book_new();
-    
+
     // Prepare data rows with proper values
     const excelRows = [];
-    
+
     // Add title rows
     excelRows.push(['Sandyfeet Reservation']);
     excelRows.push(['Revenue Summary Report']);
     excelRows.push([`Generated: ${getFormattedDate()}`]);
     excelRows.push([]);
-    
+
     // Add headers
     excelRows.push(['Month', 'Room Revenue', 'Day Tour Revenue', 'Total Revenue']);
-    
+
     // Add monthly data with currency formatting (₱ prefix for non-zero values)
     let totalRoomRevenue = 0;
     let totalDayTourRevenue = 0;
     let totalRevenue = 0;
-    
+
     for (const row of tableData) {
       excelRows.push([
-        row.month, 
-        formatCurrencyForExcel(row.roomRevenue), 
-        formatCurrencyForExcel(row.dayTourRevenue), 
+        row.month,
+        formatCurrencyForExcel(row.roomRevenue),
+        formatCurrencyForExcel(row.dayTourRevenue),
         formatCurrencyForExcel(row.totalRevenue)
       ]);
       totalRoomRevenue += row.roomRevenue;
       totalDayTourRevenue += row.dayTourRevenue;
       totalRevenue += row.totalRevenue;
     }
-    
+
     // Add total row with currency formatting
     excelRows.push(['Total', formatCurrencyForExcel(totalRoomRevenue), formatCurrencyForExcel(totalDayTourRevenue), formatCurrencyForExcel(totalRevenue)]);
-    
+
     const ws = XLSX.utils.aoa_to_sheet(excelRows);
-    
+
     // Set column widths
     ws['!cols'] = [{ wch: 12 }, { wch: 20 }, { wch: 22 }, { wch: 20 }];
-    
+
     // Apply left alignment to all cells
     for (let i = 0; i < excelRows.length; i++) {
       for (let j = 0; j < excelRows[i].length; j++) {
@@ -578,62 +578,62 @@ autoTable(pdf, {
         ws[cellAddress].s = { alignment: { horizontal: 'left' } };
       }
     }
-    
+
     // Merge title cells
     ws['!merges'] = [
       { s: { r: 0, c: 0 }, e: { r: 0, c: 3 } },
       { s: { r: 1, c: 0 }, e: { r: 1, c: 3 } },
       { s: { r: 2, c: 0 }, e: { r: 2, c: 3 } }
     ];
-    
+
     XLSX.utils.book_append_sheet(wb, ws, 'Revenue Summary');
     XLSX.writeFile(wb, 'revenue_summary_report.xlsx');
   };
-  
+
   // --- UPDATED Excel generator for Room Booking Type Split (left-aligned, 12-month format) ---
   const downloadBookingSplitExcel = () => {
     const monthlySplitData = getAccurateMonthlyBookingSplitData();
-    
+
     const wb = XLSX.utils.book_new();
-    
+
     // Prepare data rows with proper values
     const excelRows = [];
-    
+
     // Add title rows
     excelRows.push(['Sandyfeet Reservation']);
     excelRows.push(['Room Booking Type Split Report']);
     excelRows.push([`Generated: ${getFormattedDate()}`]);
     excelRows.push([]);
-    
+
     // Add headers
     excelRows.push(['Month', 'Entire Resort', 'Multi-Room Types', 'Single Room Type', 'Total']);
-    
+
     // Add monthly data for all 12 months
     let totalEntireResort = 0;
     let totalMultiRoom = 0;
     let totalSingleRoom = 0;
     let totalOverall = 0;
-    
+
     for (let i = 0; i < MONTHS.length; i++) {
       const monthData = monthlySplitData[i] || { entireResort: 0, multiRoom: 0, singleRoom: 0 };
       const monthTotal = monthData.entireResort + monthData.multiRoom + monthData.singleRoom;
-      
+
       excelRows.push([MONTHS[i], monthData.entireResort, monthData.multiRoom, monthData.singleRoom, monthTotal]);
-      
+
       totalEntireResort += monthData.entireResort;
       totalMultiRoom += monthData.multiRoom;
       totalSingleRoom += monthData.singleRoom;
       totalOverall += monthTotal;
     }
-    
+
     // Add total row
     excelRows.push(['Total', totalEntireResort, totalMultiRoom, totalSingleRoom, totalOverall]);
-    
+
     const ws = XLSX.utils.aoa_to_sheet(excelRows);
-    
+
     // Set column widths
     ws['!cols'] = [{ wch: 12 }, { wch: 16 }, { wch: 18 }, { wch: 18 }, { wch: 12 }];
-    
+
     // Apply left alignment to all cells
     for (let i = 0; i < excelRows.length; i++) {
       for (let j = 0; j < excelRows[i].length; j++) {
@@ -642,18 +642,18 @@ autoTable(pdf, {
         ws[cellAddress].s = { alignment: { horizontal: 'left' } };
       }
     }
-    
+
     // Merge title cells
     ws['!merges'] = [
       { s: { r: 0, c: 0 }, e: { r: 0, c: 4 } },
       { s: { r: 1, c: 0 }, e: { r: 1, c: 4 } },
       { s: { r: 2, c: 0 }, e: { r: 2, c: 4 } }
     ];
-    
+
     XLSX.utils.book_append_sheet(wb, ws, 'Room Booking Type Split');
     XLSX.writeFile(wb, 'room_booking_type_split_report.xlsx');
   };
-  
+
   // --- UPDATED Excel generator for Monthly/Seasonal Trend (left-aligned with Total column) ---
   const downloadTrendExcel = () => {
     const tableData = getTrendTableData();
@@ -661,43 +661,43 @@ autoTable(pdf, {
       alert('No data available to export.');
       return;
     }
-    
+
     const wb = XLSX.utils.book_new();
-    
+
     // Prepare data rows with proper values
     const excelRows = [];
-    
+
     // Add title rows
     excelRows.push(['Sandyfeet Reservation']);
     excelRows.push(['Monthly/Seasonal Trend Report']);
     excelRows.push([`Generated: ${getFormattedDate()}`]);
     excelRows.push([]);
-    
+
     // Add headers (includes Total column)
     excelRows.push(['Month', 'Room Bookings', 'Day Tour Guests', 'Total']);
-    
+
     // Add monthly data
     let totalRoomBookings = 0;
     let totalDayGuests = 0;
     let totalOverall = 0;
-    
+
     for (const row of tableData) {
       const monthTotal = row.roomBookings + row.dayTourGuests;
       excelRows.push([row.month, row.roomBookings, row.dayTourGuests, monthTotal]);
-      
+
       totalRoomBookings += row.roomBookings;
       totalDayGuests += row.dayTourGuests;
       totalOverall += monthTotal;
     }
-    
+
     // Add total row
     excelRows.push(['Total', totalRoomBookings, totalDayGuests, totalOverall]);
-    
+
     const ws = XLSX.utils.aoa_to_sheet(excelRows);
-    
+
     // Set column widths
     ws['!cols'] = [{ wch: 12 }, { wch: 18 }, { wch: 18 }, { wch: 12 }];
-    
+
     // Apply left alignment to all cells
     for (let i = 0; i < excelRows.length; i++) {
       for (let j = 0; j < excelRows[i].length; j++) {
@@ -706,18 +706,18 @@ autoTable(pdf, {
         ws[cellAddress].s = { alignment: { horizontal: 'left' } };
       }
     }
-    
+
     // Merge title cells
     ws['!merges'] = [
       { s: { r: 0, c: 0 }, e: { r: 0, c: 3 } },
       { s: { r: 1, c: 0 }, e: { r: 1, c: 3 } },
       { s: { r: 2, c: 0 }, e: { r: 2, c: 3 } }
     ];
-    
+
     XLSX.utils.book_append_sheet(wb, ws, 'Monthly Seasonal Trend');
     XLSX.writeFile(wb, 'monthly_seasonal_trend_report.xlsx');
   };
-  
+
   // Prepare table data functions (unchanged)
   const getRoomTypesTableData = () => {
     if (!selectedYear || !yearlyMonthlyRoomData[selectedYear]) return [];
@@ -730,7 +730,7 @@ autoTable(pdf, {
       total: (monthData.Tent || 0) + (monthData['Ground Floor Room'] || 0) + (monthData['Group Room'] || 0) + (monthData['Couple Room'] || 0)
     }));
   };
-  
+
   const getRevenueTableData = () => {
     if (!selectedYear || !yearlyMonthlyRevenueData[selectedYear]) return [];
     return yearlyMonthlyRevenueData[selectedYear].map(monthData => ({
@@ -740,14 +740,14 @@ autoTable(pdf, {
       totalRevenue: (monthData.roomRevenue || 0) + (monthData.dayTourRevenue || 0)
     }));
   };
-  
+
   const getBookingSplitTableData = () => {
     return bookingSplitData.map(item => ({
       bookingType: item.name,
       count: item.value
     }));
   };
-  
+
   const getTrendTableData = () => {
     if (!selectedYear || !yearlyMonthlyTrendData[selectedYear]) return [];
     return yearlyMonthlyTrendData[selectedYear].map(monthData => ({
@@ -756,7 +756,7 @@ autoTable(pdf, {
       dayTourGuests: monthData.dayTourGuests || 0
     }));
   };
-  
+
   // Slider and lifecycle hooks (unchanged)
   const updateSlider = useCallback(() => {
     const activeButton = buttonRefs.current[activeTab];
@@ -784,14 +784,14 @@ autoTable(pdf, {
       window.removeEventListener('resize', updateSlider);
     };
   }, [updateSlider]);
-  
+
   useEffect(() => {
     const timer = setTimeout(() => {
       updateSlider();
     }, 100);
     return () => clearTimeout(timer);
   }, [updateSlider]);
-  
+
   // FIX: Ensure slider appears after loading completes (tabs become visible)
   useEffect(() => {
     if (!loading) {
@@ -802,11 +802,11 @@ autoTable(pdf, {
       return () => clearTimeout(timer);
     }
   }, [loading, updateSlider]);
-  
+
   useEffect(() => {
     fetchAllData();
   }, []);
-  
+
   // Annual summary effects (unchanged)
   useEffect(() => {
     if (selectedYear && yearlyMonthlyRevenueData[selectedYear]) {
@@ -821,7 +821,7 @@ autoTable(pdf, {
       setAnnualTotalRevenue(roomRev + dayTourRev);
     }
   }, [selectedYear, yearlyMonthlyRevenueData]);
-  
+
   useEffect(() => {
     if (selectedYear && yearlyMonthlyRoomData[selectedYear]) {
       let totals = {
@@ -839,7 +839,7 @@ autoTable(pdf, {
       setAnnualRoomTypeTotals(totals);
     }
   }, [selectedYear, yearlyMonthlyRoomData]);
-  
+
   useEffect(() => {
     if (selectedYear && yearlyMonthlyTrendData[selectedYear]) {
       let totals = {
@@ -853,7 +853,7 @@ autoTable(pdf, {
       setAnnualTrendTotals(totals);
     }
   }, [selectedYear, yearlyMonthlyTrendData]);
-  
+
   const fetchAllData = async () => {
     setLoading(true);
     try {
@@ -866,14 +866,14 @@ autoTable(pdf, {
           bookings.push({ id: doc.id, ...data });
         }
       });
-      
+
       const dayTourRef = collection(db, 'dayTourBookings');
       const dayTourSnapshot = await getDocs(dayTourRef);
       const dayTours = [];
       dayTourSnapshot.forEach((doc) => {
         dayTours.push({ id: doc.id, ...doc.data() });
       });
-      
+
       processData(bookings, dayTours);
     } catch (error) {
       console.error('Error fetching data:', error);
@@ -881,7 +881,7 @@ autoTable(pdf, {
       setLoading(false);
     }
   };
-  
+
   // Helper functions (unchanged)
   const calculateBookingTotalPrice = (booking) => {
     let total = 0;
@@ -894,7 +894,7 @@ autoTable(pdf, {
     }
     return total;
   };
-  
+
   const countRoomUnits = (booking) => {
     let roomCount = 0;
     if (booking.isGrouped && booking.childBookings) {
@@ -910,302 +910,302 @@ autoTable(pdf, {
     }
     return roomCount;
   };
-  
+
   // ==================== FIXED REVENUE COMPUTATION ====================
-const processData = (bookings, dayTours) => {
-  // Helper to get the effective total amount (manual edit > exclusive package > totalPrice)
-  const getEffectiveTotal = (booking) => {
-    // 1. manualTotalPrice overrides everything
-    if (booking.manualTotalPrice !== undefined && booking.manualTotalPrice !== null) {
-      return booking.manualTotalPrice;
-    }
-    // 2. For exclusive resort bookings, use exclusivePackagePrice
-    if (booking.isExclusiveResortBooking && booking.exclusivePackagePrice) {
-      return booking.exclusivePackagePrice;
-    }
-    // 3. Fallback to original totalPrice
-    return booking.totalPrice || 0;
-  };
-
-  let totalRoomRevenue = 0;
-  let totalRoomUnits = 0;
-  let dayTourGuestCount = 0;
-  let dayTourRevenueTotal = 0;
-
-  const processedBookings = [];
-  const multiRoomGroups = new Map();
-
-  // First pass: group multi-room bookings and collect non-grouped completed bookings
-  bookings.forEach(booking => {
-    if (booking.status === 'completed') {
-      if (booking.isMultiRoomBooking && booking.parentBookingId) {
-        if (!multiRoomGroups.has(booking.parentBookingId)) {
-          multiRoomGroups.set(booking.parentBookingId, {
-            bookings: [],
-            totalPrice: 0,
-            createdAt: booking.createdAt,
-            status: booking.status,
-            numberOfRooms: 0,
-            isExclusiveResortBooking: booking.isExclusiveResortBooking || false,
-            manualTotalPrice: booking.manualTotalPrice,
-            exclusivePackagePrice: booking.exclusivePackagePrice
-          });
-        }
-        const group = multiRoomGroups.get(booking.parentBookingId);
-        group.bookings.push(booking);
-        group.numberOfRooms += (booking.numberOfRooms || 1);
-
-        // For exclusive resort, only set totalPrice once (from the first child)
-        if (group.isExclusiveResortBooking) {
-          if (group.totalPrice === 0) {
-            // Use effective total of this child (exclusivePackagePrice or manualTotalPrice)
-            group.totalPrice = getEffectiveTotal(booking);
-          }
-          // Do NOT accumulate for other children (avoid multiplying package price)
-        } else {
-          // Normal multi-room (non-exclusive): accumulate each child's effective total
-          group.totalPrice += getEffectiveTotal(booking);
-        }
-      } else if (!booking.isMultiRoomBooking) {
-        // Single room booking
-        const effectiveTotal = getEffectiveTotal(booking);
-        totalRoomRevenue += effectiveTotal;
-        totalRoomUnits += (booking.numberOfRooms || 1);
-        processedBookings.push(booking);
+  const processData = (bookings, dayTours) => {
+    // Helper to get the effective total amount (manual edit > exclusive package > totalPrice)
+    const getEffectiveTotal = (booking) => {
+      // 1. manualTotalPrice overrides everything
+      if (booking.manualTotalPrice !== undefined && booking.manualTotalPrice !== null) {
+        return booking.manualTotalPrice;
       }
-    }
-  });
+      // 2. For exclusive resort bookings, use exclusivePackagePrice
+      if (booking.isExclusiveResortBooking && booking.exclusivePackagePrice) {
+        return booking.exclusivePackagePrice;
+      }
+      // 3. Fallback to original totalPrice
+      return booking.totalPrice || 0;
+    };
 
-  // Second pass: add grouped bookings
-  multiRoomGroups.forEach((group, parentId) => {
-    totalRoomUnits += group.numberOfRooms;
-    totalRoomRevenue += group.totalPrice;
-    processedBookings.push({
-      ...group.bookings[0],
-      id: parentId,
-      totalPrice: group.totalPrice,                 // aggregated effective total
-      manualTotalPrice: group.manualTotalPrice,
-      exclusivePackagePrice: group.exclusivePackagePrice,
-      isGrouped: true,
-      childBookings: group.bookings,
-      numberOfRooms: group.numberOfRooms,
-      isExclusiveResortBooking: group.isExclusiveResortBooking
+    let totalRoomRevenue = 0;
+    let totalRoomUnits = 0;
+    let dayTourGuestCount = 0;
+    let dayTourRevenueTotal = 0;
+
+    const processedBookings = [];
+    const multiRoomGroups = new Map();
+
+    // First pass: group multi-room bookings and collect non-grouped completed bookings
+    bookings.forEach(booking => {
+      if (booking.status === 'completed') {
+        if (booking.isMultiRoomBooking && booking.parentBookingId) {
+          if (!multiRoomGroups.has(booking.parentBookingId)) {
+            multiRoomGroups.set(booking.parentBookingId, {
+              bookings: [],
+              totalPrice: 0,
+              createdAt: booking.createdAt,
+              status: booking.status,
+              numberOfRooms: 0,
+              isExclusiveResortBooking: booking.isExclusiveResortBooking || false,
+              manualTotalPrice: booking.manualTotalPrice,
+              exclusivePackagePrice: booking.exclusivePackagePrice
+            });
+          }
+          const group = multiRoomGroups.get(booking.parentBookingId);
+          group.bookings.push(booking);
+          group.numberOfRooms += (booking.numberOfRooms || 1);
+
+          // For exclusive resort, only set totalPrice once (from the first child)
+          if (group.isExclusiveResortBooking) {
+            if (group.totalPrice === 0) {
+              // Use effective total of this child (exclusivePackagePrice or manualTotalPrice)
+              group.totalPrice = getEffectiveTotal(booking);
+            }
+            // Do NOT accumulate for other children (avoid multiplying package price)
+          } else {
+            // Normal multi-room (non-exclusive): accumulate each child's effective total
+            group.totalPrice += getEffectiveTotal(booking);
+          }
+        } else if (!booking.isMultiRoomBooking) {
+          // Single room booking
+          const effectiveTotal = getEffectiveTotal(booking);
+          totalRoomRevenue += effectiveTotal;
+          totalRoomUnits += (booking.numberOfRooms || 1);
+          processedBookings.push(booking);
+        }
+      }
     });
-  });
 
-  // Day tours – unchanged
-// Day tours – using effective total (manualTotalPrice > totalPrice)
-dayTours.forEach(tour => {
-  if (tour.status === 'completed') {
-    const seniors = tour.seniors || 0;
-    const adults = tour.adults || 0;
-    const kids = tour.kids || 0;
-    dayTourGuestCount += seniors + adults + kids;
+    // Second pass: add grouped bookings
+    multiRoomGroups.forEach((group, parentId) => {
+      totalRoomUnits += group.numberOfRooms;
+      totalRoomRevenue += group.totalPrice;
+      processedBookings.push({
+        ...group.bookings[0],
+        id: parentId,
+        totalPrice: group.totalPrice,                 // aggregated effective total
+        manualTotalPrice: group.manualTotalPrice,
+        exclusivePackagePrice: group.exclusivePackagePrice,
+        isGrouped: true,
+        childBookings: group.bookings,
+        numberOfRooms: group.numberOfRooms,
+        isExclusiveResortBooking: group.isExclusiveResortBooking
+      });
+    });
 
-    const effectiveTotal = (tour.manualTotalPrice !== undefined && tour.manualTotalPrice !== null)
-      ? tour.manualTotalPrice
-      : (tour.totalPrice || 0);
-    dayTourRevenueTotal += effectiveTotal;
-  }
-});
+    // Day tours – unchanged
+    // Day tours – using effective total (manualTotalPrice > totalPrice)
+    dayTours.forEach(tour => {
+      if (tour.status === 'completed') {
+        const seniors = tour.seniors || 0;
+        const adults = tour.adults || 0;
+        const kids = tour.kids || 0;
+        dayTourGuestCount += seniors + adults + kids;
 
-  const totalRevenueCombined = totalRoomRevenue + dayTourRevenueTotal;
-  setTotalRevenue(totalRevenueCombined);
-  setTotalRoomBookings(totalRoomUnits);
-  setTotalDayTourGuests(dayTourGuestCount);
+        const effectiveTotal = (tour.manualTotalPrice !== undefined && tour.manualTotalPrice !== null)
+          ? tour.manualTotalPrice
+          : (tour.totalPrice || 0);
+        dayTourRevenueTotal += effectiveTotal;
+      }
+    });
 
-  // Monthly data structures
-  const yearlyMonthlyRoom = {};
-  const yearlyMonthlyRevenue = {};
-  const yearlyMonthlyTrend = {};
-  const yearsSet = new Set();
-  const monthlySplitData = {};
+    const totalRevenueCombined = totalRoomRevenue + dayTourRevenueTotal;
+    setTotalRevenue(totalRevenueCombined);
+    setTotalRoomBookings(totalRoomUnits);
+    setTotalDayTourGuests(dayTourGuestCount);
 
-  // Process each completed booking for monthly breakdown
-  processedBookings.forEach(booking => {
-    let createdAt;
-    if (booking.isGrouped && booking.childBookings && booking.childBookings.length > 0) {
-      const firstChild = booking.childBookings[0];
-      createdAt = firstChild.createdAt?.toDate ? firstChild.createdAt.toDate() : new Date(firstChild.createdAt);
-    } else {
-      createdAt = booking.createdAt?.toDate ? booking.createdAt.toDate() : new Date(booking.createdAt);
-    }
+    // Monthly data structures
+    const yearlyMonthlyRoom = {};
+    const yearlyMonthlyRevenue = {};
+    const yearlyMonthlyTrend = {};
+    const yearsSet = new Set();
+    const monthlySplitData = {};
 
-    const year = createdAt.getFullYear();
-    const month = createdAt.getMonth();
-    yearsSet.add(year);
+    // Process each completed booking for monthly breakdown
+    processedBookings.forEach(booking => {
+      let createdAt;
+      if (booking.isGrouped && booking.childBookings && booking.childBookings.length > 0) {
+        const firstChild = booking.childBookings[0];
+        createdAt = firstChild.createdAt?.toDate ? firstChild.createdAt.toDate() : new Date(firstChild.createdAt);
+      } else {
+        createdAt = booking.createdAt?.toDate ? booking.createdAt.toDate() : new Date(booking.createdAt);
+      }
 
-    if (!yearlyMonthlyRoom[year]) {
-      yearlyMonthlyRoom[year] = {
-        Tent: new Array(12).fill(0),
-        'Ground Floor Room': new Array(12).fill(0),
-        'Group Room': new Array(12).fill(0),
-        'Couple Room': new Array(12).fill(0)
-      };
-    }
-    if (!yearlyMonthlyRevenue[year]) {
-      yearlyMonthlyRevenue[year] = {
-        roomRevenue: new Array(12).fill(0),
-        dayTourRevenue: new Array(12).fill(0),
-        total: new Array(12).fill(0)
-      };
-    }
-    if (!yearlyMonthlyTrend[year]) {
-      yearlyMonthlyTrend[year] = {
-        roomBookings: new Array(12).fill(0),
-        dayTourGuests: new Array(12).fill(0)
-      };
-    }
-    if (!monthlySplitData[year]) {
-      monthlySplitData[year] = Array(12).fill().map(() => ({
-        entireResort: 0,
-        multiRoom: 0,
-        singleRoom: 0
+      const year = createdAt.getFullYear();
+      const month = createdAt.getMonth();
+      yearsSet.add(year);
+
+      if (!yearlyMonthlyRoom[year]) {
+        yearlyMonthlyRoom[year] = {
+          Tent: new Array(12).fill(0),
+          'Ground Floor Room': new Array(12).fill(0),
+          'Group Room': new Array(12).fill(0),
+          'Couple Room': new Array(12).fill(0)
+        };
+      }
+      if (!yearlyMonthlyRevenue[year]) {
+        yearlyMonthlyRevenue[year] = {
+          roomRevenue: new Array(12).fill(0),
+          dayTourRevenue: new Array(12).fill(0),
+          total: new Array(12).fill(0)
+        };
+      }
+      if (!yearlyMonthlyTrend[year]) {
+        yearlyMonthlyTrend[year] = {
+          roomBookings: new Array(12).fill(0),
+          dayTourGuests: new Array(12).fill(0)
+        };
+      }
+      if (!monthlySplitData[year]) {
+        monthlySplitData[year] = Array(12).fill().map(() => ({
+          entireResort: 0,
+          multiRoom: 0,
+          singleRoom: 0
+        }));
+      }
+
+      // Booking type split
+      let bookingType = 'singleRoom';
+      if (booking.isExclusiveResortBooking || (booking.isGrouped && booking.childBookings && booking.childBookings.some(cb => cb.isExclusiveResortBooking))) {
+        bookingType = 'entireResort';
+      } else if (booking.isGrouped || (booking.roomTypes && booking.roomTypes.length > 1)) {
+        bookingType = 'multiRoom';
+      }
+      monthlySplitData[year][month][bookingType]++;
+
+      // Room type counts
+      let roomTypes = [];
+      if (booking.isGrouped && booking.childBookings) {
+        booking.childBookings.forEach(cb => {
+          const roomCount = cb.numberOfRooms || 1;
+          for (let i = 0; i < roomCount; i++) {
+            roomTypes.push(cb.roomType);
+          }
+        });
+      } else if (booking.roomTypes && Array.isArray(booking.roomTypes)) {
+        booking.roomTypes.forEach(rt => {
+          for (let i = 0; i < (rt.quantity || 1); i++) {
+            roomTypes.push(rt.type);
+          }
+        });
+      } else if (booking.roomType) {
+        const roomCount = booking.numberOfRooms || 1;
+        for (let i = 0; i < roomCount; i++) {
+          roomTypes.push(booking.roomType);
+        }
+      }
+
+      roomTypes.forEach(roomType => {
+        if (roomType === 'Tent') yearlyMonthlyRoom[year].Tent[month]++;
+        else if (roomType === 'Ground Floor Rooms' || roomType === 'Ground Floor Room') yearlyMonthlyRoom[year]['Ground Floor Room'][month]++;
+        else if (roomType === 'Group Room') yearlyMonthlyRoom[year]['Group Room'][month]++;
+        else if (roomType === 'Couple Room') yearlyMonthlyRoom[year]['Couple Room'][month]++;
+      });
+
+      // Use the aggregated total price (already correct for groups)
+      const totalPrice = booking.totalPrice || 0;
+      yearlyMonthlyRevenue[year].roomRevenue[month] += totalPrice;
+      yearlyMonthlyRevenue[year].total[month] += totalPrice;
+
+      const roomUnitCount = booking.numberOfRooms || 1;
+      yearlyMonthlyTrend[year].roomBookings[month] += roomUnitCount;
+    });
+
+    // Day tours monthly breakdown (unchanged)
+    // Day tours monthly breakdown (with effective total)
+    dayTours.forEach(tour => {
+      if (tour.status === 'completed') {
+        const createdAt = tour.createdAt?.toDate ? tour.createdAt.toDate() : new Date(tour.createdAt);
+        const year = createdAt.getFullYear();
+        const month = createdAt.getMonth();
+        yearsSet.add(year);
+
+        if (!yearlyMonthlyRevenue[year]) {
+          yearlyMonthlyRevenue[year] = {
+            roomRevenue: new Array(12).fill(0),
+            dayTourRevenue: new Array(12).fill(0),
+            total: new Array(12).fill(0)
+          };
+        }
+        if (!yearlyMonthlyTrend[year]) {
+          yearlyMonthlyTrend[year] = {
+            roomBookings: new Array(12).fill(0),
+            dayTourGuests: new Array(12).fill(0)
+          };
+        }
+
+        const effectiveTotal = (tour.manualTotalPrice !== undefined && tour.manualTotalPrice !== null)
+          ? tour.manualTotalPrice
+          : (tour.totalPrice || 0);
+        yearlyMonthlyRevenue[year].dayTourRevenue[month] += effectiveTotal;
+        yearlyMonthlyRevenue[year].total[month] += effectiveTotal;
+
+        const guests = (tour.seniors || 0) + (tour.adults || 0) + (tour.kids || 0);
+        yearlyMonthlyTrend[year].dayTourGuests[month] += guests;
+      }
+    });
+
+    // Prepare chart data
+    const roomTypeChartData = {};
+    const revenueChartData = {};
+    const trendChartData = {};
+
+    for (const year of yearsSet) {
+      roomTypeChartData[year] = MONTHS.map((month, idx) => ({
+        month: month,
+        Tent: yearlyMonthlyRoom[year]?.Tent[idx] || 0,
+        'Ground Floor Room': yearlyMonthlyRoom[year]?.['Ground Floor Room'][idx] || 0,
+        'Group Room': yearlyMonthlyRoom[year]?.['Group Room'][idx] || 0,
+        'Couple Room': yearlyMonthlyRoom[year]?.['Couple Room'][idx] || 0
+      }));
+      revenueChartData[year] = MONTHS.map((month, idx) => ({
+        month: month,
+        roomRevenue: yearlyMonthlyRevenue[year]?.roomRevenue[idx] || 0,
+        dayTourRevenue: yearlyMonthlyRevenue[year]?.dayTourRevenue[idx] || 0,
+        total: (yearlyMonthlyRevenue[year]?.roomRevenue[idx] || 0) + (yearlyMonthlyRevenue[year]?.dayTourRevenue[idx] || 0)
+      }));
+      trendChartData[year] = MONTHS.map((month, idx) => ({
+        month: month,
+        roomBookings: yearlyMonthlyTrend[year]?.roomBookings[idx] || 0,
+        dayTourGuests: yearlyMonthlyTrend[year]?.dayTourGuests[idx] || 0
       }));
     }
 
-    // Booking type split
-    let bookingType = 'singleRoom';
-    if (booking.isExclusiveResortBooking || (booking.isGrouped && booking.childBookings && booking.childBookings.some(cb => cb.isExclusiveResortBooking))) {
-      bookingType = 'entireResort';
-    } else if (booking.isGrouped || (booking.roomTypes && booking.roomTypes.length > 1)) {
-      bookingType = 'multiRoom';
-    }
-    monthlySplitData[year][month][bookingType]++;
+    setYearlyMonthlyRoomData(roomTypeChartData);
+    setYearlyMonthlyRevenueData(revenueChartData);
+    setYearlyMonthlyTrendData(trendChartData);
+    setMonthlyBookingSplitData(monthlySplitData);
 
-    // Room type counts
-    let roomTypes = [];
-    if (booking.isGrouped && booking.childBookings) {
-      booking.childBookings.forEach(cb => {
-        const roomCount = cb.numberOfRooms || 1;
-        for (let i = 0; i < roomCount; i++) {
-          roomTypes.push(cb.roomType);
-        }
-      });
-    } else if (booking.roomTypes && Array.isArray(booking.roomTypes)) {
-      booking.roomTypes.forEach(rt => {
-        for (let i = 0; i < (rt.quantity || 1); i++) {
-          roomTypes.push(rt.type);
-        }
-      });
-    } else if (booking.roomType) {
-      const roomCount = booking.numberOfRooms || 1;
-      for (let i = 0; i < roomCount; i++) {
-        roomTypes.push(booking.roomType);
+    const years = Array.from(yearsSet).sort((a, b) => b - a);
+    setAvailableYears(years);
+    if (years.length > 0 && !selectedYear) setSelectedYear(years[0]);
+    if (years.length > 0 && !selectedSplitYear) setSelectedSplitYear(years[0]);
+
+    // Booking split data (unchanged)
+    let entireResortCount = 0, multiRoomCount = 0, singleRoomCount = 0;
+    processedBookings.forEach(booking => {
+      if (booking.isExclusiveResortBooking || (booking.isGrouped && booking.childBookings?.some(cb => cb.isExclusiveResortBooking))) {
+        entireResortCount++;
+      } else if (booking.isGrouped || (booking.roomTypes && booking.roomTypes.length > 1)) {
+        multiRoomCount++;
+      } else {
+        singleRoomCount++;
       }
-    }
-
-    roomTypes.forEach(roomType => {
-      if (roomType === 'Tent') yearlyMonthlyRoom[year].Tent[month]++;
-      else if (roomType === 'Ground Floor Rooms' || roomType === 'Ground Floor Room') yearlyMonthlyRoom[year]['Ground Floor Room'][month]++;
-      else if (roomType === 'Group Room') yearlyMonthlyRoom[year]['Group Room'][month]++;
-      else if (roomType === 'Couple Room') yearlyMonthlyRoom[year]['Couple Room'][month]++;
     });
+    setBookingSplitData([
+      { name: 'Entire Resort', value: entireResortCount, color: '#8B5CF6' },
+      { name: 'Multi-Room Types', value: multiRoomCount, color: '#4D8CF5' },
+      { name: 'Single Room Type', value: singleRoomCount, color: '#F59E0B' }
+    ]);
+  };
 
-    // Use the aggregated total price (already correct for groups)
-    const totalPrice = booking.totalPrice || 0;
-    yearlyMonthlyRevenue[year].roomRevenue[month] += totalPrice;
-    yearlyMonthlyRevenue[year].total[month] += totalPrice;
-
-    const roomUnitCount = booking.numberOfRooms || 1;
-    yearlyMonthlyTrend[year].roomBookings[month] += roomUnitCount;
-  });
-
-  // Day tours monthly breakdown (unchanged)
-// Day tours monthly breakdown (with effective total)
-dayTours.forEach(tour => {
-  if (tour.status === 'completed') {
-    const createdAt = tour.createdAt?.toDate ? tour.createdAt.toDate() : new Date(tour.createdAt);
-    const year = createdAt.getFullYear();
-    const month = createdAt.getMonth();
-    yearsSet.add(year);
-
-    if (!yearlyMonthlyRevenue[year]) {
-      yearlyMonthlyRevenue[year] = {
-        roomRevenue: new Array(12).fill(0),
-        dayTourRevenue: new Array(12).fill(0),
-        total: new Array(12).fill(0)
-      };
-    }
-    if (!yearlyMonthlyTrend[year]) {
-      yearlyMonthlyTrend[year] = {
-        roomBookings: new Array(12).fill(0),
-        dayTourGuests: new Array(12).fill(0)
-      };
-    }
-
-    const effectiveTotal = (tour.manualTotalPrice !== undefined && tour.manualTotalPrice !== null)
-      ? tour.manualTotalPrice
-      : (tour.totalPrice || 0);
-    yearlyMonthlyRevenue[year].dayTourRevenue[month] += effectiveTotal;
-    yearlyMonthlyRevenue[year].total[month] += effectiveTotal;
-
-    const guests = (tour.seniors || 0) + (tour.adults || 0) + (tour.kids || 0);
-    yearlyMonthlyTrend[year].dayTourGuests[month] += guests;
-  }
-});
-
-  // Prepare chart data
-  const roomTypeChartData = {};
-  const revenueChartData = {};
-  const trendChartData = {};
-
-  for (const year of yearsSet) {
-    roomTypeChartData[year] = MONTHS.map((month, idx) => ({
-      month: month,
-      Tent: yearlyMonthlyRoom[year]?.Tent[idx] || 0,
-      'Ground Floor Room': yearlyMonthlyRoom[year]?.['Ground Floor Room'][idx] || 0,
-      'Group Room': yearlyMonthlyRoom[year]?.['Group Room'][idx] || 0,
-      'Couple Room': yearlyMonthlyRoom[year]?.['Couple Room'][idx] || 0
-    }));
-    revenueChartData[year] = MONTHS.map((month, idx) => ({
-      month: month,
-      roomRevenue: yearlyMonthlyRevenue[year]?.roomRevenue[idx] || 0,
-      dayTourRevenue: yearlyMonthlyRevenue[year]?.dayTourRevenue[idx] || 0,
-      total: (yearlyMonthlyRevenue[year]?.roomRevenue[idx] || 0) + (yearlyMonthlyRevenue[year]?.dayTourRevenue[idx] || 0)
-    }));
-    trendChartData[year] = MONTHS.map((month, idx) => ({
-      month: month,
-      roomBookings: yearlyMonthlyTrend[year]?.roomBookings[idx] || 0,
-      dayTourGuests: yearlyMonthlyTrend[year]?.dayTourGuests[idx] || 0
-    }));
-  }
-
-  setYearlyMonthlyRoomData(roomTypeChartData);
-  setYearlyMonthlyRevenueData(revenueChartData);
-  setYearlyMonthlyTrendData(trendChartData);
-  setMonthlyBookingSplitData(monthlySplitData);
-
-  const years = Array.from(yearsSet).sort((a, b) => b - a);
-  setAvailableYears(years);
-  if (years.length > 0 && !selectedYear) setSelectedYear(years[0]);
-  if (years.length > 0 && !selectedSplitYear) setSelectedSplitYear(years[0]);
-
-  // Booking split data (unchanged)
-  let entireResortCount = 0, multiRoomCount = 0, singleRoomCount = 0;
-  processedBookings.forEach(booking => {
-    if (booking.isExclusiveResortBooking || (booking.isGrouped && booking.childBookings?.some(cb => cb.isExclusiveResortBooking))) {
-      entireResortCount++;
-    } else if (booking.isGrouped || (booking.roomTypes && booking.roomTypes.length > 1)) {
-      multiRoomCount++;
-    } else {
-      singleRoomCount++;
-    }
-  });
-  setBookingSplitData([
-    { name: 'Entire Resort', value: entireResortCount, color: '#8B5CF6' },
-    { name: 'Multi-Room Types', value: multiRoomCount, color: '#4D8CF5' },
-    { name: 'Single Room Type', value: singleRoomCount, color: '#F59E0B' }
-  ]);
-};
-  
   // Tooltip components (unchanged)
   const RevenueTooltip = ({ active, payload, label }) => {
     if (active && payload && payload.length) {
       const roomRevenue = payload.find(p => p.dataKey === 'roomRevenue')?.value || 0;
       const dayTourRevenue = payload.find(p => p.dataKey === 'dayTourRevenue')?.value || 0;
       const totalRevenue = roomRevenue + dayTourRevenue;
-      
+
       return (
         <div className="bg-white p-4 rounded-xl shadow-lg border border-gray-200 min-w-[220px]">
           <p className="font-semibold text-gray-800 border-b pb-2 mb-2">{label}</p>
@@ -1236,7 +1236,7 @@ dayTours.forEach(tour => {
     }
     return null;
   };
-  
+
   const CustomTooltip = ({ active, payload, label }) => {
     if (active && payload && payload.length) {
       const isRevenue = payload[0]?.name === 'roomRevenue' || payload[0]?.name === 'dayTourRevenue';
@@ -1253,7 +1253,7 @@ dayTours.forEach(tour => {
     }
     return null;
   };
-  
+
   const getFilteredBookingSplitData = () => {
     if (selectedSplitFilter === 'year') {
       return bookingSplitData;
@@ -1261,11 +1261,11 @@ dayTours.forEach(tour => {
       if (selectedSplitYear && selectedSplitMonth !== '' && monthlyBookingSplitData[selectedSplitYear]) {
         const monthSplitData = monthlyBookingSplitData[selectedSplitYear][parseInt(selectedSplitMonth)];
         const hasBookings = monthSplitData && (monthSplitData.entireResort > 0 || monthSplitData.multiRoom > 0 || monthSplitData.singleRoom > 0);
-        
+
         if (!hasBookings) {
           return null;
         }
-        
+
         // Return filtered data for the selected month
         return [
           { name: 'Entire Resort', value: monthSplitData.entireResort, color: '#8B5CF6' },
@@ -1276,11 +1276,11 @@ dayTours.forEach(tour => {
       return bookingSplitData;
     }
   };
-  
+
   const filteredSplitData = getFilteredBookingSplitData();
-  const hasNoBookings = filteredSplitData === null || 
+  const hasNoBookings = filteredSplitData === null ||
     (filteredSplitData && filteredSplitData.length > 0 && filteredSplitData.every(item => item.value === 0));
-  
+
   if (loading) {
     return (
       <div className="px-9 py-1 min-h-screen" style={{ backgroundColor: 'var(--color-blue-whites)' }}>
@@ -1290,7 +1290,7 @@ dayTours.forEach(tour => {
       </div>
     );
   }
-  
+
   return (
     <div className="px-9 py-1 min-h-screen" style={{ backgroundColor: 'var(--color-blue-whites)' }}>
       {/* Header (unchanged) */}
@@ -1302,7 +1302,7 @@ dayTours.forEach(tour => {
           Track your resort performance with clear reports and insights.
         </p>
       </div>
-      
+
       {/* Summary Cards (unchanged) */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-10">
         <div className="group bg-gradient-to-br from-white via-white to-emerald-50/30 rounded-2xl shadow-md border border-[#10B981]/20 overflow-hidden hover:shadow-xl hover:border-[#10B981]/40 transition-all duration-300">
@@ -1319,11 +1319,11 @@ dayTours.forEach(tour => {
             <p className="text-xs text-[#1E3A8A]/50">Lifetime revenue from <strong>completed</strong> bookings</p>
           </div>
         </div>
-        
+
         <div className="group bg-gradient-to-br from-white via-white to-blue-50/30 rounded-2xl shadow-md border border-[#4D8CF5]/20 overflow-hidden hover:shadow-xl hover:border-[#4D8CF5]/40 transition-all duration-300">
           <div className="p-6">
             <div className="flex items-center justify-between mb-4">
-              <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-[#4D8CF5]/20 to-[#4D8CF5]/5 flex items-center justify-center group-hover:scale-105 transition-transform duration-300">  
+              <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-[#4D8CF5]/20 to-[#4D8CF5]/5 flex items-center justify-center group-hover:scale-105 transition-transform duration-300">
                 <i className="fas fa-bed text-[#4D8CF5] text-xl"></i>
               </div>
               <span className="text-3xl font-extrabold text-[#1E3A8A] tracking-tight">
@@ -1334,7 +1334,7 @@ dayTours.forEach(tour => {
             <p className="text-xs text-[#1E3A8A]/50">Room units from <strong>completed</strong> reservations</p>
           </div>
         </div>
-        
+
         <div className="group bg-gradient-to-br from-white via-white to-amber-50/30 rounded-2xl shadow-md border border-[#F59E0B]/20 overflow-hidden hover:shadow-xl hover:border-[#F59E0B]/40 transition-all duration-300">
           <div className="p-6">
             <div className="flex items-center justify-between mb-4">
@@ -1350,7 +1350,7 @@ dayTours.forEach(tour => {
           </div>
         </div>
       </div>
-      
+
       {/* Tabs (unchanged) */}
       <div className="relative mb-6 border-b border-[#4D8CF5]/20" ref={tabsContainerRef}>
         <div
@@ -1361,62 +1361,58 @@ dayTours.forEach(tour => {
             width: '0px',
           }}
         />
-        
+
         <div className="grid grid-cols-4 w-full">
           <button
             ref={(el) => (buttonRefs.current.roomTypes = el)}
             onClick={() => setActiveTab('roomTypes')}
-            className={`relative z-10 py-3 font-medium transition-all duration-200 whitespace-nowrap flex items-center justify-center gap-2 ${
-              activeTab === 'roomTypes'
-                ? 'text-[#1E3A8A]'
-                : 'text-[#1E3A8A]/60 hover:text-[#4D8CF5]'
-            }`}
+            className={`relative z-10 py-3 font-medium transition-all duration-200 whitespace-nowrap flex items-center justify-center gap-2 ${activeTab === 'roomTypes'
+              ? 'text-[#1E3A8A]'
+              : 'text-[#1E3A8A]/60 hover:text-[#4D8CF5]'
+              }`}
           >
             <i className="fas fa-chart-bar"></i>
             Most Booked Room Types
           </button>
-          
+
           <button
             ref={(el) => (buttonRefs.current.revenue = el)}
             onClick={() => setActiveTab('revenue')}
-            className={`relative z-10 py-3 font-medium transition-all duration-200 whitespace-nowrap flex items-center justify-center gap-2 ${
-              activeTab === 'revenue'
-                ? 'text-[#1E3A8A]'
-                : 'text-[#1E3A8A]/60 hover:text-[#4D8CF5]'
-            }`}
+            className={`relative z-10 py-3 font-medium transition-all duration-200 whitespace-nowrap flex items-center justify-center gap-2 ${activeTab === 'revenue'
+              ? 'text-[#1E3A8A]'
+              : 'text-[#1E3A8A]/60 hover:text-[#4D8CF5]'
+              }`}
           >
             <i className="fas fa-chart-line"></i>
             Revenue Summary
           </button>
-          
+
           <button
             ref={(el) => (buttonRefs.current.bookingSplit = el)}
             onClick={() => setActiveTab('bookingSplit')}
-            className={`relative z-10 py-3 font-medium transition-all duration-200 whitespace-nowrap flex items-center justify-center gap-2 ${
-              activeTab === 'bookingSplit'
-                ? 'text-[#1E3A8A]'
-                : 'text-[#1E3A8A]/60 hover:text-[#4D8CF5]'
-            }`}
+            className={`relative z-10 py-3 font-medium transition-all duration-200 whitespace-nowrap flex items-center justify-center gap-2 ${activeTab === 'bookingSplit'
+              ? 'text-[#1E3A8A]'
+              : 'text-[#1E3A8A]/60 hover:text-[#4D8CF5]'
+              }`}
           >
             <i className="fas fa-chart-pie"></i>
             Room Booking Type Split
           </button>
-          
+
           <button
             ref={(el) => (buttonRefs.current.trends = el)}
             onClick={() => setActiveTab('trends')}
-            className={`relative z-10 py-3 font-medium transition-all duration-200 whitespace-nowrap flex items-center justify-center gap-2 ${
-              activeTab === 'trends'
-                ? 'text-[#1E3A8A]'
-                : 'text-[#1E3A8A]/60 hover:text-[#4D8CF5]'
-            }`}
+            className={`relative z-10 py-3 font-medium transition-all duration-200 whitespace-nowrap flex items-center justify-center gap-2 ${activeTab === 'trends'
+              ? 'text-[#1E3A8A]'
+              : 'text-[#1E3A8A]/60 hover:text-[#4D8CF5]'
+              }`}
           >
             <i className="fas fa-chart-line"></i>
             Monthly / Seasonal Trend
           </button>
         </div>
       </div>
-      
+
       {/* Tab Content */}
       <div className="bg-white rounded-2xl shadow-lg border border-gray-200 p-6 md:p-8">
         {/* Tab 1: Most Booked Room Types */}
@@ -1430,43 +1426,43 @@ dayTours.forEach(tour => {
               <div className="flex items-center gap-3 bg-gradient-to-r from-gray-50 to-white px-4 py-2 rounded-xl shadow-sm border border-gray-100">
                 <i className="fas fa-calendar-alt text-[#4D8CF5] text-sm"></i>
                 <label className="text-sm font-medium text-gray-700">Select Year:</label>
-<div className="relative inline-block">
-  <select
-    value={selectedYear}
-    onChange={(e) => setSelectedYear(e.target.value)}
-    className="px-3 py-2 pr-8 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#4D8CF5] focus:border-transparent bg-white appearance-none cursor-pointer transition-all duration-200"
-  >
-    {availableYears.map((year) => (
-      <option key={year} value={year}>
-        {year}
-      </option>
-    ))}
-  </select>
+                <div className="relative inline-block">
+                  <select
+                    value={selectedYear}
+                    onChange={(e) => setSelectedYear(e.target.value)}
+                    className="px-3 py-2 pr-8 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#4D8CF5] focus:border-transparent bg-white appearance-none cursor-pointer transition-all duration-200"
+                  >
+                    {availableYears.map((year) => (
+                      <option key={year} value={year}>
+                        {year}
+                      </option>
+                    ))}
+                  </select>
 
-  {/* Custom dropdown arrow */}
-  <div className="absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none text-[#4D8CF5] text-xs">
-    ▼
-  </div>
-</div>
+                  {/* Custom dropdown arrow */}
+                  <div className="absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none text-[#4D8CF5] text-xs">
+                    ▼
+                  </div>
+                </div>
               </div>
             </div>
             <div className="flex justify-end gap-2 mb-6">
               <button
                 onClick={() => openExportConfirm('pdf', 'Most Booked Room Types', [], getRoomTypesTableData(), ['Month', 'Tent', 'Ground Floor Room', 'Group Room', 'Couple Room', 'Total'])}
-className="px-4 py-2 rounded-lg bg-red-500/10 text-red-600 hover:bg-red-600/80 hover:text-white transition-all duration-200 flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
->
+                className="px-4 py-2 rounded-lg bg-red-500/10 text-red-600 hover:bg-red-600/80 hover:text-white transition-all duration-200 flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
+              >
                 <i className="fas fa-file-pdf"></i> PDF
               </button>
               <button
                 onClick={() => openExportConfirm('excel', 'Most Booked Room Types', [], getRoomTypesTableData(), ['Month', 'Tent', 'Ground Floor Room', 'Group Room', 'Couple Room', 'Total'])}
-className="px-4 py-2 rounded-lg bg-green-500/10 text-green-600 hover:bg-green-600/80 hover:text-white transition-all duration-200 flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
->
+                className="px-4 py-2 rounded-lg bg-green-500/10 text-green-600 hover:bg-green-600/80 hover:text-white transition-all duration-200 flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
+              >
                 <i className="fas fa-file-excel"></i> Excel
               </button>
             </div>
-            
+
             {/* Annual Room Type Totals Cards */}
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-8">              
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-8">
               <div className="bg-gradient-to-br from-amber-50 to-white rounded-xl p-4 border border-amber-100 shadow-sm">
                 <div className="flex items-center gap-3 mb-2">
                   <div className="w-8 h-8 rounded-lg bg-amber-100 flex items-center justify-center">
@@ -1477,7 +1473,7 @@ className="px-4 py-2 rounded-lg bg-green-500/10 text-green-600 hover:bg-green-60
                 <p className="text-2xl font-bold text-[#1E3A8A]">{annualRoomTypeTotals['Couple Room'].toLocaleString()}</p>
                 <p className="text-xs text-gray-400 mt-1">For year {selectedYear}</p>
               </div>
-              
+
               <div className="bg-gradient-to-br from-blue-50 to-white rounded-xl p-4 border border-blue-100 shadow-sm">
                 <div className="flex items-center gap-3 mb-2">
                   <div className="w-8 h-8 rounded-lg bg-blue-100 flex items-center justify-center">
@@ -1488,7 +1484,7 @@ className="px-4 py-2 rounded-lg bg-green-500/10 text-green-600 hover:bg-green-60
                 <p className="text-2xl font-bold text-[#1E3A8A]">{annualRoomTypeTotals['Ground Floor Room'].toLocaleString()}</p>
                 <p className="text-xs text-gray-400 mt-1">For year {selectedYear}</p>
               </div>
-              
+
               <div className="bg-gradient-to-br from-purple-50 to-white rounded-xl p-4 border border-purple-100 shadow-sm">
                 <div className="flex items-center gap-3 mb-2">
                   <div className="w-8 h-8 rounded-lg bg-purple-100 flex items-center justify-center">
@@ -1511,7 +1507,7 @@ className="px-4 py-2 rounded-lg bg-green-500/10 text-green-600 hover:bg-green-60
                 <p className="text-xs text-gray-400 mt-1">For year {selectedYear}</p>
               </div>
             </div>
-            
+
             <p className="text-sm text-gray-500 mb-6">Monthly booking frequency by room type for <span className="font-semibold text-[#1E3A8A]">{selectedYear}</span></p>
             {selectedYear && yearlyMonthlyRoomData[selectedYear] && (
               <div ref={roomTypesChartRef} className="bg-gradient-to-br from-gray-50 to-white rounded-xl p-6 border border-gray-100 shadow-sm hover:shadow-md transition-shadow duration-300">
@@ -1532,7 +1528,7 @@ className="px-4 py-2 rounded-lg bg-green-500/10 text-green-600 hover:bg-green-60
             )}
           </div>
         )}
-        
+
         {/* Tab 2: Revenue Summary */}
         {activeTab === 'revenue' && (
           <div className="animate-fadeIn">
@@ -1544,41 +1540,41 @@ className="px-4 py-2 rounded-lg bg-green-500/10 text-green-600 hover:bg-green-60
               <div className="flex items-center gap-3 bg-gradient-to-r from-gray-50 to-white px-4 py-2 rounded-xl shadow-sm border border-gray-100">
                 <i className="fas fa-calendar-alt text-[#4D8CF5] text-sm"></i>
                 <label className="text-sm font-medium text-gray-700">Select Year:</label>
-<div className="relative inline-block">
-  <select
-    value={selectedYear}
-    onChange={(e) => setSelectedYear(e.target.value)}
-    className="px-3 py-2 pr-8 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#4D8CF5] focus:border-transparent bg-white appearance-none cursor-pointer transition-all duration-200"
-  >
-    {availableYears.map((year) => (
-      <option key={year} value={year}>
-        {year}
-      </option>
-    ))}
-  </select>
+                <div className="relative inline-block">
+                  <select
+                    value={selectedYear}
+                    onChange={(e) => setSelectedYear(e.target.value)}
+                    className="px-3 py-2 pr-8 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#4D8CF5] focus:border-transparent bg-white appearance-none cursor-pointer transition-all duration-200"
+                  >
+                    {availableYears.map((year) => (
+                      <option key={year} value={year}>
+                        {year}
+                      </option>
+                    ))}
+                  </select>
 
-  {/* Custom dropdown arrow */}
-  <div className="absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none text-[#4D8CF5] text-xs">
-    ▼
-  </div>
-</div>
+                  {/* Custom dropdown arrow */}
+                  <div className="absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none text-[#4D8CF5] text-xs">
+                    ▼
+                  </div>
+                </div>
               </div>
             </div>
             <div className="flex justify-end gap-2 mb-6">
               <button
                 onClick={() => openExportConfirm('pdf', 'Revenue Summary', [], getRevenueTableData(), ['Month', 'Room Revenue', 'Day Tour Revenue', 'Total Revenue'])}
-className="px-4 py-2 rounded-lg bg-red-500/10 text-red-600 hover:bg-red-600/80 hover:text-white transition-all duration-200 flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
->
+                className="px-4 py-2 rounded-lg bg-red-500/10 text-red-600 hover:bg-red-600/80 hover:text-white transition-all duration-200 flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
+              >
                 <i className="fas fa-file-pdf"></i> PDF
               </button>
               <button
                 onClick={() => openExportConfirm('excel', 'Revenue Summary', [], getRevenueTableData(), ['Month', 'Room Revenue', 'Day Tour Revenue', 'Total Revenue'])}
-className="px-4 py-2 rounded-lg bg-green-500/10 text-green-600 hover:bg-green-600/80 hover:text-white transition-all duration-200 flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
->
+                className="px-4 py-2 rounded-lg bg-green-500/10 text-green-600 hover:bg-green-600/80 hover:text-white transition-all duration-200 flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
+              >
                 <i className="fas fa-file-excel"></i> Excel
               </button>
             </div>
-            
+
             {/* Annual Revenue Summary Cards */}
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-8">
               <div className="bg-gradient-to-br from-blue-50 to-white rounded-xl p-4 border border-blue-100 shadow-sm">
@@ -1591,7 +1587,7 @@ className="px-4 py-2 rounded-lg bg-green-500/10 text-green-600 hover:bg-green-60
                 <p className="text-2xl font-bold text-[#1E3A8A]">₱{annualRoomRevenue.toLocaleString()}</p>
                 <p className="text-xs text-gray-400 mt-1">For year {selectedYear}</p>
               </div>
-              
+
               <div className="bg-gradient-to-br from-amber-50 to-white rounded-xl p-4 border border-amber-100 shadow-sm">
                 <div className="flex items-center gap-3 mb-2">
                   <div className="w-8 h-8 rounded-lg bg-[#F59E0B]/10 flex items-center justify-center">
@@ -1602,7 +1598,7 @@ className="px-4 py-2 rounded-lg bg-green-500/10 text-green-600 hover:bg-green-60
                 <p className="text-2xl font-bold text-[#1E3A8A]">₱{annualDayTourRevenue.toLocaleString()}</p>
                 <p className="text-xs text-gray-400 mt-1">For year {selectedYear}</p>
               </div>
-              
+
               <div className="bg-gradient-to-br from-emerald-50 to-white rounded-xl p-4 border border-emerald-100 shadow-sm">
                 <div className="flex items-center gap-3 mb-2">
                   <div className="w-8 h-8 rounded-lg bg-emerald-100 flex items-center justify-center">
@@ -1614,7 +1610,7 @@ className="px-4 py-2 rounded-lg bg-green-500/10 text-green-600 hover:bg-green-60
                 <p className="text-xs text-gray-400 mt-1">Combined revenue for {selectedYear}</p>
               </div>
             </div>
-            
+
             <p className="text-sm text-gray-500 mb-6">Monthly revenue breakdown for <span className="font-semibold text-[#1E3A8A]">{selectedYear}</span></p>
             {selectedYear && yearlyMonthlyRevenueData[selectedYear] && (
               <div ref={revenueChartRef} className="bg-gradient-to-br from-gray-50 to-white rounded-xl p-6 border border-gray-100 shadow-sm hover:shadow-md transition-shadow duration-300">
@@ -1633,7 +1629,7 @@ className="px-4 py-2 rounded-lg bg-green-500/10 text-green-600 hover:bg-green-60
             )}
           </div>
         )}
-        
+
         {/* Tab 3: Room Booking Type Split */}
         {activeTab === 'bookingSplit' && (
           <div className="animate-fadeIn">
@@ -1646,44 +1642,44 @@ className="px-4 py-2 rounded-lg bg-green-500/10 text-green-600 hover:bg-green-60
                 <div className="flex items-center gap-3 bg-gradient-to-r from-gray-50 to-white px-4 py-2 rounded-xl shadow-sm border border-gray-100">
                   <i className="fas fa-sliders-h text-[#4D8CF5] text-sm"></i>
                   <label className="text-sm font-medium text-gray-700">Filter by:</label>
-<div className="relative inline-block">
-  <select
-    value={selectedSplitFilter}
-    onChange={(e) => setSelectedSplitFilter(e.target.value)}
-    className="px-3 py-2 pr-8 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#4D8CF5] focus:border-transparent bg-white appearance-none cursor-pointer transition-all duration-200"
-  >
-    <option value="year">Year</option>
-    <option value="month">Month</option>
-  </select>
+                  <div className="relative inline-block">
+                    <select
+                      value={selectedSplitFilter}
+                      onChange={(e) => setSelectedSplitFilter(e.target.value)}
+                      className="px-3 py-2 pr-8 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#4D8CF5] focus:border-transparent bg-white appearance-none cursor-pointer transition-all duration-200"
+                    >
+                      <option value="year">Year</option>
+                      <option value="month">Month</option>
+                    </select>
 
-  {/* Custom dropdown arrow */}
-  <div className="absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none text-[#4D8CF5] text-xs">
-    ▼
-  </div>
-</div>
+                    {/* Custom dropdown arrow */}
+                    <div className="absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none text-[#4D8CF5] text-xs">
+                      ▼
+                    </div>
+                  </div>
                 </div>
                 {selectedSplitFilter === 'year' ? (
                   <div className="flex items-center gap-3 bg-gradient-to-r from-gray-50 to-white px-4 py-2 rounded-xl shadow-sm border border-gray-100">
                     <i className="fas fa-calendar-alt text-[#4D8CF5] text-sm"></i>
                     <label className="text-sm font-medium text-gray-700">Year:</label>
-<div className="relative inline-block">
-  <select
-    value={selectedSplitYear}
-    onChange={(e) => setSelectedSplitYear(e.target.value)}
-    className="px-3 py-2 pr-8 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#4D8CF5] focus:border-transparent bg-white appearance-none cursor-pointer transition-all duration-200"
-  >
-    {availableYears.map((year) => (
-      <option key={year} value={year}>
-        {year}
-      </option>
-    ))}
-  </select>
+                    <div className="relative inline-block">
+                      <select
+                        value={selectedSplitYear}
+                        onChange={(e) => setSelectedSplitYear(e.target.value)}
+                        className="px-3 py-2 pr-8 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#4D8CF5] focus:border-transparent bg-white appearance-none cursor-pointer transition-all duration-200"
+                      >
+                        {availableYears.map((year) => (
+                          <option key={year} value={year}>
+                            {year}
+                          </option>
+                        ))}
+                      </select>
 
-  {/* Custom dropdown arrow */}
-  <div className="absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none text-[#4D8CF5] text-xs">
-    ▼
-  </div>
-</div>
+                      {/* Custom dropdown arrow */}
+                      <div className="absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none text-[#4D8CF5] text-xs">
+                        ▼
+                      </div>
+                    </div>
                   </div>
                 ) : (
                   <div className="flex flex-wrap gap-3">
@@ -1708,20 +1704,20 @@ className="px-4 py-2 rounded-lg bg-green-500/10 text-green-600 hover:bg-green-60
             <div className="flex justify-end gap-2 mb-6">
               <button
                 onClick={() => openExportConfirm('pdf', 'Room Booking Type Split', [], getBookingSplitTableData(), ['Booking Type', 'Count'])}
-className="px-4 py-2 rounded-lg bg-red-500/10 text-red-600 hover:bg-red-600/80 hover:text-white transition-all duration-200 flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
->
+                className="px-4 py-2 rounded-lg bg-red-500/10 text-red-600 hover:bg-red-600/80 hover:text-white transition-all duration-200 flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
+              >
                 <i className="fas fa-file-pdf"></i> PDF
               </button>
               <button
                 onClick={() => openExportConfirm('excel', 'Room Booking Type Split', [], getBookingSplitTableData(), ['Booking Type', 'Count'])}
-className="px-4 py-2 rounded-lg bg-green-500/10 text-green-600 hover:bg-green-600/80 hover:text-white transition-all duration-200 flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
->
+                className="px-4 py-2 rounded-lg bg-green-500/10 text-green-600 hover:bg-green-600/80 hover:text-white transition-all duration-200 flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
+              >
                 <i className="fas fa-file-excel"></i> Excel
               </button>
             </div>
-            
+
             <p className="text-sm text-gray-500 mb-8">Distribution of booking types for {selectedSplitFilter === 'year' ? `year ${selectedSplitYear}` : `${MONTHS[parseInt(selectedSplitMonth)]} ${selectedSplitYear}`}</p>
-            
+
             {hasNoBookings ? (
               <div className="flex flex-col items-center justify-center py-16 bg-gradient-to-br from-gray-50 to-white rounded-xl border border-gray-100">
                 <i className="fas fa-calendar-times text-5xl text-gray-300 mb-4"></i>
@@ -1752,7 +1748,7 @@ className="px-4 py-2 rounded-lg bg-green-500/10 text-green-600 hover:bg-green-60
             )}
           </div>
         )}
-        
+
         {/* Tab 4: Monthly / Seasonal Trend */}
         {activeTab === 'trends' && (
           <div className="animate-fadeIn">
@@ -1764,41 +1760,41 @@ className="px-4 py-2 rounded-lg bg-green-500/10 text-green-600 hover:bg-green-60
               <div className="flex items-center gap-3 bg-gradient-to-r from-gray-50 to-white px-4 py-2 rounded-xl shadow-sm border border-gray-100">
                 <i className="fas fa-calendar-alt text-[#4D8CF5] text-sm"></i>
                 <label className="text-sm font-medium text-gray-700">Select Year:</label>
-<div className="relative inline-block">
-  <select
-    value={selectedYear}
-    onChange={(e) => setSelectedYear(e.target.value)}
-    className="px-3 py-2 pr-8 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#4D8CF5] focus:border-transparent bg-white appearance-none cursor-pointer transition-all duration-200"
-  >
-    {availableYears.map((year) => (
-      <option key={year} value={year}>
-        {year}
-      </option>
-    ))}
-  </select>
+                <div className="relative inline-block">
+                  <select
+                    value={selectedYear}
+                    onChange={(e) => setSelectedYear(e.target.value)}
+                    className="px-3 py-2 pr-8 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#4D8CF5] focus:border-transparent bg-white appearance-none cursor-pointer transition-all duration-200"
+                  >
+                    {availableYears.map((year) => (
+                      <option key={year} value={year}>
+                        {year}
+                      </option>
+                    ))}
+                  </select>
 
-  {/* Custom dropdown arrow */}
-  <div className="absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none text-[#4D8CF5] text-xs">
-    ▼
-  </div>
-</div>
+                  {/* Custom dropdown arrow */}
+                  <div className="absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none text-[#4D8CF5] text-xs">
+                    ▼
+                  </div>
+                </div>
               </div>
             </div>
             <div className="flex justify-end gap-2 mb-6">
               <button
                 onClick={() => openExportConfirm('pdf', 'Monthly Seasonal Trend', [], getTrendTableData(), ['Month', 'Room Bookings', 'Day Tour Guests'])}
-className="px-4 py-2 rounded-lg bg-red-500/10 text-red-600 hover:bg-red-600/80 hover:text-white transition-all duration-200 flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
->
+                className="px-4 py-2 rounded-lg bg-red-500/10 text-red-600 hover:bg-red-600/80 hover:text-white transition-all duration-200 flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
+              >
                 <i className="fas fa-file-pdf"></i> PDF
               </button>
               <button
                 onClick={() => openExportConfirm('excel', 'Monthly Seasonal Trend', [], getTrendTableData(), ['Month', 'Room Bookings', 'Day Tour Guests'])}
- className="px-4 py-2 rounded-lg bg-green-500/10 text-green-600 hover:bg-green-600/80 hover:text-white transition-all duration-200 flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
->
+                className="px-4 py-2 rounded-lg bg-green-500/10 text-green-600 hover:bg-green-600/80 hover:text-white transition-all duration-200 flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
+              >
                 <i className="fas fa-file-excel"></i> Excel
               </button>
             </div>
-            
+
             {/* Annual Trend Summary Cards */}
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-8">
               <div className="bg-gradient-to-br from-blue-50 to-white rounded-xl p-4 border border-blue-100 shadow-sm">
@@ -1811,7 +1807,7 @@ className="px-4 py-2 rounded-lg bg-red-500/10 text-red-600 hover:bg-red-600/80 h
                 <p className="text-2xl font-bold text-[#1E3A8A]">{annualTrendTotals.roomBookings.toLocaleString()}</p>
                 <p className="text-xs text-gray-400 mt-1">For year {selectedYear}</p>
               </div>
-              
+
               <div className="bg-gradient-to-br from-amber-50 to-white rounded-xl p-4 border border-amber-100 shadow-sm">
                 <div className="flex items-center gap-3 mb-2">
                   <div className="w-8 h-8 rounded-lg bg-[#F59E0B]/10 flex items-center justify-center">
@@ -1823,7 +1819,7 @@ className="px-4 py-2 rounded-lg bg-red-500/10 text-red-600 hover:bg-red-600/80 h
                 <p className="text-xs text-gray-400 mt-1">For year {selectedYear}</p>
               </div>
             </div>
-            
+
             <p className="text-sm text-gray-500 mb-8">Monthly booking patterns for <span className="font-semibold text-[#1E3A8A]">{selectedYear}</span></p>
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
               <div ref={roomBookingsTrendRef} className="bg-gradient-to-br from-gray-50 to-white rounded-xl p-6 border border-gray-100 shadow-sm hover:shadow-md transition-shadow duration-300">
@@ -1876,7 +1872,7 @@ className="px-4 py-2 rounded-lg bg-red-500/10 text-red-600 hover:bg-red-600/80 h
           </div>
         )}
       </div>
-      
+
       {/* --- Confirm Export Modal (only) --- */}
       {confirmExport.show && (
         <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4">
@@ -1909,7 +1905,7 @@ className="px-4 py-2 rounded-lg bg-red-500/10 text-red-600 hover:bg-red-600/80 h
           </div>
         </div>
       )}
-      
+
       <style jsx>{`
         @keyframes fadeIn {
           from {

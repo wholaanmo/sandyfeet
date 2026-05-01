@@ -209,11 +209,11 @@ export default function AdminFeedback() {
   const modalContent = getModalContent();
 
   return (
-    <div className="px-9 py-1 min-h-screen" style={{ backgroundColor: 'var(--color-blue-whites)' }}>
+    <div className="px-4 sm:px-9 py-1 min-h-screen pb-12" style={{ backgroundColor: 'var(--color-blue-whites)' }}>
       {/* Header */}
-      <div className="mb-6 rounded-xl border border-[#7AAAF8]/20 bg-[#7AAAF8]/5 px-5 py-4 shadow-sm">
-        <h1 className="text-3xl font-bold text-[#1E3A8A] font-playfair tracking-tight">Guest Feedback Management</h1>
-        <p className="text-[#4D6FA8] text-sm leading-relaxed mt-1">Review, publish, and manage guest testimonials</p>
+      <div className="mb-6 rounded-xl border border-[#7AAAF8]/20 bg-[#7AAAF8]/5 px-4 sm:px-5 py-4 shadow-sm">
+        <h1 className="text-2xl sm:text-3xl font-bold text-[#1E3A8A] font-playfair tracking-tight">Guest Feedback Management</h1>
+        <p className="text-[#4D6FA8] text-xs sm:text-sm leading-relaxed mt-1">Review, publish, and manage guest testimonials</p>
       </div>
 
       {/* Notification */}
@@ -244,7 +244,7 @@ export default function AdminFeedback() {
       ) : (
         <div className="bg-white rounded-2xl shadow-md border border-ocean-light/10 overflow-hidden">
           <div className="overflow-x-auto">
-            <table className="w-full min-w-[800px]">
+            <table className="w-full min-w-[1000px]">
               <thead>
                 <tr className="bg-ocean-pale/50 border-b border-ocean-light/20">
                   <th className="px-4 py-3 text-left text-sm font-semibold text-textPrimary">Guest</th>

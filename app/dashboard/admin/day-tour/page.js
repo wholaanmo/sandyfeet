@@ -842,26 +842,26 @@ export default function AdminDayTour({ defaultTab = 'tours', hideTabs = false })
             <div className="max-w-4xl mx-auto mb-12">
               <div className="bg-white rounded-[2.5rem] shadow-xl shadow-[#4D8CF5]/5 border border-[#4D8CF5]/10 overflow-hidden">
                 {/* Header */}
-                <div className="p-8 border-b border-gray-50 flex justify-between items-center bg-gradient-to-br from-white to-[#4D8CF5]/5">
-                  <div className="flex items-center gap-5">
-                    <div className="w-16 h-16 rounded-[1.5rem] bg-white shadow-sm flex items-center justify-center border border-[#4D8CF5]/20">
-                      <i className="fas fa-umbrella-beach text-3xl text-[#4D8CF5]"></i>
+                <div className="p-6 sm:p-8 border-b border-gray-50 flex flex-col sm:flex-row justify-between items-start sm:items-center bg-gradient-to-br from-white to-[#4D8CF5]/5 gap-4">
+                  <div className="flex items-center gap-4 sm:gap-5">
+                    <div className="w-12 h-12 sm:w-16 sm:h-16 rounded-[1.25rem] sm:rounded-[1.5rem] bg-white shadow-sm flex items-center justify-center border border-[#4D8CF5]/20 flex-shrink-0">
+                      <i className="fas fa-umbrella-beach text-2xl sm:text-3xl text-[#4D8CF5]"></i>
                     </div>
                     <div>
-                      <h2 className="text-2xl font-bold text-[#1E3A8A] font-playfair mb-1.5">Day Tour Package</h2>
+                      <h2 className="text-xl sm:text-2xl font-bold text-[#1E3A8A] font-playfair mb-1">Day Tour Package</h2>
                       <span className={`inline-flex px-3 py-1 rounded-full text-[10px] font-bold uppercase tracking-widest ${getAvailabilityStyle(dayTour.availability)}`}>
                         {getAvailabilityLabel(dayTour.availability)}
                       </span>
                     </div>
                   </div>
-                  <div className="flex gap-2.5">
-                    <button onClick={() => { setSelectedTour(dayTour); setViewImageIndex(0); setShowTourDetailsModal(true); }} className="w-11 h-11 rounded-lg bg-[#7AAAF8]/10 text-[#1E3A8A] border border-[#7AAAF8]/20 hover:bg-[#7AAAF8] hover:text-white transition-all duration-200 flex items-center justify-center">
+                  <div className="flex gap-2.5 w-full sm:w-auto justify-end">
+                    <button onClick={() => { setSelectedTour(dayTour); setViewImageIndex(0); setShowTourDetailsModal(true); }} className="w-10 h-10 sm:w-11 sm:h-11 rounded-lg bg-[#7AAAF8]/10 text-[#1E3A8A] border border-[#7AAAF8]/20 hover:bg-[#7AAAF8] hover:text-white transition-all duration-200 flex items-center justify-center">
                       <i className="fas fa-eye"></i>
                     </button>
-                    <button onClick={() => handleEditTour(dayTour)} className="w-11 h-11 rounded-lg bg-[#93C5FD]/10 text-[#1E3A8A] border border-[#93C5FD]/20 hover:bg-[#93C5FD]/80 hover:text-white transition-all duration-200 flex items-center justify-center">
+                    <button onClick={() => handleEditTour(dayTour)} className="w-10 h-10 sm:w-11 sm:h-11 rounded-lg bg-[#93C5FD]/10 text-[#1E3A8A] border border-[#93C5FD]/20 hover:bg-[#93C5FD]/80 hover:text-white transition-all duration-200 flex items-center justify-center">
                       <i className="fas fa-edit text-sm"></i>
                     </button>
-                    <button onClick={() => setConfirmArchiveModal({ show: true, tour: dayTour })} className="w-11 h-11 rounded-lg bg-[#F59E0B]/10 text-[#C2410C] border border-[#F59E0B]/20 hover:bg-[#F59E0B] hover:text-white transition-all duration-200" title="Archive Tour">
+                    <button onClick={() => setConfirmArchiveModal({ show: true, tour: dayTour })} className="w-10 h-10 sm:w-11 sm:h-11 rounded-lg bg-[#F59E0B]/10 text-[#C2410C] border border-[#F59E0B]/20 hover:bg-[#F59E0B] hover:text-white transition-all duration-200" title="Archive Tour">
                       <i className="fas fa-archive text-sm"></i>
                     </button>
                   </div>
@@ -869,20 +869,20 @@ export default function AdminDayTour({ defaultTab = 'tours', hideTabs = false })
                 
                 <div className="p-8">
                   {/* Quick Stats Grid */}
-                  <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-10">
-                    <div className="p-6 rounded-[2rem] bg-gray-50 border border-gray-100 flex flex-col items-center text-center group hover:bg-white hover:shadow-lg hover:shadow-gray-100 transition-all">
-                      <span className="text-[10px] font-bold text-[#1E3A8A]/40 uppercase tracking-[0.2em] mb-3">Adult (16+)</span>
-                      <p className="text-2xl font-black text-[#4D8CF5]">₱{dayTour.adultPrice?.toLocaleString()}</p>
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 sm:gap-6 mb-10">
+                    <div className="p-4 sm:p-6 rounded-[1.5rem] sm:rounded-[2rem] bg-gray-50 border border-gray-100 flex flex-col items-center text-center group hover:bg-white hover:shadow-lg hover:shadow-gray-100 transition-all">
+                      <span className="text-[10px] font-bold text-[#1E3A8A]/40 uppercase tracking-[0.2em] mb-2 sm:mb-3">Adult (16+)</span>
+                      <p className="text-xl sm:text-2xl font-black text-[#4D8CF5]">₱{dayTour.adultPrice?.toLocaleString()}</p>
                     </div>
-                    <div className="p-6 rounded-[2rem] bg-gray-50 border border-gray-100 flex flex-col items-center text-center group hover:bg-white hover:shadow-lg hover:shadow-gray-100 transition-all">
-                      <span className="text-[10px] font-bold text-[#1E3A8A]/40 uppercase tracking-[0.2em] mb-3">Kid (15-)</span>
-                      <p className="text-2xl font-black text-[#4D8CF5]">₱{dayTour.kidPrice?.toLocaleString()}</p>
+                    <div className="p-4 sm:p-6 rounded-[1.5rem] sm:rounded-[2rem] bg-gray-50 border border-gray-100 flex flex-col items-center text-center group hover:bg-white hover:shadow-lg hover:shadow-gray-100 transition-all">
+                      <span className="text-[10px] font-bold text-[#1E3A8A]/40 uppercase tracking-[0.2em] mb-2 sm:mb-3">Kid (15-)</span>
+                      <p className="text-xl sm:text-2xl font-black text-[#4D8CF5]">₱{dayTour.kidPrice?.toLocaleString()}</p>
                     </div>
-                    <div className="p-6 rounded-[2rem] bg-gray-50 border border-gray-100 flex flex-col items-center text-center group hover:bg-white hover:shadow-lg hover:shadow-gray-100 transition-all">
-                      <span className="text-[10px] font-bold text-[#1E3A8A]/40 uppercase tracking-[0.2em] mb-3">Max Capacity</span>
+                    <div className="p-4 sm:p-6 rounded-[1.5rem] sm:rounded-[2rem] bg-gray-50 border border-gray-100 flex flex-col items-center text-center group hover:bg-white hover:shadow-lg hover:shadow-gray-100 transition-all">
+                      <span className="text-[10px] font-bold text-[#1E3A8A]/40 uppercase tracking-[0.2em] mb-2 sm:mb-3">Max Capacity</span>
                       <div className="flex items-center gap-2">
                         <i className="fas fa-users text-[#1E3A8A]/30 text-xs"></i>
-                        <p className="text-xl font-bold text-[#1E3A8A]">{dayTour.maxCapacity || 'Unlimited'}</p>
+                        <p className="text-lg sm:text-xl font-bold text-[#1E3A8A]">{dayTour.maxCapacity || 'Unlimited'}</p>
                       </div>
                     </div>
                   </div>
@@ -948,9 +948,9 @@ export default function AdminDayTour({ defaultTab = 'tours', hideTabs = false })
     } else { // activities
       return (
         <>
- <div className="mb-6 flex flex-wrap items-center gap-4">
+ <div className="mb-6 flex flex-col sm:flex-row items-start sm:items-center gap-4">
   {/* Search Filter */}
-  <div className="flex-1 min-w-[250px]">
+  <div className="w-full sm:flex-1 min-w-[250px]">
     <div className="relative w-full group">
       <i className="fas fa-search absolute left-3 top-1/2 -translate-y-1/2 text-[#4D8CF5] text-sm transition-all duration-300 group-focus-within:text-[#3B78E7]"></i>
 
@@ -965,10 +965,10 @@ export default function AdminDayTour({ defaultTab = 'tours', hideTabs = false })
   </div>
 
   {/* Add Button */}
-  <div className="ml-auto">
+  <div className="w-full sm:w-auto sm:ml-auto">
     <button
       onClick={openAddActivityModal}
-      className="flex items-center gap-2 px-5 h-[46px] rounded-xl font-medium border-2 border-[#7AAAF8]/30 bg-white/70 backdrop-blur-md text-[#1E3A8A] shadow-sm hover:bg-[#7AAAF8] hover:text-white hover:border-[#7AAAF8] hover:shadow-md hover:-translate-y-0.5 transition-all duration-200"
+      className="w-full sm:w-auto flex items-center justify-center gap-2 px-5 h-[46px] rounded-xl font-medium border-2 border-[#7AAAF8]/30 bg-white/70 backdrop-blur-md text-[#1E3A8A] shadow-sm hover:bg-[#7AAAF8] hover:text-white hover:border-[#7AAAF8] hover:shadow-md hover:-translate-y-0.5 transition-all duration-200"
     >
       <i className="fas fa-plus text-sm"></i>
       Add New Activity
@@ -1019,7 +1019,7 @@ export default function AdminDayTour({ defaultTab = 'tours', hideTabs = false })
         )}
       </div>
     ) : (
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8 max-w-7xl mx-auto px-4 pb-12">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6 sm:gap-8 max-w-7xl mx-auto px-0 sm:px-4 pb-12">
         {filteredActivities.map((activity) => (
           <div key={activity.id} className="group bg-white rounded-[2.5rem] shadow-xl shadow-gray-100/50 border border-gray-100 overflow-hidden hover:shadow-2xl hover:shadow-[#4D8CF5]/10 hover:-translate-y-1.5 transition-all duration-500">
             <div className="relative h-50 bg-gray-50 overflow-hidden">
@@ -1090,7 +1090,7 @@ className="px-3 py-2 rounded-lg bg-[#93C5FD]/10 text-[#1E3A8A] border border-[#9
   };
 
   return (
-    <div className="px-9 py-1 min-h-screen" style={{ backgroundColor: 'var(--color-blue-whites)' }}>
+    <div className="px-4 sm:px-9 py-1 min-h-screen" style={{ backgroundColor: 'var(--color-blue-whites)' }}>
 
       
       {!hideTabs && (
