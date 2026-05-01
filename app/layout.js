@@ -1,14 +1,30 @@
 import './globals.css'
 
+export const metadata = {
+  title: "Sandyfeet Resort",
+  description: "Experience luxury and comfort at Sandyfeet Resort. Book your stay online.",
+  icons: {
+    icon: [
+      { url: "/SandyFeet_logo2.png", type: "image/png" },
+    ],
+    apple: [
+      { url: "/SandyFeet_logo2.png" },
+    ],
+  },
+};
+
 export default function RootLayout({ children }) {
   return (
     <html lang="en">
       <head>
         <meta name="viewport" content="width=device-width, initial-scale=1" />
-        <link rel="icon" href="/SandyFeet_logo2.png" type="image/png" />
-        <link rel="icon" href="/SandyFeet_logo2.png" sizes="32x32" />
-        <link rel="icon" href="/SandyFeet_logo2.png" sizes="192x192" />
-        <link rel="apple-touch-icon" href="/SandyFeet_logo2.png" />
+        {/* Favicon for modern browsers */}
+        <link rel="icon" type="image/png" href="/SandyFeet_logo2.png" />
+        <link rel="icon" type="image/png" sizes="32x32" href="/SandyFeet_logo2.png" />
+        <link rel="icon" type="image/png" sizes="16x16" href="/SandyFeet_logo2.png" />
+        <link rel="apple-touch-icon" sizes="180x180" href="/SandyFeet_logo2.png" />
+        <link rel="shortcut icon" href="/SandyFeet_logo2.png" />
+        
         {/* Font Awesome */}
         <link
           rel="stylesheet"
