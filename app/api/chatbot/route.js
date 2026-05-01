@@ -2,10 +2,10 @@ import { readFileSync } from 'fs';
 import { join } from 'path';
 
 const QUOTA_COOLDOWN_MS = 15 * 60 * 1000;
-let openAICircuitOpenUntil = 0;
+let deepSeekCircuitOpenUntil = 0;
 let geminiCircuitOpenUntil = 0;
-const OPENAI_MODELS = ['gpt-4o-mini', 'gpt-4.1-mini'];
-const GEMINI_MODELS = ['gemini-2.5-flash', 'gemini-2.0-flash'];
+const GEMINI_MODELS = ['gemini-1.5-flash', 'gemini-1.5-flash-8b', 'gemini-2.0-flash', 'gemini-2.5-flash'];
+const DEEPSEEK_MODELS = ['deepseek-chat', 'deepseek-reasoner'];
 const MAX_RESPONSE_TOKENS = 700;
 const MAX_LOCAL_SECTIONS = 3;
 const SHOW_AI_UNAVAILABLE_NOTICE = process.env.CHATBOT_SHOW_AI_STATUS === 'true';
@@ -147,19 +147,19 @@ function buildConversationMessages(history, trimmedMessage) {
   return messages;
 }
 
-async function tryOpenAI(messages) {
-  const apiKey = process.env.OPENAI_API_KEY;
+async function tryDeepSeek(messages) {
+  const apiKey = process.env.FALLBACK_API_KEY_2;
   if (!apiKey) {
     return null;
   }
 
-  if (Date.now() < openAICircuitOpenUntil) {
+  if (Date.now() < deepSeekCircuitOpenUntil) {
     return null;
   }
 
-  for (const model of OPENAI_MODELS) {
+  for (const model of DEEPSEEK_MODELS) {
     try {
-      const response = await fetch('https://api.openai.com/v1/chat/completions', {
+      const response = await fetch('https://api.deepseek.com/v1/chat/completions', {
         method: 'POST',
         headers: {
           Authorization: `Bearer ${apiKey}`,
@@ -175,7 +175,7 @@ async function tryOpenAI(messages) {
 
       const payload = await response.json().catch(() => ({}));
       if (!response.ok) {
-        const err = new Error(payload?.error?.message || 'OpenAI request failed');
+        const err = new Error(payload?.error?.message || 'DeepSeek request failed');
         err.status = response.status;
         err.code = payload?.error?.code;
         err.type = payload?.error?.type;
@@ -188,8 +188,8 @@ async function tryOpenAI(messages) {
       }
     } catch (error) {
       if (isQuotaOrRateLimitError(error)) {
-        openAICircuitOpenUntil = Date.now() + QUOTA_COOLDOWN_MS;
-        console.warn('OpenAI quota/rate limit reached; opening OpenAI circuit.', {
+        deepSeekCircuitOpenUntil = Date.now() + QUOTA_COOLDOWN_MS;
+        console.warn('DeepSeek quota/rate limit reached; opening DeepSeek circuit.', {
           status: error?.status,
           code: error?.code,
           type: error?.type,
@@ -199,7 +199,7 @@ async function tryOpenAI(messages) {
       }
 
       if (!isRetryableModelError(error)) {
-        console.error('OpenAI hard failure:', {
+        console.error('DeepSeek hard failure:', {
           message: error?.message,
           status: error?.status,
           code: error?.code,
@@ -410,9 +410,9 @@ export async function POST(request) {
 
     const messages = buildConversationMessages(history, trimmedMessage);
 
-    const openAIReply = await tryOpenAI(messages);
-    if (openAIReply) {
-      return Response.json({ reply: openAIReply, source: 'openai' }, { status: 200 });
+    const deepSeekReply = await tryDeepSeek(messages);
+    if (deepSeekReply) {
+      return Response.json({ reply: deepSeekReply, source: 'deepseek' }, { status: 200 });
     }
 
     const geminiReply = await tryGemini(messages);
