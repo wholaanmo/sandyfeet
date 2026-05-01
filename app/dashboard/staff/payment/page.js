@@ -24,7 +24,7 @@ export default function StaffPaymentPage() {
   const [viewedRoomRequests, setViewedRoomRequests] = useState(new Set());
   const [viewedDayTourRequests, setViewedDayTourRequests] = useState(new Set());
   const [requestsSearchTerm, setRequestsSearchTerm] = useState('');
-  
+
   // State for view bank account details modal
   const [showViewBankModal, setShowViewBankModal] = useState(false);
   const [selectedBankForView, setSelectedBankForView] = useState(null);
@@ -33,7 +33,7 @@ export default function StaffPaymentPage() {
   const mainTabsContainerRef = useRef(null);
   const mainSliderRef = useRef(null);
   const mainButtonRefs = useRef({});
-  
+
   const requestsTabsContainerRef = useRef(null);
   const requestsSliderRef = useRef(null);
   const requestsButtonRefs = useRef({});
@@ -106,7 +106,7 @@ export default function StaffPaymentPage() {
     }, (error) => {
       console.error('Error fetching payment settings:', error);
     });
-    
+
     // Real-time listener for bank accounts (only non-archived ones)
     const bankAccountsRef = collection(db, 'bank_accounts');
     const q = query(bankAccountsRef, where('archived', '==', false));
@@ -121,7 +121,7 @@ export default function StaffPaymentPage() {
       console.error('Error fetching bank accounts:', error);
       setLoading(false);
     });
-    
+
     return () => {
       unsubscribeSettings();
       unsubscribeBankAccounts();
@@ -176,7 +176,7 @@ export default function StaffPaymentPage() {
       bankRequestsRef,
       orderBy('createdAt', 'desc')
     );
-    
+
     const unsubscribe = onSnapshot(q, (querySnapshot) => {
       const requests = [];
       querySnapshot.forEach((doc) => {
@@ -190,7 +190,7 @@ export default function StaffPaymentPage() {
     }, (error) => {
       console.error('Error fetching bank transfer requests:', error);
     });
-    
+
     return () => unsubscribe();
   }, []);
 
@@ -201,7 +201,7 @@ export default function StaffPaymentPage() {
       dayTourBankRequestsRef,
       orderBy('createdAt', 'desc')
     );
-    
+
     const unsubscribe = onSnapshot(q, (querySnapshot) => {
       const requests = [];
       querySnapshot.forEach((doc) => {
@@ -215,7 +215,7 @@ export default function StaffPaymentPage() {
     }, (error) => {
       console.error('Error fetching day tour bank transfer requests:', error);
     });
-    
+
     return () => unsubscribe();
   }, []);
 
@@ -244,14 +244,14 @@ export default function StaffPaymentPage() {
       showNotification('Bank details already provided for this request.', 'error');
       return;
     }
-    
+
     // Use the bank details that the guest originally requested
     const requestedBank = request.requestedBank;
     if (!requestedBank) {
       showNotification('No bank account was requested by the guest.', 'error');
       return;
     }
-    
+
     setSelectedRequest({ ...request, requestType: activeRequestsTab });
     setShowConfirmationModal(true);
   };
@@ -259,7 +259,7 @@ export default function StaffPaymentPage() {
   // Handle providing bank details after confirmation - send the guest's requested bank
   const handleConfirmSendBankDetails = async () => {
     if (!selectedRequest) return;
-    
+
     // Use the bank details that the guest originally requested
     const bankToSend = selectedRequest.requestedBank;
     if (!bankToSend) {
@@ -268,13 +268,13 @@ export default function StaffPaymentPage() {
       setSelectedRequest(null);
       return;
     }
-    
+
     setSaving(true);
     try {
       const isDayTour = selectedRequest.requestType === 'daytour';
       const collectionName = isDayTour ? 'daytour_bank_requests' : 'bank_requests';
       const bankRequestRef = doc(db, collectionName, selectedRequest.id);
-      
+
       await updateDoc(bankRequestRef, {
         status: 'completed',
         providedBankDetails: {
@@ -286,13 +286,13 @@ export default function StaffPaymentPage() {
         },
         updatedAt: new Date().toISOString()
       });
-      
+
       await logAdminAction({
         action: 'Provided Bank Details',
         module: isDayTour ? 'Day Tour Payment' : 'Room Payment',
         details: `Staff provided bank details to guest: ${selectedRequest.guestName} for ${isDayTour ? 'day tour' : 'room'} booking`
       });
-      
+
       showNotification('Bank details sent to guest successfully!');
       setShowConfirmationModal(false);
       setSelectedRequest(null);
@@ -367,20 +367,19 @@ export default function StaffPaymentPage() {
   return (
     <div className="px-4 sm:px-9 py-1 min-h-screen" style={{ backgroundColor: 'var(--color-blue-whites)' }}>
       {/* Header */}
-<div className="mb-6 sm:mb-8 rounded-xl border border-[#7AAAF8]/20 bg-[#7AAAF8]/5 px-4 sm:px-5 py-4 shadow-sm">
-  <h1 className="text-2xl sm:text-3xl font-bold text-[#1E3A8A] font-playfair tracking-tight">
-    Payment Settings
-  </h1>
-  <p className="text-[#4D6FA8] text-xs sm:text-sm leading-relaxed mt-1">
-    View payment settings and provide bank transfer information for guest payment requests.
-  </p>
-</div>
+      <div className="mb-6 sm:mb-8 rounded-xl border border-[#7AAAF8]/20 bg-[#7AAAF8]/5 px-4 sm:px-5 py-4 shadow-sm">
+        <h1 className="text-2xl sm:text-3xl font-bold text-[#1E3A8A] font-playfair tracking-tight">
+          Payment Settings
+        </h1>
+        <p className="text-[#4D6FA8] text-xs sm:text-sm leading-relaxed mt-1">
+          View payment settings and provide bank transfer information for guest payment requests.
+        </p>
+      </div>
 
       {/* Notification */}
       {notification.show && (
-        <div className={`fixed top-20 right-5 z-50 px-5 py-3 rounded-xl shadow-lg flex items-center gap-3 animate-slideInRight ${
-          notification.type === 'error' ? 'bg-red-50 border-l-4 border-red-500 text-red-700' : 'bg-green-50 border-l-4 border-green-500 text-green-700'
-        }`}>
+        <div className={`fixed top-20 right-5 z-50 px-5 py-3 rounded-xl shadow-lg flex items-center gap-3 animate-slideInRight ${notification.type === 'error' ? 'bg-red-50 border-l-4 border-red-500 text-red-700' : 'bg-green-50 border-l-4 border-green-500 text-green-700'
+          }`}>
           <i className={`${notification.type === 'error' ? 'fas fa-exclamation-circle text-red-500' : 'fas fa-check-circle text-green-500'} text-base`}></i>
           <span className="text-sm font-medium">{notification.message}</span>
         </div>
@@ -400,11 +399,10 @@ export default function StaffPaymentPage() {
             <button
               ref={(el) => { mainButtonRefs.current['paymentSettings'] = el; }}
               onClick={() => setActiveMainTab('paymentSettings')}
-              className={`relative z-10 w-full px-6 py-3 font-medium transition-all duration-200 text-center flex items-center justify-center gap-2 ${
-                activeMainTab === 'paymentSettings'
+              className={`relative z-10 w-full px-6 py-3 font-medium transition-all duration-200 text-center flex items-center justify-center gap-2 ${activeMainTab === 'paymentSettings'
                   ? 'text-[#1E3A8A]'
                   : 'text-[#1E3A8A]/60 hover:text-[#4D8CF5]'
-              }`}
+                }`}
             >
               <i className="fas fa-credit-card"></i>
               Payment Settings
@@ -416,11 +414,10 @@ export default function StaffPaymentPage() {
             <button
               ref={(el) => { mainButtonRefs.current['bankTransferRequests'] = el; }}
               onClick={() => setActiveMainTab('bankTransferRequests')}
-              className={`relative z-10 w-full px-6 py-3 font-medium transition-all duration-200 text-center flex items-center justify-center gap-2 ${
-                activeMainTab === 'bankTransferRequests'
+              className={`relative z-10 w-full px-6 py-3 font-medium transition-all duration-200 text-center flex items-center justify-center gap-2 ${activeMainTab === 'bankTransferRequests'
                   ? 'text-[#1E3A8A]'
                   : 'text-[#1E3A8A]/60 hover:text-[#4D8CF5]'
-              }`}
+                }`}
             >
               <i className="fas fa-exchange-alt"></i>
               Bank Transfer Requests
@@ -446,7 +443,7 @@ export default function StaffPaymentPage() {
                 GCash QR Code
               </h2>
             </div>
-            
+
             <div className="p-6">
               <div className="mb-6">
                 {gcashQRCode ? (
@@ -480,7 +477,7 @@ export default function StaffPaymentPage() {
                 Bank Accounts
               </h2>
             </div>
-            
+
             <div className="p-6">
               {activeBankAccounts.length === 0 ? (
                 <div className="text-center py-8">
@@ -531,26 +528,26 @@ export default function StaffPaymentPage() {
               <h2 className="text-xl font-bold text-textPrimary font-playfair">
                 Bank Account Details
               </h2>
-<button
-  onClick={() => setShowViewBankModal(false)}
-  className="w-8 h-8 rounded-md bg-ocean-ice text-neutral hover:bg-ocean-light/20 hover:text-textPrimary transition-all duration-200 flex items-center justify-center"
->
-  <i className="fas fa-times"></i>
-</button>
+              <button
+                onClick={() => setShowViewBankModal(false)}
+                className="w-8 h-8 rounded-md bg-ocean-ice text-neutral hover:bg-ocean-light/20 hover:text-textPrimary transition-all duration-200 flex items-center justify-center"
+              >
+                <i className="fas fa-times"></i>
+              </button>
             </div>
-            
+
             <div className="space-y-4">
               <div className="bg-ocean-ice rounded-lg p-4">
                 <div className="mb-3">
                   <label className="text-xs font-semibold text-ocean-mid uppercase tracking-wider">Bank Name</label>
                   <p className="text-base font-semibold text-textPrimary mt-1">{selectedBankForView.bankName}</p>
                 </div>
-                
+
                 <div className="mb-3">
                   <label className="text-xs font-semibold text-ocean-mid uppercase tracking-wider">Account Name</label>
                   <p className="text-base text-textPrimary mt-1">{selectedBankForView.accountName}</p>
                 </div>
-                
+
                 {selectedBankForView.accountNumber ? (
                   <div className="mb-3">
                     <label className="text-xs font-semibold text-ocean-mid uppercase tracking-wider">Account Number</label>
@@ -571,7 +568,7 @@ export default function StaffPaymentPage() {
                     </div>
                   </div>
                 ) : null}
-                
+
                 <div>
                   <label className="text-xs font-semibold text-ocean-mid uppercase tracking-wider">Visibility to Guest</label>
                   <p className="text-base text-textPrimary mt-1">
@@ -588,81 +585,80 @@ export default function StaffPaymentPage() {
                 </div>
               </div>
             </div>
-            
+
             {/* Close text button removed - only X button remains */}
           </div>
         </div>
       )}
 
       {/* Bank Transfer Requests Tab Content - Staff CAN provide bank details */}
-     {activeMainTab === 'bankTransferRequests' && (
-  <div className="bg-white rounded-2xl shadow-lg border border-[#4D8CF5]/10 overflow-hidden">
-    {/* Tabs for Room vs Day Tour */}
-    <div className="relative flex items-center justify-between border-b border-[#4D8CF5]/20 px-4 sm:px-6 bg-gradient-to-r from-white to-[#F8FBFF] overflow-x-auto scrollbar-hide">
-      <div
-        className="relative flex justify-between items-center w-full gap-4 sm:gap-8 min-w-[350px]"
-        ref={requestsTabsContainerRef}
-      >
-        {/* Sliding background */}
-        <div
-          ref={requestsSliderRef}
-          className="absolute bottom-0 left-0 h-0.5 bg-[#1E3A8A] transition-all duration-300 ease-in-out"
-        />
+      {activeMainTab === 'bankTransferRequests' && (
+        <div className="bg-white rounded-2xl shadow-lg border border-[#4D8CF5]/10 overflow-hidden">
+          {/* Tabs for Room vs Day Tour */}
+          <div className="relative border-b border-[#4D8CF5]/20 overflow-x-auto scrollbar-hide bg-gradient-to-r from-white to-[#F8FBFF]" ref={requestsTabsContainerRef}>
+            <div className="relative flex w-full min-w-[350px]">
+              {/* Sliding background */}
+              <div
+                ref={requestsSliderRef}
+                className="absolute bottom-0 h-0.5 bg-[#1E3A8A] transition-all duration-300 ease-in-out z-20"
+                style={{
+                  transform: 'translateX(0px)',
+                  width: '0px',
+                }}
+              />
 
-        {/* Room Bookings Tab */}
-        <button
-          ref={(el) => { requestsButtonRefs.current['room'] = el; }}
-          onClick={() => handleTabChange('room')}
-          className={`relative z-10 flex-1 px-2 py-3 font-medium transition-all duration-200 text-center flex items-center justify-center gap-2 ${
-            activeRequestsTab === 'room'
-              ? 'text-[#1E3A8A]'
-              : 'text-[#1E3A8A]/60 hover:text-[#4D8CF5]'
-          }`}
-        >
-          <i className="fas fa-bed text-sm"></i>
-          <span>Room Bookings</span>
-          {unreadRoomCount > 0 && (
-            <span className="ml-1 bg-red-500 text-white text-xs px-1.5 py-0.5 rounded-full shadow-sm">
-              {unreadRoomCount}
-            </span>
-          )}
-        </button>
+              {/* Room Bookings Tab */}
+              <button
+                ref={(el) => { requestsButtonRefs.current['room'] = el; }}
+                onClick={() => handleTabChange('room')}
+                className={`flex-1 relative z-10 px-4 sm:px-6 py-4 text-sm font-bold transition-all duration-200 whitespace-nowrap flex items-center justify-center gap-2 ${activeRequestsTab === 'room'
+                  ? 'text-[#1E3A8A] bg-[#4D8CF5]/5'
+                  : 'text-[#1E3A8A]/60 hover:text-[#4D8CF5] hover:bg-gray-50/50'
+                  }`}
+              >
+                <i className="fas fa-bed text-sm"></i>
+                <span>Room Bookings</span>
+                {unreadRoomCount > 0 && (
+                  <span className="ml-1 bg-red-500 text-white text-[10px] font-bold px-1.5 py-0.5 rounded shadow-sm">
+                    {unreadRoomCount}
+                  </span>
+                )}
+              </button>
 
-        {/* Day Tour Bookings Tab */}
-        <button
-          ref={(el) => { requestsButtonRefs.current['daytour'] = el; }}
-          onClick={() => handleTabChange('daytour')}
-          className={`relative z-10 flex-1 px-2 py-3 font-medium transition-all duration-200 text-center flex items-center justify-center gap-2 ${
-            activeRequestsTab === 'daytour'
-              ? 'text-[#1E3A8A]'
-              : 'text-[#1E3A8A]/60 hover:text-[#4D8CF5]'
-          }`}
-        >
-          <i className="fas fa-sun text-sm"></i>
-          <span>Day Tour Bookings</span>
-          {unreadDayTourCount > 0 && (
-            <span className="ml-1 bg-red-500 text-white text-xs px-1.5 py-0.5 rounded-full shadow-sm">
-              {unreadDayTourCount}
-            </span>
-          )}
-        </button>
-      </div>
-    </div>
+              {/* Day Tour Bookings Tab */}
+              <button
+                ref={(el) => { requestsButtonRefs.current['daytour'] = el; }}
+                onClick={() => handleTabChange('daytour')}
+                className={`flex-1 relative z-10 px-4 sm:px-6 py-4 text-sm font-bold transition-all duration-200 whitespace-nowrap flex items-center justify-center gap-2 ${activeRequestsTab === 'daytour'
+                  ? 'text-[#1E3A8A] bg-[#4D8CF5]/5'
+                  : 'text-[#1E3A8A]/60 hover:text-[#4D8CF5] hover:bg-gray-50/50'
+                  }`}
+              >
+                <i className="fas fa-sun text-sm"></i>
+                <span>Day Tour Bookings</span>
+                {unreadDayTourCount > 0 && (
+                  <span className="ml-1 bg-red-500 text-white text-[10px] font-bold px-1.5 py-0.5 rounded shadow-sm">
+                    {unreadDayTourCount}
+                  </span>
+                )}
+              </button>
+            </div>
+          </div>
 
-<div className="px-4 sm:px-6 pt-5 pb-3">
-  <div className="relative w-full group">
-    <i className="fas fa-search absolute left-4 top-1/2 -translate-y-1/2 text-[#4D8CF5] text-sm transition-all duration-300 group-focus-within:text-[#3B78E7]"></i>
-    
-    <input
-      type="text"
-      value={requestsSearchTerm}
-      onChange={(e) => setRequestsSearchTerm(e.target.value)}
-      placeholder="Search name, email, bank, or date"
-      className="w-full pl-11 pr-4 py-3 border-2 border-[#4D8CF5]/20 rounded-xl text-sm focus:outline-none focus:border-[#4D8CF5] focus:ring-2 focus:ring-[#4D8CF5]/20 transition-all duration-300 bg-white shadow-sm hover:shadow-md"
-    />
-  </div>
-</div>
-          
+          <div className="px-4 sm:px-6 pt-5 pb-3">
+            <div className="relative w-full group">
+              <i className="fas fa-search absolute left-4 top-1/2 -translate-y-1/2 text-[#4D8CF5] text-sm transition-all duration-300 group-focus-within:text-[#3B78E7]"></i>
+
+              <input
+                type="text"
+                value={requestsSearchTerm}
+                onChange={(e) => setRequestsSearchTerm(e.target.value)}
+                placeholder="Search name, email, bank, or date"
+                className="w-full pl-11 pr-4 py-3 border-2 border-[#4D8CF5]/20 rounded-xl text-sm focus:outline-none focus:border-[#4D8CF5] focus:ring-2 focus:ring-[#4D8CF5]/20 transition-all duration-300 bg-white shadow-sm hover:shadow-md"
+              />
+            </div>
+          </div>
+
           <div className="p-4 sm:p-6 pt-2">
             {/* Room Bookings Requests */}
             {activeRequestsTab === 'room' && (
@@ -677,8 +673,8 @@ export default function StaffPaymentPage() {
                     {roomRequestsFiltered.map((request) => {
                       const isCompleted = request.status === 'completed';
                       const isNew = !viewedRoomRequests.has(request.id);
-                      const cardBorderClass = isNew && !isCompleted 
-                        ? 'border-l-4 border-l-amber-400 border border-amber-200 bg-amber-50/20' 
+                      const cardBorderClass = isNew && !isCompleted
+                        ? 'border-l-4 border-l-amber-400 border border-amber-200 bg-amber-50/20'
                         : 'border border-gray-200';
 
                       return (
@@ -812,8 +808,8 @@ export default function StaffPaymentPage() {
                     {dayTourRequestsFiltered.map((request) => {
                       const isCompleted = request.status === 'completed';
                       const isNew = !viewedDayTourRequests.has(request.id);
-                      const cardBorderClass = isNew && !isCompleted 
-                        ? 'border-l-4 border-l-amber-400 border border-amber-200 bg-amber-50/20' 
+                      const cardBorderClass = isNew && !isCompleted
+                        ? 'border-l-4 border-l-amber-400 border border-amber-200 bg-amber-50/20'
                         : 'border border-gray-200';
 
                       return (

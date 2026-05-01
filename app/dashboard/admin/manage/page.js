@@ -39,8 +39,8 @@ export default function CombinedManage() {
             <button
               onClick={() => setActiveTab('rooms')}
               className={`relative z-10 w-full px-6 py-3 font-medium transition-all duration-200 text-center flex items-center justify-center gap-2 ${activeTab === 'rooms'
-                  ? 'text-[#1E3A8A]'
-                  : 'text-[#1E3A8A]/60 hover:text-[#4D8CF5]'
+                ? 'text-[#1E3A8A]'
+                : 'text-[#1E3A8A]/60 hover:text-[#4D8CF5]'
                 }`}
             >
               <i className="fas fa-bed"></i>
@@ -53,8 +53,8 @@ export default function CombinedManage() {
             <button
               onClick={() => setActiveTab('daytour')}
               className={`relative z-10 w-full px-6 py-3 font-medium transition-all duration-200 text-center flex items-center justify-center gap-2 ${activeTab === 'daytour'
-                  ? 'text-[#1E3A8A]'
-                  : 'text-[#1E3A8A]/60 hover:text-[#4D8CF5]'
+                ? 'text-[#1E3A8A]'
+                : 'text-[#1E3A8A]/60 hover:text-[#4D8CF5]'
                 }`}
             >
               <i className="fas fa-sun"></i>
@@ -67,8 +67,8 @@ export default function CombinedManage() {
             <button
               onClick={() => setActiveTab('activities')}
               className={`relative z-10 w-full px-6 py-3 font-medium transition-all duration-200 text-center flex items-center justify-center gap-2 ${activeTab === 'activities'
-                  ? 'text-[#1E3A8A]'
-                  : 'text-[#1E3A8A]/60 hover:text-[#4D8CF5]'
+                ? 'text-[#1E3A8A]'
+                : 'text-[#1E3A8A]/60 hover:text-[#4D8CF5]'
                 }`}
             >
               <i className="fas fa-bicycle"></i>

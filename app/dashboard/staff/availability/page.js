@@ -363,7 +363,7 @@ export default function StaffRoomStatus() {
 
   if (loading) {
     return (
-      <div className="p-8 min-h-screen" style={{ backgroundColor: 'var(--color-blue-whites)' }}>
+      <div className="px-4 sm:px-9 py-1 min-h-screen" style={{ backgroundColor: 'var(--color-blue-whites)' }}>
         <div className="flex justify-center items-center h-64">
           <i className="fas fa-spinner fa-spin text-3xl text-ocean-light"></i>
         </div>
@@ -372,13 +372,13 @@ export default function StaffRoomStatus() {
   }
 
   return (
-    <div className="px-9 py-1 min-h-screen" style={{ backgroundColor: 'var(--color-blue-whites)' }}>
+    <div className="px-4 sm:px-9 py-1 min-h-screen" style={{ backgroundColor: 'var(--color-blue-whites)' }}>
       {/* Header Section */}
-      <div className="mb-6 rounded-xl border border-[#7AAAF8]/20 bg-[#7AAAF8]/5 px-5 py-4 shadow-sm">
-        <h1 className="text-3xl font-bold text-[#1E3A8A] font-playfair tracking-tight">
+      <div className="mb-6 rounded-xl border border-[#7AAAF8]/20 bg-[#7AAAF8]/5 px-4 sm:px-5 py-4 shadow-sm">
+        <h1 className="text-2xl sm:text-3xl font-bold text-[#1E3A8A] font-playfair tracking-tight">
           Room & Capacity Status
         </h1>
-        <p className="text-[#4D6FA8] text-sm leading-relaxed mt-1">
+        <p className="text-[#4D6FA8] text-xs sm:text-sm leading-relaxed mt-1">
           Real-time availability for rooms and day tour capacity
         </p>
       </div>
@@ -506,20 +506,20 @@ export default function StaffRoomStatus() {
       {/* Room Availability Tab - Enhanced Calendar UI */}
       {selectedTab === 'rooms' && (
         <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
-          <div className="px-5 py-3 border-b border-gray-100 flex flex-col md:flex-row md:items-center justify-between gap-4 bg-blue-50">
+          <div className="px-4 sm:px-5 py-3 border-b border-gray-100 flex flex-col md:flex-row md:items-center justify-between gap-4 bg-blue-50">
             <div>
-              <h2 className="text-xl font-bold text-[#1E3A8A] flex items-center gap-3">
+              <h2 className="text-lg sm:text-xl font-bold text-[#1E3A8A] flex items-center gap-3">
                 <div className="w-8 h-8 rounded-xl bg-blue-50 flex items-center justify-center border border-blue-100 text-blue-600">
                   <i className="fas fa-calendar-alt text-sm"></i>
                 </div>
                 Room Availability Calendar
               </h2>
-              <p className="text-gray-500 text-xs mt-0.5 md:ml-11">
+              <p className="text-gray-500 text-[10px] sm:text-xs mt-0.5 md:ml-11">
                 Available units per room type (Active bookings only)
               </p>
             </div>
             
-            <div className="flex items-center gap-2 bg-gray-50/80 p-1 rounded-xl border border-gray-100">
+            <div className="flex justify-center items-center gap-2 bg-gray-50/80 p-1 rounded-xl border border-gray-100 w-full md:w-auto">
               <button 
                 onClick={goToPreviousMonth} 
                 className="w-8 h-8 flex items-center justify-center rounded-lg hover:bg-white hover:shadow-sm hover:text-blue-600 transition-all duration-200 text-gray-500"
@@ -538,20 +538,20 @@ export default function StaffRoomStatus() {
             </div>
           </div>
           
-          <div className="p-4 bg-gray-50/30">
+          <div className="p-2 sm:p-4 bg-gray-50/30 overflow-x-auto">
             {/* Weekday Headers */}
-            <div className="grid grid-cols-7 gap-2 mb-2">
+            <div className="grid grid-cols-7 gap-1 sm:gap-2 mb-2 min-w-[500px] sm:min-w-0">
               {['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].map(day => (
-                <div key={day} className="text-center font-semibold text-[#4D8CF5] text-xs py-1.5 bg-[#4D8CF5]/5 rounded-lg">
+                <div key={day} className="text-center font-semibold text-[#4D8CF5] text-[10px] sm:text-xs py-1.5 bg-[#4D8CF5]/5 rounded-lg">
                   {day}
                 </div>
               ))}
             </div>
 
             {/* Calendar Days Grid */}
-            <div className="grid grid-cols-7 gap-2">
+            <div className="grid grid-cols-7 gap-1 sm:gap-2 min-w-[500px] sm:min-w-0">
               {days.map((day, idx) => {
-                if (!day) return <div key={idx} className="min-h-[100px]"></div>;
+                if (!day) return <div key={idx} className="min-h-[80px] sm:min-h-[100px]"></div>;
                 
                 const isPast = isDatePast(day);
                 const isFullyBooked = !isPast && isDateFullyBookedForAllRooms(day);
@@ -573,9 +573,9 @@ export default function StaffRoomStatus() {
                 return (
                   <div
                     key={idx}
-                    className={`relative rounded-xl border ${bgColor} ${borderColor} ${shadowClass} p-2 min-h-[100px] transition-all duration-300 flex flex-col gap-1.5 ${hoverBorder}`}
+                    className={`relative rounded-xl border ${bgColor} ${borderColor} ${shadowClass} p-1.5 sm:p-2 min-h-[80px] sm:min-h-[100px] transition-all duration-300 flex flex-col gap-1 sm:gap-1.5 ${hoverBorder}`}
                   >
-                    <span className={`text-xs font-bold block ${isPast ? 'text-gray-400' : (isFullyBooked ? 'text-rose-600' : 'text-[#1E3A8A]')}`}>
+                    <span className={`text-[10px] sm:text-xs font-bold block ${isPast ? 'text-gray-400' : (isFullyBooked ? 'text-rose-600' : 'text-[#1E3A8A]')}`}>
                       {day.getDate()}
                     </span>
                     <div className="flex flex-col gap-1 mt-auto">
@@ -622,20 +622,20 @@ export default function StaffRoomStatus() {
       {/* Day Tour Guest Availability Tab */}
       {selectedTab === 'daytour' && (
         <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
-          <div className="px-5 py-3 border-b border-gray-100 flex flex-col md:flex-row md:items-center justify-between gap-4 bg-amber-50">
+          <div className="px-4 sm:px-5 py-3 border-b border-gray-100 flex flex-col md:flex-row md:items-center justify-between gap-4 bg-amber-50">
             <div>
-              <h2 className="text-xl font-bold text-[#1E3A8A] flex items-center gap-3">
+              <h2 className="text-lg sm:text-xl font-bold text-[#1E3A8A] flex items-center gap-3">
                 <div className="w-8 h-8 rounded-xl bg-amber-50 flex items-center justify-center border border-amber-100 text-amber-500">
                   <i className="fas fa-sun text-sm"></i>
                 </div>
                 Day Tour Availability Calendar
               </h2>
-              <p className="text-gray-500 text-xs mt-0.5 md:ml-11">
+              <p className="text-gray-500 text-[10px] sm:text-xs mt-0.5 md:ml-11">
                 Booked guests, unavailable slots, and remaining capacity
               </p>
             </div>
             
-            <div className="flex items-center gap-2 bg-gray-50/80 p-1 rounded-xl border border-gray-100">
+            <div className="flex justify-center items-center gap-2 bg-gray-50/80 p-1 rounded-xl border border-gray-100 w-full md:w-auto">
               <button 
                 onClick={goToPreviousMonth} 
                 className="w-8 h-8 flex items-center justify-center rounded-lg hover:bg-white hover:shadow-sm hover:text-amber-600 transition-all duration-200 text-gray-500"
@@ -654,20 +654,20 @@ export default function StaffRoomStatus() {
             </div>
           </div>
           
-          <div className="p-4 bg-gray-50/30">
+          <div className="p-2 sm:p-4 bg-gray-50/30 overflow-x-auto">
             {/* Weekday Headers */}
-            <div className="grid grid-cols-7 gap-2 mb-2">
+            <div className="grid grid-cols-7 gap-1 sm:gap-2 mb-2 min-w-[500px] sm:min-w-0">
               {['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].map(day => (
-                <div key={day} className="text-center font-semibold text-[#F59E0B] text-xs py-1.5 bg-[#F59E0B]/5 rounded-lg">
+                <div key={day} className="text-center font-semibold text-[#F59E0B] text-[10px] sm:text-xs py-1.5 bg-[#F59E0B]/5 rounded-lg">
                   {day}
                 </div>
               ))}
             </div>
 
             {/* Calendar Days Grid */}
-            <div className="grid grid-cols-7 gap-2">
+            <div className="grid grid-cols-7 gap-1 sm:gap-2 min-w-[500px] sm:min-w-0">
               {days.map((day, idx) => {
-                if (!day) return <div key={idx} className="min-h-[100px]"></div>;
+                if (!day) return <div key={idx} className="min-h-[80px] sm:min-h-[100px]"></div>;
                 
                 const isPast = isDatePast(day);
                 const bookedGuests = getBookedGuestsCount(day);
@@ -683,9 +683,9 @@ export default function StaffRoomStatus() {
                 return (
                   <div
                     key={idx}
-                    className={`relative rounded-xl border ${bgColor} ${borderClass} ${shadowClass} p-2 min-h-[100px] transition-all duration-300 flex flex-col gap-1.5 ${hoverBorder}`}
+                    className={`relative rounded-xl border ${bgColor} ${borderClass} ${shadowClass} p-1.5 sm:p-2 min-h-[80px] sm:min-h-[100px] transition-all duration-300 flex flex-col gap-1 sm:gap-1.5 ${hoverBorder}`}
                   >
-                    <span className={`text-xs font-bold block ${isPast ? 'text-gray-400' : (isFullyBooked ? 'text-rose-600' : 'text-[#1E3A8A]')}`}>
+                    <span className={`text-[10px] sm:text-xs font-bold block ${isPast ? 'text-gray-400' : (isFullyBooked ? 'text-rose-600' : 'text-[#1E3A8A]')}`}>
                       {day.getDate()}
                     </span>
                     {dayTourCapacity ? (

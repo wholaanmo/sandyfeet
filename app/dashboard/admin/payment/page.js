@@ -51,7 +51,7 @@ export default function AdminPaymentPage() {
   const mainTabsContainerRef = useRef(null);
   const mainSliderRef = useRef(null);
   const mainButtonRefs = useRef({});
-  
+
   const requestsTabsContainerRef = useRef(null);
   const requestsSliderRef = useRef(null);
   const requestsButtonRefs = useRef({});
@@ -113,36 +113,36 @@ export default function AdminPaymentPage() {
   }, [updateRequestsSlider]);
 
   // Fetch payment settings
- useEffect(() => {
-  const fetchPaymentSettings = async () => {
-    try {
-      const settingsRef = doc(db, 'settings', 'payment');
-      const settingsDoc = await getDoc(settingsRef);
-      
-      if (settingsDoc.exists()) {
-        const data = settingsDoc.data();
-        setGcashQRCode(data.gcashQRCode || '');
+  useEffect(() => {
+    const fetchPaymentSettings = async () => {
+      try {
+        const settingsRef = doc(db, 'settings', 'payment');
+        const settingsDoc = await getDoc(settingsRef);
+
+        if (settingsDoc.exists()) {
+          const data = settingsDoc.data();
+          setGcashQRCode(data.gcashQRCode || '');
+        }
+
+        // Fetch bank accounts from bank_accounts collection (only non-archived ones)
+        const bankAccountsRef = collection(db, 'bank_accounts');
+        const q = query(bankAccountsRef, where('archived', '==', false));
+        const bankAccountsSnapshot = await getDocs(q);
+        const bankAccountsList = [];
+        bankAccountsSnapshot.forEach((doc) => {
+          bankAccountsList.push(doc.data());
+        });
+        setBankAccounts(bankAccountsList);
+
+        setLoading(false);
+      } catch (error) {
+        console.error('Error fetching payment settings:', error);
+        setLoading(false);
       }
-      
-      // Fetch bank accounts from bank_accounts collection (only non-archived ones)
-      const bankAccountsRef = collection(db, 'bank_accounts');
-      const q = query(bankAccountsRef, where('archived', '==', false));
-      const bankAccountsSnapshot = await getDocs(q);
-      const bankAccountsList = [];
-      bankAccountsSnapshot.forEach((doc) => {
-        bankAccountsList.push(doc.data());
-      });
-      setBankAccounts(bankAccountsList);
-      
-      setLoading(false);
-    } catch (error) {
-      console.error('Error fetching payment settings:', error);
-      setLoading(false);
-    }
-  };
-  
-  fetchPaymentSettings();
-}, []);
+    };
+
+    fetchPaymentSettings();
+  }, []);
 
   // Load viewed requests from localStorage
   useEffect(() => {
@@ -192,7 +192,7 @@ export default function AdminPaymentPage() {
       bankRequestsRef,
       orderBy('createdAt', 'desc')
     );
-    
+
     const unsubscribe = onSnapshot(q, (querySnapshot) => {
       const requests = [];
       querySnapshot.forEach((doc) => {
@@ -206,7 +206,7 @@ export default function AdminPaymentPage() {
     }, (error) => {
       console.error('Error fetching bank transfer requests:', error);
     });
-    
+
     return () => unsubscribe();
   }, []);
 
@@ -217,7 +217,7 @@ export default function AdminPaymentPage() {
       dayTourBankRequestsRef,
       orderBy('createdAt', 'desc')
     );
-    
+
     const unsubscribe = onSnapshot(q, (querySnapshot) => {
       const requests = [];
       querySnapshot.forEach((doc) => {
@@ -231,7 +231,7 @@ export default function AdminPaymentPage() {
     }, (error) => {
       console.error('Error fetching day tour bank transfer requests:', error);
     });
-    
+
     return () => unsubscribe();
   }, []);
 
@@ -245,25 +245,25 @@ export default function AdminPaymentPage() {
   const handleGCashQRUpload = async (e) => {
     const file = e.target.files[0];
     if (!file) return;
-    
+
     setUploadingQR(true);
     try {
       const qrCodeUrl = await uploadImage(file);
-      
+
       const settingsRef = doc(db, 'settings', 'payment');
       await setDoc(settingsRef, {
         gcashQRCode: qrCodeUrl,
         updatedAt: new Date().toISOString()
       }, { merge: true });
-      
+
       setGcashQRCode(qrCodeUrl);
-      
+
       await logAdminAction({
         action: 'Updated GCash QR Code',
         module: 'Payment Settings',
         details: 'Admin updated the GCash payment QR code'
       });
-      
+
       showNotification('GCash QR code uploaded successfully!');
     } catch (error) {
       console.error('Error uploading QR code:', error);
@@ -273,77 +273,77 @@ export default function AdminPaymentPage() {
     }
   };
 
-const isBankFormValid = () => {
-  const { bankName, accountName, accountNumber } = tempBankDetails;
-  // Check if either account number OR QR code is provided (mutually exclusive logic)
-  const hasAccountNumber = accountNumber.trim().length > 0;
-  const hasQRCode = bankQRUrl !== '' || bankQRFile !== null;
-  const isMutuallyExclusiveValid = (hasAccountNumber && !hasQRCode) || (!hasAccountNumber && hasQRCode);
-  
-  if (!bankName.trim() || !accountName.trim()) return false;
-  if (!isMutuallyExclusiveValid) return false;
-  
-  // For edit mode, check if ANY changes were made
-  if (editingBank) {
-    // Check text field changes
-    const hasTextChanges = 
-      tempBankDetails.bankName !== originalBankDetails?.bankName ||
-      tempBankDetails.accountName !== originalBankDetails?.accountName ||
-      tempBankDetails.accountNumber !== originalBankDetails?.accountNumber ||
-      tempBankDetails.showToGuest !== originalBankDetails?.showToGuest;
-    
-    // Check QR code changes (if original had QR and now has different QR, or if QR was added/removed)
-    const hasQRChange = 
-      (bankQRFile !== null) || // New QR uploaded
-      (originalBankDetails?.qrCodeUrl !== '' && !bankQRFile && !bankQRUrl) || // QR was removed
-      (originalBankDetails?.qrCodeUrl === '' && bankQRUrl !== '' && !bankQRFile); // QR was added from existing
-    
-    // Button is enabled if either text changed OR QR changed
-    if (!hasTextChanges && !hasQRChange) return false;
-  }
-  
-  return true;
-};
+  const isBankFormValid = () => {
+    const { bankName, accountName, accountNumber } = tempBankDetails;
+    // Check if either account number OR QR code is provided (mutually exclusive logic)
+    const hasAccountNumber = accountNumber.trim().length > 0;
+    const hasQRCode = bankQRUrl !== '' || bankQRFile !== null;
+    const isMutuallyExclusiveValid = (hasAccountNumber && !hasQRCode) || (!hasAccountNumber && hasQRCode);
+
+    if (!bankName.trim() || !accountName.trim()) return false;
+    if (!isMutuallyExclusiveValid) return false;
+
+    // For edit mode, check if ANY changes were made
+    if (editingBank) {
+      // Check text field changes
+      const hasTextChanges =
+        tempBankDetails.bankName !== originalBankDetails?.bankName ||
+        tempBankDetails.accountName !== originalBankDetails?.accountName ||
+        tempBankDetails.accountNumber !== originalBankDetails?.accountNumber ||
+        tempBankDetails.showToGuest !== originalBankDetails?.showToGuest;
+
+      // Check QR code changes (if original had QR and now has different QR, or if QR was added/removed)
+      const hasQRChange =
+        (bankQRFile !== null) || // New QR uploaded
+        (originalBankDetails?.qrCodeUrl !== '' && !bankQRFile && !bankQRUrl) || // QR was removed
+        (originalBankDetails?.qrCodeUrl === '' && bankQRUrl !== '' && !bankQRFile); // QR was added from existing
+
+      // Button is enabled if either text changed OR QR changed
+      if (!hasTextChanges && !hasQRChange) return false;
+    }
+
+    return true;
+  };
 
   const handleArchiveGCashQR = async () => {
-  setArchivingQR(true);
-  try {
-    // Get current QR code URL before archiving
-    const currentQRCode = gcashQRCode;
-    
-    // Create archived QR code record
-    const archivedQRRef = collection(db, 'archived_gcash_qr');
-    await addDoc(archivedQRRef, {
-      qrCodeUrl: currentQRCode,
-      archivedAt: new Date().toISOString(),
-      originalSettings: {
-        gcashQRCode: currentQRCode
-      }
-    });
-    
-    // Remove QR code from settings
-    const settingsRef = doc(db, 'settings', 'payment');
-    await updateDoc(settingsRef, {
-      gcashQRCode: ''
-    });
-    
-    setGcashQRCode('');
-    
-    await logAdminAction({
-      action: 'Archived GCash QR Code',
-      module: 'Payment Settings',
-      details: 'Admin archived the GCash payment QR code'
-    });
-    
-    showNotification('GCash QR code archived successfully!');
-    setShowArchiveQRModal(false);
-  } catch (error) {
-    console.error('Error archiving QR code:', error);
-    showNotification('Failed to archive QR code.', 'error');
-  } finally {
-    setArchivingQR(false);
-  }
-};
+    setArchivingQR(true);
+    try {
+      // Get current QR code URL before archiving
+      const currentQRCode = gcashQRCode;
+
+      // Create archived QR code record
+      const archivedQRRef = collection(db, 'archived_gcash_qr');
+      await addDoc(archivedQRRef, {
+        qrCodeUrl: currentQRCode,
+        archivedAt: new Date().toISOString(),
+        originalSettings: {
+          gcashQRCode: currentQRCode
+        }
+      });
+
+      // Remove QR code from settings
+      const settingsRef = doc(db, 'settings', 'payment');
+      await updateDoc(settingsRef, {
+        gcashQRCode: ''
+      });
+
+      setGcashQRCode('');
+
+      await logAdminAction({
+        action: 'Archived GCash QR Code',
+        module: 'Payment Settings',
+        details: 'Admin archived the GCash payment QR code'
+      });
+
+      showNotification('GCash QR code archived successfully!');
+      setShowArchiveQRModal(false);
+    } catch (error) {
+      console.error('Error archiving QR code:', error);
+      showNotification('Failed to archive QR code.', 'error');
+    } finally {
+      setArchivingQR(false);
+    }
+  };
 
   // Handle Account Number input – only numeric
   const handleAccountNumberChange = (e) => {
@@ -364,15 +364,15 @@ const isBankFormValid = () => {
       await updateDoc(settingsRef, {
         gcashQRCode: ''
       });
-      
+
       setGcashQRCode('');
-      
+
       await logAdminAction({
         action: 'Removed GCash QR Code',
         module: 'Payment Settings',
         details: 'Admin removed the GCash payment QR code'
       });
-      
+
       showNotification('GCash QR code removed successfully!');
     } catch (error) {
       console.error('Error removing QR code:', error);
@@ -386,25 +386,25 @@ const isBankFormValid = () => {
       showNotification('Please select a new QR code image', 'error');
       return;
     }
-    
+
     setUploadingQR(true);
     try {
       const qrCodeUrl = await uploadImage(tempQRFile);
-      
+
       const settingsRef = doc(db, 'settings', 'payment');
       await setDoc(settingsRef, {
         gcashQRCode: qrCodeUrl,
         updatedAt: new Date().toISOString()
       }, { merge: true });
-      
+
       setGcashQRCode(qrCodeUrl);
-      
+
       await logAdminAction({
         action: 'Edited GCash QR Code',
         module: 'Payment Settings',
         details: 'Admin edited the GCash payment QR code'
       });
-      
+
       showNotification('GCash QR code updated successfully!');
       setShowEditQRModal(false);
       setTempQRFile(null);
@@ -420,219 +420,219 @@ const isBankFormValid = () => {
   const handleEditQRFileSelect = (e) => {
     const file = e.target.files[0];
     if (!file) return;
-    
+
     setTempQRFile(file);
     const previewUrl = URL.createObjectURL(file);
     setTempQRPreview(previewUrl);
   };
 
-const handleAddBankAccount = async () => {
-  // Validation: Must have either account number OR QR code, not both
-  const hasAccountNumber = tempBankDetails.accountNumber.trim().length > 0;
-  const hasQRCode = bankQRUrl !== '' || bankQRFile !== null;
-  const shouldShowQrToGuest = hasQRCode && tempBankDetails.showToGuest === true;
-  
-  if (!tempBankDetails.bankName || !tempBankDetails.accountName) {
-    showNotification('Please fill in all bank details', 'error');
-    return;
-  }
-  
-  if ((!hasAccountNumber && !hasQRCode) || (hasAccountNumber && hasQRCode)) {
-    showNotification('Please provide either Account Number OR QR Code, not both.', 'error');
-    return;
-  }
+  const handleAddBankAccount = async () => {
+    // Validation: Must have either account number OR QR code, not both
+    const hasAccountNumber = tempBankDetails.accountNumber.trim().length > 0;
+    const hasQRCode = bankQRUrl !== '' || bankQRFile !== null;
+    const shouldShowQrToGuest = hasQRCode && tempBankDetails.showToGuest === true;
 
-  if (shouldShowQrToGuest) {
-    const alreadyVisibleQr = bankAccounts.find(
-      (account) => account.qrCodeUrl && account.showToGuest === true && !account.archived
-    );
-    if (alreadyVisibleQr) {
-      showNotification('Only one QR code can be displayed to the guest at a time.', 'error');
+    if (!tempBankDetails.bankName || !tempBankDetails.accountName) {
+      showNotification('Please fill in all bank details', 'error');
       return;
     }
-  }
-  
-  setSaving(true);
-  try {
-    let qrCodeUrl = '';
-    if (hasQRCode && bankQRFile) {
-      qrCodeUrl = await uploadImage(bankQRFile);
-    }
-    
-    // Create new bank account with archived: false
-    const newBankAccount = {
-      id: `${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
-      bankName: tempBankDetails.bankName,
-      accountName: tempBankDetails.accountName,
-      accountNumber: hasAccountNumber ? tempBankDetails.accountNumber : '', // Empty if QR is used
-      qrCodeUrl: hasQRCode ? qrCodeUrl : '', // Empty if account number is used
-      showToGuest: shouldShowQrToGuest,
-      createdAt: new Date().toISOString(),
-      archived: false // Add archived flag
-    };
-    
-    // Save directly to the bank_accounts collection
-    const bankAccountsRef = collection(db, 'bank_accounts');
-    await addDoc(bankAccountsRef, newBankAccount);
-    
-    // Also add to local state for UI display
-    const updatedBankAccounts = [...bankAccounts, { ...newBankAccount, firestoreId: newBankAccount.id }];
-    setBankAccounts(updatedBankAccounts);
-    
-    await logAdminAction({
-      action: 'Added Bank Account',
-      module: 'Payment Settings',
-      details: `Admin added bank account: ${tempBankDetails.bankName} - ${tempBankDetails.accountName}`
-    });
-    
-    showNotification('Bank account added successfully!');
-    setShowAddBankModal(false);
-    // Reset form
-    setTempBankDetails({ bankName: '', accountName: '', accountNumber: '', showToGuest: false });
-    setBankQRFile(null);
-    setBankQRPreview('');
-    setBankQRUrl('');
-  } catch (error) {
-    console.error('Error adding bank account:', error);
-    showNotification('Failed to add bank account.', 'error');
-  } finally {
-    setSaving(false);
-  }
-};
 
-// Replace the handleUpdateBankAccount function
-const handleUpdateBankAccount = async () => {
-  // Validation: Must have either account number OR QR code, not both
-  const hasAccountNumber = tempBankDetails.accountNumber.trim().length > 0;
-  const hasQRCode = bankQRUrl !== '' || bankQRFile !== null;
-  const shouldShowQrToGuest = hasQRCode && tempBankDetails.showToGuest === true;
-  
-  if (!tempBankDetails.bankName || !tempBankDetails.accountName) {
-    showNotification('Please fill in all bank details', 'error');
-    return;
-  }
-  
-  if ((!hasAccountNumber && !hasQRCode) || (hasAccountNumber && hasQRCode)) {
-    showNotification('Please provide either Account Number OR QR Code, not both.', 'error');
-    return;
-  }
-
-  if (shouldShowQrToGuest) {
-    const alreadyVisibleQr = bankAccounts.find(
-      (account) =>
-        account.id !== editingBank.id &&
-        account.qrCodeUrl &&
-        account.showToGuest === true &&
-        !account.archived
-    );
-    if (alreadyVisibleQr) {
-      showNotification('Only one QR code can be displayed to the guest at a time.', 'error');
+    if ((!hasAccountNumber && !hasQRCode) || (hasAccountNumber && hasQRCode)) {
+      showNotification('Please provide either Account Number OR QR Code, not both.', 'error');
       return;
     }
-  }
-  
-  setSaving(true);
-  try {
-    let qrCodeUrl = editingBank.qrCodeUrl || '';
-    if (hasQRCode && bankQRFile) {
-      qrCodeUrl = await uploadImage(bankQRFile);
-    } else if (!hasQRCode) {
-      qrCodeUrl = '';
+
+    if (shouldShowQrToGuest) {
+      const alreadyVisibleQr = bankAccounts.find(
+        (account) => account.qrCodeUrl && account.showToGuest === true && !account.archived
+      );
+      if (alreadyVisibleQr) {
+        showNotification('Only one QR code can be displayed to the guest at a time.', 'error');
+        return;
+      }
     }
-    
-    // Find the bank account document in bank_accounts collection
-    const bankAccountsRef = collection(db, 'bank_accounts');
-    const q = query(bankAccountsRef, where('id', '==', editingBank.id));
-    const querySnapshot = await getDocs(q);
-    
-    if (!querySnapshot.empty) {
-      const bankDoc = querySnapshot.docs[0];
-      const bankRef = doc(db, 'bank_accounts', bankDoc.id);
-      
-      await updateDoc(bankRef, {
+
+    setSaving(true);
+    try {
+      let qrCodeUrl = '';
+      if (hasQRCode && bankQRFile) {
+        qrCodeUrl = await uploadImage(bankQRFile);
+      }
+
+      // Create new bank account with archived: false
+      const newBankAccount = {
+        id: `${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
         bankName: tempBankDetails.bankName,
         accountName: tempBankDetails.accountName,
-        accountNumber: hasAccountNumber ? tempBankDetails.accountNumber : '',
-        qrCodeUrl: qrCodeUrl,
+        accountNumber: hasAccountNumber ? tempBankDetails.accountNumber : '', // Empty if QR is used
+        qrCodeUrl: hasQRCode ? qrCodeUrl : '', // Empty if account number is used
         showToGuest: shouldShowQrToGuest,
-        updatedAt: new Date().toISOString()
-      });
-    }
-    
-    // Update local state
-    const updatedBankAccounts = bankAccounts.map(account => 
-      account.id === editingBank.id 
-        ? { ...account, ...tempBankDetails, accountNumber: hasAccountNumber ? tempBankDetails.accountNumber : '', qrCodeUrl: qrCodeUrl, showToGuest: shouldShowQrToGuest, updatedAt: new Date().toISOString() }
-        : account
-    );
-    
-    setBankAccounts(updatedBankAccounts);
-    
-    await logAdminAction({
-      action: 'Updated Bank Account',
-      module: 'Payment Settings',
-      details: `Admin updated bank account: ${tempBankDetails.bankName} - ${tempBankDetails.accountName}`
-    });
-    
-    showNotification('Bank account updated successfully!');
-    setShowAddBankModal(false);
-    setEditingBank(null);
-    setTempBankDetails({ bankName: '', accountName: '', accountNumber: '', showToGuest: false });
-    setBankQRFile(null);
-    setBankQRPreview('');
-    setBankQRUrl('');
-    setHasBankChanges(false);
-    setOriginalBankDetails(null);
-  } catch (error) {
-    console.error('Error updating bank account:', error);
-    showNotification('Failed to update bank account.', 'error');
-  } finally {
-    setSaving(false);
-  }
-};
+        createdAt: new Date().toISOString(),
+        archived: false // Add archived flag
+      };
 
-// Replace the handleArchiveBankAccount function
-const handleArchiveBankAccount = async () => {
-  if (!bankToArchive) return;
-  
-  setSaving(true);
-  try {
-    // Find the bank account in bank_accounts collection
-    const bankAccountsRef = collection(db, 'bank_accounts');
-    const q = query(bankAccountsRef, where('id', '==', bankToArchive.id));
-    const querySnapshot = await getDocs(q);
-    
-    if (!querySnapshot.empty) {
-      const bankDoc = querySnapshot.docs[0];
-      const bankRef = doc(db, 'bank_accounts', bankDoc.id);
-      
-      // Update the bank account: set archived to true and add archivedAt
-      await updateDoc(bankRef, {
-        archived: true,
-        archivedAt: new Date().toISOString()
+      // Save directly to the bank_accounts collection
+      const bankAccountsRef = collection(db, 'bank_accounts');
+      await addDoc(bankAccountsRef, newBankAccount);
+
+      // Also add to local state for UI display
+      const updatedBankAccounts = [...bankAccounts, { ...newBankAccount, firestoreId: newBankAccount.id }];
+      setBankAccounts(updatedBankAccounts);
+
+      await logAdminAction({
+        action: 'Added Bank Account',
+        module: 'Payment Settings',
+        details: `Admin added bank account: ${tempBankDetails.bankName} - ${tempBankDetails.accountName}`
       });
+
+      showNotification('Bank account added successfully!');
+      setShowAddBankModal(false);
+      // Reset form
+      setTempBankDetails({ bankName: '', accountName: '', accountNumber: '', showToGuest: false });
+      setBankQRFile(null);
+      setBankQRPreview('');
+      setBankQRUrl('');
+    } catch (error) {
+      console.error('Error adding bank account:', error);
+      showNotification('Failed to add bank account.', 'error');
+    } finally {
+      setSaving(false);
     }
-    
-    // Update local state - filter out archived accounts from active list
-    const updatedBankAccounts = bankAccounts.filter(account => account.id !== bankToArchive.id);
-    setBankAccounts(updatedBankAccounts);
-    
-    await logAdminAction({
-      action: 'Archived Bank Account',
-      module: 'Payment Settings',
-      details: `Archived bank account: ${bankToArchive.bankName} - ${bankToArchive.accountName}`
-    });
-    
-    showNotification('Bank account archived successfully!');
-    setShowArchiveModal(false);
-    setBankToArchive(null);
-  } catch (error) {
-    console.error('Error archiving bank account:', error);
-    showNotification('Failed to archive bank account.', 'error');
-  } finally {
-    setSaving(false);
-  }
-};
+  };
+
+  // Replace the handleUpdateBankAccount function
+  const handleUpdateBankAccount = async () => {
+    // Validation: Must have either account number OR QR code, not both
+    const hasAccountNumber = tempBankDetails.accountNumber.trim().length > 0;
+    const hasQRCode = bankQRUrl !== '' || bankQRFile !== null;
+    const shouldShowQrToGuest = hasQRCode && tempBankDetails.showToGuest === true;
+
+    if (!tempBankDetails.bankName || !tempBankDetails.accountName) {
+      showNotification('Please fill in all bank details', 'error');
+      return;
+    }
+
+    if ((!hasAccountNumber && !hasQRCode) || (hasAccountNumber && hasQRCode)) {
+      showNotification('Please provide either Account Number OR QR Code, not both.', 'error');
+      return;
+    }
+
+    if (shouldShowQrToGuest) {
+      const alreadyVisibleQr = bankAccounts.find(
+        (account) =>
+          account.id !== editingBank.id &&
+          account.qrCodeUrl &&
+          account.showToGuest === true &&
+          !account.archived
+      );
+      if (alreadyVisibleQr) {
+        showNotification('Only one QR code can be displayed to the guest at a time.', 'error');
+        return;
+      }
+    }
+
+    setSaving(true);
+    try {
+      let qrCodeUrl = editingBank.qrCodeUrl || '';
+      if (hasQRCode && bankQRFile) {
+        qrCodeUrl = await uploadImage(bankQRFile);
+      } else if (!hasQRCode) {
+        qrCodeUrl = '';
+      }
+
+      // Find the bank account document in bank_accounts collection
+      const bankAccountsRef = collection(db, 'bank_accounts');
+      const q = query(bankAccountsRef, where('id', '==', editingBank.id));
+      const querySnapshot = await getDocs(q);
+
+      if (!querySnapshot.empty) {
+        const bankDoc = querySnapshot.docs[0];
+        const bankRef = doc(db, 'bank_accounts', bankDoc.id);
+
+        await updateDoc(bankRef, {
+          bankName: tempBankDetails.bankName,
+          accountName: tempBankDetails.accountName,
+          accountNumber: hasAccountNumber ? tempBankDetails.accountNumber : '',
+          qrCodeUrl: qrCodeUrl,
+          showToGuest: shouldShowQrToGuest,
+          updatedAt: new Date().toISOString()
+        });
+      }
+
+      // Update local state
+      const updatedBankAccounts = bankAccounts.map(account =>
+        account.id === editingBank.id
+          ? { ...account, ...tempBankDetails, accountNumber: hasAccountNumber ? tempBankDetails.accountNumber : '', qrCodeUrl: qrCodeUrl, showToGuest: shouldShowQrToGuest, updatedAt: new Date().toISOString() }
+          : account
+      );
+
+      setBankAccounts(updatedBankAccounts);
+
+      await logAdminAction({
+        action: 'Updated Bank Account',
+        module: 'Payment Settings',
+        details: `Admin updated bank account: ${tempBankDetails.bankName} - ${tempBankDetails.accountName}`
+      });
+
+      showNotification('Bank account updated successfully!');
+      setShowAddBankModal(false);
+      setEditingBank(null);
+      setTempBankDetails({ bankName: '', accountName: '', accountNumber: '', showToGuest: false });
+      setBankQRFile(null);
+      setBankQRPreview('');
+      setBankQRUrl('');
+      setHasBankChanges(false);
+      setOriginalBankDetails(null);
+    } catch (error) {
+      console.error('Error updating bank account:', error);
+      showNotification('Failed to update bank account.', 'error');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  // Replace the handleArchiveBankAccount function
+  const handleArchiveBankAccount = async () => {
+    if (!bankToArchive) return;
+
+    setSaving(true);
+    try {
+      // Find the bank account in bank_accounts collection
+      const bankAccountsRef = collection(db, 'bank_accounts');
+      const q = query(bankAccountsRef, where('id', '==', bankToArchive.id));
+      const querySnapshot = await getDocs(q);
+
+      if (!querySnapshot.empty) {
+        const bankDoc = querySnapshot.docs[0];
+        const bankRef = doc(db, 'bank_accounts', bankDoc.id);
+
+        // Update the bank account: set archived to true and add archivedAt
+        await updateDoc(bankRef, {
+          archived: true,
+          archivedAt: new Date().toISOString()
+        });
+      }
+
+      // Update local state - filter out archived accounts from active list
+      const updatedBankAccounts = bankAccounts.filter(account => account.id !== bankToArchive.id);
+      setBankAccounts(updatedBankAccounts);
+
+      await logAdminAction({
+        action: 'Archived Bank Account',
+        module: 'Payment Settings',
+        details: `Archived bank account: ${bankToArchive.bankName} - ${bankToArchive.accountName}`
+      });
+
+      showNotification('Bank account archived successfully!');
+      setShowArchiveModal(false);
+      setBankToArchive(null);
+    } catch (error) {
+      console.error('Error archiving bank account:', error);
+      showNotification('Failed to archive bank account.', 'error');
+    } finally {
+      setSaving(false);
+    }
+  };
 
   const openEditBankModal = (account) => {
     setEditingBank(account);
@@ -641,7 +641,7 @@ const handleArchiveBankAccount = async () => {
       accountName: account.accountName,
       accountNumber: account.accountNumber,
       showToGuest: account.showToGuest === true,
-      qrCodeUrl: account.qrCodeUrl || '' 
+      qrCodeUrl: account.qrCodeUrl || ''
     });
     setTempBankDetails({
       bankName: account.bankName,
@@ -665,10 +665,10 @@ const handleArchiveBankAccount = async () => {
   const handleBankDetailsChange = (field, value) => {
     const newDetails = { ...tempBankDetails, [field]: value };
     setTempBankDetails(newDetails);
-    
+
     // Check if any changes were made
     if (originalBankDetails) {
-      const hasChanges = 
+      const hasChanges =
         newDetails.bankName !== originalBankDetails.bankName ||
         newDetails.accountName !== originalBankDetails.accountName ||
         newDetails.accountNumber !== originalBankDetails.accountNumber ||
@@ -690,14 +690,14 @@ const handleArchiveBankAccount = async () => {
       showNotification('Bank details already provided for this request.', 'error');
       return;
     }
-    
+
     // Use the bank details that the guest originally requested
     const requestedBank = request.requestedBank;
     if (!requestedBank) {
       showNotification('No bank account was requested by the guest.', 'error');
       return;
     }
-    
+
     setSelectedRequest({ ...request, requestType: activeRequestsTab });
     setShowConfirmationModal(true);
   };
@@ -705,7 +705,7 @@ const handleArchiveBankAccount = async () => {
   // Handle providing bank details after confirmation - send the guest's requested bank
   const handleConfirmSendBankDetails = async () => {
     if (!selectedRequest) return;
-    
+
     // Use the bank details that the guest originally requested
     const bankToSend = selectedRequest.requestedBank;
     if (!bankToSend) {
@@ -714,13 +714,13 @@ const handleArchiveBankAccount = async () => {
       setSelectedRequest(null);
       return;
     }
-    
+
     setSaving(true);
     try {
       const isDayTour = selectedRequest.requestType === 'daytour';
       const collectionName = isDayTour ? 'daytour_bank_requests' : 'bank_requests';
       const bankRequestRef = doc(db, collectionName, selectedRequest.id);
-      
+
       await updateDoc(bankRequestRef, {
         status: 'completed',
         providedBankDetails: {
@@ -732,13 +732,13 @@ const handleArchiveBankAccount = async () => {
         },
         updatedAt: new Date().toISOString()
       });
-      
+
       await logAdminAction({
         action: 'Provided Bank Details',
         module: isDayTour ? 'Day Tour Payment' : 'Room Payment',
         details: `Provided bank details to guest: ${selectedRequest.guestName} for ${isDayTour ? 'day tour' : 'room'} booking`
       });
-      
+
       showNotification('Bank details sent to guest successfully!');
       setShowConfirmationModal(false);
       setSelectedRequest(null);
@@ -801,29 +801,29 @@ const handleArchiveBankAccount = async () => {
   });
 
   // Handler for QR Code file selection in Add Bank Modal
-const handleBankQRFileSelect = (e) => {
-  const file = e.target.files[0];
-  if (!file) return;
-  
-  // Clear account number if QR is selected
-  if (tempBankDetails.accountNumber) {
-    handleBankDetailsChange('accountNumber', '');
-  }
-  
-  setBankQRFile(file);
-  const previewUrl = URL.createObjectURL(file);
-  setBankQRPreview(previewUrl);
-  setBankQRUrl('');
-  
-  // Mark that changes have been made (QR image changed)
-  if (editingBank) {
-    // Check if the new QR is different from the original
-    const hasQRChange = originalBankDetails?.qrCodeUrl !== '' || true;
-    if (hasQRChange) {
-      setHasBankChanges(true);
+  const handleBankQRFileSelect = (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+
+    // Clear account number if QR is selected
+    if (tempBankDetails.accountNumber) {
+      handleBankDetailsChange('accountNumber', '');
     }
-  }
-};
+
+    setBankQRFile(file);
+    const previewUrl = URL.createObjectURL(file);
+    setBankQRPreview(previewUrl);
+    setBankQRUrl('');
+
+    // Mark that changes have been made (QR image changed)
+    if (editingBank) {
+      // Check if the new QR is different from the original
+      const hasQRChange = originalBankDetails?.qrCodeUrl !== '' || true;
+      if (hasQRChange) {
+        setHasBankChanges(true);
+      }
+    }
+  };
 
   if (loading) {
     return (
@@ -838,20 +838,19 @@ const handleBankQRFileSelect = (e) => {
   return (
     <div className="px-4 sm:px-9 py-1 min-h-screen" style={{ backgroundColor: 'var(--color-blue-whites)' }}>
       {/* Header */}
-<div className="mb-6 sm:mb-8 rounded-xl border border-[#7AAAF8]/20 bg-[#7AAAF8]/5 px-4 sm:px-5 py-4 shadow-sm">
-  <h1 className="text-2xl sm:text-3xl font-bold text-[#1E3A8A] font-playfair tracking-tight">
-    Payment Settings
-  </h1>
-  <p className="text-[#4D6FA8] text-xs sm:text-sm leading-relaxed mt-1">
-    Manage GCash QR code, bank account details, and provide bank transfer information for guest payment requests.
-  </p>
-</div>
+      <div className="mb-6 sm:mb-8 rounded-xl border border-[#7AAAF8]/20 bg-[#7AAAF8]/5 px-4 sm:px-5 py-4 shadow-sm">
+        <h1 className="text-2xl sm:text-3xl font-bold text-[#1E3A8A] font-playfair tracking-tight">
+          Payment Settings
+        </h1>
+        <p className="text-[#4D6FA8] text-xs sm:text-sm leading-relaxed mt-1">
+          Manage GCash QR code, bank account details, and provide bank transfer information for guest payment requests.
+        </p>
+      </div>
 
       {/* Notification */}
       {notification.show && (
-        <div className={`fixed top-20 right-5 z-50 px-5 py-3 rounded-xl shadow-lg flex items-center gap-3 animate-slideInRight ${
-          notification.type === 'error' ? 'bg-red-50 border-l-4 border-red-500 text-red-700' : 'bg-green-50 border-l-4 border-green-500 text-green-700'
-        }`}>
+        <div className={`fixed top-20 right-5 z-50 px-5 py-3 rounded-xl shadow-lg flex items-center gap-3 animate-slideInRight ${notification.type === 'error' ? 'bg-red-50 border-l-4 border-red-500 text-red-700' : 'bg-green-50 border-l-4 border-green-500 text-green-700'
+          }`}>
           <i className={`${notification.type === 'error' ? 'fas fa-exclamation-circle text-red-500' : 'fas fa-check-circle text-green-500'} text-base`}></i>
           <span className="text-sm font-medium">{notification.message}</span>
         </div>
@@ -871,11 +870,10 @@ const handleBankQRFileSelect = (e) => {
             <button
               ref={(el) => { mainButtonRefs.current['paymentSettings'] = el; }}
               onClick={() => setActiveMainTab('paymentSettings')}
-              className={`relative z-10 w-full px-6 py-3 font-medium transition-all duration-200 text-center flex items-center justify-center gap-2 ${
-                activeMainTab === 'paymentSettings'
+              className={`relative z-10 w-full px-6 py-3 font-medium transition-all duration-200 text-center flex items-center justify-center gap-2 ${activeMainTab === 'paymentSettings'
                   ? 'text-[#1E3A8A]'
                   : 'text-[#1E3A8A]/60 hover:text-[#4D8CF5]'
-              }`}
+                }`}
             >
               <i className="fas fa-credit-card"></i>
               Payment Settings
@@ -887,11 +885,10 @@ const handleBankQRFileSelect = (e) => {
             <button
               ref={(el) => { mainButtonRefs.current['bankTransferRequests'] = el; }}
               onClick={() => setActiveMainTab('bankTransferRequests')}
-              className={`relative z-10 w-full px-6 py-3 font-medium transition-all duration-200 text-center flex items-center justify-center gap-2 ${
-                activeMainTab === 'bankTransferRequests'
+              className={`relative z-10 w-full px-6 py-3 font-medium transition-all duration-200 text-center flex items-center justify-center gap-2 ${activeMainTab === 'bankTransferRequests'
                   ? 'text-[#1E3A8A]'
                   : 'text-[#1E3A8A]/60 hover:text-[#4D8CF5]'
-              }`}
+                }`}
             >
               <i className="fas fa-exchange-alt"></i>
               Bank Transfer Requests
@@ -935,7 +932,7 @@ const handleBankQRFileSelect = (e) => {
                 </div>
               )}
             </div>
-            
+
             <div className="p-6">
               <div className="mb-6">
                 {gcashQRCode ? (
@@ -999,7 +996,7 @@ const handleBankQRFileSelect = (e) => {
                 <i className="fas fa-plus mr-1"></i> Add Account
               </button>
             </div>
-            
+
             <div className="p-6">
               {activeBankAccounts.length === 0 ? (
                 <div className="text-center py-8">
@@ -1065,75 +1062,74 @@ const handleBankQRFileSelect = (e) => {
       )}
 
       {/* Bank Transfer Requests Tab Content */}
-   {activeMainTab === 'bankTransferRequests' && (
-  <div className="bg-white rounded-2xl shadow-lg border border-[#4D8CF5]/10 overflow-hidden">
-    {/* Tabs for Room vs Day Tour */}
-    <div className="relative flex items-center justify-between border-b border-[#4D8CF5]/20 px-4 sm:px-6 bg-gradient-to-r from-white to-[#F8FBFF] overflow-x-auto scrollbar-hide">
-      <div
-        className="relative flex justify-between items-center w-full gap-4 sm:gap-8 min-w-[350px]"
-        ref={requestsTabsContainerRef}
-      >
-        {/* Sliding background */}
-        <div
-          ref={requestsSliderRef}
-          className="absolute bottom-0 left-0 h-0.5 bg-[#1E3A8A] transition-all duration-300 ease-in-out"
-        />
+      {activeMainTab === 'bankTransferRequests' && (
+        <div className="bg-white rounded-2xl shadow-lg border border-[#4D8CF5]/10 overflow-hidden">
+          {/* Tabs for Room vs Day Tour */}
+          <div className="relative border-b border-[#4D8CF5]/20 overflow-x-auto scrollbar-hide bg-gradient-to-r from-white to-[#F8FBFF]" ref={requestsTabsContainerRef}>
+            <div className="relative flex w-full min-w-[350px]">
+              {/* Sliding background */}
+              <div
+                ref={requestsSliderRef}
+                className="absolute bottom-0 h-0.5 bg-[#1E3A8A] transition-all duration-300 ease-in-out z-20"
+                style={{
+                  transform: 'translateX(0px)',
+                  width: '0px',
+                }}
+              />
 
-        {/* Room Bookings Tab */}
-        <button
-          ref={(el) => { requestsButtonRefs.current['room'] = el; }}
-          onClick={() => handleTabChange('room')}
-          className={`relative z-10 flex-1 px-2 py-3 font-medium transition-all duration-200 text-center flex items-center justify-center gap-2 ${
-            activeRequestsTab === 'room'
-              ? 'text-[#1E3A8A]'
-              : 'text-[#1E3A8A]/60 hover:text-[#4D8CF5]'
-          }`}
-        >
-          <i className="fas fa-bed text-sm"></i>
-          <span>Room Bookings</span>
-          {unreadRoomCount > 0 && (
-            <span className="ml-1 bg-red-500 text-white text-xs px-1.5 py-0.5 rounded-full shadow-sm">
-              {unreadRoomCount}
-            </span>
-          )}
-        </button>
+              {/* Room Bookings Tab */}
+              <button
+                ref={(el) => { requestsButtonRefs.current['room'] = el; }}
+                onClick={() => handleTabChange('room')}
+                className={`flex-1 relative z-10 px-4 sm:px-6 py-4 text-sm font-bold transition-all duration-200 whitespace-nowrap flex items-center justify-center gap-2 ${activeRequestsTab === 'room'
+                  ? 'text-[#1E3A8A] bg-[#4D8CF5]/5'
+                  : 'text-[#1E3A8A]/60 hover:text-[#4D8CF5] hover:bg-gray-50/50'
+                  }`}
+              >
+                <i className="fas fa-bed text-sm"></i>
+                <span>Room Bookings</span>
+                {unreadRoomCount > 0 && (
+                  <span className="ml-1 bg-red-500 text-white text-[10px] font-bold px-1.5 py-0.5 rounded shadow-sm">
+                    {unreadRoomCount}
+                  </span>
+                )}
+              </button>
 
-        {/* Day Tour Bookings Tab */}
-        <button
-          ref={(el) => { requestsButtonRefs.current['daytour'] = el; }}
-          onClick={() => handleTabChange('daytour')}
-          className={`relative z-10 flex-1 px-2 py-3 font-medium transition-all duration-200 text-center flex items-center justify-center gap-2 ${
-            activeRequestsTab === 'daytour'
-              ? 'text-[#1E3A8A]'
-              : 'text-[#1E3A8A]/60 hover:text-[#4D8CF5]'
-          }`}
-        >
-          <i className="fas fa-sun text-sm"></i>
-          <span>Day Tour Bookings</span>
-          {unreadDayTourCount > 0 && (
-            <span className="ml-1 bg-red-500 text-white text-xs px-1.5 py-0.5 rounded-full shadow-sm">
-              {unreadDayTourCount}
-            </span>
-          )}
-        </button>
-      </div>
-    </div>
+              {/* Day Tour Bookings Tab */}
+              <button
+                ref={(el) => { requestsButtonRefs.current['daytour'] = el; }}
+                onClick={() => handleTabChange('daytour')}
+                className={`flex-1 relative z-10 px-4 sm:px-6 py-4 text-sm font-bold transition-all duration-200 whitespace-nowrap flex items-center justify-center gap-2 ${activeRequestsTab === 'daytour'
+                  ? 'text-[#1E3A8A] bg-[#4D8CF5]/5'
+                  : 'text-[#1E3A8A]/60 hover:text-[#4D8CF5] hover:bg-gray-50/50'
+                  }`}
+              >
+                <i className="fas fa-sun text-sm"></i>
+                <span>Day Tour Bookings</span>
+                {unreadDayTourCount > 0 && (
+                  <span className="ml-1 bg-red-500 text-white text-[10px] font-bold px-1.5 py-0.5 rounded shadow-sm">
+                    {unreadDayTourCount}
+                  </span>
+                )}
+              </button>
+            </div>
+          </div>
 
           {/* Search Filter */}
-<div className="px-4 sm:px-6 pt-5 pb-3">
-  <div className="relative w-full group">
-    <i className="fas fa-search absolute left-4 top-1/2 -translate-y-1/2 text-[#4D8CF5] text-sm transition-all duration-300 group-focus-within:text-[#3B78E7]"></i>
-    
-    <input
-      type="text"
-      value={requestsSearchTerm}
-      onChange={(e) => setRequestsSearchTerm(e.target.value)}
-      placeholder="Search name, email, bank, or date"
-      className="w-full pl-11 pr-4 py-3 border-2 border-[#4D8CF5]/20 rounded-xl text-sm focus:outline-none focus:border-[#4D8CF5] focus:ring-2 focus:ring-[#4D8CF5]/20 transition-all duration-300 bg-white shadow-sm hover:shadow-md"
-    />
-  </div>
-</div>
-          
+          <div className="px-4 sm:px-6 pt-5 pb-3">
+            <div className="relative w-full group">
+              <i className="fas fa-search absolute left-4 top-1/2 -translate-y-1/2 text-[#4D8CF5] text-sm transition-all duration-300 group-focus-within:text-[#3B78E7]"></i>
+
+              <input
+                type="text"
+                value={requestsSearchTerm}
+                onChange={(e) => setRequestsSearchTerm(e.target.value)}
+                placeholder="Search name, email, bank, or date"
+                className="w-full pl-11 pr-4 py-3 border-2 border-[#4D8CF5]/20 rounded-xl text-sm focus:outline-none focus:border-[#4D8CF5] focus:ring-2 focus:ring-[#4D8CF5]/20 transition-all duration-300 bg-white shadow-sm hover:shadow-md"
+              />
+            </div>
+          </div>
+
           <div className="p-4 sm:p-6 pt-2">
             {/* Room Bookings Requests - IMPROVED CARD DESIGN */}
             {activeRequestsTab === 'room' && (
@@ -1148,8 +1144,8 @@ const handleBankQRFileSelect = (e) => {
                     {roomRequestsFiltered.map((request) => {
                       const isCompleted = request.status === 'completed';
                       const isNew = !viewedRoomRequests.has(request.id);
-                      const cardBorderClass = isNew && !isCompleted 
-                        ? 'border-l-4 border-l-amber-400 border border-amber-200 bg-amber-50/20' 
+                      const cardBorderClass = isNew && !isCompleted
+                        ? 'border-l-4 border-l-amber-400 border border-amber-200 bg-amber-50/20'
                         : 'border border-gray-200';
 
                       return (
@@ -1283,8 +1279,8 @@ const handleBankQRFileSelect = (e) => {
                     {dayTourRequestsFiltered.map((request) => {
                       const isCompleted = request.status === 'completed';
                       const isNew = !viewedDayTourRequests.has(request.id);
-                      const cardBorderClass = isNew && !isCompleted 
-                        ? 'border-l-4 border-l-amber-400 border border-amber-200 bg-amber-50/20' 
+                      const cardBorderClass = isNew && !isCompleted
+                        ? 'border-l-4 border-l-amber-400 border border-amber-200 bg-amber-50/20'
                         : 'border border-gray-200';
 
                       return (
@@ -1429,7 +1425,7 @@ const handleBankQRFileSelect = (e) => {
                 <i className="fas fa-times text-sm"></i>
               </button>
             </div>
-            
+
             <div className="space-y-3">
               <div>
                 <label className="block text-sm font-semibold text-textPrimary mb-1.5">
@@ -1443,7 +1439,7 @@ const handleBankQRFileSelect = (e) => {
                   className="w-full px-4 py-2 border border-ocean-light/20 rounded-xl text-sm focus:outline-none focus:border-ocean-light"
                 />
               </div>
-              
+
               <div>
                 <label className="block text-sm font-semibold text-textPrimary mb-1.5">
                   Account Name
@@ -1456,7 +1452,7 @@ const handleBankQRFileSelect = (e) => {
                   className="w-full px-4 py-2 border border-ocean-light/20 rounded-xl text-sm focus:outline-none focus:border-ocean-light"
                 />
               </div>
-              
+
               {/* Helper Text */}
               <div className="text-xs text-amber-600 bg-amber-50 p-1.5 rounded-lg flex items-center gap-1.5">
                 <i className="fas fa-info-circle text-xs"></i>
@@ -1537,27 +1533,27 @@ const handleBankQRFileSelect = (e) => {
                   <label className="block text-sm font-semibold text-textPrimary mb-1.5">
                     QR Code Visibility
                   </label>
-<div className="relative">
-  <select
-    value={tempBankDetails.showToGuest ? 'show' : 'hide'}
-    onChange={(e) =>
-      handleBankDetailsChange('showToGuest', e.target.value === 'show')
-    }
-    className="w-full px-4 py-2 pr-10 border border-ocean-light/20 rounded-xl text-sm focus:outline-none focus:border-ocean-light appearance-none cursor-pointer transition-all duration-200"
-  >
-    <option value="show">Show this to the guest</option>
-    <option value="hide">Don&apos;t show this to the guest</option>
-  </select>
+                  <div className="relative">
+                    <select
+                      value={tempBankDetails.showToGuest ? 'show' : 'hide'}
+                      onChange={(e) =>
+                        handleBankDetailsChange('showToGuest', e.target.value === 'show')
+                      }
+                      className="w-full px-4 py-2 pr-10 border border-ocean-light/20 rounded-xl text-sm focus:outline-none focus:border-ocean-light appearance-none cursor-pointer transition-all duration-200"
+                    >
+                      <option value="show">Show this to the guest</option>
+                      <option value="hide">Don&apos;t show this to the guest</option>
+                    </select>
 
-  {/* Custom dropdown arrow */}
-  <div className="absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none text-ocean-light text-xs">
-    ▼
-  </div>
-</div>
+                    {/* Custom dropdown arrow */}
+                    <div className="absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none text-ocean-light text-xs">
+                      ▼
+                    </div>
+                  </div>
                 </div>
               )}
             </div>
-            
+
             <div className="flex gap-3 justify-end mt-5">
               <button
                 onClick={() => {
@@ -1650,7 +1646,7 @@ const handleBankQRFileSelect = (e) => {
               </div>
               <h3 className="text-lg font-bold text-textPrimary mb-2">Archive Bank Account</h3>
               <p className="text-textSecondary text-sm">
-                Are you sure you want to archive "{bankToArchive.bankName}"? 
+                Are you sure you want to archive "{bankToArchive.bankName}"?
                 This account will be moved to the archive and won't be available for new bank transfer requests.
               </p>
             </div>
@@ -1692,7 +1688,7 @@ const handleBankQRFileSelect = (e) => {
                 <i className="fas fa-times"></i>
               </button>
             </div>
-            
+
             <div className="space-y-4">
               <div>
                 <label className="block text-sm font-semibold text-textPrimary mb-3">
@@ -1707,7 +1703,7 @@ const handleBankQRFileSelect = (e) => {
                   />
                 </div>
               </div>
-              
+
               <div>
                 <label className="block text-sm font-semibold text-textPrimary mb-3">
                   New QR Code
@@ -1747,7 +1743,7 @@ const handleBankQRFileSelect = (e) => {
                 </div>
               </div>
             </div>
-            
+
             <div className="flex gap-3 justify-end mt-6">
               <button
                 onClick={() => {
@@ -1772,37 +1768,37 @@ const handleBankQRFileSelect = (e) => {
       )}
 
       {/* Archive GCash QR Code Confirmation Modal */}
-{showArchiveQRModal && (
-  <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4">
-    <div className="bg-white rounded-2xl w-full max-w-sm p-6 shadow-2xl">
-      <div className="text-center mb-5">
-        <div className="w-14 h-14 mx-auto mb-3 rounded-full bg-amber-100 flex items-center justify-center">
-          <i className="fas fa-archive text-amber-600 text-2xl"></i>
+      {showArchiveQRModal && (
+        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-2xl w-full max-w-sm p-6 shadow-2xl">
+            <div className="text-center mb-5">
+              <div className="w-14 h-14 mx-auto mb-3 rounded-full bg-amber-100 flex items-center justify-center">
+                <i className="fas fa-archive text-amber-600 text-2xl"></i>
+              </div>
+              <h3 className="text-lg font-bold text-textPrimary mb-2">Archive GCash QR Code</h3>
+              <p className="text-textSecondary text-sm">
+                Are you sure you want to archive the current GCash QR code?
+                This will remove it from the payment settings and move it to the archive.
+              </p>
+            </div>
+            <div className="flex gap-3 justify-center">
+              <button
+                onClick={() => setShowArchiveQRModal(false)}
+                className="px-5 py-2 border border-ocean-light/20 rounded-xl text-textSecondary text-sm font-medium hover:bg-ocean-ice transition-all duration-300"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleArchiveGCashQR}
+                disabled={archivingQR}
+                className="px-5 py-2 bg-gradient-to-r from-amber-500 to-amber-600 rounded-xl text-white text-sm font-medium hover:shadow-lg transition-all duration-300 disabled:opacity-50"
+              >
+                {archivingQR ? 'Archiving...' : 'Archive'}
+              </button>
+            </div>
+          </div>
         </div>
-        <h3 className="text-lg font-bold text-textPrimary mb-2">Archive GCash QR Code</h3>
-        <p className="text-textSecondary text-sm">
-          Are you sure you want to archive the current GCash QR code? 
-          This will remove it from the payment settings and move it to the archive.
-        </p>
-      </div>
-      <div className="flex gap-3 justify-center">
-        <button
-          onClick={() => setShowArchiveQRModal(false)}
-          className="px-5 py-2 border border-ocean-light/20 rounded-xl text-textSecondary text-sm font-medium hover:bg-ocean-ice transition-all duration-300"
-        >
-          Cancel
-        </button>
-        <button
-          onClick={handleArchiveGCashQR}
-          disabled={archivingQR}
-          className="px-5 py-2 bg-gradient-to-r from-amber-500 to-amber-600 rounded-xl text-white text-sm font-medium hover:shadow-lg transition-all duration-300 disabled:opacity-50"
-        >
-          {archivingQR ? 'Archiving...' : 'Archive'}
-        </button>
-      </div>
-    </div>
-  </div>
-)}
+      )}
 
       <style jsx>{`
         @keyframes slideInRight {

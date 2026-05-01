@@ -160,73 +160,38 @@ export default function AdminReports() {
     return `₱${value.toLocaleString()}`;
   };
 
-  // ==================== UPDATED PDF HEADER LAYOUT ====================
-  // Helper function to draw the header with vertical stacking on the right of the logo
+  // ==================== UPDATED PDF HEADER LAYOUT (CENTERED, NO LOGO) ====================
   const drawImprovedHeader = async (pdf, reportTitle, margin, pageWidth) => {
-    let yOffset = 20;
+    let yOffset = 25;
 
-    // Load logo
-    let logoBase64 = '';
-    let logoHeight = 0;
-    let logoWidth = 0;
+    // "Sandyfeet Reservation" (Centered)
+    pdf.setFontSize(22);
+    pdf.setFont('helvetica', 'bold');
+    pdf.setTextColor(30, 58, 138); // #1E3A8A Dark Blue
+    pdf.text('Sandyfeet Reservation', pageWidth / 2, yOffset, { align: 'center' });
 
-    try {
-      const img = new Image();
-      img.src = '/assets/sandyfeet.png';
-      await new Promise((resolve, reject) => {
-        img.onload = resolve;
-        img.onerror = reject;
-      });
-
-      // Calculate logo dimensions to match text height
-      const targetHeight = 12;
-      logoHeight = targetHeight;
-      logoWidth = (img.width / img.height) * logoHeight;
-
-      const canvas = document.createElement('canvas');
-      canvas.width = img.width;
-      canvas.height = img.height;
-      const ctx = canvas.getContext('2d');
-      ctx.drawImage(img, 0, 0);
-      logoBase64 = canvas.toDataURL('image/png');
-    } catch (err) {
-      console.warn('Could not load sandyfeet.png', err);
-    }
-
-    // Logo on the left
-    const leftMargin = margin;
-    let currentX = leftMargin;
-
-    if (logoBase64) {
-      pdf.addImage(logoBase64, 'PNG', currentX, yOffset + 2, logoWidth, logoHeight);
-      currentX += logoWidth + 8;
-    }
-
-    // Right side of logo: "Sandyfeet Reservation" (line 1)
+    // Report title (Centered, directly below)
+    yOffset += 10;
     pdf.setFontSize(14);
     pdf.setFont('helvetica', 'bold');
-    pdf.setTextColor(30, 58, 138);
-    pdf.text('Sandyfeet Reservation', currentX, yOffset + 6);
+    pdf.setTextColor(51, 65, 85); // Slate 700
+    pdf.text(reportTitle, pageWidth / 2, yOffset, { align: 'center' });
 
-    // Report title (line 2, directly below "Sandyfeet Reservation")
+    // Date Generated (Centered, directly below)
+    yOffset += 7;
     pdf.setFontSize(10);
-    pdf.setFont('helvetica', 'normal');
-    pdf.setTextColor(80, 80, 80);
-    pdf.text(reportTitle, currentX, yOffset + 12);
-
-    // Date Generated (line 3, directly below report title)
-    pdf.setFontSize(8);
     pdf.setFont('helvetica', 'italic');
-    pdf.setTextColor(120, 120, 120);
+    pdf.setTextColor(100, 116, 139); // Slate 500
     const dateText = `Generated: ${getFormattedDate()}`;
-    pdf.text(dateText, currentX, yOffset + 18);
+    pdf.text(dateText, pageWidth / 2, yOffset, { align: 'center' });
 
-    yOffset += 32;
-
-    // Add separator line
-    pdf.setDrawColor(200, 200, 200);
-    pdf.line(margin, yOffset, pageWidth - margin, yOffset);
     yOffset += 10;
+
+    // Add clean separator line
+    pdf.setDrawColor(203, 213, 225); // Slate 300
+    pdf.setLineWidth(0.5);
+    pdf.line(margin, yOffset, pageWidth - margin, yOffset);
+    yOffset += 12;
 
     return yOffset;
   };
@@ -1283,7 +1248,7 @@ export default function AdminReports() {
 
   if (loading) {
     return (
-      <div className="px-9 py-1 min-h-screen" style={{ backgroundColor: 'var(--color-blue-whites)' }}>
+      <div className="px-4 sm:px-9 py-1 min-h-screen" style={{ backgroundColor: 'var(--color-blue-whites)' }}>
         <div className="flex justify-center items-center h-64">
           <i className="fas fa-spinner fa-spin text-3xl text-ocean-light"></i>
         </div>
@@ -1292,19 +1257,19 @@ export default function AdminReports() {
   }
 
   return (
-    <div className="px-9 py-1 min-h-screen" style={{ backgroundColor: 'var(--color-blue-whites)' }}>
+    <div className="px-4 sm:px-9 py-1 min-h-screen" style={{ backgroundColor: 'var(--color-blue-whites)' }}>
       {/* Header (unchanged) */}
-      <div className="mb-8 rounded-xl border border-[#7AAAF8]/20 bg-[#7AAAF8]/5 px-6 py-5 shadow-sm">
-        <h1 className="text-3xl font-bold text-[#1E3A8A] font-playfair tracking-tight">
+      <div className="mb-8 rounded-xl border border-[#7AAAF8]/20 bg-[#7AAAF8]/5 px-4 sm:px-6 py-4 sm:py-5 shadow-sm">
+        <h1 className="text-2xl sm:text-3xl font-bold text-[#1E3A8A] font-playfair tracking-tight">
           Reports & Analytics
         </h1>
-        <p className="text-[#4D6FA8] text-sm leading-relaxed mt-1">
+        <p className="text-[#4D6FA8] text-xs sm:text-sm leading-relaxed mt-1">
           Track your resort performance with clear reports and insights.
         </p>
       </div>
 
       {/* Summary Cards (unchanged) */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-10">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-6 mb-8 sm:mb-10">
         <div className="group bg-gradient-to-br from-white via-white to-emerald-50/30 rounded-2xl shadow-md border border-[#10B981]/20 overflow-hidden hover:shadow-xl hover:border-[#10B981]/40 transition-all duration-300">
           <div className="p-6">
             <div className="flex items-center justify-between mb-4">
@@ -1352,7 +1317,7 @@ export default function AdminReports() {
       </div>
 
       {/* Tabs (unchanged) */}
-      <div className="relative mb-6 border-b border-[#4D8CF5]/20" ref={tabsContainerRef}>
+      <div className="relative mb-6 border-b border-[#4D8CF5]/20 overflow-x-auto no-scrollbar" ref={tabsContainerRef}>
         <div
           ref={sliderRef}
           className="absolute top-1 bottom-1 rounded-lg bg-[#4D8CF5]/10 transition-all duration-300 ease-in-out shadow-sm"
@@ -1362,11 +1327,11 @@ export default function AdminReports() {
           }}
         />
 
-        <div className="grid grid-cols-4 w-full">
+        <div className="flex min-w-max md:w-full">
           <button
             ref={(el) => (buttonRefs.current.roomTypes = el)}
             onClick={() => setActiveTab('roomTypes')}
-            className={`relative z-10 py-3 font-medium transition-all duration-200 whitespace-nowrap flex items-center justify-center gap-2 ${activeTab === 'roomTypes'
+            className={`flex-1 relative z-10 px-4 py-3 text-sm sm:text-base font-medium transition-all duration-200 whitespace-nowrap flex items-center justify-center gap-2 ${activeTab === 'roomTypes'
               ? 'text-[#1E3A8A]'
               : 'text-[#1E3A8A]/60 hover:text-[#4D8CF5]'
               }`}
@@ -1378,7 +1343,7 @@ export default function AdminReports() {
           <button
             ref={(el) => (buttonRefs.current.revenue = el)}
             onClick={() => setActiveTab('revenue')}
-            className={`relative z-10 py-3 font-medium transition-all duration-200 whitespace-nowrap flex items-center justify-center gap-2 ${activeTab === 'revenue'
+            className={`flex-1 relative z-10 px-4 py-3 text-sm sm:text-base font-medium transition-all duration-200 whitespace-nowrap flex items-center justify-center gap-2 ${activeTab === 'revenue'
               ? 'text-[#1E3A8A]'
               : 'text-[#1E3A8A]/60 hover:text-[#4D8CF5]'
               }`}
@@ -1390,7 +1355,7 @@ export default function AdminReports() {
           <button
             ref={(el) => (buttonRefs.current.bookingSplit = el)}
             onClick={() => setActiveTab('bookingSplit')}
-            className={`relative z-10 py-3 font-medium transition-all duration-200 whitespace-nowrap flex items-center justify-center gap-2 ${activeTab === 'bookingSplit'
+            className={`flex-1 relative z-10 px-4 py-3 text-sm sm:text-base font-medium transition-all duration-200 whitespace-nowrap flex items-center justify-center gap-2 ${activeTab === 'bookingSplit'
               ? 'text-[#1E3A8A]'
               : 'text-[#1E3A8A]/60 hover:text-[#4D8CF5]'
               }`}
@@ -1402,7 +1367,7 @@ export default function AdminReports() {
           <button
             ref={(el) => (buttonRefs.current.trends = el)}
             onClick={() => setActiveTab('trends')}
-            className={`relative z-10 py-3 font-medium transition-all duration-200 whitespace-nowrap flex items-center justify-center gap-2 ${activeTab === 'trends'
+            className={`flex-1 relative z-10 px-4 py-3 text-sm sm:text-base font-medium transition-all duration-200 whitespace-nowrap flex items-center justify-center gap-2 ${activeTab === 'trends'
               ? 'text-[#1E3A8A]'
               : 'text-[#1E3A8A]/60 hover:text-[#4D8CF5]'
               }`}
@@ -1414,23 +1379,25 @@ export default function AdminReports() {
       </div>
 
       {/* Tab Content */}
-      <div className="bg-white rounded-2xl shadow-lg border border-gray-200 p-6 md:p-8">
+      <div className="bg-white rounded-2xl shadow-lg border border-gray-200 p-4 sm:p-6 md:p-8">
         {/* Tab 1: Most Booked Room Types */}
         {activeTab === 'roomTypes' && (
           <div className="animate-fadeIn">
             <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-4">
               <div>
-                <h2 className="text-xl font-bold text-[#1E3A8A] font-playfair">Most Booked Room Types</h2>
-                <p className="text-sm text-gray-500">Most Booked Room Types Report</p>
+                <h2 className="text-lg sm:text-xl font-bold text-[#1E3A8A] font-playfair">Most Booked Room Types</h2>
+                <p className="text-xs sm:text-sm text-gray-500">Most Booked Room Types Report</p>
               </div>
-              <div className="flex items-center gap-3 bg-gradient-to-r from-gray-50 to-white px-4 py-2 rounded-xl shadow-sm border border-gray-100">
-                <i className="fas fa-calendar-alt text-[#4D8CF5] text-sm"></i>
-                <label className="text-sm font-medium text-gray-700">Select Year:</label>
-                <div className="relative inline-block">
+              <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3 bg-gradient-to-r from-gray-50 to-white px-4 py-3 sm:py-2 rounded-xl shadow-sm border border-gray-100 w-full sm:w-auto">
+                <div className="flex items-center gap-2">
+                  <i className="fas fa-calendar-alt text-[#4D8CF5] text-sm"></i>
+                  <label className="text-sm font-medium text-gray-700 whitespace-nowrap">Select Year:</label>
+                </div>
+                <div className="relative inline-block w-full sm:w-auto flex-1">
                   <select
                     value={selectedYear}
                     onChange={(e) => setSelectedYear(e.target.value)}
-                    className="px-3 py-2 pr-8 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#4D8CF5] focus:border-transparent bg-white appearance-none cursor-pointer transition-all duration-200"
+                    className="px-3 py-2 pr-8 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#4D8CF5] focus:border-transparent bg-white appearance-none cursor-pointer transition-all duration-200 w-full"
                   >
                     {availableYears.map((year) => (
                       <option key={year} value={year}>
@@ -1534,17 +1501,19 @@ export default function AdminReports() {
           <div className="animate-fadeIn">
             <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-4">
               <div>
-                <h2 className="text-2xl font-bold text-[#1E3A8A] font-playfair">Revenue Summary</h2>
-                <p className="text-sm text-gray-500 mt-1">Track revenue trends from room bookings and day tours</p>
+                <h2 className="text-xl sm:text-2xl font-bold text-[#1E3A8A] font-playfair">Revenue Summary</h2>
+                <p className="text-xs sm:text-sm text-gray-500 mt-1">Track revenue trends from room bookings and day tours</p>
               </div>
-              <div className="flex items-center gap-3 bg-gradient-to-r from-gray-50 to-white px-4 py-2 rounded-xl shadow-sm border border-gray-100">
-                <i className="fas fa-calendar-alt text-[#4D8CF5] text-sm"></i>
-                <label className="text-sm font-medium text-gray-700">Select Year:</label>
-                <div className="relative inline-block">
+              <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3 bg-gradient-to-r from-gray-50 to-white px-4 py-3 sm:py-2 rounded-xl shadow-sm border border-gray-100 w-full sm:w-auto">
+                <div className="flex items-center gap-2">
+                  <i className="fas fa-calendar-alt text-[#4D8CF5] text-sm"></i>
+                  <label className="text-sm font-medium text-gray-700 whitespace-nowrap">Select Year:</label>
+                </div>
+                <div className="relative inline-block w-full sm:w-auto flex-1">
                   <select
                     value={selectedYear}
                     onChange={(e) => setSelectedYear(e.target.value)}
-                    className="px-3 py-2 pr-8 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#4D8CF5] focus:border-transparent bg-white appearance-none cursor-pointer transition-all duration-200"
+                    className="px-3 py-2 pr-8 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#4D8CF5] focus:border-transparent bg-white appearance-none cursor-pointer transition-all duration-200 w-full"
                   >
                     {availableYears.map((year) => (
                       <option key={year} value={year}>
@@ -1635,18 +1604,20 @@ export default function AdminReports() {
           <div className="animate-fadeIn">
             <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-4">
               <div>
-                <h2 className="text-2xl font-bold text-[#1E3A8A] font-playfair">Room Booking Type Split</h2>
-                <p className="text-sm text-gray-500 mt-1">Distribution of booking types across your property</p>
+                <h2 className="text-xl sm:text-2xl font-bold text-[#1E3A8A] font-playfair">Room Booking Type Split</h2>
+                <p className="text-xs sm:text-sm text-gray-500 mt-1">Distribution of booking types across your property</p>
               </div>
-              <div className="flex flex-wrap gap-4">
-                <div className="flex items-center gap-3 bg-gradient-to-r from-gray-50 to-white px-4 py-2 rounded-xl shadow-sm border border-gray-100">
-                  <i className="fas fa-sliders-h text-[#4D8CF5] text-sm"></i>
-                  <label className="text-sm font-medium text-gray-700">Filter by:</label>
-                  <div className="relative inline-block">
+              <div className="flex flex-col sm:flex-row flex-wrap gap-4 w-full sm:w-auto">
+                <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3 bg-gradient-to-r from-gray-50 to-white px-4 py-3 sm:py-2 rounded-xl shadow-sm border border-gray-100 w-full sm:w-auto">
+                  <div className="flex items-center gap-2">
+                    <i className="fas fa-sliders-h text-[#4D8CF5] text-sm"></i>
+                    <label className="text-sm font-medium text-gray-700 whitespace-nowrap">Filter by:</label>
+                  </div>
+                  <div className="relative inline-block w-full sm:w-auto flex-1">
                     <select
                       value={selectedSplitFilter}
                       onChange={(e) => setSelectedSplitFilter(e.target.value)}
-                      className="px-3 py-2 pr-8 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#4D8CF5] focus:border-transparent bg-white appearance-none cursor-pointer transition-all duration-200"
+                      className="px-3 py-2 pr-8 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#4D8CF5] focus:border-transparent bg-white appearance-none cursor-pointer transition-all duration-200 w-full"
                     >
                       <option value="year">Year</option>
                       <option value="month">Month</option>
@@ -1659,14 +1630,16 @@ export default function AdminReports() {
                   </div>
                 </div>
                 {selectedSplitFilter === 'year' ? (
-                  <div className="flex items-center gap-3 bg-gradient-to-r from-gray-50 to-white px-4 py-2 rounded-xl shadow-sm border border-gray-100">
-                    <i className="fas fa-calendar-alt text-[#4D8CF5] text-sm"></i>
-                    <label className="text-sm font-medium text-gray-700">Year:</label>
-                    <div className="relative inline-block">
+                  <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3 bg-gradient-to-r from-gray-50 to-white px-4 py-3 sm:py-2 rounded-xl shadow-sm border border-gray-100 w-full sm:w-auto">
+                    <div className="flex items-center gap-2">
+                      <i className="fas fa-calendar-alt text-[#4D8CF5] text-sm"></i>
+                      <label className="text-sm font-medium text-gray-700 whitespace-nowrap">Year:</label>
+                    </div>
+                    <div className="relative inline-block w-full sm:w-auto flex-1">
                       <select
                         value={selectedSplitYear}
                         onChange={(e) => setSelectedSplitYear(e.target.value)}
-                        className="px-3 py-2 pr-8 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#4D8CF5] focus:border-transparent bg-white appearance-none cursor-pointer transition-all duration-200"
+                        className="px-3 py-2 pr-8 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#4D8CF5] focus:border-transparent bg-white appearance-none cursor-pointer transition-all duration-200 w-full"
                       >
                         {availableYears.map((year) => (
                           <option key={year} value={year}>
@@ -1682,18 +1655,22 @@ export default function AdminReports() {
                     </div>
                   </div>
                 ) : (
-                  <div className="flex flex-wrap gap-3">
-                    <div className="flex items-center gap-3 bg-gradient-to-r from-gray-50 to-white px-4 py-2 rounded-xl shadow-sm border border-gray-100">
-                      <i className="fas fa-calendar-alt text-[#4D8CF5] text-sm"></i>
-                      <label className="text-sm font-medium text-gray-700">Year:</label>
-                      <select value={selectedSplitYear} onChange={(e) => setSelectedSplitYear(e.target.value)} className="px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#4D8CF5] focus:border-transparent bg-white">
+                  <div className="flex flex-col sm:flex-row gap-3 w-full sm:w-auto">
+                    <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3 bg-gradient-to-r from-gray-50 to-white px-4 py-3 sm:py-2 rounded-xl shadow-sm border border-gray-100 w-full sm:w-auto">
+                      <div className="flex items-center gap-2">
+                        <i className="fas fa-calendar-alt text-[#4D8CF5] text-sm"></i>
+                        <label className="text-sm font-medium text-gray-700 whitespace-nowrap">Year:</label>
+                      </div>
+                      <select value={selectedSplitYear} onChange={(e) => setSelectedSplitYear(e.target.value)} className="px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#4D8CF5] focus:border-transparent bg-white w-full sm:w-auto flex-1">
                         {availableYears.map(year => (<option key={year} value={year}>{year}</option>))}
                       </select>
                     </div>
-                    <div className="flex items-center gap-3 bg-gradient-to-r from-gray-50 to-white px-4 py-2 rounded-xl shadow-sm border border-gray-100">
-                      <i className="fas fa-calendar-week text-[#4D8CF5] text-sm"></i>
-                      <label className="text-sm font-medium text-gray-700">Month:</label>
-                      <select value={selectedSplitMonth} onChange={(e) => setSelectedSplitMonth(e.target.value)} className="px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#4D8CF5] focus:border-transparent bg-white">
+                    <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3 bg-gradient-to-r from-gray-50 to-white px-4 py-3 sm:py-2 rounded-xl shadow-sm border border-gray-100 w-full sm:w-auto">
+                      <div className="flex items-center gap-2">
+                        <i className="fas fa-calendar-week text-[#4D8CF5] text-sm"></i>
+                        <label className="text-sm font-medium text-gray-700 whitespace-nowrap">Month:</label>
+                      </div>
+                      <select value={selectedSplitMonth} onChange={(e) => setSelectedSplitMonth(e.target.value)} className="px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#4D8CF5] focus:border-transparent bg-white w-full sm:w-auto flex-1">
                         {MONTHS.map((month, idx) => (<option key={idx} value={idx}>{month}</option>))}
                       </select>
                     </div>
@@ -1754,17 +1731,19 @@ export default function AdminReports() {
           <div className="animate-fadeIn">
             <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-4">
               <div>
-                <h2 className="text-2xl font-bold text-[#1E3A8A] font-playfair">Monthly / Seasonal Trend</h2>
-                <p className="text-sm text-gray-500 mt-1">Analyze booking patterns and seasonal fluctuations</p>
+                <h2 className="text-xl sm:text-2xl font-bold text-[#1E3A8A] font-playfair">Monthly / Seasonal Trend</h2>
+                <p className="text-xs sm:text-sm text-gray-500 mt-1">Analyze booking patterns and seasonal fluctuations</p>
               </div>
-              <div className="flex items-center gap-3 bg-gradient-to-r from-gray-50 to-white px-4 py-2 rounded-xl shadow-sm border border-gray-100">
-                <i className="fas fa-calendar-alt text-[#4D8CF5] text-sm"></i>
-                <label className="text-sm font-medium text-gray-700">Select Year:</label>
-                <div className="relative inline-block">
+              <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3 bg-gradient-to-r from-gray-50 to-white px-4 py-3 sm:py-2 rounded-xl shadow-sm border border-gray-100 w-full sm:w-auto">
+                <div className="flex items-center gap-2">
+                  <i className="fas fa-calendar-alt text-[#4D8CF5] text-sm"></i>
+                  <label className="text-sm font-medium text-gray-700 whitespace-nowrap">Select Year:</label>
+                </div>
+                <div className="relative inline-block w-full sm:w-auto flex-1">
                   <select
                     value={selectedYear}
                     onChange={(e) => setSelectedYear(e.target.value)}
-                    className="px-3 py-2 pr-8 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#4D8CF5] focus:border-transparent bg-white appearance-none cursor-pointer transition-all duration-200"
+                    className="px-3 py-2 pr-8 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#4D8CF5] focus:border-transparent bg-white appearance-none cursor-pointer transition-all duration-200 w-full"
                   >
                     {availableYears.map((year) => (
                       <option key={year} value={year}>
