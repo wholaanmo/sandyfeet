@@ -40,9 +40,6 @@ export default function AdminReservations() {
   // New state for image zoom modal
   const [imageZoomModal, setImageZoomModal] = useState({ show: false, imageUrl: '', title: '' });
 
-  // Track which bookings have had notifications sent (persistent - will survive page refresh)
-  const [notificationSent, setNotificationSent] = useState({});
-
   // Fixed check-in and check-out times
   const FIXED_CHECK_IN_DISPLAY = '02:00 PM';
   const FIXED_CHECK_OUT_DISPLAY = '12:00 PM';
@@ -78,26 +75,6 @@ export default function AdminReservations() {
       window.removeEventListener('resize', updateSlider);
     };
   }, [updateSlider]);
-
-  // Load persisted notification sent status from localStorage on mount
-  useEffect(() => {
-    const saved = localStorage.getItem('admin_notification_sent');
-    if (saved) {
-      try {
-        const parsed = JSON.parse(saved);
-        setNotificationSent(parsed);
-      } catch (e) {
-        console.error('Error loading notification sent status:', e);
-      }
-    }
-  }, []);
-
-  // Save notification sent status to localStorage whenever it changes
-  useEffect(() => {
-    if (Object.keys(notificationSent).length > 0) {
-      localStorage.setItem('admin_notification_sent', JSON.stringify(notificationSent));
-    }
-  }, [notificationSent]);
 
   const roomStatuses = ['all', 'pending', 'confirmed', 'check-in', 'check-out', 'completed', 'cancelled', 'cancelled-by-guest'];
   const dayTourStatuses = ['all', 'pending', 'confirmed', 'check-in', 'completed', 'cancelled', 'cancelled-by-guest'];
@@ -157,228 +134,211 @@ export default function AdminReservations() {
   };
 
   // Function to group multi-room bookings by parentBookingId
-  const groupMultiRoomBookings = (bookingsList) => {
-    const singleBookings = [];
-    const multiRoomGroups = new Map();
+ const groupMultiRoomBookings = (bookingsList) => {
+  const singleBookings = [];
+  const multiRoomGroups = new Map();
 
-    for (const booking of bookingsList) {
-      if (booking.isMultiRoomBooking && booking.parentBookingId) {
-        // This is a multi-room booking child
-        if (!multiRoomGroups.has(booking.parentBookingId)) {
-          multiRoomGroups.set(booking.parentBookingId, {
-            parentBookingId: booking.parentBookingId,
-            bookings: [],
-            guestInfo: booking.guestInfo,
-            checkIn: booking.checkIn,
-            checkOut: booking.checkOut,
-            status: booking.status,
-            paymentMethod: booking.paymentMethod,
-            paymentProofUrl: booking.paymentProofUrl,
-            validIdType: booking.validIdType,
-            validIdUrl: booking.validIdUrl,
-            specialRequest: booking.specialRequest,
-            createdAt: booking.createdAt,
-            type: 'room',
-            isMultiRoomGroup: true,
-            roomTypes: [],
-            tentCount: booking.tentCount || 0,
-            exclusiveAdults: booking.exclusiveAdults || 0,
-            exclusiveKids: booking.exclusiveKids || 0,
-            // Preserve payment edit fields from first child
-            manualBalance: booking.manualBalance,
-            adminNote: booking.adminNote,
-            manualTotalPrice: booking.manualTotalPrice
-          });
-        }
-        multiRoomGroups.get(booking.parentBookingId).bookings.push(booking);
-      } else if (!booking.isMultiRoomBooking) {
-        // Single room booking - preserve adults and kids
-        singleBookings.push(booking);
+  for (const booking of bookingsList) {
+    if (booking.isMultiRoomBooking && booking.parentBookingId) {
+      // This is a multi-room booking child
+      if (!multiRoomGroups.has(booking.parentBookingId)) {
+        multiRoomGroups.set(booking.parentBookingId, {
+          parentBookingId: booking.parentBookingId,
+          bookings: [],
+          guestInfo: booking.guestInfo,
+          checkIn: booking.checkIn,
+          checkOut: booking.checkOut,
+          status: booking.status,
+          paymentMethod: booking.paymentMethod,
+          paymentProofUrl: booking.paymentProofUrl,
+          validIdType: booking.validIdType,
+          validIdUrl: booking.validIdUrl,
+          specialRequest: booking.specialRequest,
+          createdAt: booking.createdAt,
+          type: 'room',
+          isMultiRoomGroup: true,
+          roomTypes: [],
+          tentCount: booking.tentCount || 0,
+          exclusiveAdults: booking.exclusiveAdults || 0,
+          exclusiveKids: booking.exclusiveKids || 0,
+          manualBalance: booking.manualBalance,
+          adminNote: booking.adminNote,
+          manualTotalPrice: booking.manualTotalPrice
+        });
       }
+      multiRoomGroups.get(booking.parentBookingId).bookings.push(booking);
+    } else if (!booking.isMultiRoomBooking) {
+      // Single room booking
+      singleBookings.push(booking);
     }
+  }
 
-    // Process multi-room groups to create consolidated display
-    const consolidatedGroups = [];
-    for (const [parentId, group] of multiRoomGroups) {
-      // Check if this is a single-unit multi-room booking
-      if (group.bookings.length === 1) {
-        // Single unit from multi-room-booking should be treated as single booking with "Single Room Type" label
-        const singleBooking = group.bookings[0];
-        singleBookings.push({
-          ...singleBooking,
-          bookingIdDisplay: 'Single Room Type'
-        });
-        continue;
-      }
-
-      // Get unique room types and aggregate quantities
-      const roomTypeMap = new Map();
-      let totalRooms = 0;
-      let totalPrice = 0;
-      let totalGuests = 0;
-      let tentCount = group.tentCount || 0;
-      let exclusiveAdults = group.exclusiveAdults || 0;
-      let exclusiveKids = group.exclusiveKids || 0;
-      let childBookingsWithGuests = [];
-
-      for (const booking of group.bookings) {
-        totalRooms++;
-        totalPrice += booking.totalPrice || 0;
-        totalGuests += booking.guests || 1;
-
-        // Capture exclusive booking details from child bookings
-        if (booking.isExclusiveResortBooking) {
-          tentCount = booking.tentCount || 0;
-          exclusiveAdults = booking.exclusiveAdults || 0;
-          exclusiveKids = booking.exclusiveKids || 0;
-        }
-
-        // Store child booking with guest info for later display
-        childBookingsWithGuests.push({
-          roomType: booking.roomType,
-          guests: booking.guests || 1,
-          adults: booking.adults || booking.guests || 1,
-          kids: booking.kids || 0,
-          price: booking.price
-        });
-
-        if (!roomTypeMap.has(booking.roomType)) {
-          roomTypeMap.set(booking.roomType, {
-            count: 1,
-            price: booking.price,
-            guests: booking.guests || 1
-          });
-        } else {
-          const existing = roomTypeMap.get(booking.roomType);
-          existing.count++;
-        }
-      }
-
-      // Store detailed room types array for better display
-      const roomTypesArray = Array.from(roomTypeMap.entries()).map(([type, data]) => ({
-        type: type,
-        quantity: data.count,
-        guestsPerRoom: data.guests
-      }));
-
-      // Build room types display string
-      const exclusiveChildBooking = group.bookings.find((booking) => booking.isExclusiveResortBooking);
-      const isExclusiveResortBooking = Boolean(exclusiveChildBooking);
-      const exclusivePackagePrice = Number(exclusiveChildBooking?.exclusivePackagePrice || 0);
-
-      if (isExclusiveResortBooking && tentCount > 0) {
-        const tentIndex = roomTypesArray.findIndex(item => item.type === 'Tent');
-        if (tentIndex !== -1) {
-          // Rename existing Tent entry to Tent(s)
-          roomTypesArray[tentIndex].type = 'Tent(s)';
-        } else {
-          // No Tent entry found (should not happen, but fallback)
-          roomTypesArray.push({ type: 'Tent(s)', quantity: tentCount, guestsPerRoom: 0 });
-        }
-      }
-
-      // Calculate total rooms: base 5 rooms for Entire Resort Package, plus 1 per tent
-      let totalRoomsCount = totalRooms;
-      if (isExclusiveResortBooking) {
-        // For exclusive resort bookings, count all rooms from roomTypesArray
-        // (excluding tents from this count since tents are tracked separately)
-        let exclusiveRoomCount = 0;
-        for (const [type, data] of roomTypeMap) {
-          if (type !== 'Tent') {
-            exclusiveRoomCount += data.count;
-          }
-        }
-        // Total rooms = exclusive rooms + tents
-        totalRoomsCount = exclusiveRoomCount + (tentCount || 0);
-      }
-
-      // Build room type display string with tent count (without guest counts)
-      let roomTypesDisplay = '';
-      if (isExclusiveResortBooking) {
-        roomTypesDisplay = tentCount > 0
-          ? `Entire Resort Package + ${tentCount} Tent(s)`
-          : 'Entire Resort Package';
-      } else if (roomTypesArray.length > 1) {
-        roomTypesDisplay = roomTypesArray
-          .map(item => `${item.quantity} × ${item.type}`)
-          .join(', ');
-      } else {
-        roomTypesDisplay = roomTypesArray
-          .map(item => `${item.quantity} × ${item.type}`)
-          .join(', ');
-      }
-
-      const displayTotalPrice = isExclusiveResortBooking && exclusivePackagePrice > 0
-        ? exclusivePackagePrice
-        : totalPrice;
-      const displayDownPayment = displayTotalPrice * 0.5;
-      const displayRemainingBalance = displayTotalPrice - displayDownPayment;
-
-      // Determine booking ID display type
-      let bookingIdDisplay = '';
-      if (isExclusiveResortBooking) {
-        bookingIdDisplay = 'Entire Resort';
-      } else if (roomTypesArray.length > 1) {
-        bookingIdDisplay = 'Multi-Room Types';
-      } else {
-        bookingIdDisplay = 'Single Room Type';
-      }
-      // Ensure it's never empty
-      if (!bookingIdDisplay) bookingIdDisplay = 'Single Room Type';
-
-      consolidatedGroups.push({
-        id: parentId,
-        bookingId: parentId,
-        bookingIdDisplay: bookingIdDisplay,
-        guestInfo: group.guestInfo,
-        checkIn: group.checkIn,
-        checkOut: group.checkOut,
-        status: group.status,
-        paymentMethod: group.paymentMethod,
-        paymentProofUrl: group.paymentProofUrl,
-        validIdType: group.validIdType,
-        validIdUrl: group.validIdUrl,
-        specialRequest: group.specialRequest,
-        createdAt: group.createdAt,
-        type: 'room',
-        isMultiRoomGroup: true,
-        isExclusiveResortBooking,
-        exclusivePackagePrice: isExclusiveResortBooking ? exclusivePackagePrice : null,
-        roomTypesDisplay,
-        roomTypesArray,
-        totalRooms: totalRoomsCount,
-        totalPrice: displayTotalPrice,
-        downPayment: displayDownPayment,
-        remainingBalance: displayRemainingBalance,
-        totalGuests,
-        childBookings: childBookingsWithGuests,
-        originalChildBookings: group.bookings,
-        tentCount: tentCount,
-        exclusiveAdults: exclusiveAdults,
-        exclusiveKids: exclusiveKids,
-        exclusiveTotalGuests: exclusiveAdults + exclusiveKids,
-        // Preserve edited payment fields (copy from the group object which was set from the first child)
-        manualBalance: group.manualBalance,
-        adminNote: group.adminNote,
-        manualTotalPrice: group.manualTotalPrice
+  // Process multi-room groups to create consolidated display
+  const consolidatedGroups = [];
+  for (const [parentId, group] of multiRoomGroups) {
+    // If only one child in group, treat as single booking with "Single Room Type" label
+    if (group.bookings.length === 1) {
+      const singleBooking = group.bookings[0];
+      singleBookings.push({
+        ...singleBooking,
+        bookingIdDisplay: 'Single Room Type'
       });
+      continue;
     }
 
-    // Enhanced single bookings - ensure they have bookingIdDisplay
-    const enhancedSingleBookings = singleBookings.map(booking => {
-      // For single bookings that came from multi-room-booking with 1 unit, 
-      // they already have bookingIdDisplay set
-      if (!booking.bookingIdDisplay) {
-        return {
-          ...booking,
-          bookingIdDisplay: 'Single Room Type'
-        };
-      }
-      return booking;
-    });
+    // Aggregate flags from all child bookings
+    let hasRefundNotification = false;
+    let hasMoveDateNotification = false;
+    for (const child of group.bookings) {
+      if (child.refundNotificationSent) hasRefundNotification = true;
+      if (child.moveDateNotificationSent) hasMoveDateNotification = true;
+    }
 
-    return [...enhancedSingleBookings, ...consolidatedGroups];
-  };
+    // Get unique room types and aggregate quantities
+    const roomTypeMap = new Map();
+    let totalRooms = 0;
+    let totalPrice = 0;
+    let totalGuests = 0;
+    let tentCount = group.tentCount || 0;
+    let exclusiveAdults = group.exclusiveAdults || 0;
+    let exclusiveKids = group.exclusiveKids || 0;
+    let childBookingsWithGuests = [];
+
+    for (const booking of group.bookings) {
+      totalRooms++;
+      totalPrice += booking.totalPrice || 0;
+      totalGuests += booking.guests || 1;
+
+      if (booking.isExclusiveResortBooking) {
+        tentCount = booking.tentCount || 0;
+        exclusiveAdults = booking.exclusiveAdults || 0;
+        exclusiveKids = booking.exclusiveKids || 0;
+      }
+
+      childBookingsWithGuests.push({
+        roomType: booking.roomType,
+        guests: booking.guests || 1,
+        adults: booking.adults || booking.guests || 1,
+        kids: booking.kids || 0,
+        price: booking.price
+      });
+
+      if (!roomTypeMap.has(booking.roomType)) {
+        roomTypeMap.set(booking.roomType, {
+          count: 1,
+          price: booking.price,
+          guests: booking.guests || 1
+        });
+      } else {
+        const existing = roomTypeMap.get(booking.roomType);
+        existing.count++;
+      }
+    }
+
+    const roomTypesArray = Array.from(roomTypeMap.entries()).map(([type, data]) => ({
+      type: type,
+      quantity: data.count,
+      guestsPerRoom: data.guests
+    }));
+
+    const exclusiveChildBooking = group.bookings.find(b => b.isExclusiveResortBooking);
+    const isExclusiveResortBooking = Boolean(exclusiveChildBooking);
+    const exclusivePackagePrice = Number(exclusiveChildBooking?.exclusivePackagePrice || 0);
+
+    if (isExclusiveResortBooking && tentCount > 0) {
+      const tentIndex = roomTypesArray.findIndex(item => item.type === 'Tent');
+      if (tentIndex !== -1) {
+        roomTypesArray[tentIndex].type = 'Tent(s)';
+      } else {
+        roomTypesArray.push({ type: 'Tent(s)', quantity: tentCount, guestsPerRoom: 0 });
+      }
+    }
+
+    // Total rooms count (including tents)
+    let totalRoomsCount = totalRooms;
+    if (isExclusiveResortBooking) {
+      let exclusiveRoomCount = 0;
+      for (const [type, data] of roomTypeMap) {
+        if (type !== 'Tent') exclusiveRoomCount += data.count;
+      }
+      totalRoomsCount = exclusiveRoomCount + (tentCount || 0);
+    }
+
+    let roomTypesDisplay = '';
+    if (isExclusiveResortBooking) {
+      roomTypesDisplay = tentCount > 0
+        ? `Entire Resort Package + ${tentCount} Tent(s)`
+        : 'Entire Resort Package';
+    } else if (roomTypesArray.length > 1) {
+      roomTypesDisplay = roomTypesArray.map(item => `${item.quantity} × ${item.type}`).join(', ');
+    } else {
+      roomTypesDisplay = roomTypesArray.map(item => `${item.quantity} × ${item.type}`).join(', ');
+    }
+
+    const displayTotalPrice = isExclusiveResortBooking && exclusivePackagePrice > 0
+      ? exclusivePackagePrice
+      : totalPrice;
+    const displayDownPayment = displayTotalPrice * 0.5;
+    const displayRemainingBalance = displayTotalPrice - displayDownPayment;
+
+    let bookingIdDisplay = '';
+    if (isExclusiveResortBooking) {
+      bookingIdDisplay = 'Entire Resort';
+    } else if (roomTypesArray.length > 1) {
+      bookingIdDisplay = 'Multi-Room Types';
+    } else {
+      bookingIdDisplay = 'Single Room Type';
+    }
+
+    consolidatedGroups.push({
+      id: parentId,
+      bookingId: parentId,
+      bookingIdDisplay: bookingIdDisplay,
+      guestInfo: group.guestInfo,
+      checkIn: group.checkIn,
+      checkOut: group.checkOut,
+      status: group.status,
+      paymentMethod: group.paymentMethod,
+      paymentProofUrl: group.paymentProofUrl,
+      validIdType: group.validIdType,
+      validIdUrl: group.validIdUrl,
+      specialRequest: group.specialRequest,
+      createdAt: group.createdAt,
+      type: 'room',
+      isMultiRoomGroup: true,
+      isExclusiveResortBooking,
+      exclusivePackagePrice: isExclusiveResortBooking ? exclusivePackagePrice : null,
+      roomTypesDisplay,
+      roomTypesArray,
+      totalRooms: totalRoomsCount,
+      totalPrice: displayTotalPrice,
+      downPayment: displayDownPayment,
+      remainingBalance: displayRemainingBalance,
+      totalGuests,
+      childBookings: childBookingsWithGuests,
+      originalChildBookings: group.bookings,
+      tentCount: tentCount,
+      exclusiveAdults: exclusiveAdults,
+      exclusiveKids: exclusiveKids,
+      exclusiveTotalGuests: exclusiveAdults + exclusiveKids,
+      // Preserve edited payment fields
+      manualBalance: group.manualBalance,
+      adminNote: group.adminNote,
+      manualTotalPrice: group.manualTotalPrice,
+      // NEW: aggregated notification flags
+      refundNotificationSent: hasRefundNotification,
+      moveDateNotificationSent: hasMoveDateNotification
+    });
+  }
+
+  // Enhanced single bookings (non‑multi-room)
+  const enhancedSingleBookings = singleBookings.map(booking => ({
+    ...booking,
+    bookingIdDisplay: booking.bookingIdDisplay || 'Single Room Type'
+  }));
+
+  return [...enhancedSingleBookings, ...consolidatedGroups];
+};
 
   // Real-time listener for room bookings
   useEffect(() => {
@@ -644,7 +604,7 @@ export default function AdminReservations() {
 
         await logAdminAction({
           action: 'Refund Notification Sent',
-          module: 'Room Reservations',
+          module: 'Reservations',
           details: `Sent refund notification for ${booking.isMultiRoomGroup ? 'multi-room' : 'room'} booking ${booking.bookingId} to ${booking.guestInfo?.firstName} ${booking.guestInfo?.lastName} (${booking.guestInfo?.email}). Refund amount: ₱${refundAmount.toLocaleString()} (50% of down payment). Balance updated to 0.`
         });
 
@@ -666,8 +626,6 @@ export default function AdminReservations() {
             updatedAt: new Date().toISOString()
           });
         }
-
-        setNotificationSent(prev => ({ ...prev, [booking.id]: { refund: true, moveDate: prev[booking.id]?.moveDate || false } }));
 
         showNotification(`Refund notification sent and balance updated to 0.`, 'success');
       } else {
@@ -712,6 +670,7 @@ export default function AdminReservations() {
             await updateDoc(bookingRef, {
               moveDateNotificationSent: true,
               moveDateNotificationSentAt: new Date().toISOString(),
+              balance: 0, 
               updatedAt: new Date().toISOString()
             });
           }
@@ -721,10 +680,11 @@ export default function AdminReservations() {
           await updateDoc(bookingRef, {
             moveDateNotificationSent: true,
             moveDateNotificationSentAt: new Date().toISOString(),
+            balance: 0,    
             updatedAt: new Date().toISOString()
           });
         }
-        setNotificationSent(prev => ({ ...prev, [booking.id]: { refund: prev[booking.id]?.refund || false, moveDate: true } }));
+
         showNotification(`Move date notification sent to ${booking.guestInfo?.email}`, 'success');
       } else {
         showNotification(data.error || 'Failed to send move date notification', 'error');
@@ -996,7 +956,7 @@ export default function AdminReservations() {
 
       await logAdminAction({
         action: 'Confirmed Day Tour Reservation',
-        module: 'Day Tour Reservations',
+        module: 'Reservations',
         details: `Confirmed day tour booking ${booking.bookingId} for ${booking.guestInfo?.firstName} ${booking.guestInfo?.lastName}. Note: ${confirmModal.note || 'No note provided'}`
       });
 
@@ -1050,7 +1010,7 @@ export default function AdminReservations() {
 
       await logAdminAction({
         action: 'Cancelled Day Tour Reservation',
-        module: 'Day Tour Reservations',
+        module: 'Reservations',
         details: `Cancelled day tour booking ${booking.bookingId} for ${booking.guestInfo?.firstName} ${booking.guestInfo?.lastName}. Reason: ${reason}`
       });
 
@@ -1206,7 +1166,7 @@ export default function AdminReservations() {
 
         await logAdminAction({
           action: 'Refund Notification Sent',
-          module: 'Day Tour Reservations',
+          module: 'Reservations',
           details: `Sent refund notification for day tour booking ${booking.bookingId} to ${booking.guestInfo?.firstName} ${booking.guestInfo?.lastName} (${booking.guestInfo?.email}). Refund amount: ₱${refundAmount.toLocaleString()} (50% of down payment)`
         });
 
@@ -1259,9 +1219,13 @@ export default function AdminReservations() {
     return 'Not Confirmed';
   };
 
-  const isNotificationDisabled = (booking) => {
-    return notificationSent[booking.id]?.refund === true || notificationSent[booking.id]?.moveDate === true;
-  };
+const isNotificationDisabled = (booking) => {
+  // For multi‑room groups, check the aggregated flags
+  if (booking.refundNotificationSent || booking.moveDateNotificationSent) {
+    return true;
+  }
+  return false;
+};
 
   const getTotalGuests = (booking) => {
     if (booking.isMultiRoomGroup) {

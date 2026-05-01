@@ -4,6 +4,7 @@
 import { useState, useEffect } from 'react';
 import { db } from '@/lib/firebase';
 import { collection, query, orderBy, onSnapshot, updateDoc, doc } from 'firebase/firestore';
+import { logAdminAction } from '@/lib/auditLogger';  // 👈 added audit logger
 
 export default function AdminFeedback() {
   const [feedbacks, setFeedbacks] = useState([]);
@@ -58,6 +59,12 @@ export default function AdminFeedback() {
         publishedAt: new Date().toISOString(),
         updatedAt: new Date().toISOString()
       });
+      // 👇 audit log for publish
+      await logAdminAction({
+        action: 'Published Feedback',
+        module: 'Feedback Management',
+        details: `Published feedback from ${feedback.guestName || 'Guest'} (Booking ID: ${feedback.bookingId})`
+      });
       showNotification('Feedback published successfully!', 'success');
       if (isViewModalOpen) setIsViewModalOpen(false);
       setConfirmModal({ show: false, type: '', feedback: null });
@@ -76,6 +83,12 @@ export default function AdminFeedback() {
       await updateDoc(feedbackRef, {
         status: 'Not Published',
         updatedAt: new Date().toISOString()
+      });
+      // 👇 audit log for "Don't publish" (unpublish)
+      await logAdminAction({
+        action: 'Marked Feedback as Not Published',
+        module: 'Feedback Management',
+        details: `Marked feedback from ${feedback.guestName || 'Guest'} (Booking ID: ${feedback.bookingId}) as Not Published`
       });
       showNotification('Feedback marked as Not Published.', 'success');
       if (isViewModalOpen) setIsViewModalOpen(false);
@@ -96,6 +109,12 @@ export default function AdminFeedback() {
         archived: true,
         archivedAt: new Date().toISOString(),
         updatedAt: new Date().toISOString()
+      });
+      // 👇 audit log for archive
+      await logAdminAction({
+        action: 'Archived Feedback',
+        module: 'Feedback Management',
+        details: `Archived feedback from ${feedback.guestName || 'Guest'} (Booking ID: ${feedback.bookingId})`
       });
       showNotification('Feedback archived successfully.', 'success');
       if (isViewModalOpen) setIsViewModalOpen(false);
@@ -259,7 +278,7 @@ export default function AdminFeedback() {
                           <button onClick={() => openArchiveConfirm(feedback)} disabled={actionLoading[feedback.id]} className="w-8 h-8 rounded-lg bg-[#F59E0B]/10 text-[#C2410C] border border-[#F59E0B]/20 hover:bg-[#F59E0B] hover:text-white hover:border-[#F59E0B] transition-all duration-200 flex items-center justify-center disabled:opacity-50"
 title="Archive"><i className="fas fa-archive text-sm"></i></button>
                         </div>
-                      </td>
+                       </td>
                     </tr>
                   ))
                 )}

@@ -226,7 +226,7 @@ export default function AdminDayTourCalendar() {
         });
         await logAdminAction({
           action: 'Updated Day Tour Unavailable Entry',
-          module: 'Day Tour Calendar Management',
+          module: 'Calendar Management',
           details: `Updated unavailable entry on ${selectedDate.toDateString()} to ${unavailableGuestsNumber} unavailable guests. Reason: ${reason}`
         });
       } else {
@@ -239,7 +239,7 @@ export default function AdminDayTourCalendar() {
         });
         await logAdminAction({
           action: 'Marked Day Tour Date Unavailable',
-          module: 'Day Tour Calendar Management',
+          module: 'Calendar Management',
           details: `Marked ${selectedDate.toDateString()} as unavailable with ${unavailableGuestsNumber} guests. Reason: ${reason}`
         });
       }
@@ -276,7 +276,7 @@ export default function AdminDayTourCalendar() {
       
       await logAdminAction({
         action: 'Removed Day Tour Date Unavailable',
-        module: 'Day Tour Calendar Management',
+        module: 'Calendar Management',
         details: `Removed unavailable date: ${dateKey}`
       });
       

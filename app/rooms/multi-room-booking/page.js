@@ -1010,7 +1010,7 @@ const handleSubmitBooking = async () => {
                           {bookingData.validIdUrl && (
                             <p className="mt-1 text-[11px] text-emerald-600 flex items-center gap-1.5">
                               <i className="fas fa-check-circle text-emerald-500"></i>
-                              Successfully attached
+                              Valid ID uploaded
                             </p>
                           )}
                         </div>
@@ -1050,7 +1050,7 @@ const handleSubmitBooking = async () => {
                           {bookingData.paymentProofUrl && (
                             <p className="mt-2.5 text-[11px] text-emerald-600 flex items-center gap-1.5">
                               <i className="fas fa-check-circle text-emerald-500"></i>
-                              Successfully attached
+                              Payment proof uploaded
                             </p>
                           )}
                         </div>
@@ -1253,7 +1253,7 @@ const handleSubmitBooking = async () => {
         {bookingData.validIdUrl && (
           <p className="mt-1 text-[11px] text-emerald-600 flex items-center gap-1.5">
             <i className="fas fa-check-circle text-emerald-500"></i>
-            Successfully attached
+            Valid ID uploaded
           </p>
         )}
       </div>
@@ -1299,7 +1299,7 @@ const handleSubmitBooking = async () => {
         {bookingData.paymentProofUrl && (bankDetailsProvided || visibleGuestQrBank) && (
           <p className="mt-2.5 text-[11px] text-emerald-600 flex items-center gap-1.5">
             <i className="fas fa-check-circle text-emerald-500"></i>
-            Successfully attached
+            Payment proof uploaded
           </p>
         )}
       </div>

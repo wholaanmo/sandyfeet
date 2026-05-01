@@ -354,7 +354,7 @@ export default function AdminDayTour({ defaultTab = 'tours', hideTabs = false })
       
       await logAdminAction({
         action: 'Created Day Tour',
-        module: 'Day Tour Management',
+        module: 'Availability Management',
         details: `Added new day tour (Adult: ₱${parseFloat(tourFormData.adultPrice).toLocaleString()}, Kid: ₱${parseFloat(tourFormData.kidPrice).toLocaleString()}, Capacity: ${tourFormData.maxCapacity || 'Unlimited'}, Status: ${tourFormData.availability})`
       });
       
@@ -448,7 +448,7 @@ export default function AdminDayTour({ defaultTab = 'tours', hideTabs = false })
         
         await logAdminAction({
           action: 'Updated Day Tour',
-          module: 'Day Tour Management',
+          module: 'Availability Management',
           details: logDetails
         });
       }
@@ -479,7 +479,7 @@ export default function AdminDayTour({ defaultTab = 'tours', hideTabs = false })
       
       await logAdminAction({
         action: 'Archived Day Tour',
-        module: 'Day Tour Management',
+        module: 'Availability Management',
         details: `Archived day tour (Adult: ₱${tour.adultPrice?.toLocaleString()}, Kid: ₱${tour.kidPrice?.toLocaleString()}, Capacity: ${tour.maxCapacity || 'Unlimited'})`
       });
       
@@ -641,7 +641,7 @@ export default function AdminDayTour({ defaultTab = 'tours', hideTabs = false })
       
       await logAdminAction({
         action: 'Created Activity',
-        module: 'Day Tour Management',
+        module: 'Availability Management',
         details: `Added new activity: ${activityFormData.name} (${getPriceDisplayText(activityFormData.priceType, activityFormData.priceValue)})`
       });
       
@@ -717,7 +717,7 @@ export default function AdminDayTour({ defaultTab = 'tours', hideTabs = false })
         
         await logAdminAction({
           action: 'Updated Activity',
-          module: 'Day Tour Management',
+          module: 'Availability Management',
           details: logDetails
         });
       }
@@ -748,7 +748,7 @@ export default function AdminDayTour({ defaultTab = 'tours', hideTabs = false })
       
       await logAdminAction({
         action: 'Archived Activity',
-        module: 'Day Tour Management',
+        module: 'Availability Management',
         details: `Archived activity: ${activity.name} (${getPriceDisplayText(activity.priceType, activity.priceValue)})`
       });
       
