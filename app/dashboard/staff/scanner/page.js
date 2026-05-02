@@ -16,6 +16,7 @@ export default function StaffScannerPage() {
   const containerId = 'qr-reader';
   const containerRef = useRef(null);
   const initializedRef = useRef(false);
+  const stopInProgressRef = useRef(false);
 
   // Fetch available cameras on mount
   useEffect(() => {
@@ -36,37 +37,54 @@ export default function StaffScannerPage() {
 
   // Start scanner when camera ID is available and no scan result
   useEffect(() => {
+    let isMounted = true;
     if (!currentCameraId || scanResult) return;
     if (!containerRef.current) return;
 
     const startScanner = async () => {
-      // Clean up any existing scanner instance and DOM leftovers
+      // Prevent multiple simultaneous starts
+      if (stopInProgressRef.current) return;
+      
+      // Extensive cleanup of any existing instance
       if (scannerRef.current) {
         try {
+          stopInProgressRef.current = true;
           await scannerRef.current.stop();
           scannerRef.current.clear();
-        } catch (e) {}
-        scannerRef.current = null;
+        } catch (e) {
+          console.warn('Non-critical cleanup error:', e);
+        } finally {
+          scannerRef.current = null;
+          stopInProgressRef.current = false;
+        }
       }
-      // Clear any remaining HTML inside the container (prevents double camera)
+
+      // Final DOM safety check
       if (containerRef.current) {
         containerRef.current.innerHTML = '';
       }
+
+      if (!isMounted) return;
 
       try {
         const scanner = new Html5Qrcode(containerId);
         scannerRef.current = scanner;
 
+        // Use more flexible constraints for mobile compatibility
+        const config = {
+          fps: 15, // Slightly lower FPS for better stability on older mobiles
+          qrbox: (viewfinderWidth, viewfinderHeight) => {
+            const minEdge = Math.min(viewfinderWidth, viewfinderHeight);
+            const size = Math.floor(minEdge * 0.7);
+            return { width: size, height: size };
+          },
+          aspectRatio: 1.0,
+          // Removed explicit videoConstraints facingMode as we are passing a specific ID
+        };
+
         await scanner.start(
           currentCameraId,
-          {
-            fps: 20,
-            qrbox: { width: 250, height: 250 },
-            aspectRatio: 1.0,
-            videoConstraints: {
-              facingMode: currentCameraId.includes('back') ? 'environment' : 'user',
-            },
-          },
+          config,
           (decodedText) => handleScanSuccess(decodedText),
           (errorMsg) => {
             // Ignore normal scanning errors
@@ -75,27 +93,33 @@ export default function StaffScannerPage() {
             }
           }
         );
-        setIsScanning(true);
-        setCameraError(null);
+
+        if (isMounted) {
+          setIsScanning(true);
+          setCameraError(null);
+        }
       } catch (err) {
-        console.error('Camera start error:', err);
-        setCameraError(err.message || 'Could not start camera. Please check permissions.');
-        setIsScanning(false);
-        initializedRef.current = false;
+        if (isMounted) {
+          console.error('Camera start error:', err);
+          setCameraError('Could not start camera. Please check permissions.');
+          setIsScanning(false);
+        }
       }
     };
 
     startScanner();
 
     return () => {
+      isMounted = false;
       const cleanup = async () => {
-        if (scannerRef.current) {
+        if (scannerRef.current && !stopInProgressRef.current) {
           try {
+            stopInProgressRef.current = true;
             await scannerRef.current.stop();
             scannerRef.current.clear();
           } catch (e) {}
           scannerRef.current = null;
-          setIsScanning(false);
+          stopInProgressRef.current = false;
         }
       };
       cleanup();
