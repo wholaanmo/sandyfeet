@@ -177,6 +177,16 @@ export default function StaffScannerPage() {
                 <i className="fas fa-camera text-[#4D8CF5]"></i>
                 Camera Scanner
               </h2>
+                                  {cameras.length > 1 && (
+                      <button
+                        onClick={switchCamera}
+                        className="group absolute top-3 right-3 z-10 flex items-center gap-2 px-3 py-1.5 rounded-lg bg-white/95 border border-[#4D8CF5]/25 text-[#4D6FA8] hover:bg-white hover:border-[#4D8CF5]/45 hover:text-[#3B78E7] transition-all duration-300 text-xs font-medium shadow-sm active:scale-95 backdrop-blur"
+                        type="button"
+                      >
+                        <i className="fas fa-sync-alt text-[#4D8CF5] group-hover:rotate-180 transition-transform duration-500"></i>
+                        Switch Camera
+                      </button>
+                    )}
             </div>
             <div className="p-6">
               {cameraError ? (
@@ -202,17 +212,22 @@ export default function StaffScannerPage() {
                       className="w-full rounded-xl overflow-hidden bg-black"
                       style={{ minHeight: '400px', height: 'auto', aspectRatio: '1 / 1' }}
                     />
-                    {cameras.length > 1 && (
-                      <button
-                        onClick={switchCamera}
-                        className="group absolute top-3 right-3 z-10 flex items-center gap-2 px-3 py-1.5 rounded-lg bg-white/95 border border-[#4D8CF5]/25 text-[#4D6FA8] hover:bg-white hover:border-[#4D8CF5]/45 hover:text-[#3B78E7] transition-all duration-300 text-xs font-medium shadow-sm active:scale-95 backdrop-blur"
-                        type="button"
-                      >
-                        <i className="fas fa-sync-alt text-[#4D8CF5] group-hover:rotate-180 transition-transform duration-500"></i>
-                        Switch Camera
-                      </button>
-                    )}
                   </div>
+                  <style jsx global>{`
+                    /* Ensure html5-qrcode injected elements fill the container on mobile */
+                    #qr-reader,
+                    #qr-reader > div {
+                      height: 100%;
+                    }
+
+                    #qr-reader video,
+                    #qr-reader canvas {
+                      width: 100% !important;
+                      height: 100% !important;
+                      object-fit: cover;
+                      display: block;
+                    }
+                  `}</style>
                   <div className="mt-4 flex items-center justify-center gap-2 text-sm text-gray-500">
                     <i className="fas fa-qrcode text-blue-400"></i>
                     <span>Position QR code inside the square frame</span>
