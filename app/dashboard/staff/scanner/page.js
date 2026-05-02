@@ -40,12 +40,17 @@ export default function StaffScannerPage() {
     if (!containerRef.current) return;
 
     const startScanner = async () => {
+      // Clean up any existing scanner instance and DOM leftovers
       if (scannerRef.current) {
         try {
           await scannerRef.current.stop();
           scannerRef.current.clear();
         } catch (e) {}
         scannerRef.current = null;
+      }
+      // Clear any remaining HTML inside the container (prevents double camera)
+      if (containerRef.current) {
+        containerRef.current.innerHTML = '';
       }
 
       try {
@@ -145,25 +150,14 @@ export default function StaffScannerPage() {
   return (
     <div className="px-4 sm:px-9 py-1 min-h-screen" style={{ backgroundColor: 'var(--color-blue-whites)' }}>
       <div className="max-w-6xl mx-auto">
-        {/* Header */}
-        <div className="mb-6 rounded-xl border border-[#7AAAF8]/20 bg-[#7AAAF8]/5 px-4 sm:px-5 py-4 shadow-sm flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-          <div>
-            <h1 className="text-2xl sm:text-3xl font-bold text-[#1E3A8A] font-playfair tracking-tight">
-              QR Code Scanner
-            </h1>
-            <p className="text-[#4D6FA8] text-xs sm:text-sm leading-relaxed mt-1">
-              Scan guest's check-in QR code to quickly access their booking
-            </p>
-          </div>
-          {cameras.length > 1 && !scanResult && (
-            <button
-              onClick={switchCamera}
-              className="group flex items-center gap-2 px-4 py-2.5 rounded-xl bg-white border border-[#4D8CF5]/20 text-[#4D6FA8] hover:bg-[#4D8CF5]/5 hover:border-[#4D8CF5]/40 hover:text-[#3B78E7] transition-all duration-300 shadow-sm active:scale-95 text-sm font-bold"
-            >
-              <i className="fas fa-sync-alt text-[#4D8CF5] group-hover:rotate-180 transition-transform duration-500"></i>
-              Switch Camera
-            </button>
-          )}
+        {/* Header (without switch button) */}
+        <div className="mb-6 rounded-xl border border-[#7AAAF8]/20 bg-[#7AAAF8]/5 px-4 sm:px-5 py-4 shadow-sm">
+          <h1 className="text-2xl sm:text-3xl font-bold text-[#1E3A8A] font-playfair tracking-tight">
+            QR Code Scanner
+          </h1>
+          <p className="text-[#4D6FA8] text-xs sm:text-sm leading-relaxed mt-1">
+            Scan guest's check-in QR code to quickly access their booking
+          </p>
         </div>
 
         <div className="grid lg:grid-cols-2 gap-8">
@@ -174,6 +168,15 @@ export default function StaffScannerPage() {
                 <i className="fas fa-camera text-[#4D8CF5]"></i>
                 Camera Scanner
               </h2>
+              {cameras.length > 1 && !scanResult && (
+                <button
+                  onClick={switchCamera}
+                  className="group flex items-center gap-2 px-3 py-1.5 rounded-lg bg-white border border-[#4D8CF5]/20 text-[#4D6FA8] hover:bg-[#4D8CF5]/5 hover:border-[#4D8CF5]/40 hover:text-[#3B78E7] transition-all duration-300 text-xs font-medium shadow-sm active:scale-95"
+                >
+                  <i className="fas fa-sync-alt text-[#4D8CF5] group-hover:rotate-180 transition-transform duration-500"></i>
+                  Switch Camera
+                </button>
+              )}
             </div>
             <div className="p-6">
               {cameraError ? (
@@ -230,11 +233,11 @@ export default function StaffScannerPage() {
             </div>
           </div>
 
-          {/* Instructions & Manual Check-in */}
+          {/* Instructions & Manual Check-in (unchanged) */}
           <div className="space-y-6">
             <div className="bg-white rounded-2xl shadow-md border border-gray-100 overflow-hidden">
-              <div className="border-b border-ocean-light/10 px-6 py-4 bg-ocean-pale/30 flex justify-between items-center">
-                <h2 className="font-semibold text-[#1E3A8A] flex items-center gap-2">
+              <div className="border-b border-ocean-light/10 px-6 py-4 bg-ocean-pale/30">
+                <h2 className="font-semibold text-gray-800 flex items-center gap-2">
                   <i className="fas fa-info-circle text-blue-500"></i>
                   How to Use
                 </h2>
@@ -262,8 +265,8 @@ export default function StaffScannerPage() {
             </div>
 
             <div className="bg-white rounded-2xl shadow-md border border-gray-100 overflow-hidden">
-              <div className="border-b border-ocean-light/10 px-6 py-4 bg-ocean-pale/30 flex justify-between items-center">
-                <h2 className="font-semibold text-[#1E3A8A] flex items-center gap-2">
+              <div className="border-b border-ocean-light/10 px-6 py-4 bg-ocean-pale/30">
+                <h2 className="font-semibold text-gray-800 flex items-center gap-2">
                   <i className="fas fa-keyboard text-blue-500"></i>
                   Manual Check-in
                 </h2>
@@ -274,7 +277,8 @@ export default function StaffScannerPage() {
                 </p>
                 <button
                   onClick={handleManualCheckIn}
-className="w-full py-2.5 rounded-xl border border-[#7AAAF8]/20 bg-[#7AAAF8]/10 text-[#1E3A8A] hover:bg-[#4D8CF5]/80 hover:text-white transition-all duration-200 shadow-sm flex items-center justify-center gap-2 font-medium">
+                  className="w-full py-2.5 rounded-xl border border-[#7AAAF8]/20 bg-[#7AAAF8]/10 text-[#1E3A8A] hover:bg-[#4D8CF5]/80 hover:text-white transition-all duration-200 shadow-sm flex items-center justify-center gap-2 font-medium"
+                >
                   <i className="fas fa-arrow-right"></i>
                   Go to Reservations
                 </button>
