@@ -3,11 +3,14 @@
 
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { db } from '../../../../lib/firebase';
-import { collection, query, orderBy, onSnapshot, updateDoc, doc } from 'firebase/firestore';
+import { collection, query, orderBy, onSnapshot, updateDoc, doc, getDoc, getDocs, where } from 'firebase/firestore';
 import { logAdminAction } from '../../../../lib/auditLogger';
 import { sendConfirmationEmail, sendCancellationEmail } from '../../../../lib/emailService';
+import { useSearchParams } from 'next/navigation';
 
 export default function AdminReservations() {
+    const searchParams = useSearchParams(); // <-- ADDED
+  const checkinToken = searchParams.get('checkinToken'); 
   const [activeTab, setActiveTab] = useState('rooms');
   const [statusFilter, setStatusFilter] = useState('all');
   const [bookings, setBookings] = useState([]);
@@ -43,6 +46,9 @@ const [savingNote, setSavingNote] = useState(false);
 
   // New state for image zoom modal
   const [imageZoomModal, setImageZoomModal] = useState({ show: false, imageUrl: '', title: '' });
+
+  // New state for check-in confirmation modal
+  const [checkInConfirmModal, setCheckInConfirmModal] = useState({ show: false, booking: null, loading: false });
 
   // Fixed check-in and check-out times
   const FIXED_CHECK_IN_DISPLAY = '02:00 PM';
@@ -92,6 +98,75 @@ const [savingNote, setSavingNote] = useState(false);
     cancelled: 5,
     'cancelled-by-guest': 6
   };
+
+useEffect(() => {
+  const openSidebarFromToken = async () => {
+    if (!checkinToken) return;
+    try {
+      const tokenRef = doc(db, 'checkinTokens', checkinToken);
+      const tokenDoc = await getDoc(tokenRef);
+      if (!tokenDoc.exists()) return;
+
+      const tokenData = tokenDoc.data();
+      const bookingId = tokenData.bookingId;
+
+      // 1. Try day tour collection first (unchanged – already working)
+      const dayTourQuery = query(collection(db, 'dayTourBookings'), where('bookingId', '==', bookingId));
+      const dayTourSnapshot = await getDocs(dayTourQuery);
+      if (!dayTourSnapshot.empty) {
+        const tourDoc = dayTourSnapshot.docs[0];
+        const tourData = tourDoc.data();
+        const dayTourBooking = {
+          id: tourDoc.id,
+          ...tourData,
+          type: 'daytour',
+          bookingId: tourData.bookingId,
+          guestInfo: tourData.guestInfo,
+          selectedDate: tourData.selectedDate,
+          adults: tourData.adults,
+          kids: tourData.kids,
+          seniors: tourData.seniors || 0,
+          totalPrice: tourData.totalPrice,
+          status: tourData.status,
+          paymentProof: tourData.paymentProof,
+          validIdImage: tourData.validIdImage,
+          validIdType: tourData.validIdType,
+          specialRequest: tourData.specialRequest,
+          createdAt: tourData.createdAt
+        };
+        setActiveTab('daytour');
+        openSidebar(dayTourBooking);
+        return;
+      }
+
+      // 2. Room booking – use the existing grouping function to handle all cases
+      const roomQuery1 = query(collection(db, 'bookings'), where('bookingId', '==', bookingId));
+      const roomQuery2 = query(collection(db, 'bookings'), where('parentBookingId', '==', bookingId));
+      const [snap1, snap2] = await Promise.all([getDocs(roomQuery1), getDocs(roomQuery2)]);
+      const matchedDocs = [...snap1.docs, ...snap2.docs];
+      if (matchedDocs.length === 0) {
+        console.warn('No room booking found for token', bookingId);
+        return;
+      }
+
+      // Convert to plain objects and group them (works for single and multi‑room)
+      const roomBookingsList = matchedDocs.map(doc => ({ id: doc.id, ...doc.data() }));
+      const groupedRooms = groupMultiRoomBookings(roomBookingsList);
+      if (groupedRooms.length > 0) {
+        setActiveTab('rooms');
+        openSidebar(groupedRooms[0]); // The first (and only) grouped object is the correct booking
+      } else {
+        console.warn('No room booking to display for token', bookingId);
+      }
+    } catch (error) {
+      console.error('Error retrieving booking from token:', error);
+    }
+  };
+
+  if (checkinToken) {
+    openSidebarFromToken();
+  }
+}, [checkinToken]);
 
   useEffect(() => {
     const allowed = activeTab === 'rooms' ? roomStatuses : dayTourStatuses;
@@ -347,6 +422,52 @@ const [savingNote, setSavingNote] = useState(false);
   return [...enhancedSingleBookings, ...consolidatedGroups];
 };
 
+ const handleConfirmCheckIn = async () => {
+    const booking = checkInConfirmModal.booking || sidebarBooking;
+    if (!booking) return;
+    if (booking.status !== 'confirmed') {
+      showNotification('Booking must be confirmed before check-in.', 'error');
+      setCheckInConfirmModal({ show: false, booking: null, loading: false });
+      return;
+    }
+    
+    setCheckInConfirmModal(prev => ({ ...prev, loading: true }));
+    setActionLoading((prev) => ({ ...prev, [booking.id]: true }));
+    try {
+      if (booking.isMultiRoomGroup && booking.originalChildBookings) {
+        for (const childBooking of booking.originalChildBookings) {
+          const bookingRef = doc(db, 'bookings', childBooking.id);
+          await updateDoc(bookingRef, {
+            status: 'check-in',
+            updatedAt: new Date().toISOString(),
+          });
+        }
+      } else {
+        const collectionName = booking.type === 'room' ? 'bookings' : 'dayTourBookings';
+        const bookingRef = doc(db, collectionName, booking.id);
+        await updateDoc(bookingRef, {
+          status: 'check-in',
+          updatedAt: new Date().toISOString(),
+        });
+      }
+      await logAdminAction({
+        action: 'Manual Check-In',
+        module: 'Reservations',
+        details: `Manually checked in ${booking.isMultiRoomGroup ? 'multi-room' : ''} booking ${booking.bookingId} for ${booking.guestInfo?.firstName} ${booking.guestInfo?.lastName}`,
+      });
+      showNotification('Guest checked in successfully.', 'success');
+      // Update local sidebarBooking status so button disables immediately
+      setSidebarBooking((prev) => ({ ...prev, status: 'check-in' }));
+      setCheckInConfirmModal({ show: false, booking: null, loading: false });
+    } catch (error) {
+      console.error('Error during check-in:', error);
+      showNotification('Failed to check in guest.', 'error');
+      setCheckInConfirmModal(prev => ({ ...prev, loading: false }));
+    } finally {
+      setActionLoading((prev) => ({ ...prev, [booking.id]: false }));
+    }
+  };
+
   // Real-time listener for room bookings
   useEffect(() => {
     const bookingsRef = collection(db, 'bookings');
@@ -377,91 +498,72 @@ const [savingNote, setSavingNote] = useState(false);
     return () => unsubscribe();
   }, []);
 
-  useEffect(() => {
-    if (!groupedBookings.length) return;
-    let isProcessing = false;
-    const tick = async () => {
-      if (isProcessing) return;
-      isProcessing = true;
-      try {
-        const now = new Date();
-        for (const booking of groupedBookings) {
-          if (!booking?.id || !booking?.status) continue;
-          if (['pending', 'cancelled', 'cancelled-by-guest', 'completed'].includes(booking.status)) continue;
+ useEffect(() => {
+  if (!groupedBookings.length) return;
+  let isProcessing = false;
+  const tick = async () => {
+    if (isProcessing) return;
+    isProcessing = true;
+    try {
+      const now = new Date();
+      for (const booking of groupedBookings) {
+        if (!booking?.id || !booking?.status) continue;
+        if (['pending', 'cancelled', 'cancelled-by-guest', 'completed'].includes(booking.status)) continue;
 
-          let checkInRaw, checkOutRaw;
+        let checkInRaw, checkOutRaw;
 
+        if (booking.isMultiRoomGroup && booking.originalChildBookings) {
+          const firstChild = booking.originalChildBookings[0];
+          checkInRaw = firstChild.checkIn?.toDate ? firstChild.checkIn.toDate() : new Date(firstChild.checkIn);
+          checkOutRaw = firstChild.checkOut?.toDate ? firstChild.checkOut.toDate() : new Date(firstChild.checkOut);
+        } else {
+          checkInRaw = booking.checkIn?.toDate ? booking.checkIn.toDate() : new Date(booking.checkIn);
+          checkOutRaw = booking.checkOut?.toDate ? booking.checkOut.toDate() : new Date(booking.checkOut);
+        }
+
+        if (isNaN(checkInRaw?.getTime?.()) || isNaN(checkOutRaw?.getTime?.())) continue;
+
+        const checkOutDateObj = new Date(checkOutRaw);
+        const checkOutDay = new Date(checkOutDateObj.getFullYear(), checkOutDateObj.getMonth(), checkOutDateObj.getDate());
+        const checkOutTime = new Date(checkOutDay);
+        checkOutTime.setHours(12, 0, 0, 0);
+        const completedTime = new Date(checkOutDay);
+        completedTime.setHours(13, 0, 0, 0);
+
+        let targetStatus = null;
+        if (now >= completedTime) {
+          targetStatus = 'completed';
+        } else if (now >= checkOutTime && now < completedTime) {
+          targetStatus = 'check-out';
+        }
+        // No automatic 'check-in' transition
+
+        if (targetStatus && booking.status !== targetStatus) {
           if (booking.isMultiRoomGroup && booking.originalChildBookings) {
-            // Use first child booking for dates
-            const firstChild = booking.originalChildBookings[0];
-            checkInRaw = firstChild.checkIn?.toDate ? firstChild.checkIn.toDate() : new Date(firstChild.checkIn);
-            checkOutRaw = firstChild.checkOut?.toDate ? firstChild.checkOut.toDate() : new Date(firstChild.checkOut);
-          } else {
-            checkInRaw = booking.checkIn?.toDate ? booking.checkIn.toDate() : new Date(booking.checkIn);
-            checkOutRaw = booking.checkOut?.toDate ? booking.checkOut.toDate() : new Date(booking.checkOut);
-          }
-
-          if (isNaN(checkInRaw?.getTime?.()) || isNaN(checkOutRaw?.getTime?.())) continue;
-
-          // Create check-in time at 2:00 PM on check-in day
-          const checkInTime = new Date(checkInRaw);
-          checkInTime.setHours(14, 0, 0, 0);
-
-          // Create check-out time at 12:00 PM on check-out day
-          const checkOutDateObj = new Date(checkOutRaw);
-          const checkOutDay = new Date(checkOutDateObj.getFullYear(), checkOutDateObj.getMonth(), checkOutDateObj.getDate());
-
-          // Check-out time: 12:00 PM on the check-out day
-          const checkOutTime = new Date(checkOutDay);
-          checkOutTime.setHours(12, 0, 0, 0);
-
-          // Completed time: 1:00 PM on the same day (1 hour after check-out)
-          const completedTime = new Date(checkOutDay);
-          completedTime.setHours(13, 0, 0, 0);
-
-          let targetStatus = null;
-
-          // Check for completed (1 hour after check-out time)
-          if (now >= completedTime) {
-            targetStatus = 'completed';
-          }
-          // Check for check-out (exactly at check-out time)
-          else if (now >= checkOutTime && now < completedTime) {
-            targetStatus = 'check-out';
-          }
-          // Check for check-in
-          else if (now >= checkInTime) {
-            targetStatus = 'check-in';
-          }
-
-          // Only change status if targetStatus is different from current status
-          if (targetStatus && booking.status !== targetStatus) {
-            if (booking.isMultiRoomGroup && booking.originalChildBookings) {
-              // Update all child bookings
-              for (const childBooking of booking.originalChildBookings) {
-                await updateDoc(doc(db, 'bookings', childBooking.id), {
-                  status: targetStatus,
-                  updatedAt: new Date().toISOString()
-                });
-              }
-            } else {
-              await updateDoc(doc(db, 'bookings', booking.id), {
+            for (const childBooking of booking.originalChildBookings) {
+              await updateDoc(doc(db, 'bookings', childBooking.id), {
                 status: targetStatus,
-                updatedAt: new Date().toISOString()
+                updatedAt: new Date().toISOString(),
               });
             }
+          } else {
+            await updateDoc(doc(db, 'bookings', booking.id), {
+              status: targetStatus,
+              updatedAt: new Date().toISOString(),
+            });
           }
         }
-      } catch (error) {
-        console.error('Error auto-updating room reservation statuses:', error);
-      } finally {
-        isProcessing = false;
       }
-    };
-    tick();
-    const id = setInterval(tick, 1000);
-    return () => clearInterval(id);
-  }, [groupedBookings]);
+    } catch (error) {
+      console.error('Error auto-updating room reservation statuses:', error);
+    } finally {
+      isProcessing = false;
+    }
+  };
+  tick();
+  const id = setInterval(tick, 1000);
+  return () => clearInterval(id);
+}, [groupedBookings]);
 
   // Automatic day-tour status transitions:
   // confirmed -> check-in when selected day starts
@@ -483,12 +585,10 @@ const [savingNote, setSavingNote] = useState(false);
           const [y, m, d] = dateKey.split('-').map(Number);
           const dayStart = new Date(y, m - 1, d, 0, 0, 0, 0);
           const dayEnd = new Date(y, m - 1, d, 23, 59, 59, 999);
-          let targetStatus = null;
-          if (now > dayEnd) {
-            targetStatus = 'completed';
-          } else if (now >= dayStart) {
-            targetStatus = 'check-in';
-          }
+let targetStatus = null;
+if (now > dayEnd) {
+  targetStatus = 'completed';
+}
           if (targetStatus && tour.status !== targetStatus) {
             await updateDoc(doc(db, 'dayTourBookings', tour.id), {
               status: targetStatus,
@@ -2023,6 +2123,8 @@ const isNotificationDisabled = (booking) => {
     </div>
   )}
 
+
+
   {/* Display Mode */}
   {!editingNote && !editingPayment && (
     <div className="space-y-3">
@@ -2084,6 +2186,24 @@ const balance = isCancelled ? 0 : (sidebarBooking.manualBalance !== undefined ? 
           </div>
         );
       })()}
+      
+      {/* Confirm Check-In Button - Relocated to bottom right */}
+      {sidebarBooking.status === 'confirmed' && (
+        <div className="flex justify-end mt-2">
+          <button
+            onClick={() => setCheckInConfirmModal({ show: true, booking: sidebarBooking, loading: false })}
+            disabled={actionLoading[sidebarBooking.id]}
+            className="px-4 py-1.5 rounded-lg border border-[#7AAAF8]/20 bg-[#7AAAF8]/10 text-[#1E3A8A] text-xs hover:bg-[#4D8CF5]/80 hover:text-white transition-all duration-200 shadow-sm flex items-center justify-center gap-2 font-semibold disabled:opacity-50 disabled:bg-gray-400">
+            {actionLoading[sidebarBooking.id] ? (
+              <><i className="fas fa-spinner fa-spin text-xs"></i> Processing...</>
+            ) : (
+              <><i className="fas fa-door-open text-xs"></i> Confirm Check-In</>
+            )}
+          </button>
+        </div>
+      )}
+
+
     </div>
   )}
 </div>
@@ -2403,6 +2523,8 @@ const balance = isCancelled ? 0 : (sidebarBooking.manualBalance !== undefined ? 
                   </span>
                 </p>
               </div>
+
+              
 
               {/* Payment Proof Image - Clickable */}
               {selectedBooking.paymentProofUrl && (
@@ -2855,6 +2977,47 @@ const balance = isCancelled ? 0 : (sidebarBooking.manualBalance !== undefined ? 
                   <><i className="fas fa-spinner fa-spin"></i> Sending...</>
                 ) : (
                   <><i className="fas fa-check"></i> Yes, Send Refund Notification</>
+                )}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Confirm Check-In Modal */}
+      {checkInConfirmModal.show && checkInConfirmModal.booking && (
+        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-[70] p-4">
+          <div className="bg-white rounded-2xl w-full max-w-sm p-6 shadow-2xl animate-scaleIn">
+            <div className="text-center mb-5">
+              <div className="w-14 h-14 mx-auto mb-3 rounded-full bg-blue-100 flex items-center justify-center">
+                <i className="fas fa-door-open text-blue-500 text-2xl"></i>
+              </div>
+              <h3 className="text-lg font-bold text-textPrimary mb-2">Confirm Check-In</h3>
+              <p className="text-textSecondary text-sm">
+                Are you sure you want to confirm check-in for{" "}
+                <strong>{checkInConfirmModal.booking.guestInfo?.firstName} {checkInConfirmModal.booking.guestInfo?.lastName}</strong>?
+              </p>
+              <p className="text-xs text-neutral mt-2">
+                Booking ID: {checkInConfirmModal.booking.bookingId}
+              </p>
+            </div>
+            <div className="flex gap-3 justify-center">
+              <button
+                onClick={() => setCheckInConfirmModal({ show: false, booking: null, loading: false })}
+                className="px-4 py-2 border border-ocean-light/20 rounded-xl text-textSecondary text-sm font-medium hover:bg-ocean-ice transition-all duration-300"
+                disabled={checkInConfirmModal.loading}
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleConfirmCheckIn}
+                disabled={checkInConfirmModal.loading}
+                className="px-4 py-2 bg-gradient-to-r from-blue-500 to-blue-600 rounded-xl text-white text-sm font-medium hover:shadow-lg hover:-translate-y-0.5 transition-all duration-300 disabled:opacity-50 flex items-center gap-2"
+              >
+                {checkInConfirmModal.loading ? (
+                  <><i className="fas fa-spinner fa-spin"></i> Processing...</>
+                ) : (
+                  <><i className="fas fa-check"></i> Yes, Confirm Check-In</>
                 )}
               </button>
             </div>

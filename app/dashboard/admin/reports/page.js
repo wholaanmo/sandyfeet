@@ -877,137 +877,241 @@ export default function AdminReports() {
   };
 
   // ==================== FIXED REVENUE COMPUTATION ====================
-  const processData = (bookings, dayTours) => {
-    // Helper to get the effective total amount (manual edit > exclusive package > totalPrice)
-    const getEffectiveTotal = (booking) => {
-      // 1. manualTotalPrice overrides everything
-      if (booking.manualTotalPrice !== undefined && booking.manualTotalPrice !== null) {
-        return booking.manualTotalPrice;
-      }
-      // 2. For exclusive resort bookings, use exclusivePackagePrice
-      if (booking.isExclusiveResortBooking && booking.exclusivePackagePrice) {
-        return booking.exclusivePackagePrice;
-      }
-      // 3. Fallback to original totalPrice
-      return booking.totalPrice || 0;
-    };
+const processData = (bookings, dayTours) => {
+  // Helper to get the effective total amount (manual edit > exclusive package > totalPrice)
+  const getEffectiveTotal = (booking) => {
+    if (booking.manualTotalPrice !== undefined && booking.manualTotalPrice !== null) {
+      return booking.manualTotalPrice;
+    }
+    if (booking.isExclusiveResortBooking && booking.exclusivePackagePrice) {
+      return booking.exclusivePackagePrice;
+    }
+    return booking.totalPrice || 0;
+  };
 
-    let totalRoomRevenue = 0;
-    let totalRoomUnits = 0;
-    let dayTourGuestCount = 0;
-    let dayTourRevenueTotal = 0;
+  let totalRoomRevenue = 0;
+  let totalRoomUnits = 0;
+  let dayTourGuestCount = 0;
+  let dayTourRevenueTotal = 0;
 
-    const processedBookings = [];
-    const multiRoomGroups = new Map();
+  const processedBookings = [];
+  const multiRoomGroups = new Map();
 
-    // First pass: group multi-room bookings and collect non-grouped completed bookings
-    bookings.forEach(booking => {
-      if (booking.status === 'completed') {
-        if (booking.isMultiRoomBooking && booking.parentBookingId) {
-          if (!multiRoomGroups.has(booking.parentBookingId)) {
-            multiRoomGroups.set(booking.parentBookingId, {
-              bookings: [],
-              totalPrice: 0,
-              createdAt: booking.createdAt,
-              status: booking.status,
-              numberOfRooms: 0,
-              isExclusiveResortBooking: booking.isExclusiveResortBooking || false,
-              manualTotalPrice: booking.manualTotalPrice,
-              exclusivePackagePrice: booking.exclusivePackagePrice
-            });
-          }
-          const group = multiRoomGroups.get(booking.parentBookingId);
-          group.bookings.push(booking);
-          group.numberOfRooms += (booking.numberOfRooms || 1);
-
-          // For exclusive resort, only set totalPrice once (from the first child)
-          if (group.isExclusiveResortBooking) {
-            if (group.totalPrice === 0) {
-              // Use effective total of this child (exclusivePackagePrice or manualTotalPrice)
-              group.totalPrice = getEffectiveTotal(booking);
-            }
-            // Do NOT accumulate for other children (avoid multiplying package price)
-          } else {
-            // Normal multi-room (non-exclusive): accumulate each child's effective total
-            group.totalPrice += getEffectiveTotal(booking);
-          }
-        } else if (!booking.isMultiRoomBooking) {
-          // Single room booking
-          const effectiveTotal = getEffectiveTotal(booking);
-          totalRoomRevenue += effectiveTotal;
-          totalRoomUnits += (booking.numberOfRooms || 1);
-          processedBookings.push(booking);
+  // First pass: group multi-room bookings and collect non-grouped completed bookings
+  bookings.forEach(booking => {
+    if (booking.status === 'completed') {
+      if (booking.isMultiRoomBooking && booking.parentBookingId) {
+        if (!multiRoomGroups.has(booking.parentBookingId)) {
+          multiRoomGroups.set(booking.parentBookingId, {
+            bookings: [],
+            totalPrice: 0,
+            createdAt: booking.createdAt,
+            status: booking.status,
+            numberOfRooms: 0,
+            isExclusiveResortBooking: booking.isExclusiveResortBooking || false,
+            manualTotalPrice: booking.manualTotalPrice,
+            exclusivePackagePrice: booking.exclusivePackagePrice,
+            tentCount: booking.tentCount || 0,          // preserve tent count
+            roomType: booking.roomType
+          });
         }
-      }
-    });
+        const group = multiRoomGroups.get(booking.parentBookingId);
+        group.bookings.push(booking);
+        // Each child booking contributes its numberOfRooms (normally 1 per room)
+        group.numberOfRooms += (booking.numberOfRooms || 1);
 
-    // Second pass: add grouped bookings
-    multiRoomGroups.forEach((group, parentId) => {
-      totalRoomUnits += group.numberOfRooms;
-      totalRoomRevenue += group.totalPrice;
-      processedBookings.push({
-        ...group.bookings[0],
-        id: parentId,
-        totalPrice: group.totalPrice,                 // aggregated effective total
-        manualTotalPrice: group.manualTotalPrice,
-        exclusivePackagePrice: group.exclusivePackagePrice,
-        isGrouped: true,
-        childBookings: group.bookings,
-        numberOfRooms: group.numberOfRooms,
-        isExclusiveResortBooking: group.isExclusiveResortBooking
+        if (group.isExclusiveResortBooking) {
+          if (group.totalPrice === 0) {
+            group.totalPrice = getEffectiveTotal(booking);
+          }
+          // Tent count from the first child (should be same for all)
+          if (booking.tentCount > 0 && group.tentCount === 0) {
+            group.tentCount = booking.tentCount;
+          }
+        } else {
+          group.totalPrice += getEffectiveTotal(booking);
+        }
+      } else if (!booking.isMultiRoomBooking) {
+        // Single room booking
+        const effectiveTotal = getEffectiveTotal(booking);
+        totalRoomRevenue += effectiveTotal;
+        totalRoomUnits += (booking.numberOfRooms || 1);
+        processedBookings.push(booking);
+      }
+    }
+  });
+
+  // Second pass: add grouped bookings (including tents to totalRoomUnits)
+  multiRoomGroups.forEach((group, parentId) => {
+    let roomUnits = group.numberOfRooms;
+    // Add tents to room unit count for exclusive resort bookings
+    if (group.isExclusiveResortBooking && group.tentCount > 0) {
+      roomUnits += group.tentCount;
+    }
+    totalRoomUnits += roomUnits;
+    totalRoomRevenue += group.totalPrice;
+    processedBookings.push({
+      ...group.bookings[0],
+      id: parentId,
+      totalPrice: group.totalPrice,
+      manualTotalPrice: group.manualTotalPrice,
+      exclusivePackagePrice: group.exclusivePackagePrice,
+      isGrouped: true,
+      childBookings: group.bookings,
+      numberOfRooms: roomUnits,          // store the actual unit count including tents
+      isExclusiveResortBooking: group.isExclusiveResortBooking,
+      tentCount: group.tentCount,
+      roomType: group.roomType
+    });
+  });
+
+  // Day tours (unchanged)
+  dayTours.forEach(tour => {
+    if (tour.status === 'completed') {
+      const seniors = tour.seniors || 0;
+      const adults = tour.adults || 0;
+      const kids = tour.kids || 0;
+      dayTourGuestCount += seniors + adults + kids;
+
+      const effectiveTotal = (tour.manualTotalPrice !== undefined && tour.manualTotalPrice !== null)
+        ? tour.manualTotalPrice
+        : (tour.totalPrice || 0);
+      dayTourRevenueTotal += effectiveTotal;
+    }
+  });
+
+  const totalRevenueCombined = totalRoomRevenue + dayTourRevenueTotal;
+  setTotalRevenue(totalRevenueCombined);
+  setTotalRoomBookings(totalRoomUnits);           // ✅ overall room units (including tents)
+  setTotalDayTourGuests(dayTourGuestCount);
+
+  // Monthly data structures
+  const yearlyMonthlyRoom = {};
+  const yearlyMonthlyRevenue = {};
+  const yearlyMonthlyTrend = {};
+  const yearsSet = new Set();
+  const monthlySplitData = {};
+
+  // Process each completed booking for monthly breakdown
+  processedBookings.forEach(booking => {
+    let createdAt;
+    if (booking.isGrouped && booking.childBookings && booking.childBookings.length > 0) {
+      const firstChild = booking.childBookings[0];
+      createdAt = firstChild.createdAt?.toDate ? firstChild.createdAt.toDate() : new Date(firstChild.createdAt);
+    } else {
+      createdAt = booking.createdAt?.toDate ? booking.createdAt.toDate() : new Date(booking.createdAt);
+    }
+
+    const year = createdAt.getFullYear();
+    const month = createdAt.getMonth();
+    yearsSet.add(year);
+
+    if (!yearlyMonthlyRoom[year]) {
+      yearlyMonthlyRoom[year] = {
+        Tent: new Array(12).fill(0),
+        'Ground Floor Room': new Array(12).fill(0),
+        'Group Room': new Array(12).fill(0),
+        'Couple Room': new Array(12).fill(0)
+      };
+    }
+    if (!yearlyMonthlyRevenue[year]) {
+      yearlyMonthlyRevenue[year] = {
+        roomRevenue: new Array(12).fill(0),
+        dayTourRevenue: new Array(12).fill(0),
+        total: new Array(12).fill(0)
+      };
+    }
+    if (!yearlyMonthlyTrend[year]) {
+      yearlyMonthlyTrend[year] = {
+        roomBookings: new Array(12).fill(0),
+        dayTourGuests: new Array(12).fill(0)
+      };
+    }
+    if (!monthlySplitData[year]) {
+      monthlySplitData[year] = Array(12).fill().map(() => ({
+        entireResort: 0,
+        multiRoom: 0,
+        singleRoom: 0
+      }));
+    }
+
+    // Booking type split (unchanged)
+    let bookingType = 'singleRoom';
+    if (booking.isExclusiveResortBooking || (booking.isGrouped && booking.childBookings && booking.childBookings.some(cb => cb.isExclusiveResortBooking))) {
+      bookingType = 'entireResort';
+    } else if (booking.isGrouped || (booking.roomTypes && booking.roomTypes.length > 1)) {
+      bookingType = 'multiRoom';
+    }
+    monthlySplitData[year][month][bookingType]++;
+
+    // ==================== Count room units for room type breakdown ====================
+    let roomTypes = [];
+
+    // 1. Exclusive resort booking: add tents explicitly
+    if (booking.isExclusiveResortBooking && booking.tentCount > 0) {
+      for (let i = 0; i < booking.tentCount; i++) {
+        roomTypes.push('Tent');
+      }
+    }
+
+    // 2. Grouped (multi-room) bookings
+    if (booking.isGrouped && booking.childBookings) {
+      booking.childBookings.forEach(cb => {
+        const roomCount = cb.numberOfRooms || 1;
+        for (let i = 0; i < roomCount; i++) {
+          roomTypes.push(cb.roomType);
+        }
       });
+    }
+    // 3. Bookings with roomTypes array (original multi-room booking data)
+    else if (booking.roomTypes && Array.isArray(booking.roomTypes)) {
+      booking.roomTypes.forEach(rt => {
+        for (let i = 0; i < (rt.quantity || 1); i++) {
+          roomTypes.push(rt.type);
+        }
+      });
+    }
+    // 4. Single room booking
+    else if (booking.roomType) {
+      const roomCount = booking.numberOfRooms || 1;
+      for (let i = 0; i < roomCount; i++) {
+        roomTypes.push(booking.roomType);
+      }
+    }
+
+    // Normalize room type names
+    roomTypes = roomTypes.map(rt => {
+      if (rt && rt.toLowerCase().includes('tent')) return 'Tent';
+      if (rt === 'Ground Floor Rooms') return 'Ground Floor Room';
+      return rt;
     });
 
-    // Day tours – unchanged
-    // Day tours – using effective total (manualTotalPrice > totalPrice)
-    dayTours.forEach(tour => {
-      if (tour.status === 'completed') {
-        const seniors = tour.seniors || 0;
-        const adults = tour.adults || 0;
-        const kids = tour.kids || 0;
-        dayTourGuestCount += seniors + adults + kids;
-
-        const effectiveTotal = (tour.manualTotalPrice !== undefined && tour.manualTotalPrice !== null)
-          ? tour.manualTotalPrice
-          : (tour.totalPrice || 0);
-        dayTourRevenueTotal += effectiveTotal;
-      }
+    roomTypes.forEach(roomType => {
+      if (roomType === 'Tent') yearlyMonthlyRoom[year].Tent[month]++;
+      else if (roomType === 'Ground Floor Room') yearlyMonthlyRoom[year]['Ground Floor Room'][month]++;
+      else if (roomType === 'Group Room') yearlyMonthlyRoom[year]['Group Room'][month]++;
+      else if (roomType === 'Couple Room') yearlyMonthlyRoom[year]['Couple Room'][month]++;
     });
 
-    const totalRevenueCombined = totalRoomRevenue + dayTourRevenueTotal;
-    setTotalRevenue(totalRevenueCombined);
-    setTotalRoomBookings(totalRoomUnits);
-    setTotalDayTourGuests(dayTourGuestCount);
+    // Revenue (unchanged)
+    const totalPrice = booking.totalPrice || 0;
+    yearlyMonthlyRevenue[year].roomRevenue[month] += totalPrice;
+    yearlyMonthlyRevenue[year].total[month] += totalPrice;
 
-    // Monthly data structures
-    const yearlyMonthlyRoom = {};
-    const yearlyMonthlyRevenue = {};
-    const yearlyMonthlyTrend = {};
-    const yearsSet = new Set();
-    const monthlySplitData = {};
+    // ✅ TREND: room bookings count = number of room units (including tents)
+    // For exclusive resort bookings, booking.numberOfRooms already includes tents (we set it above)
+    const roomUnitCount = booking.numberOfRooms || 1;
+    yearlyMonthlyTrend[year].roomBookings[month] += roomUnitCount;
+  });
 
-    // Process each completed booking for monthly breakdown
-    processedBookings.forEach(booking => {
-      let createdAt;
-      if (booking.isGrouped && booking.childBookings && booking.childBookings.length > 0) {
-        const firstChild = booking.childBookings[0];
-        createdAt = firstChild.createdAt?.toDate ? firstChild.createdAt.toDate() : new Date(firstChild.createdAt);
-      } else {
-        createdAt = booking.createdAt?.toDate ? booking.createdAt.toDate() : new Date(booking.createdAt);
-      }
-
+  // Day tours monthly breakdown (unchanged)
+  dayTours.forEach(tour => {
+    if (tour.status === 'completed') {
+      const createdAt = tour.createdAt?.toDate ? tour.createdAt.toDate() : new Date(tour.createdAt);
       const year = createdAt.getFullYear();
       const month = createdAt.getMonth();
       yearsSet.add(year);
 
-      if (!yearlyMonthlyRoom[year]) {
-        yearlyMonthlyRoom[year] = {
-          Tent: new Array(12).fill(0),
-          'Ground Floor Room': new Array(12).fill(0),
-          'Group Room': new Array(12).fill(0),
-          'Couple Room': new Array(12).fill(0)
-        };
-      }
       if (!yearlyMonthlyRevenue[year]) {
         yearlyMonthlyRevenue[year] = {
           roomRevenue: new Array(12).fill(0),
@@ -1021,148 +1125,71 @@ export default function AdminReports() {
           dayTourGuests: new Array(12).fill(0)
         };
       }
-      if (!monthlySplitData[year]) {
-        monthlySplitData[year] = Array(12).fill().map(() => ({
-          entireResort: 0,
-          multiRoom: 0,
-          singleRoom: 0
-        }));
-      }
 
-      // Booking type split
-      let bookingType = 'singleRoom';
-      if (booking.isExclusiveResortBooking || (booking.isGrouped && booking.childBookings && booking.childBookings.some(cb => cb.isExclusiveResortBooking))) {
-        bookingType = 'entireResort';
-      } else if (booking.isGrouped || (booking.roomTypes && booking.roomTypes.length > 1)) {
-        bookingType = 'multiRoom';
-      }
-      monthlySplitData[year][month][bookingType]++;
+      const effectiveTotal = (tour.manualTotalPrice !== undefined && tour.manualTotalPrice !== null)
+        ? tour.manualTotalPrice
+        : (tour.totalPrice || 0);
+      yearlyMonthlyRevenue[year].dayTourRevenue[month] += effectiveTotal;
+      yearlyMonthlyRevenue[year].total[month] += effectiveTotal;
 
-      // Room type counts
-      let roomTypes = [];
-      if (booking.isGrouped && booking.childBookings) {
-        booking.childBookings.forEach(cb => {
-          const roomCount = cb.numberOfRooms || 1;
-          for (let i = 0; i < roomCount; i++) {
-            roomTypes.push(cb.roomType);
-          }
-        });
-      } else if (booking.roomTypes && Array.isArray(booking.roomTypes)) {
-        booking.roomTypes.forEach(rt => {
-          for (let i = 0; i < (rt.quantity || 1); i++) {
-            roomTypes.push(rt.type);
-          }
-        });
-      } else if (booking.roomType) {
-        const roomCount = booking.numberOfRooms || 1;
-        for (let i = 0; i < roomCount; i++) {
-          roomTypes.push(booking.roomType);
-        }
-      }
-
-      roomTypes.forEach(roomType => {
-        if (roomType === 'Tent') yearlyMonthlyRoom[year].Tent[month]++;
-        else if (roomType === 'Ground Floor Rooms' || roomType === 'Ground Floor Room') yearlyMonthlyRoom[year]['Ground Floor Room'][month]++;
-        else if (roomType === 'Group Room') yearlyMonthlyRoom[year]['Group Room'][month]++;
-        else if (roomType === 'Couple Room') yearlyMonthlyRoom[year]['Couple Room'][month]++;
-      });
-
-      // Use the aggregated total price (already correct for groups)
-      const totalPrice = booking.totalPrice || 0;
-      yearlyMonthlyRevenue[year].roomRevenue[month] += totalPrice;
-      yearlyMonthlyRevenue[year].total[month] += totalPrice;
-
-      const roomUnitCount = booking.numberOfRooms || 1;
-      yearlyMonthlyTrend[year].roomBookings[month] += roomUnitCount;
-    });
-
-    // Day tours monthly breakdown (unchanged)
-    // Day tours monthly breakdown (with effective total)
-    dayTours.forEach(tour => {
-      if (tour.status === 'completed') {
-        const createdAt = tour.createdAt?.toDate ? tour.createdAt.toDate() : new Date(tour.createdAt);
-        const year = createdAt.getFullYear();
-        const month = createdAt.getMonth();
-        yearsSet.add(year);
-
-        if (!yearlyMonthlyRevenue[year]) {
-          yearlyMonthlyRevenue[year] = {
-            roomRevenue: new Array(12).fill(0),
-            dayTourRevenue: new Array(12).fill(0),
-            total: new Array(12).fill(0)
-          };
-        }
-        if (!yearlyMonthlyTrend[year]) {
-          yearlyMonthlyTrend[year] = {
-            roomBookings: new Array(12).fill(0),
-            dayTourGuests: new Array(12).fill(0)
-          };
-        }
-
-        const effectiveTotal = (tour.manualTotalPrice !== undefined && tour.manualTotalPrice !== null)
-          ? tour.manualTotalPrice
-          : (tour.totalPrice || 0);
-        yearlyMonthlyRevenue[year].dayTourRevenue[month] += effectiveTotal;
-        yearlyMonthlyRevenue[year].total[month] += effectiveTotal;
-
-        const guests = (tour.seniors || 0) + (tour.adults || 0) + (tour.kids || 0);
-        yearlyMonthlyTrend[year].dayTourGuests[month] += guests;
-      }
-    });
-
-    // Prepare chart data
-    const roomTypeChartData = {};
-    const revenueChartData = {};
-    const trendChartData = {};
-
-    for (const year of yearsSet) {
-      roomTypeChartData[year] = MONTHS.map((month, idx) => ({
-        month: month,
-        Tent: yearlyMonthlyRoom[year]?.Tent[idx] || 0,
-        'Ground Floor Room': yearlyMonthlyRoom[year]?.['Ground Floor Room'][idx] || 0,
-        'Group Room': yearlyMonthlyRoom[year]?.['Group Room'][idx] || 0,
-        'Couple Room': yearlyMonthlyRoom[year]?.['Couple Room'][idx] || 0
-      }));
-      revenueChartData[year] = MONTHS.map((month, idx) => ({
-        month: month,
-        roomRevenue: yearlyMonthlyRevenue[year]?.roomRevenue[idx] || 0,
-        dayTourRevenue: yearlyMonthlyRevenue[year]?.dayTourRevenue[idx] || 0,
-        total: (yearlyMonthlyRevenue[year]?.roomRevenue[idx] || 0) + (yearlyMonthlyRevenue[year]?.dayTourRevenue[idx] || 0)
-      }));
-      trendChartData[year] = MONTHS.map((month, idx) => ({
-        month: month,
-        roomBookings: yearlyMonthlyTrend[year]?.roomBookings[idx] || 0,
-        dayTourGuests: yearlyMonthlyTrend[year]?.dayTourGuests[idx] || 0
-      }));
+      const guests = (tour.seniors || 0) + (tour.adults || 0) + (tour.kids || 0);
+      yearlyMonthlyTrend[year].dayTourGuests[month] += guests;
     }
+  });
 
-    setYearlyMonthlyRoomData(roomTypeChartData);
-    setYearlyMonthlyRevenueData(revenueChartData);
-    setYearlyMonthlyTrendData(trendChartData);
-    setMonthlyBookingSplitData(monthlySplitData);
+  // Prepare chart data (unchanged)
+  const roomTypeChartData = {};
+  const revenueChartData = {};
+  const trendChartData = {};
 
-    const years = Array.from(yearsSet).sort((a, b) => b - a);
-    setAvailableYears(years);
-    if (years.length > 0 && !selectedYear) setSelectedYear(years[0]);
-    if (years.length > 0 && !selectedSplitYear) setSelectedSplitYear(years[0]);
+  for (const year of yearsSet) {
+    roomTypeChartData[year] = MONTHS.map((month, idx) => ({
+      month: month,
+      Tent: yearlyMonthlyRoom[year]?.Tent[idx] || 0,
+      'Ground Floor Room': yearlyMonthlyRoom[year]?.['Ground Floor Room'][idx] || 0,
+      'Group Room': yearlyMonthlyRoom[year]?.['Group Room'][idx] || 0,
+      'Couple Room': yearlyMonthlyRoom[year]?.['Couple Room'][idx] || 0
+    }));
+    revenueChartData[year] = MONTHS.map((month, idx) => ({
+      month: month,
+      roomRevenue: yearlyMonthlyRevenue[year]?.roomRevenue[idx] || 0,
+      dayTourRevenue: yearlyMonthlyRevenue[year]?.dayTourRevenue[idx] || 0,
+      total: (yearlyMonthlyRevenue[year]?.roomRevenue[idx] || 0) + (yearlyMonthlyRevenue[year]?.dayTourRevenue[idx] || 0)
+    }));
+    trendChartData[year] = MONTHS.map((month, idx) => ({
+      month: month,
+      roomBookings: yearlyMonthlyTrend[year]?.roomBookings[idx] || 0,
+      dayTourGuests: yearlyMonthlyTrend[year]?.dayTourGuests[idx] || 0
+    }));
+  }
 
-    // Booking split data (unchanged)
-    let entireResortCount = 0, multiRoomCount = 0, singleRoomCount = 0;
-    processedBookings.forEach(booking => {
-      if (booking.isExclusiveResortBooking || (booking.isGrouped && booking.childBookings?.some(cb => cb.isExclusiveResortBooking))) {
-        entireResortCount++;
-      } else if (booking.isGrouped || (booking.roomTypes && booking.roomTypes.length > 1)) {
-        multiRoomCount++;
-      } else {
-        singleRoomCount++;
-      }
-    });
-    setBookingSplitData([
-      { name: 'Entire Resort', value: entireResortCount, color: '#8B5CF6' },
-      { name: 'Multi-Room Types', value: multiRoomCount, color: '#4D8CF5' },
-      { name: 'Single Room Type', value: singleRoomCount, color: '#F59E0B' }
-    ]);
-  };
+  setYearlyMonthlyRoomData(roomTypeChartData);
+  setYearlyMonthlyRevenueData(revenueChartData);
+  setYearlyMonthlyTrendData(trendChartData);
+  setMonthlyBookingSplitData(monthlySplitData);
+
+  const years = Array.from(yearsSet).sort((a, b) => b - a);
+  setAvailableYears(years);
+  if (years.length > 0 && !selectedYear) setSelectedYear(years[0]);
+  if (years.length > 0 && !selectedSplitYear) setSelectedSplitYear(years[0]);
+
+  // Booking split data (unchanged)
+  let entireResortCount = 0, multiRoomCount = 0, singleRoomCount = 0;
+  processedBookings.forEach(booking => {
+    if (booking.isExclusiveResortBooking || (booking.isGrouped && booking.childBookings?.some(cb => cb.isExclusiveResortBooking))) {
+      entireResortCount++;
+    } else if (booking.isGrouped || (booking.roomTypes && booking.roomTypes.length > 1)) {
+      multiRoomCount++;
+    } else {
+      singleRoomCount++;
+    }
+  });
+  setBookingSplitData([
+    { name: 'Entire Resort', value: entireResortCount, color: '#8B5CF6' },
+    { name: 'Multi-Room Types', value: multiRoomCount, color: '#4D8CF5' },
+    { name: 'Single Room Type', value: singleRoomCount, color: '#F59E0B' }
+  ]);
+};
 
   // Tooltip components (unchanged)
   const RevenueTooltip = ({ active, payload, label }) => {

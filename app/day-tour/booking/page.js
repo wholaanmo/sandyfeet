@@ -1,4 +1,4 @@
-// app/day-tour/booking/page.js
+﻿// app/day-tour/booking/page.js
 'use client';
 
 import { Suspense, useState, useEffect } from 'react';
@@ -9,6 +9,7 @@ import { collection, query, where, getDocs, addDoc, doc, getDoc, serverTimestamp
 import { uploadImage } from '@/lib/cloudinary';
 import { sendDayTourPendingEmail } from '@/lib/emailService';
 import ChatBot from '@/components/guest/ChatBot';
+import { QRCodeSVG } from 'qrcode.react';
 
 // Storage key for persisting booking data
 const STORAGE_KEY = 'daytour_booking_data';
@@ -45,6 +46,8 @@ function DayTourBookingContent() {
   const [requestedBankInfo, setRequestedBankInfo] = useState(null);
   const [modalNotification, setModalNotification] = useState(null);
   const [copiedMessage, setCopiedMessage] = useState(false);
+  const [qrToken, setQrToken] = useState('');
+const [qrLoading, setQrLoading] = useState(false);
   
   const initialAdultsRaw = parseInt(adultsParam) || 1;
   const initialKidsRaw = parseInt(kidsParam) || 0;
@@ -690,6 +693,7 @@ function DayTourBookingContent() {
         console.warn('Failed to send pending day tour email:', emailResult?.error);
       }
 
+await generateQrToken(generatedBookingId);
       setStep(4);
       
     } catch (error) {
@@ -700,6 +704,25 @@ function DayTourBookingContent() {
     }
   };
 
+  const generateQrToken = async (bookingId) => {
+  try {
+    setQrLoading(true);
+    const response = await fetch('/api/checkin/generate-token', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ bookingId })
+    });
+    const data = await response.json();
+    if (data.token) {
+      setQrToken(data.token);
+    }
+  } catch (error) {
+    console.error('Error generating QR token:', error);
+  } finally {
+    setQrLoading(false);
+  }
+};
+
   const copyToClipboard = async (text) => {
     try {
       await navigator.clipboard.writeText(text);
@@ -709,6 +732,26 @@ function DayTourBookingContent() {
       console.error('Failed to copy text: ', err);
     }
   };
+
+  const downloadQRCode = async () => {
+  if (!qrToken) return;
+  try {
+    const response = await fetch(`/api/download-qr?token=${qrToken}`);
+    if (!response.ok) throw new Error('Download failed');
+    const blob = await response.blob();
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = 'checkin_qrcode.png';
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+  } catch (error) {
+    console.error('Error downloading QR code:', error);
+    setModalNotification({ message: 'Failed to download QR code. Please try again.', type: 'error' });
+  }
+};
 
   const formatDate = (date) => {
     if (!date) return '';
@@ -1584,7 +1627,35 @@ className="w-full px-3 py-2.5 h-46 rounded-xl border border-ocean-light/25 bg-wh
                         <i className="fas fa-info-circle mr-2"></i>
                         Use your reference number in the Reservation Tracker while this booking is pending. Remaining balance is payable at the resort. Cancellations will result in forfeiture of the down payment, unless the booking is rescheduled.
                       </div>
+                      {qrToken && (
+  <div className="mt-6 mb-6 p-4 bg-white rounded-xl border-2 border-blue-200">
+    <h3 className="text-sm font-semibold text-gray-700 mb-2 text-center">Check-in QR Code</h3>
+    <div className="flex justify-center">
+      <QRCodeSVG 
+        value={`${window.location.origin}/check-in?token=${qrToken}`}
+        size={200}
+        bgColor="#ffffff"
+        fgColor="#000000"
+        level="M"
+        includeMargin={false}
+      />
+    </div>
+            <div className="mt-4 flex justify-center">
+      <button
+        onClick={downloadQRCode}
+        className="inline-flex items-center gap-2 px-4 py-2 bg-blue-600 text-white text-sm font-medium rounded-lg hover:bg-blue-700 transition shadow-sm"
+      >
+        <i className="fas fa-download"></i>
+        Download QR Code
+      </button>
+    </div>
+    <p className="text-xs text-gray-500 mt-3 text-center">
+      Staff will scan this QR code at the resort.
+    </p>
+  </div>
+)}
                     </div>
+
 
                     <div className="flex gap-3">
                       <button

@@ -7,22 +7,21 @@ export function SessionGuard({ children }) {
   const router = useRouter();
   const pathname = usePathname();
 
-  const clearSessionAndRedirect = () => {
-    // Clear localStorage
-    localStorage.removeItem('userType');
-    localStorage.removeItem('userEmail');
-    localStorage.removeItem('uid');
-    localStorage.removeItem('sessionToken');
-    localStorage.removeItem('sessionExpiry');
-    localStorage.removeItem('rememberMe');
+const clearSessionAndRedirect = () => {
+  localStorage.removeItem('userType');
+  localStorage.removeItem('userEmail');
+  localStorage.removeItem('userName');        // ✅ ADDED
+  localStorage.removeItem('uid');
+  localStorage.removeItem('sessionToken');
+  localStorage.removeItem('sessionExpiry');
+  localStorage.removeItem('rememberMe');
 
-    // Clear cookies
-    document.cookie = 'sessionToken=; path=/; expires=Thu, 01 Jan 1970 00:00:01 GMT; SameSite=Lax';
-    document.cookie = 'userType=; path=/; expires=Thu, 01 Jan 1970 00:00:01 GMT; SameSite=Lax';
-    document.cookie = 'sessionExpiry=; path=/; expires=Thu, 01 Jan 1970 00:00:01 GMT; SameSite=Lax';
+  document.cookie = 'sessionToken=; path=/; expires=Thu, 01 Jan 1970 00:00:01 GMT; SameSite=Lax';
+  document.cookie = 'userType=; path=/; expires=Thu, 01 Jan 1970 00:00:01 GMT; SameSite=Lax';
+  document.cookie = 'sessionExpiry=; path=/; expires=Thu, 01 Jan 1970 00:00:01 GMT; SameSite=Lax';
 
-    router.push('/login');
-  };
+  router.push('/login');
+};
 
   const checkSession = () => {
     const expiry = localStorage.getItem('sessionExpiry');

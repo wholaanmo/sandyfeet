@@ -86,6 +86,7 @@ export default function StaffSidebar({ isOpen, onToggle, isDesktop }) {
     { path: '/dashboard/staff/reservations', icon: 'event', label: 'Reservations', materialIcon: 'event' },
     { path: '/dashboard/staff/calendars', icon: 'calendar_month', label: 'Calendar Management', materialIcon: 'calendar_month' },
     { path: '/dashboard/staff/payment', icon: 'payment', label: 'Payment', materialIcon: 'payment' },
+    { path: '/dashboard/staff/scanner', icon: 'qr_code_scanner', label: 'Scanner', materialIcon: 'qr_code_scanner' },
     { path: '/dashboard/staff/audit', icon: 'history', label: 'Audit Logs', materialIcon: 'history' }
   ];
 

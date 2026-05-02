@@ -139,9 +139,10 @@ const completeLogin = async (uid) => {
     const sessionToken = generateSessionToken();
     const sessionExpiry = new Date().getTime() + (24 * 60 * 60 * 1000); // 24 hours
     
-    // Store in localStorage (for client-side checks)
+    // Store in localStorage
     localStorage.setItem('userType', role);
     localStorage.setItem('userEmail', userData.email);
+    localStorage.setItem('userName', userData.name || userData.email); // ✅ ADDED
     localStorage.setItem('uid', uid);
     localStorage.setItem('sessionToken', sessionToken);
     localStorage.setItem('sessionExpiry', sessionExpiry.toString());
@@ -150,8 +151,7 @@ const completeLogin = async (uid) => {
         localStorage.setItem('rememberMe', 'true');
     }
     
-    // Also set cookies for middleware (httponly-equivalent via document.cookie)
-    // These will be sent with every request
+    // Also set cookies for middleware
     document.cookie = `sessionToken=${sessionToken}; path=/; max-age=86400; SameSite=Lax`;
     document.cookie = `userType=${role}; path=/; max-age=86400; SameSite=Lax`;
     document.cookie = `sessionExpiry=${sessionExpiry}; path=/; max-age=86400; SameSite=Lax`;

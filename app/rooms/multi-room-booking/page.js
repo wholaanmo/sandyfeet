@@ -11,6 +11,7 @@ import { uploadImage } from '@/lib/cloudinary';
 import { compressImage } from '@/lib/imageUtils';
 import { sendRoomPendingEmail } from '@/lib/emailService';
 import ChatBot from '@/components/guest/ChatBot';
+import { QRCodeSVG } from 'qrcode.react';
 
 // Storage keys for persisting data
 const MULTI_ROOM_STORAGE_KEY = 'multi_room_booking_data';
@@ -46,6 +47,8 @@ export default function MultiRoomBookingPage() {
   const [tempValidIdFile, setTempValidIdFile] = useState(null);
   const [validIdUploading, setValidIdUploading] = useState(false);
   const [isConfirmed, setIsConfirmed] = useState(false);
+  const [qrToken, setQrToken] = useState('');
+const [qrLoading, setQrLoading] = useState(false);
 
   const FIXED_CHECK_IN_HOUR = 14;
   const FIXED_CHECK_OUT_HOUR = 12;
@@ -203,6 +206,26 @@ export default function MultiRoomBookingPage() {
     }
   };
 
+  const downloadQRCode = async () => {
+  if (!qrToken) return;
+  try {
+    const response = await fetch(`/api/download-qr?token=${qrToken}`);
+    if (!response.ok) throw new Error('Download failed');
+    const blob = await response.blob();
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = 'checkin_qrcode.png';
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+  } catch (error) {
+    console.error('Error downloading QR code:', error);
+    setModalNotification({ message: 'Failed to download QR code. Please try again.', type: 'error' });
+  }
+};
+
   // Fetch payment settings
   useEffect(() => {
     const settingsRef = doc(db, 'settings', 'payment');
@@ -306,6 +329,7 @@ export default function MultiRoomBookingPage() {
     return Object.keys(newErrors).length === 0;
   };
 
+  
   const handleInputChange = (field, value) => {
     setBookingData(prev => ({ ...prev, [field]: value }));
     if (errors[field]) {
@@ -684,6 +708,8 @@ const handleSubmitBooking = async () => {
       console.error('Failed to send pending confirmation email:', emailError);
       // Don't block the booking flow if email fails
     }
+
+    await generateQrToken(generatedBookingId);
     
     // Mark as confirmed and auto-check confirmation number 4
     setIsConfirmed(true);
@@ -693,6 +719,26 @@ const handleSubmitBooking = async () => {
     setModalNotification({ message: 'Failed to create booking. Please try again.', type: 'error' });
   } finally {
     setSubmitting(false);
+  }
+};
+
+const generateQrToken = async (bookingId) => {
+  try {
+    setQrLoading(true);
+    // Generate a unique token (you can use crypto.randomBytes in API route)
+    const response = await fetch('/api/checkin/generate-token', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ bookingId })
+    });
+    const data = await response.json();
+    if (data.token) {
+      setQrToken(data.token);
+    }
+  } catch (error) {
+    console.error('Error generating QR token:', error);
+  } finally {
+    setQrLoading(false);
   }
 };
 
@@ -1379,6 +1425,37 @@ const handleSubmitBooking = async () => {
                       Remaining balance of <strong>₱{(totalPrice - downPaymentAmount).toLocaleString()}</strong> is payable at the resort. Cancellations will result in forfeiture of the down payment, unless the booking is rescheduled.
                     </p>
                   </div>
+
+          {qrToken && (
+  <div className="mt-6 mb-6 p-4 bg-white rounded-xl border-2 border-blue-200">
+    <h3 className="text-sm font-semibold text-gray-700 mb-2">Check-in QR Code</h3>
+    <div className="flex justify-center">
+      <QRCodeSVG 
+        value={`${window.location.origin}/check-in?token=${qrToken}`}
+        size={200}
+        bgColor="#ffffff"
+        fgColor="#000000"
+        level="M"
+        includeMargin={false}
+      />
+    </div>
+            <div className="mt-4 flex justify-center">
+      <button
+        onClick={downloadQRCode}
+        className="inline-flex items-center gap-2 px-4 py-2 bg-blue-600 text-white text-sm font-medium rounded-lg hover:bg-blue-700 transition shadow-sm"
+      >
+        <i className="fas fa-download"></i>
+        Download QR Code
+      </button>
+    </div>
+    <p className="text-xs text-gray-500 mt-3">
+      Staff will scan this QR code at the resort.
+    </p>
+  </div>
+  
+)}
+
+
                   <div className="flex gap-3">
                     <button
                       onClick={() => router.push('/rooms')}
