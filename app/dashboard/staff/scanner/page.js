@@ -13,10 +13,25 @@ export default function StaffScannerPage() {
   const [cameras, setCameras] = useState([]);
   const [currentCameraId, setCurrentCameraId] = useState(null);
   const scannerRef = useRef(null);
-  const containerId = 'qr-reader';
+  const containerIdRef = useRef('qr-reader');
   const containerRef = useRef(null);
-  const initializedRef = useRef(false);
   const stopInProgressRef = useRef(false);
+
+  const stopScanner = async () => {
+    if (!scannerRef.current || stopInProgressRef.current) return;
+    try {
+      stopInProgressRef.current = true;
+      await scannerRef.current.stop();
+      scannerRef.current.clear();
+    } catch (e) {
+      // Non-critical: stop/clear can throw on some mobile browsers during rapid switches.
+    } finally {
+      scannerRef.current = null;
+      stopInProgressRef.current = false;
+      setIsScanning(false);
+      if (containerRef.current) containerRef.current.innerHTML = '';
+    }
+  };
 
   // Fetch available cameras on mount
   useEffect(() => {
@@ -46,18 +61,7 @@ export default function StaffScannerPage() {
       if (stopInProgressRef.current) return;
       
       // Extensive cleanup of any existing instance
-      if (scannerRef.current) {
-        try {
-          stopInProgressRef.current = true;
-          await scannerRef.current.stop();
-          scannerRef.current.clear();
-        } catch (e) {
-          console.warn('Non-critical cleanup error:', e);
-        } finally {
-          scannerRef.current = null;
-          stopInProgressRef.current = false;
-        }
-      }
+      await stopScanner();
 
       // Final DOM safety check
       if (containerRef.current) {
@@ -67,7 +71,7 @@ export default function StaffScannerPage() {
       if (!isMounted) return;
 
       try {
-        const scanner = new Html5Qrcode(containerId);
+        const scanner = new Html5Qrcode(containerIdRef.current);
         scannerRef.current = scanner;
 
         // Use more flexible constraints for mobile compatibility
@@ -111,31 +115,13 @@ export default function StaffScannerPage() {
 
     return () => {
       isMounted = false;
-      const cleanup = async () => {
-        if (scannerRef.current && !stopInProgressRef.current) {
-          try {
-            stopInProgressRef.current = true;
-            await scannerRef.current.stop();
-            scannerRef.current.clear();
-          } catch (e) {}
-          scannerRef.current = null;
-          stopInProgressRef.current = false;
-        }
-      };
-      cleanup();
+      stopScanner();
     };
   }, [currentCameraId, scanResult]);
 
   const handleScanSuccess = async (decodedText) => {
     // Stop scanner immediately
-    if (scannerRef.current) {
-      try {
-        await scannerRef.current.stop();
-        scannerRef.current.clear();
-      } catch (e) {}
-      scannerRef.current = null;
-      setIsScanning(false);
-    }
+    await stopScanner();
 
     try {
       const url = new URL(decodedText);
@@ -157,16 +143,15 @@ export default function StaffScannerPage() {
     setScanResult(null);
     setCameraError(null);
     setIsScanning(false);
-    initializedRef.current = false;
     // The effect will restart with currentCameraId
   };
 
-  const switchCamera = () => {
+  const switchCamera = async () => {
     if (cameras.length < 2) return;
+    await stopScanner();
     const currentIndex = cameras.findIndex(cam => cam.id === currentCameraId);
     const nextIndex = (currentIndex + 1) % cameras.length;
     setCurrentCameraId(cameras[nextIndex].id);
-    resetScanner();
   };
 
   const handleManualCheckIn = () => router.push('/dashboard/staff/reservations');
@@ -192,15 +177,6 @@ export default function StaffScannerPage() {
                 <i className="fas fa-camera text-[#4D8CF5]"></i>
                 Camera Scanner
               </h2>
-              {cameras.length > 1 && !scanResult && (
-                <button
-                  onClick={switchCamera}
-                  className="group flex items-center gap-2 px-3 py-1.5 rounded-lg bg-white border border-[#4D8CF5]/20 text-[#4D6FA8] hover:bg-[#4D8CF5]/5 hover:border-[#4D8CF5]/40 hover:text-[#3B78E7] transition-all duration-300 text-xs font-medium shadow-sm active:scale-95"
-                >
-                  <i className="fas fa-sync-alt text-[#4D8CF5] group-hover:rotate-180 transition-transform duration-500"></i>
-                  Switch Camera
-                </button>
-              )}
             </div>
             <div className="p-6">
               {cameraError ? (
@@ -219,12 +195,24 @@ export default function StaffScannerPage() {
                 </div>
               ) : !scanResult ? (
                 <>
-                  <div
-                    id={containerId}
-                    ref={containerRef}
-                    className="w-full rounded-xl overflow-hidden bg-black"
-                    style={{ minHeight: '400px', height: 'auto', aspectRatio: '1 / 1' }}
-                  />
+                  <div className="relative">
+                    <div
+                      id={containerIdRef.current}
+                      ref={containerRef}
+                      className="w-full rounded-xl overflow-hidden bg-black"
+                      style={{ minHeight: '400px', height: 'auto', aspectRatio: '1 / 1' }}
+                    />
+                    {cameras.length > 1 && (
+                      <button
+                        onClick={switchCamera}
+                        className="group absolute top-3 right-3 z-10 flex items-center gap-2 px-3 py-1.5 rounded-lg bg-white/95 border border-[#4D8CF5]/25 text-[#4D6FA8] hover:bg-white hover:border-[#4D8CF5]/45 hover:text-[#3B78E7] transition-all duration-300 text-xs font-medium shadow-sm active:scale-95 backdrop-blur"
+                        type="button"
+                      >
+                        <i className="fas fa-sync-alt text-[#4D8CF5] group-hover:rotate-180 transition-transform duration-500"></i>
+                        Switch Camera
+                      </button>
+                    )}
+                  </div>
                   <div className="mt-4 flex items-center justify-center gap-2 text-sm text-gray-500">
                     <i className="fas fa-qrcode text-blue-400"></i>
                     <span>Position QR code inside the square frame</span>
