@@ -735,13 +735,16 @@ const handleVerifyFeedbackBooking = async (event) => {
         <Image src="/assets/Icon/Coconut tree.png" alt="Palm tree" width={100} height={100} />
       </div>
 
-      <div className="relative overflow-hidden px-1">
+      <div className={`relative overflow-hidden px-1 ${publishedFeedbacks.length > 0 && publishedFeedbacks.length <= 2 ? 'flex justify-center' : ''}`}>
         <div className="pointer-events-none absolute left-0 top-0 z-10 h-full w-12 bg-gradient-to-r from-white to-transparent" />
         <div className="pointer-events-none absolute right-0 top-0 z-10 h-full w-12 bg-gradient-to-l from-white to-transparent" />
 
         {publishedFeedbacks.length > 0 ? (
           <div className="testimonials-track flex w-max gap-6 pb-2">
-            {[...publishedFeedbacks, ...publishedFeedbacks].map((item, index) => (
+            {(publishedFeedbacks.length <= 2 
+              ? [...publishedFeedbacks, ...publishedFeedbacks, ...publishedFeedbacks, ...publishedFeedbacks] 
+              : [...publishedFeedbacks, ...publishedFeedbacks]
+            ).map((item, index) => (
               <div
                 key={`${item.id}-${index}`}
                 className="w-[320px] flex-none rounded-3xl border border-gray-100 bg-white p-8 shadow-[0_8px_30px_rgb(0,0,0,0.03)] md:w-[360px]"
@@ -752,8 +755,8 @@ const handleVerifyFeedbackBooking = async (event) => {
                   </div>
                   <div>
                     <h4 className="font-bold text-[#0f2824]">
-  {item.guestName ? item.guestName.split(' ')[0] : 'Guest'}
-</h4>
+                      {item.guestName ? item.guestName.split(' ')[0] : 'Guest'}
+                    </h4>
                     <div className="mt-1">
                       <StarRating rating={item.rating} />
                     </div>
@@ -850,20 +853,40 @@ const handleVerifyFeedbackBooking = async (event) => {
                       <label htmlFor="feedback-reference" className="mb-2 block text-sm font-semibold text-[#0f2824]">
                         Reference Number
                       </label>
-                      <input
-                        id="feedback-reference"
-                        type="text"
-                        value={feedbackCredentials.reference}
-                        onChange={(event) =>
-                          setFeedbackCredentials((prev) => ({
-                            ...prev,
-                            reference: event.target.value.toUpperCase(),
-                          }))
-                        }
-                        placeholder="BOOK-... or DAYTOUR-..."
-                        required
-                        className="w-full rounded-xl border border-gray-200 px-4 py-3 text-sm uppercase text-gray-700 outline-none transition focus:border-[#3B82F6]"
-                      />
+                      <div className="relative">
+                        <input
+                          id="feedback-reference"
+                          type="text"
+                          value={feedbackCredentials.reference}
+                          onChange={(event) =>
+                            setFeedbackCredentials((prev) => ({
+                              ...prev,
+                              reference: event.target.value.toUpperCase(),
+                            }))
+                          }
+                          placeholder="BOOK-... or DAYTOUR-..."
+                          required
+                          className="w-full rounded-xl border border-gray-200 pl-4 pr-12 py-3 text-sm uppercase text-gray-700 outline-none transition focus:border-[#3B82F6]"
+                        />
+                        <button
+                          type="button"
+                          onClick={async () => {
+                            try {
+                              const text = await navigator.clipboard.readText();
+                              setFeedbackCredentials((prev) => ({
+                                ...prev,
+                                reference: text.trim().toUpperCase(),
+                              }));
+                            } catch (err) {
+                              console.error('Failed to read clipboard:', err);
+                            }
+                          }}
+                          className="absolute right-3 top-1/2 -translate-y-1/2 flex h-8 w-8 items-center justify-center rounded-lg text-gray-400 hover:bg-gray-100 hover:text-[#3B82F6] transition-all"
+                          title="Paste from clipboard"
+                        >
+                          <i className="fas fa-paste text-sm"></i>
+                        </button>
+                      </div>
                     </div>
 
                     <button

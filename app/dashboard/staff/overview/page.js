@@ -29,34 +29,21 @@ export default function StaffOverview() {
   };
 
   // Fetch staff name from Firebase Auth and Firestore
-  useEffect(() => {
-    const fetchStaffName = async () => {
-      // Try to get uid from localStorage first (fastest after login)
-      let uid = localStorage.getItem('uid');
-      if (!uid && auth.currentUser) {
-        uid = auth.currentUser.uid;
+useEffect(() => {
+  const fetchStaffName = async () => {
+    const user = auth.currentUser;
+    if (user) {
+      const userDoc = await getDoc(doc(db, 'users', user.uid));
+      if (userDoc.exists() && userDoc.data().name) {
+        setStaffName(userDoc.data().name);
+      } else {
+        setStaffName('Staff');
       }
-      
-      if (uid) {
-        try {
-          const userDoc = await getDoc(doc(db, 'users', uid));
-          if (userDoc.exists()) {
-            const userData = userDoc.data();
-            if (userData.name) {
-              setStaffName(userData.name);
-              return;
-            }
-          }
-        } catch (error) {
-          console.error('Error fetching user name:', error);
-        }
-      }
-      // Fallback to 'Staff' only if no name found (never show email)
-      setStaffName('Staff');
-    };
-    
-    fetchStaffName();
-  }, []);
+    }
+  };
+  const unsubscribe = auth.onAuthStateChanged(fetchStaffName);
+  return () => unsubscribe();
+}, []);
 
   // Fetch room check-ins today (status 'check-in' for today)
   useEffect(() => {
@@ -487,7 +474,7 @@ export default function StaffOverview() {
             ) : (
               <div className="space-y-3">
                 {recentPendingRoomBookings.map((booking) => (
-                  <div key={booking.id} className="group border border-[#4D8CF5]/10 rounded-xl p-3 hover:shadow-md hover:border-[#4D8CF5]/20 transition-all duration-200 bg-white">
+                  <div key={booking.id} className="group border border-[#4D8CF5]/10 rounded-xl p-3 hover:shadow-md hover:border-[#4D8CF5]/20 transition-all duration-200 bg-white h-[110px] flex flex-col justify-center">
                     <div className="flex justify-between items-start">
                       <div className="flex-1">
                         <div className="flex items-center gap-2 flex-wrap mb-1">
@@ -567,7 +554,7 @@ export default function StaffOverview() {
             ) : (
               <div className="space-y-3">
                 {recentPendingDayTours.map((booking) => (
-                  <div key={booking.id} className="group border border-[#4D8CF5]/10 rounded-xl p-3 hover:shadow-md hover:border-[#4D8CF5]/20 transition-all duration-200 bg-white">
+                  <div key={booking.id} className="group border border-[#4D8CF5]/10 rounded-xl p-3 hover:shadow-md hover:border-[#4D8CF5]/20 transition-all duration-200 bg-white h-[110px] flex flex-col justify-center">
                     <div className="flex justify-between items-start">
                       <div className="flex-1">
                         <div className="flex items-center gap-2 flex-wrap mb-1">
@@ -580,6 +567,13 @@ export default function StaffOverview() {
                         </div>
                         <p className="text-xs text-[#1E3A8A]/70">
                           Booking ID: <span className="font-mono">{booking.bookingId}</span>
+                        </p>
+                        <p className="text-xs text-[#1E3A8A]/70 mt-1">
+                          <span className="font-medium">Tour Type:</span>{' '}
+                          <span className="text-orange-600 inline-flex items-center gap-1">
+                            <i className="fas fa-sun fa-xs"></i>
+                            Day Tour
+                          </span>
                         </p>
                         <p className="text-xs text-[#1E3A8A]/70 mt-1">
                           Tour Date: {booking.selectedDate ? formatDate(booking.selectedDate) : 'N/A'}

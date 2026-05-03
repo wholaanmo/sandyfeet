@@ -30,48 +30,47 @@ export default function Login() {
     const router = useRouter();
 
     // Check for existing session on mount
-    useEffect(() => {
-        setIsClient(true);
-        
-        // Check if user is already logged in
-        const checkAuth = async () => {
-            const userType = localStorage.getItem('userType');
-            const sessionToken = localStorage.getItem('sessionToken');
-            const sessionExpiry = localStorage.getItem('sessionExpiry');
-            
-            if (userType && sessionToken && sessionExpiry) {
-                const now = new Date().getTime();
-                if (now < parseInt(sessionExpiry)) {
-                    if (userType === 'admin') {
-                        router.push('/dashboard/admin/overview');
-                    } else {
-                        router.push('/dashboard/staff/overview');
-                    }
-                } else {
-                    localStorage.removeItem('userType');
-                    localStorage.removeItem('userEmail');
-                    localStorage.removeItem('uid');
-                    localStorage.removeItem('sessionToken');
-                    localStorage.removeItem('sessionExpiry');
-                    localStorage.removeItem('rememberMe');
-                }
+useEffect(() => {
+    setIsClient(true);
+
+    // 1. Check existing session
+    const checkAuth = async () => {
+        const userType = localStorage.getItem('userType');
+        const sessionToken = localStorage.getItem('sessionToken');
+        const sessionExpiry = localStorage.getItem('sessionExpiry');
+
+        if (userType && sessionToken && sessionExpiry) {
+            const now = Date.now();
+            if (now < parseInt(sessionExpiry)) {
+                router.push(userType === 'admin' ? '/dashboard/admin/overview' : '/dashboard/staff/overview');
+            } else {
+                // Clear expired data
+                localStorage.removeItem('userType');
+                localStorage.removeItem('userEmail');
+                localStorage.removeItem('uid');
+                localStorage.removeItem('sessionToken');
+                localStorage.removeItem('sessionExpiry');
+                localStorage.removeItem('rememberMe');
+                document.cookie = 'sessionToken=; path=/; expires=Thu, 01 Jan 1970 00:00:01 GMT';
+                document.cookie = 'userType=; path=/; expires=Thu, 01 Jan 1970 00:00:01 GMT';
+                document.cookie = 'sessionExpiry=; path=/; expires=Thu, 01 Jan 1970 00:00:01 GMT';
             }
-        };
-        
-        checkAuth();
-        
-        // Animation for login box
-        const loginBox = document.querySelector('.login-box');
-        if (loginBox) {
-            loginBox.style.transform = 'translateY(20px)';
-            loginBox.style.opacity = '0';
-            setTimeout(() => {
-                loginBox.style.transition = 'transform 0.5s ease, opacity 0.5s ease';
-                loginBox.style.transform = 'translateY(0)';
-                loginBox.style.opacity = '1';
-            }, 100);
         }
-    }, [router]);
+    };
+    checkAuth();
+
+    // 2. Animation for login box
+    const loginBox = document.querySelector('.login-box');
+    if (loginBox) {
+        loginBox.style.transform = 'translateY(20px)';
+        loginBox.style.opacity = '0';
+        setTimeout(() => {
+            loginBox.style.transition = 'transform 0.5s ease, opacity 0.5s ease';
+            loginBox.style.transform = 'translateY(0)';
+            loginBox.style.opacity = '1';
+        }, 100);
+    }
+}, [router]);
 
     const togglePassword = () => {
         setShowPassword(!showPassword);

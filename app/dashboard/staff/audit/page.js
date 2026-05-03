@@ -12,7 +12,7 @@ export default function AuditLogs() {
   const [selectedDateFilter, setSelectedDateFilter] = useState('');
   const [dateFilteredLogs, setDateFilteredLogs] = useState([]);
   const [notification, setNotification] = useState({ show: false, message: '', type: '' });
-  
+
   // Pagination
   const [lastVisible, setLastVisible] = useState(null);
   const [hasMore, setHasMore] = useState(true);
@@ -22,7 +22,7 @@ export default function AuditLogs() {
     // Set up real-time listener for audit logs
     const logsRef = collection(db, 'auditLogs');
     const q = query(logsRef, orderBy('timestamp', 'desc'), limit(50));
-    
+
     const unsubscribe = onSnapshot(q, (querySnapshot) => {
       const logsList = [];
       querySnapshot.forEach((doc) => {
@@ -33,7 +33,7 @@ export default function AuditLogs() {
       });
       setLogs(logsList);
       setLoading(false);
-      
+
       // Set last document for pagination
       if (querySnapshot.docs.length > 0) {
         setLastVisible(querySnapshot.docs[querySnapshot.docs.length - 1]);
@@ -46,7 +46,7 @@ export default function AuditLogs() {
       setNotification({ show: true, message: 'Failed to load audit logs.', type: 'error' });
       setLoading(false);
     });
-    
+
     return () => unsubscribe();
   }, []);
 
@@ -96,17 +96,17 @@ export default function AuditLogs() {
 
   const loadMore = async () => {
     if (!hasMore || loadingMore) return;
-    
+
     setLoadingMore(true);
     try {
       const logsRef = collection(db, 'auditLogs');
       const q = query(
-        logsRef, 
-        orderBy('timestamp', 'desc'), 
+        logsRef,
+        orderBy('timestamp', 'desc'),
         startAfter(lastVisible),
         limit(50)
       );
-      
+
       const querySnapshot = await getDocs(q);
       const newLogs = [];
       querySnapshot.forEach((doc) => {
@@ -115,7 +115,7 @@ export default function AuditLogs() {
           ...doc.data()
         });
       });
-      
+
       setLogs(prev => [...prev, ...newLogs]);
       if (querySnapshot.docs.length > 0) {
         setLastVisible(querySnapshot.docs[querySnapshot.docs.length - 1]);
@@ -165,53 +165,53 @@ export default function AuditLogs() {
     <div className="px-9 py-1 min-h-screen" style={{ backgroundColor: 'var(--color-blue-whites)' }}>
       {/* Notification */}
       {notification.show && (
-        <div className={`fixed top-20 right-5 z-50 px-5 py-3 rounded-xl shadow-lg flex items-center gap-3 animate-slideInRight ${
-          notification.type === 'error' ? 'bg-red-50 border-l-4 border-red-500 text-red-700' : 'bg-green-50 border-l-4 border-green-500 text-green-700'
-        }`}>
+        <div className={`fixed top-20 right-5 z-50 px-5 py-3 rounded-xl shadow-lg flex items-center gap-3 animate-slideInRight ${notification.type === 'error' ? 'bg-red-50 border-l-4 border-red-500 text-red-700' : 'bg-green-50 border-l-4 border-green-500 text-green-700'
+          }`}>
           <i className={`${notification.type === 'error' ? 'fas fa-exclamation-circle text-red-500' : 'fas fa-check-circle text-green-500'} text-base`}></i>
           <span className="text-sm font-medium">{notification.message}</span>
         </div>
       )}
 
       {/* Header */}
-<div className="mb-8 rounded-xl border border-[#7AAAF8]/20 bg-[#7AAAF8]/5 px-5 py-4 shadow-sm">
-  <h1 className="text-3xl font-bold text-[#1E3A8A] font-playfair tracking-tight">
-    Audit Logs
-  </h1>
-  <p className="text-[#4D6FA8] text-sm leading-relaxed mt-1">
-    Track all administrative actions across the system
-  </p>
-</div>
+      <div className="mb-8 rounded-xl border border-[#7AAAF8]/20 bg-[#7AAAF8]/5 px-5 py-4 shadow-sm">
+        <h1 className="text-3xl font-bold text-[#1E3A8A] font-playfair tracking-tight">
+          Audit Logs
+        </h1>
+        <p className="text-[#4D6FA8] text-sm leading-relaxed mt-1">
+          Track all actions across the system
+        </p>
+      </div>
 
       {/* Search + Date Filter */}
-   <div className="mb-6 grid grid-cols-1 md:grid-cols-3 gap-3">
-  <div className="relative w-full md:col-span-2 group">
-    <i className="fas fa-search absolute left-3 top-1/2 -translate-y-1/2 text-[#4D8CF5] text-sm transition-all duration-300 group-focus-within:text-[#3B78E7]"></i>
-    
-    <input
-      type="text"
-      placeholder="Search by user, role, module, or action details..."
-      value={searchTerm}
-      onChange={(e) => setSearchTerm(e.target.value)}
-      className="w-full pl-9 pr-10 py-2.5 border-2 border-[#4D8CF5]/20 rounded-xl text-sm focus:outline-none focus:border-[#4D8CF5] focus:ring-2 focus:ring-[#4D8CF5]/20 transition-all duration-300 bg-white shadow-sm hover:shadow-md"
-    />
+      <div className="mb-6 grid grid-cols-1 md:grid-cols-3 gap-3">
+        <div className="relative w-full md:col-span-2 group">
+          <i className="fas fa-search absolute left-3 top-1/2 -translate-y-1/2 text-[#4D8CF5] text-sm transition-all duration-300 group-focus-within:text-[#3B78E7]"></i>
 
-    {searchTerm && (
-      <button
-        onClick={clearSearch}
-        className="absolute right-3 top-1/2 -translate-y-1/2 text-neutral hover:text-[#4D8CF5] transition-colors duration-300"
-      >
-        <i className="fas fa-times"></i>
-      </button>
-    )}
-  </div>
+          <input
+            type="text"
+            placeholder="Search by user, role, module, or action details..."
+            value={searchTerm}
+            onChange={(e) => setSearchTerm(e.target.value)}
+            className="w-full pl-9 pr-10 py-2.5 border-2 border-[#4D8CF5]/20 rounded-xl text-sm focus:outline-none focus:border-[#4D8CF5] focus:ring-2 focus:ring-[#4D8CF5]/20 transition-all duration-300 bg-white shadow-sm hover:shadow-md"
+          />
+
+          {searchTerm && (
+            <button
+              onClick={clearSearch}
+              className="absolute right-3 top-1/2 -translate-y-1/2 text-neutral hover:text-[#4D8CF5] transition-colors duration-300"
+            >
+              <i className="fas fa-times"></i>
+            </button>
+          )}
+        </div>
         <div className="relative w-full">
           <input
             type="date"
             value={selectedDateFilter}
             onChange={(e) => setSelectedDateFilter(e.target.value)}
-            className="w-full px-3 py-2.5 border border-ocean-light/20 rounded-xl text-sm focus:outline-none focus:border-ocean-light focus:ring-2 focus:ring-ocean-light/20 transition-all duration-300 bg-white"
+            className="w-full px-3 py-2.5 border-2 border-[#4D8CF5]/20 rounded-xl text-sm bg-white text-textPrimary shadow-sm focus:outline-none focus:border-[#4D8CF5] focus:ring-2 focus:ring-[#4D8CF5]/20 hover:border-[#4D8CF5]/60 transition-all duration-300 appearance-none"
           />
+
         </div>
       </div>
 
@@ -231,7 +231,7 @@ export default function AuditLogs() {
                   <th className="px-6 py-4 text-left text-xs font-semibold text-textPrimary uppercase tracking-wider">Role</th>
                   <th className="px-6 py-4 text-left text-xs font-semibold text-textPrimary uppercase tracking-wider">Module</th>
                   <th className="px-6 py-4 text-left text-xs font-semibold text-textPrimary uppercase tracking-wider">Action</th>
-                 </tr>
+                </tr>
               </thead>
               <tbody>
                 {filteredLogs.length === 0 ? (
@@ -252,16 +252,16 @@ export default function AuditLogs() {
                         <div className="text-xs text-neutral">{log.userEmail}</div>
                       </td>
                       <td className="px-6 py-4">
-                        <span className={`inline-flex px-3 py-1 rounded-full text-xs font-medium ${
-                          log.userRole === 'admin' 
-                            ? 'bg-ocean-lighter/10 text-ocean-light border border-ocean-lighter/30' 
+                        <span className={`inline-flex px-3 py-1 rounded-full text-xs font-medium ${log.userRole === 'admin'
+                            ? 'bg-ocean-lighter/10 text-ocean-light border border-ocean-lighter/30'
                             : 'bg-ocean-ice text-textSecondary border border-ocean-light/20'
-                        }`}>
+                          }`}>
                           {log.userRole}
                         </span>
                       </td>
-                      <td className="px-6 py-4">
-                        <span className="inline-flex px-3 py-1 rounded-full text-xs font-medium bg-gray-50 text-gray-700 border border-gray-200">
+                      <td className="px-6 py-4 text-left">
+                        <span className={`inline-flex px-3 py-1 rounded-full font-medium bg-gray-50 text-gray-700 border border-gray-200 break-words whitespace-normal text-left ${(log.module?.length || 0) > 20 ? 'text-[10px]' : 'text-xs'
+                          }`}>
                           {log.module}
                         </span>
                       </td>

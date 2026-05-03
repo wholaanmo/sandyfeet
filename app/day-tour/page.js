@@ -503,18 +503,26 @@ export default function DayTourPage() {
             </div>
             
             {/* Right side - Date Container (50% width) with equal height */}
-            <div className="w-full lg:w-1/2 flex">
-              {(!dayTour || dayTour.archived === true || dayTour.availability === 'unavailable') ? (
-                /* When day tour is archived, not found, or marked unavailable - hide the date selector */
-                <div className="w-full bg-gray-50/50 p-6 rounded-[2rem] border border-gray-200/50 text-center flex items-center justify-center">
-                  <div className="flex flex-col items-center gap-3">
-                    <div className="w-14 h-14 rounded-full bg-gray-100 flex items-center justify-center">
-                      <i className="fas fa-calendar-times text-gray-400 text-2xl"></i>
-                    </div>
-                    <p className="text-gray-500 font-medium text-lg">Booking is currently unavailable.</p>
-                    <p className="text-xs text-gray-400">Please check back later.</p>
-                  </div>
-                </div>
+<div className="w-full lg:w-1/2 flex">
+  {(!dayTour || dayTour.archived === true || dayTour.availability === 'unavailable') ? (
+    /* When day tour is archived, not found, or marked unavailable - hide the date selector */
+    <div className="w-full bg-gradient-to-br from-gray-50 to-white p-6 rounded-[2rem] border border-gray-200/60 text-center flex items-center justify-center shadow-sm hover:shadow-md transition-all duration-300">
+      <div className="flex flex-col items-center gap-3">
+
+<div className="w-14 h-14 rounded-full bg-gray-100 flex items-center justify-center shadow-sm border border-gray-200">
+  <i className="fas fa-calendar-times text-gray-400 text-2xl"></i>
+</div>
+
+        <p className="text-gray-600 font-medium text-lg">
+          Booking is currently unavailable.
+        </p>
+
+        <p className="text-xs text-gray-400">
+          Please check back later.
+        </p>
+
+      </div>
+    </div>
               ) : (
                 <form onSubmit={handleBookingStart} className="w-full bg-ocean-ice/30 p-4 sm:p-6 rounded-[2rem] border border-ocean-light/30">
                   {/* Date Picker */}
@@ -717,19 +725,35 @@ export default function DayTourPage() {
           )}
 
           {/* Show message when no activities exist */}
-          {(!loadingActivities && displayedActivities.length === 0) && (
-            <div className="pt-2">
-              <div className="flex items-center gap-6 py-4 mb-4">
-                 <div className="h-px bg-ocean-light/30 flex-1"></div>
-                 <p className="text-xs font-bold tracking-[0.3em] uppercase text-ocean-mid">Curated Activities</p>
-                 <div className="h-px bg-ocean-light/30 flex-1"></div>
-              </div>
-              <div className="bg-white rounded-2xl p-8 text-center border border-ocean-light/20">
-                <i className="fas fa-bicycle text-5xl text-ocean-light/40 mb-3"></i>
-                <p className="text-textSecondary">No activities available at the moment. Check back soon!</p>
-              </div>
-            </div>
-          )}
+{(!loadingActivities && displayedActivities.length === 0) && (
+  <div className="pt-2">
+    
+    <div className="flex items-center gap-6 py-4 mb-4">
+      <div className="h-px bg-gradient-to-r from-ocean-light/20 to-transparent flex-1"></div>
+      <p className="text-xs font-bold tracking-[0.3em] uppercase text-ocean-mid">
+        Curated Activities
+      </p>
+      <div className="h-px bg-gradient-to-l from-ocean-light/20 to-transparent flex-1"></div>
+    </div>
+
+    <div className="bg-gradient-to-br from-white to-ocean-ice/30 rounded-2xl p-8 text-center border border-ocean-light/20 shadow-sm hover:shadow-md transition-all duration-300">
+      
+<div className="mb-3">
+  <i className="fas fa-bicycle text-5xl text-ocean-light/50 animate-[float_3s_ease-in-out_infinite]"></i>
+</div>
+
+      <p className="text-textSecondary font-medium">
+        No activities available at the moment.
+      </p>
+
+      <p className="text-textSecondary/70 text-sm mt-1">
+        Check back soon!
+      </p>
+
+    </div>
+
+  </div>
+)}
 
           {/* DIVIDER */}
           <div className="flex items-center gap-6 py-4">

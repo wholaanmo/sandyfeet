@@ -72,25 +72,35 @@ export default function StaffNavbar({ toggleSidebar, sidebarOpen, isDesktop }) {
   };
 
   // Combined notification update handler
-  const handleNotificationsUpdate = (newItems, type) => {
-    setNotifications(prev => {
-      const isStatusType = type === 'check_in' || type === 'check_out';
+ const handleNotificationsUpdate = (newItems, type) => {
+  setNotifications(prev => {
+    const isStatusType = type === 'check_in' || type === 'check_out';
 
-      // For status notifications, don't clear the list if the service emits an empty update.
-      // This preserves already-triggered check-in/check-out notifications (read or unread).
-      if (isStatusType && (!Array.isArray(newItems) || newItems.length === 0)) {
-        return prev;
-      }
+    // For status notifications, don't clear the list if the service emits an empty update.
+    if (isStatusType && (!Array.isArray(newItems) || newItems.length === 0)) {
+      return prev;
+    }
 
-      const filtered = prev.filter(n => n.type !== type);
-      const itemsWithReadState = isStatusType
-        ? newItems.map(item => ({ ...item, read: statusReadMapRef.current[`${item.type}-${item.id}`] === true }))
-        : newItems;
-      const combined = [...filtered, ...itemsWithReadState];
-      combined.sort((a, b) => asDate(b.createdAt) - asDate(a.createdAt));
-      return combined;
+    const filtered = prev.filter(n => n.type !== type);
+
+    // Mark read status for status notifications
+    let itemsWithReadState = isStatusType
+      ? newItems.map(item => ({ ...item, read: statusReadMapRef.current[`${item.type}-${item.id}`] === true }))
+      : newItems;
+
+    // --- DEDUPLICATE based on type + id ---
+    const uniqueMap = new Map();
+    itemsWithReadState.forEach(item => {
+      const key = `${item.type}-${item.id}`;
+      if (!uniqueMap.has(key)) uniqueMap.set(key, item);
     });
-  };
+    const uniqueItems = Array.from(uniqueMap.values());
+
+    const combined = [...filtered, ...uniqueItems];
+    combined.sort((a, b) => asDate(b.createdAt) - asDate(a.createdAt));
+    return combined;
+  });
+};
 
   // Set up all notification listeners
   useEffect(() => {

@@ -689,7 +689,7 @@ export default function ArchivePage() {
           <div className="flex justify-between items-center mb-5">
             <div className="flex items-center gap-3">
               <div className="w-9 h-9 rounded-full bg-blue-100 flex items-center justify-center">
-                <i className="fas fa-university text-blue-500 text-sm"></i>
+                <i className="fas fa-credit-card text-blue-500 text-sm"></i>
               </div>
               <h3 className="text-lg font-bold text-textPrimary">Bank Account Details</h3>
             </div>
@@ -1057,7 +1057,7 @@ className="w-7 h-7 rounded-md bg-ocean-ice text-neutral hover:bg-ocean-light/20 
           <i className="fas fa-bicycle"></i> Activities
         </button>
         <button ref={(el) => (buttonRefs.current.bankaccounts = el)} onClick={() => setActiveTab('bankaccounts')} className={`relative z-10 px-6 py-3 font-medium transition-all duration-200 whitespace-nowrap flex items-center gap-2 ${activeTab === 'bankaccounts' ? 'text-[#1E3A8A]' : 'text-[#1E3A8A]/60 hover:text-[#4D8CF5]'}`}>
-          <i className="fas fa-university"></i> Bank Accounts
+          <i className="fas fa-credit-card"></i> Bank Accounts
         </button>
         <button ref={(el) => (buttonRefs.current.gcashqr = el)} onClick={() => setActiveTab('gcashqr')} className={`relative z-10 px-6 py-3 font-medium transition-all duration-200 whitespace-nowrap flex items-center gap-2 ${activeTab === 'gcashqr' ? 'text-[#1E3A8A]' : 'text-[#1E3A8A]/60 hover:text-[#4D8CF5]'}`}>
           <i className="fas fa-wallet"></i> GCash QR

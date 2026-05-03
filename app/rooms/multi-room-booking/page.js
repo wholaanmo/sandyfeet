@@ -839,7 +839,7 @@ const handleSubmitBooking = async () => {
                   
                   <div className="space-y-5">
                     <div>
-                      <label className="block text-sm font-semibold text-textPrimary mb-2">First Name *</label>
+                      <label className="block text-sm font-semibold text-textPrimary mb-2">First Name</label>
                       <input
                         type="text"
                         value={bookingData.firstName}
@@ -850,7 +850,7 @@ const handleSubmitBooking = async () => {
                     </div>
                     
                     <div>
-                      <label className="block text-sm font-semibold text-textPrimary mb-2">Last Name *</label>
+                      <label className="block text-sm font-semibold text-textPrimary mb-2">Last Name</label>
                       <input
                         type="text"
                         value={bookingData.lastName}
@@ -861,7 +861,7 @@ const handleSubmitBooking = async () => {
                     </div>
                     
                     <div>
-                      <label className="block text-sm font-semibold text-textPrimary mb-2">Email Address *</label>
+                      <label className="block text-sm font-semibold text-textPrimary mb-2">Email Address</label>
                       <input
                         type="email"
                         value={bookingData.email}
@@ -872,7 +872,7 @@ const handleSubmitBooking = async () => {
                     </div>
                     
                     <div>
-                      <label className="block text-sm font-semibold text-textPrimary mb-2">Phone Number * (11 digits)</label>
+                      <label className="block text-sm font-semibold text-textPrimary mb-2">Phone Number (11 digits)</label>
                       <input
                         type="tel"
                         value={bookingData.phone}
@@ -920,7 +920,7 @@ const handleSubmitBooking = async () => {
                             : 'border-gray-200 bg-white hover:border-blue-300'
                         }`}
                       >
-                        <i className={`fab fa-gcash text-2xl sm:text-3xl ${paymentMethod === 'gcash' ? 'text-blue-600' : 'text-gray-400'}`}></i>
+                        <i className={`fas fa-wallet text-2xl sm:text-3xl ${paymentMethod === 'gcash' ? 'text-blue-600' : 'text-gray-400'}`}></i>
                         <span className={`text-sm font-medium ${paymentMethod === 'gcash' ? 'text-blue-600' : 'text-gray-500'}`}>GCash</span>
                       </button>
                       <button
@@ -932,7 +932,7 @@ const handleSubmitBooking = async () => {
                             : 'border-gray-200 bg-white hover:border-blue-300'
                         }`}
                       >
-                        <i className={`fas fa-university text-xl sm:text-2xl ${paymentMethod === 'bank_transfer' ? 'text-blue-600' : 'text-gray-400'}`}></i>
+                        <i className={`fas fa-credit-card text-xl sm:text-2xl ${paymentMethod === 'bank_transfer' ? 'text-blue-600' : 'text-gray-400'}`}></i>
                         <span className={`text-sm font-medium ${paymentMethod === 'bank_transfer' ? 'text-blue-600' : 'text-gray-500'}`}>Bank Transfer</span>
                       </button>
                     </div>
@@ -950,7 +950,7 @@ const handleSubmitBooking = async () => {
 
                         <div className="flex-1 p-4 sm:p-5 bg-ocean-ice/50 rounded-xl text-center border border-ocean-light/20">
                           <h3 className="text-sm font-semibold text-textPrimary mb-2 flex items-center justify-center gap-1.5">
-                            <i className="fab fa-gcash text-ocean-mid"></i>
+                            <i className="fas fa-qrcode text-ocean-mid"></i>
                             Scan to Pay
                           </h3>
                           {paymentSettings.gcashQRCode ? (
@@ -977,7 +977,7 @@ const handleSubmitBooking = async () => {
                         <ul className="text-xs text-blue-700/80 space-y-1 ml-5 list-disc leading-relaxed">
                           <li>Pay only the <strong>down payment (50%)</strong> to confirm.</li>
                           <li>Balance (₱{(totalPrice - downPaymentAmount).toLocaleString()}) is due upon check-in.</li>
-                          <li>Cancellations forfeit <strong>50%</strong> of the down payment.</li>
+                          <li>Cancellations will result in forfeiture of the down payment, unless the booking is rescheduled.</li>
                         </ul>
                       </div>
 
@@ -985,10 +985,10 @@ const handleSubmitBooking = async () => {
                         <div className="bg-white rounded-xl border border-gray-200 p-4 sm:p-5 shadow-sm hover:border-blue-200 transition-colors">
                           <div className="flex items-center gap-2 mb-2">
                             <i className="fas fa-id-card text-blue-500 text-lg"></i>
-                            <label className="text-sm font-semibold text-gray-800">Valid ID *</label>
+                            <label className="text-sm font-semibold text-gray-800">Valid ID</label>
                           </div>
                           <p className="text-[11px] text-gray-500 mb-3 leading-tight">
-                            Clear front image only. Max size: 10MB.
+                            Clear front image only.
                           </p>
                           <button
                             type="button"
@@ -1018,10 +1018,10 @@ const handleSubmitBooking = async () => {
                         <div className="bg-white rounded-xl border border-gray-200 p-4 sm:p-5 shadow-sm hover:border-blue-200 transition-colors">
                           <div className="flex items-center gap-2 mb-2">
                             <i className="fas fa-file-invoice-dollar text-blue-500 text-lg"></i>
-                            <label className="text-sm font-semibold text-gray-800">Receipt *</label>
+                            <label className="text-sm font-semibold text-gray-800">Receipt</label>
                           </div>
                           <p className="text-[11px] text-gray-500 mb-3 leading-tight">
-                            Proof of down payment. Max size: 10MB.
+                            Proof of down payment.
                           </p>
                           <div className="relative">
                             <input
@@ -1102,7 +1102,7 @@ const handleSubmitBooking = async () => {
           <div className="rounded-xl border border-green-200 bg-green-50/40 p-4">
             <div className="flex items-center gap-2 mb-3 border-b border-green-200 pb-2">
               <div className="flex h-7 w-7 items-center justify-center rounded-full bg-green-100 text-green-600">
-                <i className="fas fa-university text-xs"></i>
+                <i className="fas fa-credit-card text-xs"></i>
               </div>
               <h3 className="text-sm font-semibold text-green-900">Bank Details Provided</h3>
             </div>
@@ -1144,7 +1144,7 @@ const handleSubmitBooking = async () => {
           <div className="rounded-xl border border-gray-200 bg-white p-4">
             <div className="flex items-center gap-2 mb-3 border-b border-gray-200 pb-2">
               <div className="flex h-7 w-7 items-center justify-center rounded-full bg-gray-100 text-gray-600">
-                <i className="fas fa-university text-xs"></i>
+                <i className="fas fa-credit-card text-xs"></i>
               </div>
               <h3 className="text-sm font-semibold text-gray-800">Choose your other preferred bank:</h3>
             </div>
@@ -1228,7 +1228,7 @@ const handleSubmitBooking = async () => {
       <div className="bg-white rounded-xl border border-gray-200 p-4 sm:p-5 shadow-sm hover:border-blue-200 transition-colors">
         <div className="flex items-center gap-2 mb-2">
           <i className="fas fa-id-card text-blue-500 text-lg"></i>
-          <label className="text-sm font-semibold text-gray-800">Valid ID *</label>
+          <label className="text-sm font-semibold text-gray-800">Valid ID</label>
         </div>
         <p className="text-[11px] text-gray-500 mb-3 leading-tight">
           Clear front image only. 
@@ -1261,7 +1261,7 @@ const handleSubmitBooking = async () => {
       <div className={`bg-white rounded-xl border border-gray-200 p-4 sm:p-5 shadow-sm transition-colors ${(bankDetailsProvided || visibleGuestQrBank) ? 'hover:border-blue-200' : 'opacity-50'}`}>
         <div className="flex items-center gap-2 mb-2">
           <i className="fas fa-file-invoice-dollar text-blue-500 text-lg"></i>
-          <label className="text-sm font-semibold text-gray-800">Receipt *</label>
+          <label className="text-sm font-semibold text-gray-800">Receipt</label>
         </div>
         <p className="text-[11px] text-gray-500 mb-3 leading-tight">
           Proof of down payment. 
@@ -1541,109 +1541,98 @@ const handleSubmitBooking = async () => {
 
       {/* Valid ID Modal */}
       {showValidIdModal && (
-        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4 animate-in fade-in duration-200">
-          <div className="bg-white rounded-2xl w-full max-w-sm p-0 shadow-2xl overflow-hidden" onClick={(e) => e.stopPropagation()}>
-            <div className="px-5 py-4 border-b border-gray-100 flex justify-between items-center bg-gray-50/50">
-              <h3 className="text-base font-bold text-gray-900 flex items-center gap-2">
-                <i className="fas fa-id-card text-blue-500"></i>
-                Upload Valid ID
-              </h3>
+        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-2xl w-full max-w-[380px] p-5 shadow-2xl" onClick={(e) => e.stopPropagation()}>
+            <div className="flex justify-between items-center mb-3">
+              <h3 className="text-base font-bold text-gray-900">Upload Valid ID</h3>
               <button
                 onClick={() => setShowValidIdModal(false)}
-                className="w-8 h-8 rounded-full bg-white border border-gray-200 flex items-center justify-center text-gray-500 hover:bg-gray-100 hover:text-gray-700 transition-colors"
-                title="Close"
-              >
-                <i className="fas fa-times"></i>
+ className="w-7 h-7 rounded-md bg-ocean-ice text-neutral hover:bg-ocean-light/20 hover:text-textPrimary transition-all duration-200 flex items-center justify-center">
+                <i className="fas fa-times text-xs"></i>
               </button>
             </div>
-
-            <div className="p-5 space-y-5">
+ 
+            <div className="space-y-3">
               <div>
-                <label className="block text-xs font-bold text-gray-700 uppercase tracking-wide mb-2">ID Type</label>
-                <div className="relative">
-                  <select
-                    value={tempValidIdType}
-                    onChange={(e) => setTempValidIdType(e.target.value)}
-                    className="w-full pl-3 pr-10 py-2.5 bg-white border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 appearance-none transition-shadow"
-                  >
-                    {validIdOptions.map((option) => (
-                      <option key={option} value={option}>{option}</option>
-                    ))}
-                  </select>
-                  <i className="fas fa-chevron-down absolute right-4 top-1/2 -translate-y-1/2 text-gray-400 text-xs pointer-events-none"></i>
-                </div>
+                <label className="block text-[11px] font-bold uppercase tracking-wider text-gray-500 mb-1.5">ID Type</label>
+                <select
+                  value={tempValidIdType}
+                  onChange={(e) => setTempValidIdType(e.target.value)}
+                  className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:border-blue-300 focus:ring-2 focus:ring-blue-500/10 bg-gray-50/50 transition-all"
+                >
+                  {validIdOptions.map((option) => (
+                    <option key={option} value={option}>
+                      {option}
+                    </option>
+                  ))}
+                </select>
               </div>
-
-              <div className="bg-blue-50/50 border border-blue-100 rounded-xl p-3.5">
-                <p className="text-xs font-semibold text-blue-900 mb-1.5 flex items-center gap-1.5">
-                  <i className="fas fa-info-circle text-blue-500"></i>
-                  Requirements
-                </p>
-                <ul className="text-[11px] text-blue-800 space-y-1 ml-5 list-disc leading-relaxed">
-                  <li>Full name must match booking details</li>
-                  <li>Image must be clear (front only)</li>
-                  <li>No blurred images allowed</li>
+ 
+              <div className="bg-blue-50/50 p-2.5 rounded-lg border border-blue-100/50">
+                <p className="text-[11px] font-semibold text-blue-900 mb-1">Upload Requirements:</p>
+                <ul className="text-[11px] text-blue-800 space-y-0.5 list-disc pl-3">
+                  <li>Full name must match booking</li>
+                  <li>Front image only, must be clear</li>
+                  <li>No blurred or cut-off images</li>
                 </ul>
               </div>
-
-              <div>
-                <label className="block text-xs font-bold text-gray-700 uppercase tracking-wide mb-2">ID Image (Front Only)</label>
-                <div className="relative">
-                  <input
-                    type="file"
-                    accept="image/*"
-                    onChange={handleValidIdFileChange}
-                    className="absolute inset-0 w-full h-full opacity-0 cursor-pointer object-cover z-20"
-                    disabled={validIdUploading}
-                  />
-                  <div className={`w-full flex flex-col items-center justify-center p-6 rounded-xl text-sm font-medium transition-all duration-200 border-2 border-dashed ${
-                    validIdUploading
-                      ? 'bg-gray-50 border-gray-300 text-gray-400 cursor-wait'
-                      : tempValidIdFile
-                      ? 'bg-emerald-50/50 border-emerald-300 text-emerald-700 p-2 border-solid'
-                      : 'bg-gray-50 border-gray-300 text-gray-600 hover:bg-blue-50 hover:border-blue-400 hover:text-blue-600'
-                  }`}>
-                    {validIdUploading ? (
-                      <div className="flex flex-col items-center gap-2">
-                        <i className="fas fa-circle-notch fa-spin text-2xl text-blue-500"></i>
-                        <span className="text-xs">Compressing & Uploading...</span>
-                      </div>
-                    ) : tempValidIdFile ? (
-                      <div className="relative w-full h-32 rounded-lg overflow-hidden group pointer-events-none">
-                        <img src={tempValidIdFile} alt="Valid ID" className="w-full h-full object-cover" />
-                        <div className="absolute inset-0 bg-black/40 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
-                          <span className="text-white text-xs font-semibold flex items-center gap-2"><i className="fas fa-sync-alt"></i> Change Image</span>
-                        </div>
-                      </div>
-                    ) : (
-                      <div className="flex flex-col items-center gap-2 text-center pointer-events-none">
-                        <div className="w-10 h-10 rounded-full bg-blue-100 flex items-center justify-center mb-1">
-                          <i className="fas fa-cloud-upload-alt text-xl text-blue-600"></i>
-                        </div>
-                        <span className="text-sm font-bold">Click to upload</span>
-                        <span className="text-xs text-gray-400 font-normal">PNG, JPG up to 10MB</span>
-                      </div>
-                    )}
+ 
+              <div className="pt-2 border-t border-gray-100">
+                <div className="flex items-center justify-between mb-2">
+                  <label className="text-[13px] font-bold uppercase tracking-wider text-gray-500">ID Photo (Front)</label>
+                  <div className="relative">
+                    <input
+                      type="file"
+                      accept="image/*"
+                      onChange={handleValidIdFileChange}
+                      className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
+                      id="valid-id-upload-multiroom"
+                      disabled={validIdUploading}
+                    />
+                    <label
+                      htmlFor="valid-id-upload-multiroom"
+                      className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition-all duration-300 cursor-pointer ${
+                        validIdUploading
+                          ? 'bg-gray-200 text-gray-400 cursor-not-allowed'
+                          : 'bg-blue-600 text-white hover:bg-blue-700 shadow-sm'
+                      }`}
+                    >
+                      <i className={`fas ${validIdUploading ? 'fa-spinner fa-spin' : 'fa-camera'}`}></i>
+                      {validIdUploading ? 'Uploading...' : tempValidIdFile ? 'Change Image' : 'Select Photo'}
+                    </label>
                   </div>
+                </div>
+ 
+                <div className="h-44 border-2 border-dashed border-gray-200 rounded-xl overflow-hidden bg-gray-50 flex items-center justify-center">
+                  {tempValidIdFile ? (
+                    <img
+                      src={tempValidIdFile}
+                      alt="Valid ID Preview"
+                      className="w-full h-full object-contain bg-white"
+                    />
+                  ) : (
+                    <div className="text-center">
+                      <i className="fas fa-id-card text-2xl text-gray-300 mb-2 block"></i>
+                      <p className="text-[10px] text-gray-400">Preview will appear here</p>
+                    </div>
+                  )}
                 </div>
               </div>
             </div>
-
-            <div className="px-5 py-4 border-t border-gray-100 bg-gray-50/50 flex justify-end gap-3">
+ 
+            <div className="flex justify-end gap-2 mt-5 pt-3 border-t border-gray-100">
               <button
+                type="button"
                 onClick={() => setShowValidIdModal(false)}
-                className="px-4 py-2 border border-gray-200 bg-white text-gray-600 rounded-lg text-sm font-semibold hover:bg-gray-50 transition-colors"
+                className="px-4 py-2.5 rounded-lg text-xs font-semibold text-gray-500 hover:bg-gray-50 transition-all duration-200"
               >
                 Cancel
               </button>
               <button
+                type="button"
                 onClick={handleSaveValidId}
-                disabled={!tempValidIdFile || validIdUploading}
-                className={`px-5 py-2 rounded-lg text-sm font-semibold transition-all shadow-sm ${
-                  tempValidIdFile && !validIdUploading
-                    ? 'bg-blue-600 text-white hover:bg-blue-700 hover:shadow-md'
-                    : 'bg-gray-200 text-gray-400 cursor-not-allowed'
-                }`}
+                disabled={!tempValidIdFile || !tempValidIdType || validIdUploading}
+                className="px-5 py-2.5 bg-gradient-to-r from-blue-600 to-blue-500 rounded-lg text-xs font-bold text-white shadow-md hover:shadow-lg transition-all duration-200 disabled:opacity-50 disabled:grayscale disabled:cursor-not-allowed"
               >
                 Confirm ID
               </button>

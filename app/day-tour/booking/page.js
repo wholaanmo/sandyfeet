@@ -1,4 +1,4 @@
-﻿// app/day-tour/booking/page.js
+// app/day-tour/booking/page.js
 'use client';
 
 import { Suspense, useState, useEffect } from 'react';
@@ -909,7 +909,7 @@ function DayTourBookingContent() {
           <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
             <div className="max-w-xl">
               <div className="inline-flex items-center gap-2 rounded-full bg-ocean-ice px-3 py-1 text-xs font-semibold uppercase tracking-[0.18em] text-ocean-mid">
-                <i className="fas fa-building-columns"></i>
+                <i className="fas fa-credit-card"></i>
                 Manual Verification
               </div>
               <h3 className="mt-4 text-xl font-semibold text-textPrimary">Pay via QR Code or Bank Transfer</h3>
@@ -1172,8 +1172,7 @@ function DayTourBookingContent() {
 {step === 1 && (
   <div className="bg-white rounded-2xl shadow-lg border border-ocean-light/15 p-6 sm:p-8">
     <div className="mb-6">
-      <h2 className="text-2xl font-bold text-textPrimary">Step 1: Number of Guests</h2>
-      <p className="text-sm text-textSecondary mt-1">Set your party size first so we can validate available capacity.</p>
+      <h2 className="text-2xl font-bold text-textPrimary">Number of Guests</h2>
     </div>
 
     {/* Two‑column layout with 80/20 split on md+ */}
@@ -1283,11 +1282,11 @@ className="w-full px-3 py-2.5 h-46 rounded-xl border border-ocean-light/25 bg-wh
               {/* Step 2: Guest Details */}
               {step === 2 && (
                 <div className="bg-white rounded-2xl shadow-lg p-8">
-                  <h2 className="text-2xl font-bold text-textPrimary mb-6">Step 2: Guest Details</h2>
+                  <h2 className="text-2xl font-bold text-textPrimary mb-6">Guest Details</h2>
                   
                   <div className="space-y-5">
                     <div>
-                      <label className="block text-sm font-semibold text-textPrimary mb-2">First Name *</label>
+                      <label className="block text-sm font-semibold text-textPrimary mb-2">First Name</label>
                       <input
                         type="text"
                         value={bookingData.firstName}
@@ -1298,7 +1297,7 @@ className="w-full px-3 py-2.5 h-46 rounded-xl border border-ocean-light/25 bg-wh
                     </div>
                     
                     <div>
-                      <label className="block text-sm font-semibold text-textPrimary mb-2">Last Name *</label>
+                      <label className="block text-sm font-semibold text-textPrimary mb-2">Last Name</label>
                       <input
                         type="text"
                         value={bookingData.lastName}
@@ -1309,7 +1308,7 @@ className="w-full px-3 py-2.5 h-46 rounded-xl border border-ocean-light/25 bg-wh
                     </div>
                     
                     <div>
-                      <label className="block text-sm font-semibold text-textPrimary mb-2">Email Address *</label>
+                      <label className="block text-sm font-semibold text-textPrimary mb-2">Email Address</label>
                       <input
                         type="email"
                         value={bookingData.email}
@@ -1320,7 +1319,7 @@ className="w-full px-3 py-2.5 h-46 rounded-xl border border-ocean-light/25 bg-wh
                     </div>
                     
                     <div>
-                      <label className="block text-sm font-semibold text-textPrimary mb-2">Phone Number * (11 digits)</label>
+                      <label className="block text-sm font-semibold text-textPrimary mb-2">Phone Number (11 digits)</label>
                       <input
                         type="tel"
                         value={bookingData.phone}
@@ -1362,7 +1361,7 @@ className="w-full px-3 py-2.5 h-46 rounded-xl border border-ocean-light/25 bg-wh
                           <i className="fas fa-lock"></i>
                           Secure Payment
                         </div>
-                        <h2 className="mt-4 text-3xl font-bold text-textPrimary">Step 3: Complete Your Down Payment</h2>
+                        <h2 className="mt-4 text-3xl font-bold text-textPrimary">Complete Your Down Payment</h2>
                         <p className="mt-2 text-sm leading-6 text-textSecondary">
                           Choose how you want to pay, upload your ID and receipt, then confirm the reservation once everything is complete.
                         </p>
@@ -1427,7 +1426,7 @@ className="w-full px-3 py-2.5 h-46 rounded-xl border border-ocean-light/25 bg-wh
                         <div className="flex items-start justify-between gap-3">
                           <div className="flex items-start gap-3">
                             <div className={`flex h-12 w-12 items-center justify-center rounded-2xl ${paymentMethod === 'bank_transfer' ? 'bg-ocean-mid text-white' : 'bg-ocean-ice text-ocean-mid'}`}>
-                              <i className="fas fa-building-columns text-base"></i>
+                              <i className="fas fa-credit-card text-base"></i>
                             </div>
                             <div>
                               <p className={`text-base font-semibold ${paymentMethod === 'bank_transfer' ? 'text-ocean-mid' : 'text-textPrimary'}`}>Bank Transfer</p>
@@ -1583,7 +1582,7 @@ className="w-full px-3 py-2.5 h-46 rounded-xl border border-ocean-light/25 bg-wh
 
                       <div className="rounded-xl bg-amber-50 px-4 py-3 text-sm text-amber-800">
                         <i className="fas fa-info-circle mr-2"></i>
-                        Use your reference number in the Reservation Tracker while this booking is pending. Remaining balance is payable at the resort upon arrival.
+                        Use your reference number in the Reservation Tracker while this booking is pending. Remaining balance is payable at the resort. Cancellations will result in forfeiture of the down payment, unless the booking is rescheduled.
                       </div>
                     </div>
 
@@ -1611,24 +1610,23 @@ className="w-full px-3 py-2.5 h-46 rounded-xl border border-ocean-light/25 bg-wh
 
       {showValidIdModal && (
         <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-2xl w-full max-w-md p-6 shadow-2xl" onClick={(e) => e.stopPropagation()}>
-            <div className="flex justify-between items-center mb-4">
-              <h3 className="text-lg font-bold text-textPrimary">Upload Valid ID</h3>
+          <div className="bg-white rounded-2xl w-full max-w-[380px] p-5 shadow-2xl" onClick={(e) => e.stopPropagation()}>
+            <div className="flex justify-between items-center mb-3">
+              <h3 className="text-base font-bold text-textPrimary">Upload Valid ID</h3>
               <button
                 onClick={() => setShowValidIdModal(false)}
-                className="w-8 h-8 rounded-full bg-ocean-ice hover:bg-ocean-light/30 text-neutral hover:text-textPrimary transition-all duration-200 flex items-center justify-center"
-              >
-                <i className="fas fa-times"></i>
+ className="w-7 h-7 rounded-md bg-ocean-ice text-neutral hover:bg-ocean-light/20 hover:text-textPrimary transition-all duration-200 flex items-center justify-center">
+                <i className="fas fa-times text-xs"></i>
               </button>
             </div>
-
-            <div className="space-y-4">
+ 
+            <div className="space-y-3">
               <div>
-                <label className="block text-sm font-semibold text-textPrimary mb-2">ID Type</label>
+                <label className="block text-[11px] font-bold uppercase tracking-wider text-textSecondary mb-1.5">ID Type</label>
                 <select
                   value={tempValidIdType}
                   onChange={(e) => setTempValidIdType(e.target.value)}
-                  className="w-full px-3 py-2 border border-ocean-light/30 rounded-lg text-sm focus:outline-none focus:border-ocean-light focus:ring-2 focus:ring-ocean-light/20"
+                  className="w-full px-3 py-2 border border-ocean-light/30 rounded-lg text-sm focus:outline-none focus:border-ocean-light focus:ring-2 focus:ring-ocean-light/20 bg-gray-50/50"
                 >
                   {validIdOptions.map((option) => (
                     <option key={option} value={option}>
@@ -1637,60 +1635,64 @@ className="w-full px-3 py-2.5 h-46 rounded-xl border border-ocean-light/25 bg-wh
                   ))}
                 </select>
               </div>
-
-              <p className="text-xs text-textSecondary">
-                Requirements:
-                <br />- Full name must match booking details
-                <br />- Image must be clear (front only)
-                <br />- No blurred images allowed
-              </p>
-
-              <div className="pt-1 border-t border-ocean-light/20">
-                <label className="block text-sm font-semibold text-textPrimary mb-2">Valid ID Image (front only)</label>
-                <div className="relative mb-3">
-                  <input
-                    type="file"
-                    accept="image/*"
-                    onChange={handleValidIdFileChange}
-                    className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
-                    id="valid-id-upload-daytour"
-                    disabled={validIdUploading}
-                  />
-                  <label
-                    htmlFor="valid-id-upload-daytour"
-                    className={`inline-flex items-center gap-2 px-4 py-2.5 rounded-lg font-medium transition-all duration-300 cursor-pointer ${
-                      validIdUploading
-                        ? 'bg-gray-300 text-gray-500 cursor-not-allowed'
-                        : 'bg-gradient-to-r from-ocean-mid to-ocean-light text-white hover:shadow-lg'
-                    }`}
-                  >
-                    <i className="fas fa-upload"></i>
-                    {validIdUploading ? 'Uploading...' : tempValidIdImage ? 'Change Image' : 'Choose File'}
-                  </label>
-                </div>
-
-                <div className="mt-2">
-                  <p className="text-xs font-semibold text-textPrimary mb-1">Preview</p>
-                  <div className="h-64 border border-ocean-light/30 rounded-lg overflow-hidden bg-ocean-ice flex items-center justify-center">
-                    {tempValidIdImage ? (
-                      <img
-                        src={tempValidIdImage}
-                        alt="Valid ID Preview"
-                        className="w-full h-full object-contain bg-white"
-                      />
-                    ) : (
-                      <p className="text-xs text-textSecondary">No image selected</p>
-                    )}
+ 
+              <div className="bg-blue-50/50 p-2.5 rounded-lg border border-blue-100/50">
+                <p className="text-[11px] font-semibold text-blue-900 mb-1">Upload Requirements:</p>
+                <ul className="text-[11px] text-blue-800 space-y-0.5 list-disc pl-3">
+                  <li>Full name must match booking</li>
+                  <li>Front image only, must be clear</li>
+                  <li>No blurred or cut-off images</li>
+                </ul>
+              </div>
+ 
+              <div className="pt-2 border-t border-ocean-light/10">
+                <div className="flex items-center justify-between mb-2">
+                  <label className="text-[13px] font-bold uppercase tracking-wider text-textSecondary">ID Photo (Front)</label>
+                  <div className="relative">
+                    <input
+                      type="file"
+                      accept="image/*"
+                      onChange={handleValidIdFileChange}
+                      className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
+                      id="valid-id-upload-daytour"
+                      disabled={validIdUploading}
+                    />
+                    <label
+                      htmlFor="valid-id-upload-daytour"
+                      className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-semibold transition-all duration-300 cursor-pointer ${
+                        validIdUploading
+                          ? 'bg-gray-200 text-gray-400 cursor-not-allowed'
+                          : 'bg-ocean-mid text-white hover:bg-ocean-mid/90 shadow-sm'
+                      }`}
+                    >
+                      <i className={`fas ${validIdUploading ? 'fa-spinner fa-spin' : 'fa-camera'}`}></i>
+                      {validIdUploading ? 'Uploading...' : tempValidIdImage ? 'Change Image' : 'Select Photo'}
+                    </label>
                   </div>
+                </div>
+ 
+                <div className="h-44 border-2 border-dashed border-ocean-light/20 rounded-xl overflow-hidden bg-ocean-ice/30 flex items-center justify-center">
+                  {tempValidIdImage ? (
+                    <img
+                      src={tempValidIdImage}
+                      alt="Valid ID Preview"
+                      className="w-full h-full object-contain bg-white"
+                    />
+                  ) : (
+                    <div className="text-center">
+                      <i className="fas fa-id-card text-2xl text-ocean-mid/30 mb-2 block"></i>
+                      <p className="text-[10px] text-textSecondary">Preview will appear here</p>
+                    </div>
+                  )}
                 </div>
               </div>
             </div>
-
-            <div className="flex justify-end gap-3 mt-6">
+ 
+            <div className="flex justify-end gap-2 mt-5 pt-3 border-t border-ocean-light/10">
               <button
                 type="button"
                 onClick={() => setShowValidIdModal(false)}
-                className="px-4 py-2 border border-ocean-light/30 rounded-lg text-sm text-textSecondary hover:bg-ocean-ice transition-all duration-200"
+                className="px-4 py-2.5 rounded-lg text-xs font-semibold text-textSecondary hover:bg-ocean-ice transition-all duration-200"
               >
                 Cancel
               </button>
@@ -1698,9 +1700,9 @@ className="w-full px-3 py-2.5 h-46 rounded-xl border border-ocean-light/25 bg-wh
                 type="button"
                 onClick={handleSaveValidId}
                 disabled={!tempValidIdImage || !tempValidIdType || validIdUploading}
-                className="px-4 py-2 bg-gradient-to-r from-ocean-mid to-ocean-light rounded-lg text-sm font-medium text-white hover:shadow-lg transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed"
+                className="px-5 py-2.5 bg-gradient-to-r from-ocean-mid to-ocean-light rounded-lg text-xs font-bold text-white shadow-md hover:shadow-lg transition-all duration-200 disabled:opacity-50 disabled:grayscale disabled:cursor-not-allowed"
               >
-                Save Valid ID
+                Confirm ID
               </button>
             </div>
           </div>

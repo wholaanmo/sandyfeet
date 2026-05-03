@@ -4,6 +4,7 @@
 import { useState, useEffect } from 'react';
 import AdminNavbar from '@/components/admin/AdminNavbar';
 import AdminSidebar from '@/components/admin/Sidebar';
+import { SessionGuard } from '@/components/SessionGuard'; 
 
 export default function AdminLayout({ children }) {
   const [sidebarOpen, setSidebarOpen] = useState(true);
@@ -52,7 +53,9 @@ export default function AdminLayout({ children }) {
             transition: 'margin-left 0.3s cubic-bezier(0.4, 0, 0.2, 1)'
           }}
         >
-          {children}
+                    <SessionGuard>   
+            {children}
+          </SessionGuard>
         </main>
       </div>
     </div>

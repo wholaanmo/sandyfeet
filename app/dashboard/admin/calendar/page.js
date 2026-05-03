@@ -952,16 +952,15 @@ export default function AdminCalendar() {
       }`}
     >
       {/* Sidebar Header */}
-      <div className="sticky top-0 bg-white/10 backdrop-blur-md border-b border-white/30 px-5 py-4 flex justify-between items-center z-10 flex-shrink-0">
+      <div className="sticky top-0 bg-white/80 backdrop-blur-lg border-b border-[#4D8CF5]/10 px-6 py-4 flex justify-between items-center z-10 flex-shrink-0 shadow-sm">
         <div>
-          <h2 className="text-lg font-bold text-[#1E3A8A] flex items-center gap-2 leading-tight">
+          <h2 className="text-lg font-bold text-[#1E3A8A] leading-tight flex flex-col items-start gap-1">
             Blocked Room Availability
           </h2>
-          <p className="text-[#1E3A8A]/70 text-xs mt-1">
+          <p className="text-[#1E3A8A]/70 text-xs mt-1 font-medium">
             List of all dates with blocked room availability
           </p>
         </div>
-
         <button
           onClick={() => setIsSidebarOpen(false)}
           className="w-9 h-9 flex items-center justify-center rounded-lg bg-white/60 backdrop-blur-md border border-[#4D8CF5]/20 text-[#1E3A8A] shadow-sm transition-all duration-200 hover:bg-[#4D8CF5]/80 hover:text-white hover:shadow-lg hover:-translate-y-0.5 active:translate-y-0 active:scale-95"
@@ -969,22 +968,26 @@ export default function AdminCalendar() {
           <i className="fas fa-times"></i>
         </button>
       </div>
-
+ 
       {/* Scrollable Content */}
-      <div className="flex-1 overflow-y-auto p-5">
+      <div className="flex-1 overflow-y-auto p-5 space-y-4">
         {unavailableEntries.length === 0 ? (
-          <div className="text-center py-12 text-[#1E3A8A]/60">
-            <i className="fas fa-check-circle text-4xl mb-3 block text-green-400"></i>
-            <p className="text-sm">No blocked dates</p>
-            <p className="text-xs mt-1">All dates are available for booking</p>
+          <div className="flex items-center justify-center min-h-[300px] w-full">
+            <div className="text-center bg-white/50 backdrop-blur-sm p-8 rounded-2xl border border-[#4D8CF5]/10 shadow-sm">
+              <div className="w-16 h-16 bg-blue-50 rounded-full flex items-center justify-center mx-auto mb-4">
+                <i className="fas fa-calendar-check text-2xl text-[#4D8CF5]"></i>
+              </div>
+              <p className="text-[#1E3A8A] font-bold text-lg">No blocked dates</p>
+              <p className="text-[#1E3A8A]/60 text-sm mt-1">No units have been set as unavailable for all dates yet.</p>
+            </div>
           </div>
         ) : (
-          <div className="flex flex-col gap-3">
+          <div className="flex flex-col gap-4">
             {unavailableEntries.map((entry) => {
               const dateKey = entry.date;
               const totalBlockedForDate = totalBlockedUnitsByDate[dateKey] || 0;
               const remainingAvailable = Math.max(0, totalRoomUnits - totalBlockedForDate);
-
+ 
               const entryRangeLabel =
                 entry.startHour === 0 && entry.endHour === 12
                   ? "12:00 AM – 12:00 PM"
@@ -995,43 +998,18 @@ export default function AdminCalendar() {
                   : entry.startHour != null && entry.endHour != null
                   ? `${entry.startHour}:00 – ${entry.endHour}:00`
                   : "Unknown range";
-
+ 
               return (
                 <div
                   key={entry.id}
-                  className="p-4 bg-white/70 backdrop-blur-md border border-[#4D8CF5]/10 rounded-xl shadow-sm"
+                  className="bg-white/70 backdrop-blur-md border border-[#4D8CF5]/10 rounded-xl p-4 shadow-sm group hover:border-[#4D8CF5]/30 transition-all duration-300"
                 >
-                  <div className="flex justify-between items-start">
-                    <div className="flex-1">
-                      <p className="text-sm font-semibold text-[#1E3A8A]">
-                        {formatDateDisplay(entry.date)}
-                      </p>
-
-                      <p className="text-xs text-[#1E3A8A]/70 mt-1">
-                        This entry: {entry.unitsBlocked} unit(s) blocked{" "}
-                        <span className="ml-1 text-[#4D8CF5]">
-                          ({entryRangeLabel})
-                        </span>
-                      </p>
-
-                      <p className="text-xs text-[#1E3A8A]/70 mt-1">
-                        Total blocked: {totalBlockedForDate} of {totalRoomUnits} units{" "}
-                        {totalBlockedForDate >= totalRoomUnits
-                          ? " (Fully blocked - 0 available)"
-                          : `(${remainingAvailable} available)`}
-                      </p>
-
-                      <p className="text-xs text-[#1E3A8A]/70 mt-2">
-                        <span className="font-medium">Reason:</span> {entry.reason}
-                      </p>
-
-                      <p className="text-xs text-[#1E3A8A]/40 mt-1">
-                        <span className="font-medium">Blocked on:</span>{" "}
-                        {entry.createdAtFormatted}
-                      </p>
-                    </div>
-
-                    <div className="ml-2 flex items-center gap-2 flex-shrink-0">
+                  <div className="flex justify-between items-center mb-4 pb-2 border-b border-[#4D8CF5]/10">
+                    <h3 className="text-xs font-bold text-[#1E3A8A] uppercase tracking-wider flex items-center gap-2">
+                      <i className="fas fa-door-closed text-[#4D8CF5]"></i>
+                      {formatDateDisplay(entry.date)}
+                    </h3>
+                    <div className="flex items-center gap-2">
                       <button
                         type="button"
                         onClick={() => {
@@ -1049,7 +1027,6 @@ export default function AdminCalendar() {
                       >
                         <i className="fas fa-edit text-xs"></i>
                       </button>
-
                       <button
                         type="button"
                         onClick={() => setRemoveConfirm(entry)}
@@ -1060,6 +1037,54 @@ export default function AdminCalendar() {
                         <i className="fas fa-trash-alt text-xs"></i>
                       </button>
                     </div>
+                  </div>
+ 
+                  <div className="grid grid-cols-2 gap-4">
+                    <div className="space-y-3">
+                      <div>
+                        <p className="text-[10px] text-[#1E3A8A]/50 uppercase font-bold tracking-wider mb-1">Blocked Units</p>
+                        <div className="flex items-center gap-2">
+                          <i className="fas fa-door-closed text-[#4D8CF5]/60 text-xs"></i>
+                          <p className="text-sm font-semibold text-[#1E3A8A]">{entry.unitsBlocked} unit(s)</p>
+                        </div>
+                      </div>
+                      <div>
+                        <p className="text-[10px] text-[#1E3A8A]/50 uppercase font-bold tracking-wider mb-1">Time Range</p>
+                        <div className="flex items-center gap-2">
+                          <i className="fas fa-clock text-[#4D8CF5]/60 text-xs"></i>
+                          <p className="text-[11px] font-semibold text-[#1E3A8A]">{entryRangeLabel}</p>
+                        </div>
+                      </div>
+                    </div>
+                    <div className="space-y-3 border-l border-[#4D8CF5]/10 pl-4">
+                      <div>
+                        <p className="text-[10px] text-[#1E3A8A]/50 uppercase font-bold tracking-wider mb-1">Total Blocked</p>
+                        <p className="text-sm font-bold text-[#1E3A8A]">
+                          {totalBlockedForDate} of {totalRoomUnits}
+                        </p>
+                      </div>
+                      <div>
+                        <p className="text-[10px] text-[#1E3A8A]/50 uppercase font-bold tracking-wider mb-1">Availability</p>
+                        <p className={`text-[11px] font-bold ${remainingAvailable > 0 ? 'text-green-600' : 'text-red-500'}`}>
+                          {remainingAvailable > 0 ? `${remainingAvailable} available` : 'Fully blocked'}
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+ 
+                  {entry.reason && (
+                    <div className="mt-4 pt-3 border-t border-[#4D8CF5]/5">
+                      <p className="text-[10px] text-[#1E3A8A]/50 uppercase font-bold tracking-wider mb-1">Note / Reason</p>
+                      <p className="text-xs text-[#1E3A8A]/80 bg-[#4D8CF5]/5 p-2 rounded-lg border border-[#4D8CF5]/10">
+                        {entry.reason}
+                      </p>
+                    </div>
+                  )}
+                  
+                  <div className="mt-4 text-right">
+                    <p className="text-[12px] text-[#1E3A8A]/40">
+                      Blocked on: {entry.createdAtFormatted}
+                    </p>
                   </div>
                 </div>
               );
@@ -1072,41 +1097,42 @@ export default function AdminCalendar() {
 )}
 
       {removeConfirm && (
-        <div
-          className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/50"
-          role="dialog"
-          aria-modal="true"
-          aria-labelledby="remove-block-title"
-        >
-          <div className="bg-white rounded-2xl shadow-xl max-w-md w-full p-6 border border-ocean-light/10">
-            <h4 id="remove-block-title" className="text-lg font-bold text-textPrimary mb-2">
-              Remove blocked date?
-            </h4>
-            <p className="text-sm text-textSecondary mb-1">
-              {formatDateDisplay(removeConfirm.date)}
-            </p>
-            <p className="text-sm text-textSecondary mb-1">
-              Reason: {removeConfirm.reason}
-            </p>
-            <p className="text-sm text-textPrimary mb-6">
-              This will restore availability for this block entry. Other blocks on the same date will remain.
-            </p>
-            <div className="flex gap-3 justify-end">
-              <button
-                type="button"
-                onClick={() => setRemoveConfirm(null)}
-                disabled={actionLoading}
-                className="px-4 py-2 rounded-xl border border-ocean-light/20 text-textSecondary text-sm font-medium hover:bg-ocean-ice transition disabled:opacity-50"
+        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-[200] p-4">
+          <div className="bg-white rounded-2xl w-full max-w-sm p-6 shadow-2xl animate-scaleIn">
+            <div className="text-center mb-5">
+              <div className="w-14 h-14 mx-auto mb-3 rounded-full bg-red-100 flex items-center justify-center">
+                <i className="fas fa-trash-alt text-red-500 text-2xl"></i>
+              </div>
+              <h3 className="text-lg font-bold text-textPrimary mb-2">Remove Blocked Date?</h3>
+              <div className="space-y-1 mb-4">
+                <p className="text-textSecondary text-sm font-medium">
+                  {formatDateDisplay(removeConfirm.date)}
+                </p>
+                {removeConfirm.reason && (
+                  <p className="text-textSecondary text-xs">
+                    Reason: {removeConfirm.reason}
+                  </p>
+                )}
+              </div>
+              <p className="text-textSecondary text-sm">
+                This will restore availability for this block entry. This action cannot be undone.
+              </p>
+            </div>
+            <div className="flex gap-3 justify-center">
+              <button 
+                onClick={() => setRemoveConfirm(null)} 
+                disabled={actionLoading} 
+                className="px-5 py-2 border border-ocean-light/20 rounded-xl text-textSecondary text-sm font-medium hover:bg-ocean-ice transition-all duration-300 disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 Cancel
               </button>
-              <button
-                type="button"
-                onClick={() => handleRemoveBlock(removeConfirm.id)}
-                disabled={actionLoading}
-                className="px-4 py-2 rounded-xl bg-red-600 hover:bg-red-700 text-white text-sm font-medium transition disabled:opacity-50"
+              <button 
+                onClick={() => handleRemoveBlock(removeConfirm.id)} 
+                disabled={actionLoading} 
+                className="px-5 py-2 bg-gradient-to-r from-red-500 to-red-600 rounded-xl text-white text-sm font-medium hover:shadow-lg hover:-translate-y-0.5 transition-all duration-300 disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:translate-y-0 flex items-center gap-2"
               >
-                {actionLoading ? <i className="fas fa-spinner fa-spin"></i> : 'Remove'}
+                {actionLoading && <i className="fas fa-spinner fa-spin"></i>}
+                {actionLoading ? 'Removing...' : 'Remove Block'}
               </button>
             </div>
           </div>
@@ -1118,6 +1144,11 @@ export default function AdminCalendar() {
           from { transform: translateX(100%); opacity: 0; }
           to { transform: translateX(0); opacity: 1; }
         }
+        @keyframes scaleIn {
+          from { transform: scale(0.95); opacity: 0; }
+          to { transform: scale(1); opacity: 1; }
+        }
+        .animate-scaleIn { animation: scaleIn 0.2s ease-out; }
         .animate-slideInRight { animation: slideInRight 0.3s ease-out; }
       `}</style>
     </div>

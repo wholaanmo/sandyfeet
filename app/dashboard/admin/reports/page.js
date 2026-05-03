@@ -994,15 +994,20 @@ const processData = (bookings, dayTours) => {
   });
 
   // Day tours – unchanged
-  dayTours.forEach(tour => {
-    if (tour.status === 'completed') {
-      const seniors = tour.seniors || 0;
-      const adults = tour.adults || 0;
-      const kids = tour.kids || 0;
-      dayTourGuestCount += seniors + adults + kids;
-      dayTourRevenueTotal += tour.totalPrice || 0;
-    }
-  });
+// Day tours – using effective total (manualTotalPrice > totalPrice)
+dayTours.forEach(tour => {
+  if (tour.status === 'completed') {
+    const seniors = tour.seniors || 0;
+    const adults = tour.adults || 0;
+    const kids = tour.kids || 0;
+    dayTourGuestCount += seniors + adults + kids;
+
+    const effectiveTotal = (tour.manualTotalPrice !== undefined && tour.manualTotalPrice !== null)
+      ? tour.manualTotalPrice
+      : (tour.totalPrice || 0);
+    dayTourRevenueTotal += effectiveTotal;
+  }
+});
 
   const totalRevenueCombined = totalRoomRevenue + dayTourRevenueTotal;
   setTotalRevenue(totalRevenueCombined);
@@ -1107,35 +1112,38 @@ const processData = (bookings, dayTours) => {
   });
 
   // Day tours monthly breakdown (unchanged)
-  dayTours.forEach(tour => {
-    if (tour.status === 'completed') {
-      const createdAt = tour.createdAt?.toDate ? tour.createdAt.toDate() : new Date(tour.createdAt);
-      const year = createdAt.getFullYear();
-      const month = createdAt.getMonth();
-      yearsSet.add(year);
+// Day tours monthly breakdown (with effective total)
+dayTours.forEach(tour => {
+  if (tour.status === 'completed') {
+    const createdAt = tour.createdAt?.toDate ? tour.createdAt.toDate() : new Date(tour.createdAt);
+    const year = createdAt.getFullYear();
+    const month = createdAt.getMonth();
+    yearsSet.add(year);
 
-      if (!yearlyMonthlyRevenue[year]) {
-        yearlyMonthlyRevenue[year] = {
-          roomRevenue: new Array(12).fill(0),
-          dayTourRevenue: new Array(12).fill(0),
-          total: new Array(12).fill(0)
-        };
-      }
-      if (!yearlyMonthlyTrend[year]) {
-        yearlyMonthlyTrend[year] = {
-          roomBookings: new Array(12).fill(0),
-          dayTourGuests: new Array(12).fill(0)
-        };
-      }
-
-      const totalPrice = tour.totalPrice || 0;
-      yearlyMonthlyRevenue[year].dayTourRevenue[month] += totalPrice;
-      yearlyMonthlyRevenue[year].total[month] += totalPrice;
-
-      const guests = (tour.seniors || 0) + (tour.adults || 0) + (tour.kids || 0);
-      yearlyMonthlyTrend[year].dayTourGuests[month] += guests;
+    if (!yearlyMonthlyRevenue[year]) {
+      yearlyMonthlyRevenue[year] = {
+        roomRevenue: new Array(12).fill(0),
+        dayTourRevenue: new Array(12).fill(0),
+        total: new Array(12).fill(0)
+      };
     }
-  });
+    if (!yearlyMonthlyTrend[year]) {
+      yearlyMonthlyTrend[year] = {
+        roomBookings: new Array(12).fill(0),
+        dayTourGuests: new Array(12).fill(0)
+      };
+    }
+
+    const effectiveTotal = (tour.manualTotalPrice !== undefined && tour.manualTotalPrice !== null)
+      ? tour.manualTotalPrice
+      : (tour.totalPrice || 0);
+    yearlyMonthlyRevenue[year].dayTourRevenue[month] += effectiveTotal;
+    yearlyMonthlyRevenue[year].total[month] += effectiveTotal;
+
+    const guests = (tour.seniors || 0) + (tour.adults || 0) + (tour.kids || 0);
+    yearlyMonthlyTrend[year].dayTourGuests[month] += guests;
+  }
+});
 
   // Prepare chart data
   const roomTypeChartData = {};
