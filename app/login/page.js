@@ -7,6 +7,7 @@ import { useRouter } from 'next/navigation';
 import { auth, db } from '../../lib/firebase';
 import { signInWithEmailAndPassword, sendEmailVerification } from 'firebase/auth';
 import { doc, getDoc, updateDoc } from 'firebase/firestore';
+import { getDeviceId } from '../../lib/deviceFingerprint';
 
 export default function Login() {
     const [email, setEmail] = useState('');
@@ -19,7 +20,14 @@ export default function Login() {
     const [resendLoading, setResendLoading] = useState(false);
     const [showResendOption, setShowResendOption] = useState(false);
     const [pendingEmail, setPendingEmail] = useState('');
-    
+    const [showDeviceModal, setShowDeviceModal] = useState(false);
+const [deviceCode, setDeviceCode] = useState('');
+const [deviceError, setDeviceError] = useState('');
+const [deviceLoading, setDeviceLoading] = useState(false);
+const [pendingDeviceUid, setPendingDeviceUid] = useState('');
+const [pendingDeviceId, setPendingDeviceId] = useState('');
+const [pendingDeviceEmail, setPendingDeviceEmail] = useState('');
+
     // Forgot password modal states
     const [showForgotModal, setShowForgotModal] = useState(false);
     const [resetEmail, setResetEmail] = useState('');
@@ -137,7 +145,16 @@ const completeLogin = async (uid) => {
     const status = userData.status;
     
     const sessionToken = generateSessionToken();
-    const sessionExpiry = new Date().getTime() + (24 * 60 * 60 * 1000); // 24 hours
+let sessionExpiry;
+let cookieMaxAge;
+if (rememberMe) {
+const TEN_YEARS_MS = 10 * 365 * 24 * 60 * 60 * 1000;
+sessionExpiry = Date.now() + TEN_YEARS_MS;
+cookieMaxAge = 315360000; // 10 years in seconds
+ } else {
+  sessionExpiry = Date.now() + (24 * 60 * 60 * 1000);
+  cookieMaxAge = 86400;
+ }
     
     // Store in localStorage
     localStorage.setItem('userType', role);
@@ -152,9 +169,9 @@ const completeLogin = async (uid) => {
     }
     
     // Also set cookies for middleware
-    document.cookie = `sessionToken=${sessionToken}; path=/; max-age=86400; SameSite=Lax`;
-    document.cookie = `userType=${role}; path=/; max-age=86400; SameSite=Lax`;
-    document.cookie = `sessionExpiry=${sessionExpiry}; path=/; max-age=86400; SameSite=Lax`;
+document.cookie = `sessionToken=${sessionToken}; path=/; max-age=${cookieMaxAge}; SameSite=Lax`;
+document.cookie = `userType=${role}; path=/; max-age=${cookieMaxAge}; SameSite=Lax`;
+document.cookie = `sessionExpiry=${sessionExpiry}; path=/; max-age=${cookieMaxAge}; SameSite=Lax`;
     
     if (role === 'admin') {
         router.push('/dashboard/admin/overview');
@@ -236,6 +253,33 @@ const loginUser = async (e) => {
             return;
         }
         
+        // ---------- DEVICE VERIFICATION (new code) ----------
+        const deviceId = getDeviceId();
+        const checkRes = await fetch('/api/auth/check-device', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ email, uid, deviceId })
+        });
+        const checkData = await checkRes.json();
+
+        if (!checkRes.ok) {
+            setError(checkData.error || 'Device verification failed');
+            await auth.signOut();
+            setLoading(false);
+            return;
+        }
+
+        if (!checkData.recognised) {
+            // New device – show modal and wait for code
+            setPendingDeviceUid(uid);
+            setPendingDeviceId(deviceId);
+            setPendingDeviceEmail(email);
+            setShowDeviceModal(true);
+            setLoading(false);
+            return;
+        }
+
+        // Recognised device – proceed with login
         await completeLogin(uid);
         
     } catch (err) {
@@ -437,60 +481,72 @@ const loginUser = async (e) => {
             
             {/* Forgot Password Modal */}
             {showForgotModal && (
-                <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/50 p-4 backdrop-blur-sm animate-fadeIn" onClick={() => setShowForgotModal(false)}>
-                    <div className="w-full max-w-md overflow-hidden rounded-3xl bg-white shadow-2xl animate-slideUp" onClick={(e) => e.stopPropagation()}>
-                        <div className="bg-[linear-gradient(135deg,#174FCC_0%,#2169F3_50%,#7AAAF8_100%)] p-5 text-white">
-                            <div className="flex items-center justify-between">
-                                <h3 className="font-playfair text-xl font-semibold">
-                                    <i className="fas fa-key mr-2"></i> Reset Password
-                                </h3>
-                                <button
-                                    className="flex h-9 w-9 items-center justify-center rounded-full bg-white/20 text-white transition hover:bg-white/30"
-                                    onClick={() => setShowForgotModal(false)}
-                                >
-                                    <i className="fas fa-times text-sm"></i>
-                                </button>
+                <div className="fixed inset-0 z-[100] flex items-center justify-center bg-slate-900/40 p-4 backdrop-blur-sm animate-fadeIn" onClick={() => setShowForgotModal(false)}>
+                    <div className="w-full max-w-md overflow-hidden rounded-[2rem] bg-white shadow-[0_32px_64px_-16px_rgba(0,0,0,0.12)] animate-slideUp" onClick={(e) => e.stopPropagation()}>
+                        <div className="relative p-8 pb-0">
+                            <button
+                                className="absolute right-6 top-6 flex h-8 w-8 items-center justify-center rounded-md bg-ocean-ice text-neutral hover:bg-ocean-light/20 hover:text-textPrimary transition-all duration-200"
+                                onClick={() => setShowForgotModal(false)}
+                            >
+                                <i className="fas fa-times text-xs"></i>
+                            </button>
+
+                            <div className="mb-6">
+    <div className="flex items-center gap-3 mb-4">
+        <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-ocean-ice text-ocean-mid">
+            <i className="fas fa-key text-xl"></i>
+        </div>
+        <h3 className="font-playfair text-2xl font-bold text-slate-900">
+            Reset Password
+        </h3>
+    </div>
+                        <p className="mt-2 text-sm text-slate-500">
+                                    Enter your email address and we'll send you a link to reset your password.
+                                </p>
                             </div>
-                            <p className="mt-2 text-xs text-white/80">
-                                We will send a reset link to your email address.
-                            </p>
                         </div>
 
-                        <div className="p-6">
+                        <div className="p-8 pt-6">
                             {resetMessage && (
-                                <div className="mb-4 rounded-2xl border border-green-100 bg-green-50/80 p-3 text-xs text-green-700">
-                                    <i className="fas fa-check-circle mr-2 text-green-500"></i>
-                                    {resetMessage}
+                                <div className="mb-6 rounded-2xl border border-green-100 bg-green-50/50 p-4 text-xs text-green-700">
+                                    <div className="flex items-center gap-2">
+                                        <i className="fas fa-check-circle text-green-500"></i>
+                                        <span className="font-medium">{resetMessage}</span>
+                                    </div>
                                 </div>
                             )}
 
                             {resetError && (
-                                <div className="mb-4 rounded-2xl border border-red-100 bg-red-50/80 p-3 text-xs text-red-600">
-                                    <i className="fas fa-exclamation-circle mr-2 text-red-500"></i>
-                                    {resetError}
+                                <div className="mb-6 rounded-2xl border border-red-100 bg-red-50/50 p-4 text-xs text-red-600">
+                                    <div className="flex items-center gap-2">
+                                        <i className="fas fa-exclamation-circle text-red-500"></i>
+                                        <span className="font-medium">{resetError}</span>
+                                    </div>
                                 </div>
                             )}
 
                             <form onSubmit={handleResetPassword}>
-                                <label className="text-xs font-medium text-ocean-mid/70">Email address</label>
-                                <div className="relative mt-2 mb-6">
-                                    <div className="absolute left-4 top-1/2 -translate-y-1/2 text-ocean-light/50">
-                                        <i className="fas fa-envelope text-sm"></i>
+                                <div className="mb-8">
+                                    <label className="text-xs font-semibold uppercase tracking-wider text-slate-500">Email address</label>
+                                    <div className="relative mt-2">
+                                        <div className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400">
+                                            <i className="fas fa-envelope text-sm"></i>
+                                        </div>
+                                        <input
+                                            type="email"
+                                            placeholder="name@company.com"
+                                            value={resetEmail}
+                                            onChange={(e) => setResetEmail(e.target.value)}
+                                            disabled={resetLoading || resetMessage}
+                                            className="w-full rounded-2xl border border-slate-200 bg-white py-3 pl-11 pr-4 text-sm text-slate-900 placeholder:text-slate-400 shadow-sm transition focus:border-ocean-mid focus:outline-none focus:ring-4 focus:ring-ocean-mid/10 disabled:bg-slate-50"
+                                        />
                                     </div>
-                                    <input
-                                        type="email"
-                                        placeholder="name@company.com"
-                                        value={resetEmail}
-                                        onChange={(e) => setResetEmail(e.target.value)}
-                                        disabled={resetLoading || resetMessage}
-                                        className="w-full rounded-2xl border border-ocean-light/20 bg-white/90 py-3 pl-11 pr-4 text-sm text-ocean-deep placeholder:text-ocean-light/50 shadow-sm focus:border-ocean-light focus:outline-none focus:ring-2 focus:ring-ocean-light/20"
-                                    />
                                 </div>
 
-                                <div className="flex gap-3">
+                                <div className="flex flex-col gap-3 sm:flex-row">
                                     <button
                                         type="button"
-                                        className="flex-1 rounded-2xl border border-ocean-light/30 py-2 text-sm font-medium text-ocean-mid transition hover:border-ocean-light/60 hover:bg-ocean-ice/60"
+                                        className="order-2 flex-1 rounded-2xl bg-slate-50 py-3 text-sm font-semibold text-slate-600 transition hover:bg-slate-100 sm:order-1"
                                         onClick={() => setShowForgotModal(false)}
                                         disabled={resetLoading}
                                     >
@@ -498,7 +554,7 @@ const loginUser = async (e) => {
                                     </button>
                                     <button
                                         type="submit"
-                                        className="flex-1 rounded-2xl bg-ocean-mid py-2 text-sm font-semibold text-white shadow-md transition hover:bg-ocean-light disabled:opacity-60"
+                                        className="order-1 flex-[1.5] rounded-2xl bg-ocean-mid py-3 text-sm font-semibold text-white shadow-lg shadow-ocean-mid/20 transition hover:bg-ocean-deep hover:shadow-ocean-mid/30 disabled:opacity-60 sm:order-2"
                                         disabled={resetLoading || resetMessage}
                                     >
                                         {resetLoading ? (
@@ -507,7 +563,7 @@ const loginUser = async (e) => {
                                             </>
                                         ) : (
                                             <>
-                                                <i className="fas fa-paper-plane mr-2"></i> Send Reset Link
+                                                <i className="fas fa-paper-plane mr-2"></i> Send Link
                                             </>
                                         )}
                                     </button>
@@ -517,6 +573,96 @@ const loginUser = async (e) => {
                     </div>
                 </div>
             )}
+
+            {/* Device Verification Modal */}
+{showDeviceModal && (
+    <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/50 p-4 backdrop-blur-sm animate-fadeIn">
+        <div className="w-full max-w-md rounded-3xl bg-white shadow-2xl p-6 animate-slideUp">
+            <div className="text-center mb-6">
+                <div className="w-16 h-16 bg-ocean-mid/10 rounded-full flex items-center justify-center mx-auto mb-4">
+                    <i className="fas fa-shield-alt text-2xl text-ocean-mid"></i>
+                </div>
+                <h3 className="font-playfair text-xl font-semibold text-ocean-deep">Verify New Device</h3>
+                <p className="text-sm text-ocean-mid/70 mt-2">
+                    We've sent a 6‑digit code to <strong>{pendingDeviceEmail}</strong>.
+                    Enter it below to continue.
+                </p>
+            </div>
+
+            {deviceError && (
+                <div className="mb-4 rounded-2xl border border-red-100 bg-red-50/80 p-3 text-xs text-red-600">
+                    <i className="fas fa-exclamation-circle mr-2"></i>{deviceError}
+                </div>
+            )}
+
+            <input
+                type="text"
+                inputMode="numeric"
+                maxLength={6}
+                placeholder="Enter 6‑digit code"
+                value={deviceCode}
+                onChange={(e) => setDeviceCode(e.target.value.replace(/\D/g, ''))}
+                className="w-full rounded-2xl border border-slate-200 py-3 px-4 text-center text-lg tracking-widest font-mono focus:border-ocean-light focus:outline-none focus:ring-2 focus:ring-ocean-light/20"
+                disabled={deviceLoading}
+            />
+
+            <div className="flex gap-3 mt-6">
+                <button
+                    onClick={() => {
+                        setShowDeviceModal(false);
+                        setLoading(false);
+                        auth.signOut(); // abort login
+                    }}
+                    className="flex-1 rounded-2xl border border-ocean-light/30 py-2 text-sm font-medium text-ocean-mid"
+                    disabled={deviceLoading}
+                >
+                    Cancel
+                </button>
+                <button
+                    onClick={async () => {
+                        if (deviceCode.length !== 6) {
+                            setDeviceError('Enter the 6‑digit code');
+                            return;
+                        }
+                        setDeviceLoading(true);
+                        setDeviceError('');
+                        try {
+                            const verifyRes = await fetch('/api/auth/verify-device', {
+                                method: 'POST',
+                                headers: { 'Content-Type': 'application/json' },
+                                body: JSON.stringify({
+                                    email: pendingDeviceEmail,
+                                    code: deviceCode,
+                                    deviceId: pendingDeviceId,
+                                    userAgent: navigator.userAgent,
+                                    ip: '', // IP will be taken from request headers on server
+                                    uid: pendingDeviceUid,
+                                }),
+                            });
+                            const verifyData = await verifyRes.json();
+                            if (!verifyRes.ok) {
+                                setDeviceError(verifyData.error || 'Verification failed');
+                                setDeviceLoading(false);
+                                return;
+                            }
+                            // Verified – complete login
+                            setShowDeviceModal(false);
+                            await completeLogin(pendingDeviceUid);
+                        } catch (err) {
+                            console.error(err);
+                            setDeviceError('An error occurred. Please try again.');
+                            setDeviceLoading(false);
+                        }
+                    }}
+                    disabled={deviceCode.length !== 6 || deviceLoading}
+                    className="flex-1 rounded-2xl bg-ocean-mid py-2 text-sm font-semibold text-white shadow-md hover:bg-ocean-light disabled:opacity-60"
+                >
+                    {deviceLoading ? <i className="fas fa-spinner fa-spin"></i> : 'Verify'}
+                </button>
+            </div>
+        </div>
+    </div>
+)}
             
             <style jsx>{`
                 @keyframes fadeIn {

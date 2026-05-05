@@ -46,7 +46,7 @@ function VerifyStaffPageContent() {
         if (querySnapshot.empty) {
           setVerificationStatus({
             success: false,
-            message: 'Invalid or expired verification link. Please request a new verification email.',
+            message: 'Invalid or expired verification link.',
             error: true
           });
           setVerifying(false);
