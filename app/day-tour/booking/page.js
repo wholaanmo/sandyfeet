@@ -1,4 +1,4 @@
-﻿// app/day-tour/booking/page.js
+// app/day-tour/booking/page.js
 'use client';
 
 import { Suspense, useState, useEffect } from 'react';
@@ -1223,10 +1223,10 @@ await generateQrToken(generatedBookingId);
       {/* Left column – 80% width */}
       <div className="flex flex-col gap-4">
         {/* Row 1: Adults + Kids side by side */}
-        <div className="grid grid-cols-2 gap-4">
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
           {/* Adults */}
           <div className="rounded-xl border border-ocean-light/20 bg-gradient-to-br from-white to-ocean-ice/35 p-4">
-            <label className="text-xs uppercase tracking-[0.16em] font-bold text-textSecondary">Adults (16+) *</label>
+            <label className="text-xs uppercase tracking-[0.16em] font-bold text-textSecondary">Adults (16+) </label>
             <div className="mt-2 relative">
               <i className="fas fa-user absolute left-3 top-1/2 -translate-y-1/2 text-ocean-mid text-sm"></i>
               <input
@@ -1260,7 +1260,7 @@ await generateQrToken(generatedBookingId);
         {/* Row 2: Booking Summary (full width) */}
         <div className="rounded-xl border border-ocean-light/20 bg-gradient-to-r from-ocean-ice/80 to-blue-white/80 p-4 sm:p-5">
           <h3 className="text-base font-semibold text-textPrimary mb-3">Booking Summary</h3>
-          <div className="grid grid-cols-3 gap-3">
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
             <div className="rounded-lg bg-white/80 border border-ocean-light/15 p-3">
               <p className="text-[11px] uppercase tracking-wide text-textSecondary">Total Guests</p>
               <p className="text-xl font-bold text-textPrimary mt-1">{totalGuests}</p>
@@ -1299,7 +1299,7 @@ className="w-full px-3 py-2.5 h-46 rounded-xl border border-ocean-light/25 bg-wh
       <p className="text-[12px] text-rose-600/80 mt-3">{errors.guests}</p>
     )}
 
-    <div className="flex gap-3 mt-6">
+    <div className="flex flex-col-reverse sm:flex-row gap-3 mt-6">
       <button
         onClick={handlePreviousStep}
         className="flex-1 h-12 border border-ocean-light/25 rounded-xl text-textSecondary font-medium bg-white hover:bg-ocean-ice transition-all duration-300"
@@ -1376,7 +1376,7 @@ className="w-full px-3 py-2.5 h-46 rounded-xl border border-ocean-light/25 bg-wh
                     </div>
                   </div>
                   
-                  <div className="flex gap-3 mt-6">
+                  <div className="flex flex-col-reverse sm:flex-row gap-3 mt-6">
                     <button
                       onClick={handlePreviousStep}
                       className="flex-1 py-3 border border-ocean-light/20 rounded-xl text-textSecondary font-medium hover:bg-ocean-ice transition-all duration-300"
@@ -1516,7 +1516,7 @@ className="w-full px-3 py-2.5 h-46 rounded-xl border border-ocean-light/25 bg-wh
                     {renderPaymentNotesCard()}
                   </div>
 
-                  <div className="flex gap-3 mt-6">
+                  <div className="flex flex-col-reverse sm:flex-row gap-3 mt-6">
                     <button
                       onClick={handlePreviousStep}
                       className="flex-1 py-3 border border-ocean-light/20 rounded-xl text-textSecondary font-medium hover:bg-ocean-ice transition-all duration-300"
@@ -1657,7 +1657,7 @@ className="w-full px-3 py-2.5 h-46 rounded-xl border border-ocean-light/25 bg-wh
                     </div>
 
 
-                    <div className="flex gap-3">
+                    <div className="flex flex-col-reverse sm:flex-row gap-3">
                       <button
                         onClick={() => router.push('/day-tour')}
                         className="flex-1 py-3 border border-ocean-light/20 rounded-xl text-textSecondary font-medium hover:bg-ocean-ice transition"

@@ -930,7 +930,7 @@ const generateQrToken = async (bookingId) => {
                     </div>
                   </div>
                   
-                  <div className="flex gap-3 mt-6">
+                  <div className="flex flex-col-reverse sm:flex-row gap-3 mt-6">
                     <button
                       onClick={handlePreviousStep}
                       className="flex-1 py-3 border border-gray-200 rounded-xl text-gray-600 font-semibold hover:bg-gray-50 transition-all duration-300"
@@ -1356,7 +1356,7 @@ const generateQrToken = async (bookingId) => {
                     </div>
                   )}
                   
-                  <div className="flex gap-3 mt-6">
+                  <div className="flex flex-col-reverse sm:flex-row gap-3 mt-6">
                     <button
                       onClick={handlePreviousStep}
                       className="flex-1 py-3 border border-gray-200 rounded-xl text-gray-600 font-semibold hover:bg-gray-50 transition-all duration-300"
@@ -1456,7 +1456,7 @@ const generateQrToken = async (bookingId) => {
 )}
 
 
-                  <div className="flex gap-3">
+                  <div className="flex flex-col-reverse sm:flex-row gap-3 mt-6">
                     <button
                       onClick={() => router.push('/rooms')}
                       className="flex-1 py-3 border border-gray-200 rounded-xl text-gray-600 font-semibold hover:bg-gray-50 transition"

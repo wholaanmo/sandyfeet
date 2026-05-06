@@ -27,10 +27,10 @@ export default function DayTourPage() {
   const [dateError, setDateError] = useState('');
   const calendarPopoverRef = useRef(null);
   const calendarTriggerRef = useRef(null);
-  
+
   // Use dynamic maxAllowedGuests from dayTour.maxCapacity, fallback to Infinity if not set
   const maxAllowedGuests = dayTour?.maxCapacity || Infinity;
-  
+
   const adultsCount = Number.isNaN(parseInt(adults, 10)) ? 0 : parseInt(adults, 10);
   const kidsCount = Number.isNaN(parseInt(kids, 10)) ? 0 : parseInt(kids, 10);
 
@@ -215,7 +215,7 @@ export default function DayTourPage() {
   useEffect(() => {
     const activitiesRef = collection(db, 'activities');
     const activitiesQuery = query(activitiesRef, where('archived', '==', false), orderBy('createdAt', 'desc'));
-    
+
     const unsubscribeActivities = onSnapshot(activitiesQuery, (querySnapshot) => {
       const activitiesList = [];
       querySnapshot.forEach((docSnap) => {
@@ -242,7 +242,7 @@ export default function DayTourPage() {
       });
       const currentTour = tours[0] || null;
       setDayTour(currentTour);
-      
+
       // Update gallery images from the day tour's images array
       if (currentTour && currentTour.images && currentTour.images.length > 0) {
         setGalleryImages(currentTour.images);
@@ -322,7 +322,7 @@ export default function DayTourPage() {
       setDateError('');
       return;
     }
-    
+
     if (!date) {
       setDateError('');
       return;
@@ -339,10 +339,10 @@ export default function DayTourPage() {
     }
 
     const totalGuests = adultsCount + kidsCount;
-    
+
     // Use dynamic maxAllowedGuests from dayTour
     const effectiveMaxAllowed = dayTour.maxCapacity || Infinity;
-    
+
     if (adultsCount > effectiveMaxAllowed || kidsCount > effectiveMaxAllowed || totalGuests > effectiveMaxAllowed) {
       setDateError(`We only allow up to ${effectiveMaxAllowed === Infinity ? 'unlimited' : effectiveMaxAllowed} guests per booking.`);
       return;
@@ -393,7 +393,7 @@ export default function DayTourPage() {
 
     const totalGuests = adultsCount + kidsCount;
     const effectiveMaxAllowed = dayTour.maxCapacity || Infinity;
-    
+
     if (adultsCount > effectiveMaxAllowed || kidsCount > effectiveMaxAllowed || totalGuests > effectiveMaxAllowed) {
       setDateError(`We only allow up to ${effectiveMaxAllowed === Infinity ? 'unlimited' : effectiveMaxAllowed} guests per booking.`);
       return;
@@ -462,17 +462,17 @@ export default function DayTourPage() {
     <GuestLayout>
       <div className="min-h-screen bg-[#FAFAFA] pt-32 pb-32">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 space-y-12">
-          
+
           {/* HEADER & BOOKING SECTION */}
           <div className="flex flex-col lg:flex-row bg-white p-8 sm:p-10 rounded-[2.5rem] shadow-[0_15px_40px_rgba(0,0,0,0.04)] border border-ocean-light/20 gap-8 lg:gap-12">
-            
+
             {/* Left side - Description and Inclusions with balanced height */}
             <div className="flex-1 flex flex-col">
               <div className="mb-6">
                 <span className="inline-block py-1 px-4 rounded-full bg-ocean-ice border border-ocean-light/30 text-ocean-mid text-[10px] font-bold tracking-[0.25em] uppercase mb-3">Sandyfeet Resort</span>
                 <h1 className="text-4xl sm:text-5xl font-playfair font-bold text-textPrimary">Book Your Day Tour</h1>
               </div>
-              
+
               {/* Dynamic Description from Admin - Minimalist design */}
               {dayTour && dayTour.description && (
                 <div className="mb-8">
@@ -483,7 +483,7 @@ export default function DayTourPage() {
                   </div>
                 </div>
               )}
-              
+
               {/* Dynamic Inclusions from Admin - Minimalist design */}
               {dayTour && dayTour.inclusions && dayTour.inclusions.length > 0 && (
                 <div className="mt-auto">
@@ -501,28 +501,28 @@ export default function DayTourPage() {
                 </div>
               )}
             </div>
-            
+
             {/* Right side - Date Container (50% width) with equal height */}
-<div className="w-full lg:w-1/2 flex">
-  {(!dayTour || dayTour.archived === true || dayTour.availability === 'unavailable') ? (
-    /* When day tour is archived, not found, or marked unavailable - hide the date selector */
-    <div className="w-full bg-gradient-to-br from-gray-50 to-white p-6 rounded-[2rem] border border-gray-200/60 text-center flex items-center justify-center shadow-sm hover:shadow-md transition-all duration-300">
-      <div className="flex flex-col items-center gap-3">
+            <div className="w-full lg:w-1/2 flex">
+              {(!dayTour || dayTour.archived === true || dayTour.availability === 'unavailable') ? (
+                /* When day tour is archived, not found, or marked unavailable - hide the date selector */
+                <div className="w-full bg-gradient-to-br from-gray-50 to-white p-6 rounded-[2rem] border border-gray-200/60 text-center flex items-center justify-center shadow-sm hover:shadow-md transition-all duration-300">
+                  <div className="flex flex-col items-center gap-3">
 
-<div className="w-14 h-14 rounded-full bg-gray-100 flex items-center justify-center shadow-sm border border-gray-200">
-  <i className="fas fa-calendar-times text-gray-400 text-2xl"></i>
-</div>
+                    <div className="w-14 h-14 rounded-full bg-gray-100 flex items-center justify-center shadow-sm border border-gray-200">
+                      <i className="fas fa-calendar-times text-gray-400 text-2xl"></i>
+                    </div>
 
-        <p className="text-gray-600 font-medium text-lg">
-          Booking is currently unavailable.
-        </p>
+                    <p className="text-gray-600 font-medium text-lg">
+                      Booking is currently unavailable.
+                    </p>
 
-        <p className="text-xs text-gray-400">
-          Please check back later.
-        </p>
+                    <p className="text-xs text-gray-400">
+                      Please check back later.
+                    </p>
 
-      </div>
-    </div>
+                  </div>
+                </div>
               ) : (
                 <form onSubmit={handleBookingStart} className="w-full bg-ocean-ice/30 p-4 sm:p-6 rounded-[2rem] border border-ocean-light/30">
                   {/* Date Picker */}
@@ -689,7 +689,7 @@ export default function DayTourPage() {
                       Proceed
                       <i className="fas fa-arrow-right transition-transform group-hover:translate-x-1"></i>
                     </button>
-                    
+
                     <div className="flex items-center gap-3 bg-gradient-to-r from-ocean-mid/10 to-ocean-light/10 rounded-xl px-4 py-2 shadow-sm">
                       <div className="text-center">
                         <p className="text-[10px] uppercase tracking-[0.1em] text-textSecondary">Adult</p>
@@ -711,11 +711,11 @@ export default function DayTourPage() {
           {(!loadingActivities && displayedActivities.length > 0) && (
             <div className="pt-2">
               <div className="flex items-center gap-6 py-4 mb-4">
-                 <div className="h-px bg-ocean-light/30 flex-1"></div>
-                 <p className="text-xs font-bold tracking-[0.3em] uppercase text-ocean-mid">Curated Activities</p>
-                 <div className="h-px bg-ocean-light/30 flex-1"></div>
+                <div className="h-px bg-ocean-light/30 flex-1"></div>
+                <p className="text-xs font-bold tracking-[0.3em] uppercase text-ocean-mid">Curated Activities</p>
+                <div className="h-px bg-ocean-light/30 flex-1"></div>
               </div>
-              
+
               <div className="grid lg:grid-cols-2 gap-6 md:gap-8 mt-6">
                 {displayedActivities.map((activity) => (
                   <ActivityCard key={activity.id} activity={activity} />
@@ -725,41 +725,41 @@ export default function DayTourPage() {
           )}
 
           {/* Show message when no activities exist */}
-{(!loadingActivities && displayedActivities.length === 0) && (
-  <div className="pt-2">
-    
-    <div className="flex items-center gap-6 py-4 mb-4">
-      <div className="h-px bg-gradient-to-r from-ocean-light/20 to-transparent flex-1"></div>
-      <p className="text-xs font-bold tracking-[0.3em] uppercase text-ocean-mid">
-        Curated Activities
-      </p>
-      <div className="h-px bg-gradient-to-l from-ocean-light/20 to-transparent flex-1"></div>
-    </div>
+          {(!loadingActivities && displayedActivities.length === 0) && (
+            <div className="pt-2">
 
-    <div className="bg-gradient-to-br from-white to-ocean-ice/30 rounded-2xl p-8 text-center border border-ocean-light/20 shadow-sm hover:shadow-md transition-all duration-300">
-      
-<div className="mb-3">
-  <i className="fas fa-bicycle text-5xl text-ocean-light/50 animate-[float_3s_ease-in-out_infinite]"></i>
-</div>
+              <div className="flex items-center gap-6 py-4 mb-4">
+                <div className="h-px bg-gradient-to-r from-ocean-light/20 to-transparent flex-1"></div>
+                <p className="text-xs font-bold tracking-[0.3em] uppercase text-ocean-mid">
+                  Curated Activities
+                </p>
+                <div className="h-px bg-gradient-to-l from-ocean-light/20 to-transparent flex-1"></div>
+              </div>
 
-      <p className="text-textSecondary font-medium">
-        No activities available at the moment.
-      </p>
+              <div className="bg-gradient-to-br from-white to-ocean-ice/30 rounded-2xl p-8 text-center border border-ocean-light/20 shadow-sm hover:shadow-md transition-all duration-300">
 
-      <p className="text-textSecondary/70 text-sm mt-1">
-        Check back soon!
-      </p>
+                <div className="mb-3">
+                  <i className="fas fa-bicycle text-5xl text-ocean-light/50 animate-[float_3s_ease-in-out_infinite]"></i>
+                </div>
 
-    </div>
+                <p className="text-textSecondary font-medium">
+                  No activities available at the moment.
+                </p>
 
-  </div>
-)}
+                <p className="text-textSecondary/70 text-sm mt-1">
+                  Check back soon!
+                </p>
+
+              </div>
+
+            </div>
+          )}
 
           {/* DIVIDER */}
           <div className="flex items-center gap-6 py-4">
-             <div className="h-px bg-ocean-light/30 flex-1"></div>
-             <p className="text-xs font-bold tracking-[0.3em] uppercase text-ocean-mid">Resort Gallery</p>
-             <div className="h-px bg-ocean-light/30 flex-1"></div>
+            <div className="h-px bg-ocean-light/30 flex-1"></div>
+            <p className="text-xs font-bold tracking-[0.3em] uppercase text-ocean-mid">Resort Gallery</p>
+            <div className="h-px bg-ocean-light/30 flex-1"></div>
           </div>
 
           {/* DENSE BENTO BOX GALLERY - DYNAMIC IMAGES */}
@@ -768,7 +768,7 @@ export default function DayTourPage() {
               // Create dynamic variations for a highly appealing Bento Grid
               let colSpan = 'col-span-1';
               let rowSpan = 'row-span-1';
-              
+
               if (idx === 0 || idx === 8) {
                 // Large feature blocks
                 colSpan = 'col-span-2';
@@ -782,16 +782,16 @@ export default function DayTourPage() {
               }
 
               return (
-                <div 
-                  key={idx} 
+                <div
+                  key={idx}
                   className={`group relative overflow-hidden rounded-[1.5rem] bg-ocean-ice border border-ocean-light/10 shadow-[0_4px_20px_rgba(0,0,0,0.03)] transform transition-all duration-700 hover:scale-[1.01] hover:z-10 hover:shadow-[0_15px_35px_rgba(0,0,0,0.12)] ${colSpan} ${rowSpan}`}
                 >
-                  <Image 
-                    src={src} 
+                  <Image
+                    src={src}
                     alt={`Sandyfeet Resort Gallery Item ${idx + 1}`}
-                    fill 
+                    fill
                     sizes="(max-width: 640px) 100vw, (max-width: 1024px) 50vw, 33vw"
-                    className="object-cover transition-transform duration-[1.5s] group-hover:scale-110" 
+                    className="object-cover transition-transform duration-[1.5s] group-hover:scale-110"
                   />
                   <div className="absolute inset-0 bg-ocean-dark/10 opacity-0 group-hover:opacity-100 transition-opacity duration-500"></div>
                 </div>
