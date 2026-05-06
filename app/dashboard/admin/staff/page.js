@@ -8,6 +8,7 @@ import { createUserWithEmailAndPassword, sendEmailVerification } from 'firebase/
 import { useRouter } from 'next/navigation';
 import { logAdminAction } from '../../../../lib/auditLogger';
 import { sendStaffVerificationEmail } from '../../../../lib/staffEmailService';
+import { getIdToken } from 'firebase/auth'; 
 
 const getBaseUrl = () => {
   // 1. Use environment variable (works on server and client)
@@ -203,68 +204,54 @@ export default function StaffManagement() {
   setActionLoading(true);
   
   try {
-    // Create user in Firebase Auth
-    const userCredential = await createUserWithEmailAndPassword(
-      auth, 
-      formData.email, 
-      formData.password
-    );
-    
-    const uid = userCredential.user.uid;
-    
-    // Generate a unique verification token
-    const verificationToken = Math.random().toString(36).substring(2, 15) + 
-                            Math.random().toString(36).substring(2, 15);
-    const verificationExpiresAt = new Date();
-    verificationExpiresAt.setMinutes(verificationExpiresAt.getMinutes() + 15);
-    
-    // Create user document in Firestore
-    await setDoc(doc(db, 'users', uid), {
-      uid: uid,
-      name: formData.name,
-      email: formData.email,
-      role: formData.role,
-      status: 'pending_verification',
-      phone: formData.phone || '',
-      emailVerified: false,
-      verificationToken: verificationToken,
-      verificationExpiresAt: verificationExpiresAt.toISOString(),
-      createdAt: new Date().toISOString(),
-      createdBy: auth.currentUser?.uid || ''
+    // Get the admin's current ID token
+    const currentUser = auth.currentUser;
+    if (!currentUser) {
+      throw new Error('No authenticated admin found');
+    }
+    const idToken = await getIdToken(currentUser);
+
+    const response = await fetch('/api/admin/create-user', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${idToken}`,
+      },
+      body: JSON.stringify({
+        name: formData.name,
+        email: formData.email,
+        password: formData.password,
+        role: formData.role,
+        phone: formData.phone || '',
+      }),
     });
-    
-    // Send verification email using Nodemailer with role
-    const verificationLink = `${getBaseUrl()}/verify-staff?token=${verificationToken}&email=${encodeURIComponent(formData.email)}`;
-    const emailResult = await sendStaffVerificationEmail(formData.email, formData.name, verificationLink, formData.role);
-    const emailSent = Boolean(emailResult?.success);
-    
+
+    const data = await response.json();
+
+    if (!response.ok) {
+      throw new Error(data.error || 'Failed to create staff account');
+    }
+
     // Add audit log
     await logAdminAction({
       action: 'Added member',
       module: 'User Management',
       details: `Added new member: ${formData.name} (${formData.email}) with role: ${formData.role}`
     });
-    
+
     showNotification(
-      emailSent
-        ? 'Staff account created successfully! Verification email sent. Link expires in 15 minutes.'
-        : 'Staff account created, but verification email failed to send. Please use Resend Verification Email.',
-      emailSent ? 'success' : 'error'
+      data.message || 'Staff account created successfully! Verification email sent.',
+      'success'
     );
-    resetForm();
     
+    resetForm();
     setTimeout(() => {
       setShowModal(false);
     }, 2000);
     
   } catch (error) {
     console.error('Error creating staff:', error);
-    
-    if (error.code === 'auth/email-already-in-use') {
-      showNotification('Email is already in use.', 'error');
-    } else {
-      showNotification('Failed to create staff account. Please try again.', 'error');
-    }
+    showNotification(error.message || 'Failed to create staff account. Please try again.', 'error');
   } finally {
     setActionLoading(false);
   }
@@ -680,7 +667,9 @@ const handleResendVerification = async () => {
                 filteredStaff.map((member) => {
                   const statusDisplay = getStatusDisplay(member.status);
                   // Disable toggle if email not verified OR status is pending_verification
-                  const isToggleDisabled = !member.emailVerified || member.status === 'pending_verification';
+                    const isToggleDisabled = !member.emailVerified || 
+                           member.status === 'pending_verification' || 
+                           member.id === auth.currentUser?.uid;
                   return (
                     <tr key={member.id} className="border-b border-ocean-light/10 hover:bg-ocean-ice/30 transition-colors">
                       <td className="px-4 py-3">
