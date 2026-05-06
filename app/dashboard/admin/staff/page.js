@@ -9,6 +9,14 @@ import { useRouter } from 'next/navigation';
 import { logAdminAction } from '../../../../lib/auditLogger';
 import { sendStaffVerificationEmail } from '../../../../lib/staffEmailService';
 
+const getBaseUrl = () => {
+  // Priority: explicit env var, Vercel URL, window origin, fallback
+  if (process.env.NEXT_PUBLIC_BASE_URL) return process.env.NEXT_PUBLIC_BASE_URL;
+  if (process.env.NEXT_PUBLIC_VERCEL_URL) return `https://${process.env.NEXT_PUBLIC_VERCEL_URL}`;
+  if (typeof window !== 'undefined') return window.location.origin;
+  return 'http://localhost:3000';
+};
+
 export default function StaffManagement() {
   const [staff, setStaff] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -213,7 +221,7 @@ export default function StaffManagement() {
     });
     
     // Send verification email using Nodemailer with role
-    const verificationLink = `${process.env.NEXT_PUBLIC_BASE_URL || window.location.origin}/verify-staff?token=${verificationToken}&email=${encodeURIComponent(formData.email)}`;
+    const verificationLink = `${getBaseUrl()}/verify-staff?token=${verificationToken}&email=${encodeURIComponent(formData.email)}`;
     const emailResult = await sendStaffVerificationEmail(formData.email, formData.name, verificationLink, formData.role);
     const emailSent = Boolean(emailResult?.success);
     
@@ -266,7 +274,7 @@ const handleResendVerification = async () => {
     });
     
     // Send new verification email
-    const verificationLink = `${process.env.NEXT_PUBLIC_BASE_URL || window.location.origin}/api/auth/verify-staff?token=${verificationToken}&email=${encodeURIComponent(resendModal.email)}`;
+    const verificationLink = `${getBaseUrl()}/verify-staff?token=${verificationToken}&email=${encodeURIComponent(resendModal.email)}`;
     const emailResult = await sendStaffVerificationEmail(resendModal.email, resendModal.name || 'Staff Member', verificationLink);
     if (!emailResult?.success) {
       throw new Error(emailResult?.error || 'Failed to send verification email');
