@@ -582,9 +582,9 @@ const loginUser = async (e) => {
                 <div className="w-16 h-16 bg-ocean-mid/10 rounded-full flex items-center justify-center mx-auto mb-4">
                     <i className="fas fa-shield-alt text-2xl text-ocean-mid"></i>
                 </div>
-                <h3 className="font-playfair text-xl font-semibold text-ocean-deep">Verify New Device</h3>
+                <h3 className="font-playfair text-xl font-semibold text-ocean-deep">New Sign-in Detected</h3>
                 <p className="text-sm text-ocean-mid/70 mt-2">
-                    We've sent a 6‑digit code to <strong>{pendingDeviceEmail}</strong>.
+                    We noticed a sign-in from a new browser or device. We.ve sent a 6-digit code sent to <strong>{pendingDeviceEmail}</strong>.
                     Enter it below to continue.
                 </p>
             </div>
