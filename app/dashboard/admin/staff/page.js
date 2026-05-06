@@ -10,20 +10,20 @@ import { logAdminAction } from '../../../../lib/auditLogger';
 import { sendStaffVerificationEmail } from '../../../../lib/staffEmailService';
 
 const getBaseUrl = () => {
-  // In production, we must NOT use window.location.origin because the admin may be on localhost.
-  // Use the environment variable exclusively.
+  // 1. Explicitly set environment variable – MUST be set in production
   if (process.env.NEXT_PUBLIC_BASE_URL) {
     return process.env.NEXT_PUBLIC_BASE_URL;
   }
+  // 2. Fallback for Vercel deployments
   if (process.env.NEXT_PUBLIC_VERCEL_URL) {
     return `https://${process.env.NEXT_PUBLIC_VERCEL_URL}`;
   }
-  // Development fallback – only works when the admin is on localhost
+  // 3. Local development only – never use window.location.origin
   if (process.env.NODE_ENV === 'development') {
     return 'http://localhost:3000';
   }
-  // Production without the required variable – fail early
-  throw new Error('NEXT_PUBLIC_BASE_URL is required in production. Please set it to your domain.');
+  // 4. Production without the required variable – fail loudly
+  throw new Error('NEXT_PUBLIC_BASE_URL must be set to your domain in production.');
 };
 
 export default function StaffManagement() {
