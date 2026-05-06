@@ -643,7 +643,7 @@ export default function DayTourPage() {
                   </div>
 
                   {/* Guest Count Row */}
-                  <div className="flex gap-4 mb-4">
+                  <div className="flex flex-col sm:flex-row gap-4 mb-4">
                     <div className="flex-1">
                       <label htmlFor="adults-count" className="text-[10px] uppercase tracking-[0.2em] font-bold text-textSecondary mb-2 block pl-2">Adults</label>
                       <div className="relative">
@@ -680,17 +680,16 @@ export default function DayTourPage() {
                   {dateError && <p className="text-[11px] leading-tight text-rose-500/80 pl-1 mt-0 mb-3">{dateError}</p>}
 
                   {/* Price Display and Proceed Button */}
-                  <div className="flex items-center justify-between gap-4 mt-2">
+                  <div className="flex flex-col-reverse sm:flex-row items-center sm:justify-between gap-4 mt-4 sm:mt-2">
                     <button
                       type="submit"
                       disabled={Boolean(dateError)}
-                      className="group flex items-center justify-center gap-3 rounded-2xl bg-gradient-to-r from-ocean-mid to-ocean-light px-8 py-3.5 text-xs font-bold uppercase tracking-[0.15em] text-white shadow-[0_10px_20px_rgba(33,105,243,0.25)] transition-all hover:-translate-y-0.5 hover:shadow-[0_15px_30px_rgba(33,105,243,0.35)] disabled:opacity-50 disabled:cursor-not-allowed"
+                      className="w-full sm:w-auto group flex items-center justify-center gap-3 rounded-2xl bg-gradient-to-r from-ocean-mid to-ocean-light px-8 py-3.5 text-xs font-bold uppercase tracking-[0.15em] text-white shadow-[0_10px_20px_rgba(33,105,243,0.25)] transition-all hover:-translate-y-0.5 hover:shadow-[0_15px_30px_rgba(33,105,243,0.35)] disabled:opacity-50 disabled:cursor-not-allowed"
                     >
                       Proceed
                       <i className="fas fa-arrow-right transition-transform group-hover:translate-x-1"></i>
                     </button>
-
-                    <div className="flex items-center gap-3 bg-gradient-to-r from-ocean-mid/10 to-ocean-light/10 rounded-xl px-4 py-2 shadow-sm">
+                    <div className="w-full sm:w-auto flex items-center justify-center sm:justify-start gap-3 bg-gradient-to-r from-ocean-mid/10 to-ocean-light/10 rounded-xl px-4 py-2 shadow-sm">
                       <div className="text-center">
                         <p className="text-[10px] uppercase tracking-[0.1em] text-textSecondary">Adult</p>
                         <p className="text-lg font-bold text-ocean-mid">₱{dayTour?.adultPrice?.toLocaleString()}</p>
