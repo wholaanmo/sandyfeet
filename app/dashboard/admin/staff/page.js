@@ -12,18 +12,20 @@ import { sendStaffVerificationEmail } from '../../../../lib/staffEmailService';
 const getBaseUrl = () => {
   // 1. Explicitly set environment variable – MUST be set in production
   if (process.env.NEXT_PUBLIC_BASE_URL) {
-    return process.env.NEXT_PUBLIC_BASE_URL;
+    return process.env.NEXT_PUBLIC_BASE_URL.replace(/\/+$/, '');
   }
   // 2. Fallback for Vercel deployments
   if (process.env.NEXT_PUBLIC_VERCEL_URL) {
     return `https://${process.env.NEXT_PUBLIC_VERCEL_URL}`;
   }
-  // 3. Local development only – never use window.location.origin
-  if (process.env.NODE_ENV === 'development') {
-    return 'http://localhost:3000';
+  // 3. Client-side fallback: use the current site origin (deployed domain)
+  if (typeof window !== 'undefined' && window.location?.origin) {
+    return window.location.origin;
   }
-  // 4. Production without the required variable – fail loudly
-  throw new Error('NEXT_PUBLIC_BASE_URL must be set to your domain in production.');
+  // 4. Local development only
+  if (process.env.NODE_ENV === 'development') return 'http://localhost:3000';
+  // 5. Production without a detectable base URL – fail loudly
+  throw new Error('Unable to determine base URL for verification link. Set NEXT_PUBLIC_BASE_URL.');
 };
 
 export default function StaffManagement() {
