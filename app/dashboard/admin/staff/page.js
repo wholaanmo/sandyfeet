@@ -10,7 +10,7 @@ import { logAdminAction } from '../../../../lib/auditLogger';
 import { sendStaffVerificationEmail } from '../../../../lib/staffEmailService';
 
 const getBaseUrl = () => {
-  // 1. Explicitly set environment variable – MUST be set in production
+  // 1. Use environment variable (works on server and client)
   if (process.env.NEXT_PUBLIC_BASE_URL) {
     return process.env.NEXT_PUBLIC_BASE_URL.replace(/\/+$/, '');
   }
@@ -18,14 +18,16 @@ const getBaseUrl = () => {
   if (process.env.NEXT_PUBLIC_VERCEL_URL) {
     return `https://${process.env.NEXT_PUBLIC_VERCEL_URL}`;
   }
-  // 3. Client-side fallback: use the current site origin (deployed domain)
+  // 3. Client-side fallback: use the current site origin
   if (typeof window !== 'undefined' && window.location?.origin) {
     return window.location.origin;
   }
-  // 4. Local development only
-  if (process.env.NODE_ENV === 'development') return 'http://localhost:3000';
-  // 5. Production without a detectable base URL – fail loudly
-  throw new Error('Unable to determine base URL for verification link. Set NEXT_PUBLIC_BASE_URL.');
+  // 4. Local development
+  if (process.env.NODE_ENV === 'development') {
+    return 'http://localhost:3000';
+  }
+  // 5. Production fallback (should not happen if env vars are set correctly)
+  return 'https://sandyfeetresort.vercel.app';
 };
 
 export default function StaffManagement() {
