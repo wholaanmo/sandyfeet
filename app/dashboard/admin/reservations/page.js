@@ -2951,9 +2951,9 @@ const balance = isCancelled ? 0 : (sidebarBooking.manualBalance !== undefined ? 
               <div className="w-14 h-14 mx-auto mb-3 rounded-full bg-yellow-100 flex items-center justify-center">
                 <i className="fas fa-exclamation-triangle text-yellow-500 text-2xl"></i>
               </div>
-              <h3 className="text-lg font-bold text-textPrimary mb-2">Confirm Refund Notification</h3>
+              <h3 className="text-lg font-bold text-textPrimary mb-2">Send Non-Refundable Payment Notice</h3>
               <p className="text-textSecondary text-sm">
-                Are you sure you want to send a refund notification to{" "}
+                Are you sure you want to send a non-refundable payment notice to{" "}
                 <strong>{refundConfirmModal.booking.guestInfo?.firstName} {refundConfirmModal.booking.guestInfo?.lastName}</strong>?
               </p>
               <p className="text-xs text-neutral mt-2">
