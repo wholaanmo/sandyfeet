@@ -372,7 +372,7 @@ const getNotificationStyle = (type) => {
     </div>
   </>
 ) : (
-  // Default cancellation case
+  // Default cancellation case - now shows detailed room types
   <>
     <p className="text-sm font-bold text-gray-800 mb-1">
       Guest Cancellation
@@ -382,7 +382,9 @@ const getNotificationStyle = (type) => {
     </p>
     <div className="inline-flex items-center gap-1.5 mt-1 px-2 py-0.5 bg-red-50 rounded-full">
       <i className="fas fa-door-open text-red-500 text-[10px]"></i>
-      <span className="text-[11px] font-medium text-red-700">{notification.roomType || 'Day Tour'}</span>
+      <span className="text-[11px] font-medium text-red-700">
+        {notification.roomTypesDetail || notification.roomType || 'Day Tour'}
+      </span>
     </div>
   </>
 )}

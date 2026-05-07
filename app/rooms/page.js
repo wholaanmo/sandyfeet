@@ -1195,7 +1195,33 @@ const handleProceed = () => {
           <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
             
             {/* LEFT: Room Cards Grid */}
-            <div className="lg:col-span-8">
+<div className="lg:col-span-8">
+  {availableRoomTypes.length === 0 ? (
+    <div className="bg-white rounded-2xl border border-gray-200 shadow-sm p-12 text-center relative overflow-hidden">
+      
+      {/* soft blue gradient background */}
+      <div className="absolute inset-0 bg-gradient-to-br from-blue-50 via-white to-white opacity-80"></div>
+
+      <div className="relative z-10">
+        <div className="w-20 h-20 mx-auto mb-4 bg-blue-100 rounded-full flex items-center justify-center shadow-inner">
+          <i className="fas fa-bed text-blue-500 text-3xl"></i>
+        </div>
+
+        <h3 className="text-xl font-playfair font-semibold text-gray-900 mb-2">
+          No Rooms Available
+        </h3>
+
+        <p className="text-gray-600 text-sm max-w-xs mx-auto leading-relaxed">
+          All rooms are currently booked. Check back later for availability.
+        </p>
+
+        {/* accent line */}
+        <div className="mt-6 flex justify-center">
+          <div className="h-[2px] w-12 bg-blue-200 rounded-full"></div>
+        </div>
+      </div>
+    </div>
+  ) : (
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                 {filteredRoomTypes.map((room) => {
                   const quantity = selectedRooms[room.type] || 0;
@@ -1359,6 +1385,7 @@ const handleProceed = () => {
                   );
                 })}
               </div>
+              )} 
             </div>
 
             {/* RIGHT: Booking Receipt & Dates */}
