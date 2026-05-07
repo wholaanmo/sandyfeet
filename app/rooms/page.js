@@ -577,16 +577,40 @@ export default function RoomsPage() {
     return totalAvailableUnits;
   };
 
-  const isDateFullyAvailableForExclusive = (date) => {
-    if (!date || availableRoomTypes.length === 0) return false;
-    for (const roomTypeData of availableRoomTypes) {
-      const totalUnits = getTotalUnitsForRoomType(roomTypeData);
-      if (totalUnits <= 0) return false;
+  const getMaxBookedUnitsForRoomTypeOnDate = (date, roomTypeData) => {
+  if (!date || !roomTypeData) return 0;
+  const dateStr = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
+  let totalMaxBooked = 0;
+  for (const roomId of roomTypeData.roomIds) {
+    let maxForRoom = 0;
+    for (let hour = checkInHour; hour < 24; hour++) {
+      const booked = bookedDates[dateStr]?.[roomId]?.[hour] || 0;
+      maxForRoom = Math.max(maxForRoom, booked);
+    }
+    totalMaxBooked += maxForRoom;
+  }
+  return totalMaxBooked;
+};
+
+const isDateFullyAvailableForExclusive = (date) => {
+  if (!date || availableRoomTypes.length === 0) return false;
+  for (const roomTypeData of availableRoomTypes) {
+    const totalUnits = getTotalUnitsForRoomType(roomTypeData);
+    if (totalUnits <= 0) return false;
+
+    if (roomTypeData.type === 'Tent') {
+      // For Tent, only actual guest reservations block Exclusive.
+      // Admin‑blocked slots are ignored.
+      const bookedUnits = getMaxBookedUnitsForRoomTypeOnDate(date, roomTypeData);
+      if (bookedUnits > 0) return false;
+    } else {
+      // For all other room types, both guest reservations AND admin blocks matter.
       const availableUnits = getAvailableUnitsForRoomTypeOnDate(date, roomTypeData);
       if (availableUnits < totalUnits) return false;
     }
-    return true;
-  };
+  }
+  return true;
+};
 
   useEffect(() => {
     if (checkInDate) {
