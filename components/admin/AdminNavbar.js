@@ -26,6 +26,7 @@ export default function AdminNavbar({ toggleSidebar, sidebarOpen, isDesktop }) {
   const [notifications, setNotifications] = useState([]);
   const [statusReadMap, setStatusReadMap] = useState({});
   const statusReadMapRef = useRef({});
+  const hasMarkedReadForCurrentOpen = useRef(false); // Prevent duplicate marking per open
 
   useEffect(() => {
     const fetchUserData = async () => {
@@ -73,34 +74,34 @@ export default function AdminNavbar({ toggleSidebar, sidebarOpen, isDesktop }) {
 
   // Combined notification update handler
   const handleNotificationsUpdate = (newItems, type) => {
-  setNotifications(prev => {
-    const isStatusType = type === 'check_in' || type === 'check_out';
+    setNotifications(prev => {
+      const isStatusType = type === 'check_in' || type === 'check_out';
 
-    // For status notifications, don't clear the list if the service emits an empty update.
-    if (isStatusType && (!Array.isArray(newItems) || newItems.length === 0)) {
-      return prev;
-    }
+      // For status notifications, don't clear the list if the service emits an empty update.
+      if (isStatusType && (!Array.isArray(newItems) || newItems.length === 0)) {
+        return prev;
+      }
 
-    const filtered = prev.filter(n => n.type !== type);
+      const filtered = prev.filter(n => n.type !== type);
 
-    // Mark read status for status notifications
-    let itemsWithReadState = isStatusType
-      ? newItems.map(item => ({ ...item, read: statusReadMapRef.current[`${item.type}-${item.id}`] === true }))
-      : newItems;
+      // Mark read status for status notifications
+      let itemsWithReadState = isStatusType
+        ? newItems.map(item => ({ ...item, read: statusReadMapRef.current[`${item.type}-${item.id}`] === true }))
+        : newItems;
 
-    // --- DEDUPLICATE based on type + id ---
-    const uniqueMap = new Map();
-    itemsWithReadState.forEach(item => {
-      const key = `${item.type}-${item.id}`;
-      if (!uniqueMap.has(key)) uniqueMap.set(key, item);
+      // --- DEDUPLICATE based on type + id ---
+      const uniqueMap = new Map();
+      itemsWithReadState.forEach(item => {
+        const key = `${item.type}-${item.id}`;
+        if (!uniqueMap.has(key)) uniqueMap.set(key, item);
+      });
+      const uniqueItems = Array.from(uniqueMap.values());
+
+      const combined = [...filtered, ...uniqueItems];
+      combined.sort((a, b) => asDate(b.createdAt) - asDate(a.createdAt));
+      return combined;
     });
-    const uniqueItems = Array.from(uniqueMap.values());
-
-    const combined = [...filtered, ...uniqueItems];
-    combined.sort((a, b) => asDate(b.createdAt) - asDate(a.createdAt));
-    return combined;
-  });
-};
+  };
 
   // Set up all notification listeners
   useEffect(() => {
@@ -127,20 +128,33 @@ export default function AdminNavbar({ toggleSidebar, sidebarOpen, isDesktop }) {
     setUnreadCount(count);
   }, [notifications]);
 
-  const handleToggleNotifications = async () => {
-    if (!showNotifications && unreadCount > 0) {
-      await markAllNotificationsAsRead();
-      const nextReadMap = { ...statusReadMap };
-      notifications.forEach((n) => {
-        if ((n.type === 'check_in' || n.type === 'check_out') && !n.read) {
-          nextReadMap[`${n.type}-${n.id}`] = true;
-        }
-      });
-      persistStatusReadMap(nextReadMap);
-      // Update local read status
-      setNotifications(prev => prev.map(n => ({ ...n, read: true })));
+  // Mark all as read in the background when dropdown opens (does NOT block render)
+  useEffect(() => {
+    if (showNotifications && unreadCount > 0 && !hasMarkedReadForCurrentOpen.current) {
+      hasMarkedReadForCurrentOpen.current = true;
+      markAllNotificationsAsRead()
+        .then(() => {
+          const nextReadMap = { ...statusReadMap };
+          notifications.forEach((n) => {
+            if ((n.type === 'check_in' || n.type === 'check_out') && !n.read) {
+              nextReadMap[`${n.type}-${n.id}`] = true;
+            }
+          });
+          persistStatusReadMap(nextReadMap);
+          setNotifications(prev => prev.map(n => ({ ...n, read: true })));
+        })
+        .catch(err => console.error('Error marking notifications as read:', err));
     }
+    // Reset flag when dropdown closes
+    if (!showNotifications) {
+      hasMarkedReadForCurrentOpen.current = false;
+    }
+  }, [showNotifications, unreadCount, notifications, statusReadMap]);
+
+  const handleToggleNotifications = async () => {
+    // Open the dropdown immediately – do NOT wait for markAllNotificationsAsRead
     setShowNotifications(!showNotifications);
+    // The background marking will be triggered by the useEffect above
   };
 
   const handleMarkAsRead = async (notification) => {
@@ -169,25 +183,25 @@ export default function AdminNavbar({ toggleSidebar, sidebarOpen, isDesktop }) {
       };
 
   // Function to get notification icon and color based on type
-const getNotificationStyle = (type) => {
-  switch(type) {
-    case 'cancellation':
-      return { icon: 'fas fa-calendar-times', bgColor: 'bg-gradient-to-br from-red-50 to-red-100', iconColor: 'text-red-600', borderColor: 'border-red-200' };
-    case 'bank_transfer':
-    case 'bank_transfer_daytour':
-      return { icon: 'fas fa-university', bgColor: 'bg-gradient-to-br from-amber-50 to-amber-100', iconColor: 'text-amber-600', borderColor: 'border-amber-200' };
-    case 'reservation_room':
-      return { icon: 'fas fa-bed', bgColor: 'bg-gradient-to-br from-blue-50 to-blue-100', iconColor: 'text-blue-600', borderColor: 'border-blue-200' };
-    case 'reservation_daytour':
-      return { icon: 'fas fa-sun', bgColor: 'bg-gradient-to-br from-emerald-50 to-emerald-100', iconColor: 'text-emerald-600', borderColor: 'border-emerald-200' };
-    case 'check_in':
-      return { icon: 'fas fa-sign-in-alt', bgColor: 'bg-gradient-to-br from-green-50 to-green-100', iconColor: 'text-green-600', borderColor: 'border-green-200' };
-    case 'check_out':
-      return { icon: 'fas fa-sign-out-alt', bgColor: 'bg-gradient-to-br from-purple-50 to-purple-100', iconColor: 'text-purple-600', borderColor: 'border-purple-200' };
-    default:
-      return { icon: 'fas fa-bell', bgColor: 'bg-gradient-to-br from-gray-50 to-gray-100', iconColor: 'text-gray-600', borderColor: 'border-gray-200' };
-  }
-};
+  const getNotificationStyle = (type) => {
+    switch(type) {
+      case 'cancellation':
+        return { icon: 'fas fa-calendar-times', bgColor: 'bg-gradient-to-br from-red-50 to-red-100', iconColor: 'text-red-600', borderColor: 'border-red-200' };
+      case 'bank_transfer':
+      case 'bank_transfer_daytour':
+        return { icon: 'fas fa-university', bgColor: 'bg-gradient-to-br from-amber-50 to-amber-100', iconColor: 'text-amber-600', borderColor: 'border-amber-200' };
+      case 'reservation_room':
+        return { icon: 'fas fa-bed', bgColor: 'bg-gradient-to-br from-blue-50 to-blue-100', iconColor: 'text-blue-600', borderColor: 'border-blue-200' };
+      case 'reservation_daytour':
+        return { icon: 'fas fa-sun', bgColor: 'bg-gradient-to-br from-emerald-50 to-emerald-100', iconColor: 'text-emerald-600', borderColor: 'border-emerald-200' };
+      case 'check_in':
+        return { icon: 'fas fa-sign-in-alt', bgColor: 'bg-gradient-to-br from-green-50 to-green-100', iconColor: 'text-green-600', borderColor: 'border-green-200' };
+      case 'check_out':
+        return { icon: 'fas fa-sign-out-alt', bgColor: 'bg-gradient-to-br from-purple-50 to-purple-100', iconColor: 'text-purple-600', borderColor: 'border-purple-200' };
+      default:
+        return { icon: 'fas fa-bell', bgColor: 'bg-gradient-to-br from-gray-50 to-gray-100', iconColor: 'text-gray-600', borderColor: 'border-gray-200' };
+    }
+  };
 
   return (
     <nav 
