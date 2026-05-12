@@ -4,7 +4,8 @@
 import { Suspense, useState, useEffect } from 'react';
 import { useSearchParams, useRouter } from 'next/navigation';
 import GuestLayout from '@/app/guest/layout';
-import { db } from '@/lib/firebase';
+import { auth, db } from '@/lib/firebase';
+import { onAuthStateChanged } from 'firebase/auth';
 import { collection, addDoc, serverTimestamp, updateDoc, doc, getDoc, query, where, getDocs, onSnapshot } from 'firebase/firestore';
 import Image from 'next/image';
 import { uploadImage } from '@/lib/cloudinary';
@@ -33,6 +34,7 @@ function BookingPageContent() {
   const [copiedMessage, setCopiedMessage] = useState(false);
   const [generatedBookingId, setGeneratedBookingId] = useState('');
   const [roomDetails, setRoomDetails] = useState(null);
+  const [guestAccount, setGuestAccount] = useState(null);
 
   const [step, setStep] = useState(1);
   const [bookingData, setBookingData] = useState({
@@ -84,6 +86,35 @@ function BookingPageContent() {
   const [selectedBankAccount, setSelectedBankAccount] = useState(null);
   const [showBankSelection, setShowBankSelection] = useState(false);
   const [downPaymentAmount, setDownPaymentAmount] = useState(0);
+
+  useEffect(() => {
+    const unsubscribe = onAuthStateChanged(auth, (user) => {
+      const isGoogleGuest = user?.providerData?.some((provider) => provider.providerId === 'google.com');
+
+      if (!user || !isGoogleGuest) {
+        setGuestAccount(null);
+        return;
+      }
+
+      const nameParts = (user.displayName || '').trim().split(/\s+/).filter(Boolean);
+      const nextGuest = {
+        uid: user.uid,
+        email: user.email || '',
+        firstName: nameParts[0] || '',
+        lastName: nameParts.length > 1 ? nameParts.slice(1).join(' ') : ''
+      };
+
+      setGuestAccount(nextGuest);
+      setBookingData((prev) => ({
+        ...prev,
+        firstName: prev.firstName || nextGuest.firstName,
+        lastName: prev.lastName || nextGuest.lastName,
+        email: prev.email || nextGuest.email
+      }));
+    });
+
+    return () => unsubscribe();
+  }, []);
 
   const [showValidIdModal, setShowValidIdModal] = useState(false);
   const [tempValidIdType, setTempValidIdType] = useState('Passport');
@@ -464,7 +495,8 @@ function BookingPageContent() {
     });
     
     const bankRequestsRef = collection(db, 'bank_requests');
-    const docRef = await addDoc(bankRequestsRef, {
+      const docRef = await addDoc(bankRequestsRef, {
+      guestUid: guestAccount?.uid || null,
       guestName: `${bookingData.firstName} ${bookingData.lastName}`,
       guestEmail: bookingData.email,
       guestPhone: bookingData.phone,
@@ -651,6 +683,8 @@ function BookingPageContent() {
       
       const booking = {
         bookingId, // This is the formatted BOOK-xxx-xxx ID
+        guestUid: guestAccount?.uid || null,
+        guestAuthProvider: guestAccount?.uid ? 'google' : null,
         roomId: bookingData.roomId,
         roomType: bookingData.roomType,
         price: bookingData.price,

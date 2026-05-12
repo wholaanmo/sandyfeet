@@ -4,7 +4,8 @@
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import GuestLayout from '@/app/guest/layout';
-import { db } from '@/lib/firebase';
+import { auth, db } from '@/lib/firebase';
+import { onAuthStateChanged } from 'firebase/auth';
 import { collection, addDoc, serverTimestamp, updateDoc, doc, getDoc, query, where, getDocs, onSnapshot } from 'firebase/firestore';
 import Image from 'next/image';
 import { uploadImage } from '@/lib/cloudinary';
@@ -45,6 +46,7 @@ export default function MultiRoomBookingPage() {
   const [tempValidIdFile, setTempValidIdFile] = useState(null);
   const [validIdUploading, setValidIdUploading] = useState(false);
   const [isConfirmed, setIsConfirmed] = useState(false);
+  const [guestAccount, setGuestAccount] = useState(null);
 
   const FIXED_CHECK_IN_HOUR = 14;
   const FIXED_CHECK_OUT_HOUR = 12;
@@ -61,6 +63,35 @@ export default function MultiRoomBookingPage() {
     'PhilHealth ID',
     'Other Government IDs'
   ];
+
+  useEffect(() => {
+    const unsubscribe = onAuthStateChanged(auth, (user) => {
+      const isGoogleGuest = user?.providerData?.some((provider) => provider.providerId === 'google.com');
+
+      if (!user || !isGoogleGuest) {
+        setGuestAccount(null);
+        return;
+      }
+
+      const nameParts = (user.displayName || '').trim().split(/\s+/).filter(Boolean);
+      const nextGuest = {
+        uid: user.uid,
+        email: user.email || '',
+        firstName: nameParts[0] || '',
+        lastName: nameParts.length > 1 ? nameParts.slice(1).join(' ') : ''
+      };
+
+      setGuestAccount(nextGuest);
+      setBookingData((prev) => prev ? ({
+        ...prev,
+        firstName: prev.firstName || nextGuest.firstName,
+        lastName: prev.lastName || nextGuest.lastName,
+        email: prev.email || nextGuest.email
+      }) : prev);
+    });
+
+    return () => unsubscribe();
+  }, []);
 
   // Load booking data from session storage (room selection) AND localStorage (persisted form data)
   useEffect(() => {
@@ -435,6 +466,7 @@ export default function MultiRoomBookingPage() {
       
       const bankRequestsRef = collection(db, 'bank_requests');
       const docRef = await addDoc(bankRequestsRef, {
+        guestUid: guestAccount?.uid || null,
         guestName: `${bookingData.firstName} ${bookingData.lastName}`,
         guestEmail: bookingData.email,
         guestPhone: bookingData.phone,
@@ -522,6 +554,8 @@ const handleSubmitBooking = async () => {
 
       const booking = {
         bookingId,
+        guestUid: guestAccount?.uid || null,
+        guestAuthProvider: guestAccount?.uid ? 'google' : null,
         roomId: singleRoomId,
         roomType: roomTypeObj?.type || 'Room',
         price: roomTypeObj?.price || 0,
@@ -592,6 +626,8 @@ const handleSubmitBooking = async () => {
 
           const booking = {
             bookingId: `${bookingId}-${unitIndex + 1}`,
+            guestUid: guestAccount?.uid || null,
+            guestAuthProvider: guestAccount?.uid ? 'google' : null,
             roomId: roomId,
             roomType: roomTypeObj.type,
             price: roomTypeObj.price,
@@ -659,6 +695,8 @@ const handleSubmitBooking = async () => {
       
       const emailBookingData = {
         bookingId: generatedBookingId,
+        guestUid: guestAccount?.uid || null,
+        guestAuthProvider: guestAccount?.uid ? 'google' : null,
         guestInfo: {
           firstName: bookingData.firstName,
           lastName: bookingData.lastName,

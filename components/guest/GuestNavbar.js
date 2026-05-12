@@ -4,10 +4,14 @@ import { useState, useEffect } from 'react';
 import Link from 'next/link';
 import Image from 'next/image';
 import { usePathname } from 'next/navigation';
+import GuestAuthModal from './GuestAuthModal';
+import { useGuestAuth } from './GuestAuthContext';
 
 export default function GuestNavbar() {
   const [isMenuOpen, setIsMenuOpen] = useState(false);
+  const [isAuthOpen, setIsAuthOpen] = useState(false);
   const pathname = usePathname();
+  const { user, profile, loading, logout } = useGuestAuth();
 
   const navLinks = [
     { href: '/', label: 'HOME' },
@@ -33,9 +37,18 @@ export default function GuestNavbar() {
     return () => window.removeEventListener('resize', handleResize);
   }, []);
 
+  const openAuthModal = () => {
+    setIsAuthOpen(true);
+    setIsMenuOpen(false);
+  };
+
+  const displayName = profile?.displayName || user?.displayName || 'Guest';
+  const avatarLetter = (displayName || user?.email || 'G').charAt(0).toUpperCase();
+
   return (
+    <>
     <div id="guest-navbar" className="fixed top-0 left-0 right-0 z-50 mt-3 px-3 sm:mt-6 sm:px-6 lg:px-8">
-      <div className="relative mx-auto max-w-6xl">
+      <div className="relative mx-auto max-w-7xl">
         <nav className="rounded-[2rem] border border-gray-100/50 bg-white/95 px-4 py-3 shadow-[0_8px_30px_rgb(0,0,0,0.08)] backdrop-blur-md sm:rounded-[2.5rem] sm:px-6 sm:py-3.5 lg:px-8">
           <div className="flex items-center justify-between gap-4">
             <Link href="/" onClick={() => setIsMenuOpen(false)} className="flex min-w-0 items-center gap-3 group">
@@ -57,7 +70,7 @@ export default function GuestNavbar() {
               </div>
             </Link>
 
-            <div className="hidden items-center gap-8 md:flex lg:-translate-x-4">
+            <div className="hidden items-center gap-6 md:flex lg:gap-8">
               {navLinks.map((link) => (
                 <Link
                   key={link.label}
@@ -74,7 +87,7 @@ export default function GuestNavbar() {
               ))}
             </div>
 
-            <div className="hidden md:block">
+            <div className="hidden items-center gap-3 md:flex">
               <Link
                 href="/rooms"
                 className={`rounded-full px-6 py-3 text-[15px] font-semibold transition-all shadow-md hover:shadow-lg lg:px-8 ${
@@ -85,6 +98,47 @@ export default function GuestNavbar() {
               >
                 Book Now
               </Link>
+              {user ? (
+                <div className="flex items-center gap-2">
+                  <Link
+                    href="/account"
+                    className="inline-flex items-center gap-2 rounded-full border border-blue-100 bg-blue-50 px-3 py-2.5 text-[13px] font-semibold text-[#2563EB] shadow-sm transition-all hover:bg-white hover:shadow-md"
+                  >
+                    {user.photoURL ? (
+                      <Image
+                        src={user.photoURL}
+                        alt={displayName}
+                        width={30}
+                        height={30}
+                        className="h-8 w-8 rounded-full object-cover"
+                      />
+                    ) : (
+                      <span className="flex h-8 w-8 items-center justify-center rounded-full bg-[#2563EB] text-xs font-bold text-white">
+                        {avatarLetter}
+                      </span>
+                    )}
+                    <span className="max-w-[110px] truncate">{displayName}</span>
+                  </Link>
+                  <button
+                    type="button"
+                    onClick={logout}
+                    className="flex h-11 w-11 items-center justify-center rounded-full border border-slate-200 bg-white text-slate-500 transition-colors hover:border-slate-300 hover:text-slate-900"
+                    title="Sign out"
+                  >
+                    <i className="fas fa-right-from-bracket text-sm"></i>
+                  </button>
+                </div>
+              ) : (
+                <button
+                  type="button"
+                  onClick={openAuthModal}
+                  disabled={loading}
+                  className="inline-flex items-center gap-2 rounded-full border border-blue-100 bg-blue-50 px-4 py-3 text-[14px] font-semibold text-[#2563EB] shadow-sm transition-all hover:border-blue-200 hover:bg-white hover:shadow-md disabled:opacity-60 lg:px-5"
+                >
+                  <i className="fas fa-user-circle text-base"></i>
+                  Sign In
+                </button>
+              )}
             </div>
 
             <button
@@ -123,10 +177,31 @@ export default function GuestNavbar() {
               >
                 Book Now
               </Link>
+              <Link
+                href="/account"
+                onClick={() => setIsMenuOpen(false)}
+                className="inline-flex items-center justify-center gap-2 rounded-full border border-blue-100 bg-blue-50 px-5 py-3 text-sm font-semibold text-[#2563EB] transition-colors hover:bg-white"
+              >
+                <i className="fas fa-receipt"></i>
+                My Bookings
+              </Link>
+              <button
+                type="button"
+                onClick={user ? logout : openAuthModal}
+                className="inline-flex items-center justify-center gap-2 rounded-full border border-gray-200 bg-white px-5 py-3 text-sm font-semibold text-gray-700 transition-colors hover:border-[#3B82F6] hover:text-[#2563EB]"
+              >
+                <i className={`fas ${user ? 'fa-right-from-bracket' : 'fa-user-circle'}`}></i>
+                {user ? 'Sign Out' : 'Guest Sign In'}
+              </button>
             </div>
           </div>
         )}
       </div>
     </div>
+    <GuestAuthModal
+      isOpen={isAuthOpen}
+      onClose={() => setIsAuthOpen(false)}
+    />
+    </>
   );
 }

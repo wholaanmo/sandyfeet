@@ -4,7 +4,8 @@
 import { Suspense, useState, useEffect } from 'react';
 import { useSearchParams, useRouter } from 'next/navigation';
 import GuestLayout from '@/app/guest/layout';
-import { db } from '@/lib/firebase';
+import { auth, db } from '@/lib/firebase';
+import { onAuthStateChanged } from 'firebase/auth';
 import { collection, query, where, getDocs, addDoc, doc, getDoc, serverTimestamp, onSnapshot } from 'firebase/firestore';
 import { uploadImage } from '@/lib/cloudinary';
 import { sendDayTourPendingEmail } from '@/lib/emailService';
@@ -44,6 +45,7 @@ function DayTourBookingContent() {
   const [requestedBankInfo, setRequestedBankInfo] = useState(null);
   const [modalNotification, setModalNotification] = useState(null);
   const [copiedMessage, setCopiedMessage] = useState(false);
+  const [guestAccount, setGuestAccount] = useState(null);
   
   const initialAdultsRaw = parseInt(adultsParam) || 1;
   const initialKidsRaw = parseInt(kidsParam) || 0;
@@ -79,6 +81,35 @@ function DayTourBookingContent() {
     'PhilHealth ID',
     'Other Government IDs'
   ];
+
+  useEffect(() => {
+    const unsubscribe = onAuthStateChanged(auth, (user) => {
+      const isGoogleGuest = user?.providerData?.some((provider) => provider.providerId === 'google.com');
+
+      if (!user || !isGoogleGuest) {
+        setGuestAccount(null);
+        return;
+      }
+
+      const nameParts = (user.displayName || '').trim().split(/\s+/).filter(Boolean);
+      const nextGuest = {
+        uid: user.uid,
+        email: user.email || '',
+        firstName: nameParts[0] || '',
+        lastName: nameParts.length > 1 ? nameParts.slice(1).join(' ') : ''
+      };
+
+      setGuestAccount(nextGuest);
+      setBookingData((prev) => ({
+        ...prev,
+        firstName: prev.firstName || nextGuest.firstName,
+        lastName: prev.lastName || nextGuest.lastName,
+        email: prev.email || nextGuest.email
+      }));
+    });
+
+    return () => unsubscribe();
+  }, []);
 
   // Load persisted data from localStorage on mount
   useEffect(() => {
@@ -568,6 +599,7 @@ function DayTourBookingContent() {
       
       const bankRequestsRef = collection(db, 'daytour_bank_requests');
       const docRef = await addDoc(bankRequestsRef, {
+        guestUid: guestAccount?.uid || null,
         guestName: `${bookingData.firstName} ${bookingData.lastName}`,
         guestEmail: bookingData.email,
         guestPhone: bookingData.phone,
@@ -650,6 +682,8 @@ function DayTourBookingContent() {
       
       const booking = {
         bookingId: generatedBookingId,
+        guestUid: guestAccount?.uid || null,
+        guestAuthProvider: guestAccount?.uid ? 'google' : null,
         dayTourId: dayTour.id,
         selectedDate: dateKey,
         selectedDateISO: selectedDate.toISOString(),
