@@ -1,7 +1,7 @@
 // app/rooms/booking/page.js
 'use client';
 
-import { Suspense, useState, useEffect } from 'react';
+import { Suspense, useState, useEffect, useRef } from 'react';
 import { useSearchParams, useRouter } from 'next/navigation';
 import GuestLayout from '@/app/guest/layout';
 import { auth, db } from '@/lib/firebase';
@@ -9,6 +9,7 @@ import { onAuthStateChanged } from 'firebase/auth';
 import { collection, addDoc, serverTimestamp, updateDoc, doc, getDoc, query, where, getDocs, onSnapshot } from 'firebase/firestore';
 import Image from 'next/image';
 import { uploadImage } from '@/lib/cloudinary';
+import GuestAuthModal from '@/components/guest/GuestAuthModal';
 
 function BookingPageContent() {
   const searchParams = useSearchParams();
@@ -35,8 +36,12 @@ function BookingPageContent() {
   const [generatedBookingId, setGeneratedBookingId] = useState('');
   const [roomDetails, setRoomDetails] = useState(null);
   const [guestAccount, setGuestAccount] = useState(null);
+  const [isAuthOpen, setIsAuthOpen] = useState(false);
+  const [pendingNextStep, setPendingNextStep] = useState(false);
+  const hasAuthenticatedRef = useRef(false);
 
   const [step, setStep] = useState(1);
+  const stepRef = useRef(step);
   const [bookingData, setBookingData] = useState({
     roomId,
     roomType,
@@ -88,11 +93,26 @@ function BookingPageContent() {
   const [downPaymentAmount, setDownPaymentAmount] = useState(0);
 
   useEffect(() => {
+    stepRef.current = step;
+  }, [step]);
+
+  const cancelBookingFlow = () => {
+    setIsAuthOpen(false);
+    setPendingNextStep(false);
+    setGuestAccount(null);
+    router.replace('/rooms');
+  };
+
+  useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, (user) => {
       const isGoogleGuest = user?.providerData?.some((provider) => provider.providerId === 'google.com');
 
       if (!user || !isGoogleGuest) {
         setGuestAccount(null);
+        if (hasAuthenticatedRef.current && stepRef.current < 4) {
+          cancelBookingFlow();
+        }
+        hasAuthenticatedRef.current = false;
         return;
       }
 
@@ -105,12 +125,22 @@ function BookingPageContent() {
       };
 
       setGuestAccount(nextGuest);
+      hasAuthenticatedRef.current = true;
       setBookingData((prev) => ({
         ...prev,
         firstName: prev.firstName || nextGuest.firstName,
         lastName: prev.lastName || nextGuest.lastName,
         email: prev.email || nextGuest.email
       }));
+
+      // If the user just signed in to continue from step 1, advance automatically
+      setPendingNextStep((pending) => {
+        if (pending) {
+          setStep((s) => (s === 1 ? 2 : s));
+          return false;
+        }
+        return false;
+      });
     });
 
     return () => unsubscribe();
@@ -545,9 +575,14 @@ function BookingPageContent() {
 
   const handleNextStep = () => {
     if (step === 1) {
-      if (validateGuests()) {
-        setStep(step + 1);
+      if (!validateGuests()) return;
+      // Room bookings require an account
+      if (!guestAccount) {
+        setPendingNextStep(true);
+        setIsAuthOpen(true);
+        return;
       }
+      setStep(2);
     } else if (step === 2) {
       if (validateStep2()) {
         setStep(step + 1);
@@ -1688,6 +1723,14 @@ function BookingPageContent() {
           animation: fadeIn 0.3s ease-out;
         }
       `}</style>
+
+      <GuestAuthModal
+        isOpen={isAuthOpen}
+        onClose={() => {
+          setIsAuthOpen(false);
+          setPendingNextStep(false);
+        }}
+      />
     </GuestLayout>
   );
 }

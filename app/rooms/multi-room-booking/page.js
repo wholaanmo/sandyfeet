@@ -1,7 +1,7 @@
 // app/rooms/multi-room-booking/page.js
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import GuestLayout from '@/app/guest/layout';
 import { auth, db } from '@/lib/firebase';
@@ -11,6 +11,7 @@ import Image from 'next/image';
 import { uploadImage } from '@/lib/cloudinary';
 import { compressImage } from '@/lib/imageUtils';
 import { sendRoomPendingEmail } from '@/lib/emailService';
+import GuestAuthModal from '@/components/guest/GuestAuthModal';
 
 // Storage keys for persisting data
 const MULTI_ROOM_STORAGE_KEY = 'multi_room_booking_data';
@@ -47,6 +48,10 @@ export default function MultiRoomBookingPage() {
   const [validIdUploading, setValidIdUploading] = useState(false);
   const [isConfirmed, setIsConfirmed] = useState(false);
   const [guestAccount, setGuestAccount] = useState(null);
+  const [isAuthOpen, setIsAuthOpen] = useState(false);
+  const [pendingNextStep, setPendingNextStep] = useState(false);
+  const hasAuthenticatedRef = useRef(false);
+  const stepRef = useRef(step);
 
   const FIXED_CHECK_IN_HOUR = 14;
   const FIXED_CHECK_OUT_HOUR = 12;
@@ -65,11 +70,34 @@ export default function MultiRoomBookingPage() {
   ];
 
   useEffect(() => {
+    stepRef.current = step;
+  }, [step]);
+
+  const cancelBookingFlow = () => {
+    setIsAuthOpen(false);
+    setPendingNextStep(false);
+    setGuestAccount(null);
+    try {
+      localStorage.removeItem(MULTI_ROOM_STORAGE_KEY);
+      localStorage.removeItem(MULTI_ROOM_STEP_KEY);
+    } catch {
+      // ignore storage cleanup errors
+    }
+    sessionStorage.removeItem('multiRoomBooking');
+    sessionStorage.removeItem('multiRoomBookingDraft');
+    router.replace('/rooms');
+  };
+
+  useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, (user) => {
       const isGoogleGuest = user?.providerData?.some((provider) => provider.providerId === 'google.com');
 
       if (!user || !isGoogleGuest) {
         setGuestAccount(null);
+        if (hasAuthenticatedRef.current && stepRef.current < 4) {
+          cancelBookingFlow();
+        }
+        hasAuthenticatedRef.current = false;
         return;
       }
 
@@ -82,12 +110,21 @@ export default function MultiRoomBookingPage() {
       };
 
       setGuestAccount(nextGuest);
+      hasAuthenticatedRef.current = true;
       setBookingData((prev) => prev ? ({
         ...prev,
         firstName: prev.firstName || nextGuest.firstName,
         lastName: prev.lastName || nextGuest.lastName,
         email: prev.email || nextGuest.email
       }) : prev);
+
+      setPendingNextStep((pending) => {
+        if (pending) {
+          setStep((current) => (current === 2 ? 3 : current));
+          return false;
+        }
+        return false;
+      });
     });
 
     return () => unsubscribe();
@@ -345,9 +382,13 @@ export default function MultiRoomBookingPage() {
 
   const handleNextStep = () => {
     if (step === 2) {
-      if (validateStep2()) {
-        setStep(step + 1);
+      if (!validateStep2()) return;
+      if (!guestAccount) {
+        setPendingNextStep(true);
+        setIsAuthOpen(true);
+        return;
       }
+      setStep(step + 1);
     } else {
       setStep(step + 1);
     }
@@ -512,6 +553,11 @@ export default function MultiRoomBookingPage() {
   };
 
 const handleSubmitBooking = async () => {
+  if (!guestAccount) {
+    setIsAuthOpen(true);
+    return;
+  }
+
   setSubmitting(true);
   try {
     const bookingId = generatedBookingId;
@@ -1689,6 +1735,14 @@ const handleSubmitBooking = async () => {
           </div>
         </div>
       )}
+
+      <GuestAuthModal
+        isOpen={isAuthOpen}
+        onClose={() => {
+          setIsAuthOpen(false);
+          setPendingNextStep(false);
+        }}
+      />
 
       <style jsx>{`
         @keyframes fadeIn {

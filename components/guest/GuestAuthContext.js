@@ -105,6 +105,26 @@ export function GuestAuthProvider({ children }) {
     }
   }, []);
 
+  const updateGuestProfile = useCallback(async (updates) => {
+    if (!user) {
+      throw new Error('Guest must be signed in to update profile.');
+    }
+
+    const profileRef = doc(db, 'guestProfiles', user.uid);
+    await setDoc(profileRef, {
+      ...updates,
+      updatedAt: serverTimestamp()
+    }, { merge: true });
+
+    setProfile((prev) => ({
+      ...(prev || {}),
+      ...updates,
+      uid: user.uid,
+      email: (prev?.email || user.email || ''),
+      displayName: (prev?.displayName || user.displayName || '')
+    }));
+  }, [user]);
+
   const logout = useCallback(async () => {
     setActionLoading(true);
     setError('');
@@ -128,8 +148,9 @@ export function GuestAuthProvider({ children }) {
     actionLoading,
     error,
     signInWithGoogle,
-    logout
-  }), [actionLoading, error, loading, logout, profile, signInWithGoogle, user]);
+    logout,
+    updateGuestProfile
+  }), [actionLoading, error, loading, logout, profile, signInWithGoogle, updateGuestProfile, user]);
 
   return (
     <GuestAuthContext.Provider value={value}>

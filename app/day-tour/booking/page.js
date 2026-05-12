@@ -1,7 +1,7 @@
 ﻿// app/day-tour/booking/page.js
 'use client';
 
-import { Suspense, useState, useEffect } from 'react';
+import { Suspense, useState, useEffect, useRef } from 'react';
 import { useSearchParams, useRouter } from 'next/navigation';
 import GuestLayout from '@/app/guest/layout';
 import { auth, db } from '@/lib/firebase';
@@ -46,6 +46,8 @@ function DayTourBookingContent() {
   const [modalNotification, setModalNotification] = useState(null);
   const [copiedMessage, setCopiedMessage] = useState(false);
   const [guestAccount, setGuestAccount] = useState(null);
+  const hasAuthenticatedRef = useRef(false);
+  const stepRef = useRef(step);
   
   const initialAdultsRaw = parseInt(adultsParam) || 1;
   const initialKidsRaw = parseInt(kidsParam) || 0;
@@ -65,6 +67,21 @@ function DayTourBookingContent() {
   });
   
   const [errors, setErrors] = useState({});
+
+  useEffect(() => {
+    stepRef.current = step;
+  }, [step]);
+
+  const cancelBookingFlow = () => {
+    setGuestAccount(null);
+    try {
+      localStorage.removeItem(STORAGE_KEY);
+      localStorage.removeItem(STEP_STORAGE_KEY);
+    } catch {
+      // ignore storage cleanup errors
+    }
+    router.replace('/day-tour');
+  };
 
   const [showValidIdModal, setShowValidIdModal] = useState(false);
   const [tempValidIdType, setTempValidIdType] = useState('Passport');
@@ -88,6 +105,10 @@ function DayTourBookingContent() {
 
       if (!user || !isGoogleGuest) {
         setGuestAccount(null);
+        if (hasAuthenticatedRef.current && stepRef.current < 4) {
+          cancelBookingFlow();
+        }
+        hasAuthenticatedRef.current = false;
         return;
       }
 
@@ -100,6 +121,7 @@ function DayTourBookingContent() {
       };
 
       setGuestAccount(nextGuest);
+      hasAuthenticatedRef.current = true;
       setBookingData((prev) => ({
         ...prev,
         firstName: prev.firstName || nextGuest.firstName,

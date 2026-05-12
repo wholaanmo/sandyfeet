@@ -883,7 +883,7 @@ try {
                     <div className="mt-4 grid gap-2 sm:grid-cols-2 lg:grid-cols-1 xl:grid-cols-2">
                       {user ? (
                         <Link
-                          href="/account"
+                          href="/my-bookings"
                           className="inline-flex items-center justify-center gap-2 rounded-xl bg-[#2563EB] px-4 py-2.5 text-xs font-semibold text-white shadow-sm transition-all hover:bg-[#174FCC] sm:col-span-2 lg:col-span-1 xl:col-span-2"
                         >
                           <i className="fas fa-receipt"></i>
@@ -896,7 +896,7 @@ try {
                           className="inline-flex items-center justify-center gap-2 rounded-xl bg-[#111111] px-4 py-2.5 text-xs font-semibold text-white shadow-sm transition-all hover:bg-black sm:col-span-2 lg:col-span-1 xl:col-span-2"
                         >
                           <i className="fab fa-google"></i>
-                          Sign in or create account
+                          Sign in or create an account
                         </button>
                       )}
                     </div>

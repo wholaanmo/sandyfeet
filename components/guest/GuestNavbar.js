@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import Link from 'next/link';
 import Image from 'next/image';
 import { usePathname } from 'next/navigation';
@@ -10,6 +10,8 @@ import { useGuestAuth } from './GuestAuthContext';
 export default function GuestNavbar() {
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const [isAuthOpen, setIsAuthOpen] = useState(false);
+  const [isAccountDropdownOpen, setIsAccountDropdownOpen] = useState(false);
+  const dropdownRef = useRef(null);
   const pathname = usePathname();
   const { user, profile, loading, logout } = useGuestAuth();
 
@@ -17,7 +19,6 @@ export default function GuestNavbar() {
     { href: '/', label: 'HOME' },
     { href: '/rooms', label: 'ROOMS' },
     { href: '/day-tour', label: 'DAYTOUR' },
-    { href: '/reservation-tracker', label: 'TRACK RESERVATION' },
   ];
 
   const isActive = (path) => {
@@ -33,8 +34,18 @@ export default function GuestNavbar() {
       }
     };
 
+    const handleClickOutside = (event) => {
+      if (dropdownRef.current && !dropdownRef.current.contains(event.target)) {
+        setIsAccountDropdownOpen(false);
+      }
+    };
+
     window.addEventListener('resize', handleResize);
-    return () => window.removeEventListener('resize', handleResize);
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => {
+      window.removeEventListener('resize', handleResize);
+      document.removeEventListener('mousedown', handleClickOutside);
+    };
   }, []);
 
   const openAuthModal = () => {
@@ -88,28 +99,20 @@ export default function GuestNavbar() {
             </div>
 
             <div className="hidden items-center gap-3 md:flex">
-              <Link
-                href="/rooms"
-                className={`rounded-full px-6 py-3 text-[15px] font-semibold transition-all shadow-md hover:shadow-lg lg:px-8 ${
-                  isActive('/rooms')
-                    ? 'bg-[#2563EB] text-white shadow-blue-500/30'
-                    : 'bg-[#3B82F6] text-white shadow-blue-500/20 hover:bg-[#2563EB]'
-                }`}
-              >
-                Book Now
-              </Link>
               {user ? (
                 <div className="flex items-center gap-2">
-                  <Link
-                    href="/account"
-                    className="inline-flex items-center gap-2 rounded-full border border-blue-100 bg-blue-50 px-3 py-2.5 text-[13px] font-semibold text-[#2563EB] shadow-sm transition-all hover:bg-white hover:shadow-md"
+
+                  <div className="relative" ref={dropdownRef}>
+                    <button
+                      onClick={() => setIsAccountDropdownOpen((prev) => !prev)}
+                    className="inline-flex items-center gap-2.5 rounded-full border border-slate-200 bg-white p-1 pr-4 text-[14px] font-semibold text-slate-700 shadow-sm transition-all hover:bg-slate-50 focus:outline-none"
                   >
                     {user.photoURL ? (
                       <Image
                         src={user.photoURL}
                         alt={displayName}
-                        width={30}
-                        height={30}
+                        width={32}
+                        height={32}
                         className="h-8 w-8 rounded-full object-cover"
                       />
                     ) : (
@@ -117,45 +120,119 @@ export default function GuestNavbar() {
                         {avatarLetter}
                       </span>
                     )}
-                    <span className="max-w-[110px] truncate">{displayName}</span>
-                  </Link>
-                  <button
-                    type="button"
-                    onClick={logout}
-                    className="flex h-11 w-11 items-center justify-center rounded-full border border-slate-200 bg-white text-slate-500 transition-colors hover:border-slate-300 hover:text-slate-900"
-                    title="Sign out"
-                  >
-                    <i className="fas fa-right-from-bracket text-sm"></i>
+                    <span className="max-w-[100px] truncate">{displayName}</span>
+                    <i className={`fas fa-chevron-down text-[10px] text-slate-400 transition-transform ${isAccountDropdownOpen ? 'rotate-180' : ''}`}></i>
                   </button>
+
+                  {/* Expedia-style Dropdown */}
+                  {isAccountDropdownOpen && (
+                    <div className="absolute right-0 mt-3 w-64 origin-top-right overflow-hidden rounded-2xl border border-slate-100 bg-white shadow-[0_10px_40px_-10px_rgba(0,0,0,0.15)] ring-1 ring-black ring-opacity-5 focus:outline-none">
+                      <div className="border-b border-slate-100 px-5 py-4">
+                        <p className="truncate text-[15px] font-bold text-slate-900">{displayName}</p>
+                        <p className="truncate text-[13px] text-slate-500">{user.email}</p>
+                      </div>
+                      <div className="p-2">
+                        <Link
+                          href="/my-bookings"
+                          onClick={() => setIsAccountDropdownOpen(false)}
+                          className="flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium text-slate-700 hover:bg-slate-50 hover:text-[#3B82F6] transition-colors"
+                        >
+                          <i className="fas fa-user-circle w-5 text-center text-slate-400"></i>
+                          Account
+                        </Link>
+                        <Link
+                          href="/account"
+                          onClick={() => setIsAccountDropdownOpen(false)}
+                          className="flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium text-slate-700 hover:bg-slate-50 hover:text-[#3B82F6] transition-colors"
+                        >
+                          <i className="fas fa-suitcase w-5 text-center text-slate-400"></i>
+                          My Bookings
+                        </Link>
+                        <Link
+                          href="/reservation-tracker"
+                          onClick={() => setIsAccountDropdownOpen(false)}
+                          className="flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium text-slate-700 hover:bg-slate-50 hover:text-[#3B82F6] transition-colors"
+                        >
+                          <i className="fas fa-map-location-dot w-5 text-center text-slate-400"></i>
+                          Track Reservation
+                        </Link>
+                        <Link
+                          href="/feedback"
+                          onClick={() => setIsAccountDropdownOpen(false)}
+                          className="flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium text-slate-700 hover:bg-slate-50 hover:text-[#3B82F6] transition-colors"
+                        >
+                          <i className="fas fa-comment-dots w-5 text-center text-slate-400"></i>
+                          Feedback
+                        </Link>
+                      </div>
+                      <div className="border-t border-slate-100 p-2">
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setIsAccountDropdownOpen(false);
+                            logout();
+                          }}
+                          className="flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium text-slate-700 hover:bg-red-50 hover:text-red-600 transition-colors"
+                        >
+                          <i className="fas fa-right-from-bracket w-5 text-center text-slate-400"></i>
+                          Sign out
+                        </button>
+                      </div>
+                    </div>
+                  )}
+                </div>
                 </div>
               ) : (
                 <button
                   type="button"
                   onClick={openAuthModal}
                   disabled={loading}
-                  className="inline-flex items-center gap-2 rounded-full border border-blue-100 bg-blue-50 px-4 py-3 text-[14px] font-semibold text-[#2563EB] shadow-sm transition-all hover:border-blue-200 hover:bg-white hover:shadow-md disabled:opacity-60 lg:px-5"
+                  className="inline-flex items-center gap-2 rounded-full border border-transparent bg-[#2563EB] px-5 py-2.5 text-[14px] font-semibold text-white shadow-md transition-all hover:bg-blue-700 disabled:opacity-60"
                 >
-                  <i className="fas fa-user-circle text-base"></i>
-                  Sign In
+                  <i className="fas fa-user text-sm"></i>
+                  Sign in
                 </button>
               )}
             </div>
 
-            <button
-              type="button"
-              aria-label={isMenuOpen ? 'Close navigation menu' : 'Open navigation menu'}
-              aria-expanded={isMenuOpen}
-              onClick={() => setIsMenuOpen((prev) => !prev)}
-              className="flex h-11 w-11 items-center justify-center rounded-full border border-gray-200 bg-white text-[#143B36] shadow-sm transition-colors hover:border-[#3B82F6] hover:text-[#3B82F6] md:hidden"
-            >
-              <span className="material-icons text-[22px]">{isMenuOpen ? 'close' : 'menu'}</span>
-            </button>
+            <div className="flex items-center gap-2 md:hidden">
+              <button
+                type="button"
+                aria-label={isMenuOpen ? 'Close navigation menu' : 'Open navigation menu'}
+                aria-expanded={isMenuOpen}
+                onClick={() => setIsMenuOpen((prev) => !prev)}
+                className="flex h-11 w-11 items-center justify-center rounded-full border border-gray-200 bg-white text-[#143B36] shadow-sm transition-colors hover:border-[#3B82F6] hover:text-[#3B82F6]"
+              >
+                <span className="material-icons text-[22px]">{isMenuOpen ? 'close' : 'menu'}</span>
+              </button>
+            </div>
           </div>
         </nav>
 
         {isMenuOpen && (
           <div className="mt-3 rounded-[1.75rem] border border-gray-100/70 bg-white/96 p-4 shadow-[0_18px_40px_rgb(0,0,0,0.12)] backdrop-blur-md md:hidden">
             <div className="flex flex-col gap-2">
+              {user && (
+                <div className="flex items-center gap-3 rounded-2xl border border-slate-100 bg-white px-4 py-3">
+                  {user.photoURL ? (
+                    <Image
+                      src={user.photoURL}
+                      alt={displayName}
+                      width={36}
+                      height={36}
+                      className="h-9 w-9 rounded-full object-cover"
+                    />
+                  ) : (
+                    <span className="flex h-9 w-9 items-center justify-center rounded-full bg-[#2563EB] text-xs font-bold text-white">
+                      {avatarLetter}
+                    </span>
+                  )}
+                  <div className="min-w-0">
+                    <p className="truncate text-sm font-semibold text-slate-900">{displayName}</p>
+                    {user.email && <p className="truncate text-xs text-slate-500">{user.email}</p>}
+                  </div>
+                </div>
+              )}
               {navLinks.map((link) => (
                 <Link
                   key={link.label}
@@ -170,29 +247,66 @@ export default function GuestNavbar() {
                   {link.label}
                 </Link>
               ))}
-              <Link
-                href="/rooms"
-                onClick={() => setIsMenuOpen(false)}
-                className="mt-2 inline-flex items-center justify-center rounded-full bg-[#3B82F6] px-5 py-3 text-sm font-semibold text-white shadow-blue-500/20 transition-colors hover:bg-[#2563EB]"
-              >
-                Book Now
-              </Link>
-              <Link
-                href="/account"
-                onClick={() => setIsMenuOpen(false)}
-                className="inline-flex items-center justify-center gap-2 rounded-full border border-blue-100 bg-blue-50 px-5 py-3 text-sm font-semibold text-[#2563EB] transition-colors hover:bg-white"
-              >
-                <i className="fas fa-receipt"></i>
-                My Bookings
-              </Link>
-              <button
-                type="button"
-                onClick={user ? logout : openAuthModal}
-                className="inline-flex items-center justify-center gap-2 rounded-full border border-gray-200 bg-white px-5 py-3 text-sm font-semibold text-gray-700 transition-colors hover:border-[#3B82F6] hover:text-[#2563EB]"
-              >
-                <i className={`fas ${user ? 'fa-right-from-bracket' : 'fa-user-circle'}`}></i>
-                {user ? 'Sign Out' : 'Guest Sign In'}
-              </button>
+
+              <div className="mt-2 flex flex-col gap-2 border-t border-slate-100 pt-3">
+                {user ? (
+                  <>
+                    <Link
+                      href="/my-bookings"
+                      onClick={() => setIsMenuOpen(false)}
+                      className="inline-flex w-full items-center justify-start gap-3 rounded-2xl px-4 py-3 text-sm font-semibold text-slate-700 transition-colors hover:bg-slate-50 hover:text-[#3B82F6]"
+                    >
+                      <i className="fas fa-user-circle w-5 text-center text-slate-400"></i>
+                      Account
+                    </Link>
+                    <Link
+                      href="/account"
+                      onClick={() => setIsMenuOpen(false)}
+                      className="inline-flex w-full items-center justify-start gap-3 rounded-2xl px-4 py-3 text-sm font-semibold text-slate-700 transition-colors hover:bg-slate-50 hover:text-[#3B82F6]"
+                    >
+                      <i className="fas fa-suitcase w-5 text-center text-slate-400"></i>
+                      My Bookings
+                    </Link>
+                    <Link
+                      href="/reservation-tracker"
+                      onClick={() => setIsMenuOpen(false)}
+                      className="inline-flex w-full items-center justify-start gap-3 rounded-2xl px-4 py-3 text-sm font-semibold text-slate-700 transition-colors hover:bg-slate-50 hover:text-[#3B82F6]"
+                    >
+                      <i className="fas fa-map-location-dot w-5 text-center text-slate-400"></i>
+                      Track Reservation
+                    </Link>
+                    <Link
+                      href="/feedback"
+                      onClick={() => setIsMenuOpen(false)}
+                      className="inline-flex w-full items-center justify-start gap-3 rounded-2xl px-4 py-3 text-sm font-semibold text-slate-700 transition-colors hover:bg-slate-50 hover:text-[#3B82F6]"
+                    >
+                      <i className="fas fa-comment-dots w-5 text-center text-slate-400"></i>
+                      Feedback
+                    </Link>
+                    <div className="my-1 border-t border-slate-100" />
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setIsMenuOpen(false);
+                        logout();
+                      }}
+                      className="inline-flex w-full items-center justify-start gap-3 rounded-2xl px-4 py-3 text-sm font-semibold text-red-600 transition-colors hover:bg-red-50"
+                    >
+                      <i className="fas fa-right-from-bracket w-5 text-center text-red-400"></i>
+                      Sign out
+                    </button>
+                  </>
+                ) : (
+                  <button
+                    type="button"
+                    onClick={openAuthModal}
+                    className="inline-flex w-full items-center justify-center gap-2 rounded-2xl bg-[#2563EB] px-5 py-3 text-sm font-semibold text-white shadow-md transition-all hover:bg-blue-700"
+                  >
+                    <i className="fas fa-user text-sm"></i>
+                    Sign in
+                  </button>
+                )}
+              </div>
             </div>
           </div>
         )}
