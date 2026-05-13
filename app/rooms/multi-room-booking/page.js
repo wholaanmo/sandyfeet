@@ -12,13 +12,23 @@ import { uploadImage } from '@/lib/cloudinary';
 import { compressImage } from '@/lib/imageUtils';
 import { sendRoomPendingEmail } from '@/lib/emailService';
 import GuestAuthModal from '@/components/guest/GuestAuthModal';
+import { useGuestAuth } from '@/components/guest/GuestAuthContext';
 
 // Storage keys for persisting data
 const MULTI_ROOM_STORAGE_KEY = 'multi_room_booking_data';
 const MULTI_ROOM_STEP_KEY = 'multi_room_booking_step';
 
+const resolveAddressPart = (address, key) => {
+  if (!address) return '';
+  if (typeof address === 'string') {
+    return key === 'street' ? address : '';
+  }
+  return address[key] || '';
+};
+
 export default function MultiRoomBookingPage() {
   const router = useRouter();
+  const { profile } = useGuestAuth();
   const [bookingData, setBookingData] = useState(null);
   const [loading, setLoading] = useState(true);
   const [step, setStep] = useState(2);
@@ -189,6 +199,11 @@ export default function MultiRoomBookingPage() {
       lastName: persistedFormData.lastName || '',
       email: persistedFormData.email || '',
       phone: persistedFormData.phone || '',
+      addressStreet: persistedFormData.addressStreet || '',
+      addressBarangay: persistedFormData.addressBarangay || '',
+      addressCity: persistedFormData.addressCity || '',
+      addressProvince: persistedFormData.addressProvince || '',
+      addressPostalCode: persistedFormData.addressPostalCode || '',
       paymentProofUrl: persistedFormData.paymentProofUrl || null,
       validIdType: persistedFormData.validIdType || '',
       validIdUrl: persistedFormData.validIdUrl || null,
@@ -211,6 +226,11 @@ export default function MultiRoomBookingPage() {
         lastName: bookingData.lastName,
         email: bookingData.email,
         phone: bookingData.phone,
+        addressStreet: bookingData.addressStreet,
+        addressBarangay: bookingData.addressBarangay,
+        addressCity: bookingData.addressCity,
+        addressProvince: bookingData.addressProvince,
+        addressPostalCode: bookingData.addressPostalCode,
         paymentProofUrl: bookingData.paymentProofUrl,
         validIdType: bookingData.validIdType,
         validIdUrl: bookingData.validIdUrl,
@@ -246,6 +266,19 @@ export default function MultiRoomBookingPage() {
       }
     }
   }, [step]);
+
+  useEffect(() => {
+    if (!profile) return;
+    setBookingData((prev) => prev ? ({
+      ...prev,
+      phone: prev.phone || profile.mobileNumber || '',
+      addressStreet: prev.addressStreet || resolveAddressPart(profile.address, 'street'),
+      addressBarangay: prev.addressBarangay || resolveAddressPart(profile.address, 'barangay'),
+      addressCity: prev.addressCity || resolveAddressPart(profile.address, 'city'),
+      addressProvince: prev.addressProvince || resolveAddressPart(profile.address, 'province'),
+      addressPostalCode: prev.addressPostalCode || resolveAddressPart(profile.address, 'postalCode')
+    }) : prev);
+  }, [profile]);
 
   // Generate booking reference
   const generateBookingReference = () => {
@@ -618,7 +651,14 @@ const handleSubmitBooking = async () => {
           firstName: bookingData.firstName,
           lastName: bookingData.lastName,
           email: bookingData.email,
-          phone: bookingData.phone
+          phone: bookingData.phone,
+          address: {
+            street: bookingData.addressStreet || '',
+            barangay: bookingData.addressBarangay || '',
+            city: bookingData.addressCity || '',
+            province: bookingData.addressProvince || '',
+            postalCode: bookingData.addressPostalCode || ''
+          }
         },
         status: 'pending',
         paymentMethod: paymentMethod,
@@ -690,7 +730,14 @@ const handleSubmitBooking = async () => {
               firstName: bookingData.firstName,
               lastName: bookingData.lastName,
               email: bookingData.email,
-              phone: bookingData.phone
+              phone: bookingData.phone,
+              address: {
+                street: bookingData.addressStreet || '',
+                barangay: bookingData.addressBarangay || '',
+                city: bookingData.addressCity || '',
+                province: bookingData.addressProvince || '',
+                postalCode: bookingData.addressPostalCode || ''
+              }
             },
             status: 'pending',
             paymentMethod: paymentMethod,
@@ -747,7 +794,14 @@ const handleSubmitBooking = async () => {
           firstName: bookingData.firstName,
           lastName: bookingData.lastName,
           email: bookingData.email,
-          phone: bookingData.phone
+          phone: bookingData.phone,
+          address: {
+            street: bookingData.addressStreet || '',
+            barangay: bookingData.addressBarangay || '',
+            city: bookingData.addressCity || '',
+            province: bookingData.addressProvince || '',
+            postalCode: bookingData.addressPostalCode || ''
+          }
         },
         checkIn: bookingData.checkIn,
         checkOut: bookingData.checkOut,
@@ -964,6 +1018,58 @@ const handleSubmitBooking = async () => {
                         className={`w-full px-4 py-2.5 border ${errors.phone ? 'border-red-500' : 'border-gray-200'} rounded-xl focus:outline-none focus:border-blue-400`}
                       />
                       {errors.phone && <p className="text-red-500 text-sm mt-1">{errors.phone}</p>}
+                    </div>
+
+                    <div>
+                      <label className="block text-sm font-semibold text-textPrimary mb-2">Street / House No.</label>
+                      <input
+                        type="text"
+                        value={bookingData.addressStreet}
+                        onChange={(e) => handleInputChange('addressStreet', e.target.value)}
+                        className="w-full px-4 py-2.5 border border-gray-200 rounded-xl focus:outline-none focus:border-blue-400"
+                      />
+                    </div>
+
+                    <div className="grid gap-4 sm:grid-cols-2">
+                      <div>
+                        <label className="block text-sm font-semibold text-textPrimary mb-2">Barangay</label>
+                        <input
+                          type="text"
+                          value={bookingData.addressBarangay}
+                          onChange={(e) => handleInputChange('addressBarangay', e.target.value)}
+                          className="w-full px-4 py-2.5 border border-gray-200 rounded-xl focus:outline-none focus:border-blue-400"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-sm font-semibold text-textPrimary mb-2">City / Municipality</label>
+                        <input
+                          type="text"
+                          value={bookingData.addressCity}
+                          onChange={(e) => handleInputChange('addressCity', e.target.value)}
+                          className="w-full px-4 py-2.5 border border-gray-200 rounded-xl focus:outline-none focus:border-blue-400"
+                        />
+                      </div>
+                    </div>
+
+                    <div className="grid gap-4 sm:grid-cols-2">
+                      <div>
+                        <label className="block text-sm font-semibold text-textPrimary mb-2">Province</label>
+                        <input
+                          type="text"
+                          value={bookingData.addressProvince}
+                          onChange={(e) => handleInputChange('addressProvince', e.target.value)}
+                          className="w-full px-4 py-2.5 border border-gray-200 rounded-xl focus:outline-none focus:border-blue-400"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-sm font-semibold text-textPrimary mb-2">Postal Code</label>
+                        <input
+                          type="text"
+                          value={bookingData.addressPostalCode}
+                          onChange={(e) => handleInputChange('addressPostalCode', e.target.value)}
+                          className="w-full px-4 py-2.5 border border-gray-200 rounded-xl focus:outline-none focus:border-blue-400"
+                        />
+                      </div>
                     </div>
                   </div>
                   

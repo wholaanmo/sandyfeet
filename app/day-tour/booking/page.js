@@ -9,14 +9,24 @@ import { onAuthStateChanged } from 'firebase/auth';
 import { collection, query, where, getDocs, addDoc, doc, getDoc, serverTimestamp, onSnapshot } from 'firebase/firestore';
 import { uploadImage } from '@/lib/cloudinary';
 import { sendDayTourPendingEmail } from '@/lib/emailService';
+import { useGuestAuth } from '@/components/guest/GuestAuthContext';
 
 // Storage key for persisting booking data
 const STORAGE_KEY = 'daytour_booking_data';
 const STEP_STORAGE_KEY = 'daytour_booking_step';
 
+const resolveAddressPart = (address, key) => {
+  if (!address) return '';
+  if (typeof address === 'string') {
+    return key === 'street' ? address : '';
+  }
+  return address[key] || '';
+};
+
 function DayTourBookingContent() {
   const searchParams = useSearchParams();
   const router = useRouter();
+  const { profile } = useGuestAuth();
   const HARD_MAX_PACKS = 38;
   const LEAD_TIME_DAYS = 2;
   const dateParam = searchParams.get('date');
@@ -61,6 +71,11 @@ function DayTourBookingContent() {
     lastName: '',
     email: '',
     phone: '',
+    addressStreet: '',
+    addressBarangay: '',
+    addressCity: '',
+    addressProvince: '',
+    addressPostalCode: '',
     paymentProof: null,
     validIdType: '',
     validIdImage: null
@@ -133,6 +148,20 @@ function DayTourBookingContent() {
     return () => unsubscribe();
   }, []);
 
+  useEffect(() => {
+    if (!profile) return;
+
+    setBookingData((prev) => ({
+      ...prev,
+      phone: prev.phone || profile.mobileNumber || '',
+      addressStreet: prev.addressStreet || resolveAddressPart(profile.address, 'street'),
+      addressBarangay: prev.addressBarangay || resolveAddressPart(profile.address, 'barangay'),
+      addressCity: prev.addressCity || resolveAddressPart(profile.address, 'city'),
+      addressProvince: prev.addressProvince || resolveAddressPart(profile.address, 'province'),
+      addressPostalCode: prev.addressPostalCode || resolveAddressPart(profile.address, 'postalCode')
+    }));
+  }, [profile]);
+
   // Load persisted data from localStorage on mount
   useEffect(() => {
     try {
@@ -188,6 +217,11 @@ function DayTourBookingContent() {
         lastName: bookingData.lastName,
         email: bookingData.email,
         phone: bookingData.phone,
+        addressStreet: bookingData.addressStreet,
+        addressBarangay: bookingData.addressBarangay,
+        addressCity: bookingData.addressCity,
+        addressProvince: bookingData.addressProvince,
+        addressPostalCode: bookingData.addressPostalCode,
         paymentProof: bookingData.paymentProof,
         validIdType: bookingData.validIdType,
         validIdImage: bookingData.validIdImage,
@@ -719,7 +753,14 @@ function DayTourBookingContent() {
           firstName: bookingData.firstName,
           lastName: bookingData.lastName,
           email: bookingData.email,
-          phone: bookingData.phone
+          phone: bookingData.phone,
+          address: {
+            street: bookingData.addressStreet || '',
+            barangay: bookingData.addressBarangay || '',
+            city: bookingData.addressCity || '',
+            province: bookingData.addressProvince || '',
+            postalCode: bookingData.addressPostalCode || ''
+          }
         },
         status: 'pending',
         paymentMethod: paymentMethod,
@@ -1356,6 +1397,58 @@ function DayTourBookingContent() {
                         className={`w-full px-4 py-2 border ${errors.phone ? 'border-red-500' : 'border-ocean-light/20'} rounded-lg focus:outline-none focus:border-ocean-light`}
                       />
                       {errors.phone && <p className="text-red-500 text-xs mt-1">{errors.phone}</p>}
+                    </div>
+
+                    <div>
+                      <label className="block text-sm font-semibold text-textPrimary mb-2">Street / House No.</label>
+                      <input
+                        type="text"
+                        value={bookingData.addressStreet}
+                        onChange={(e) => handleInputChange('addressStreet', e.target.value)}
+                        className="w-full px-4 py-2 border border-ocean-light/20 rounded-lg focus:outline-none focus:border-ocean-light"
+                      />
+                    </div>
+
+                    <div className="grid gap-4 sm:grid-cols-2">
+                      <div>
+                        <label className="block text-sm font-semibold text-textPrimary mb-2">Barangay</label>
+                        <input
+                          type="text"
+                          value={bookingData.addressBarangay}
+                          onChange={(e) => handleInputChange('addressBarangay', e.target.value)}
+                          className="w-full px-4 py-2 border border-ocean-light/20 rounded-lg focus:outline-none focus:border-ocean-light"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-sm font-semibold text-textPrimary mb-2">City / Municipality</label>
+                        <input
+                          type="text"
+                          value={bookingData.addressCity}
+                          onChange={(e) => handleInputChange('addressCity', e.target.value)}
+                          className="w-full px-4 py-2 border border-ocean-light/20 rounded-lg focus:outline-none focus:border-ocean-light"
+                        />
+                      </div>
+                    </div>
+
+                    <div className="grid gap-4 sm:grid-cols-2">
+                      <div>
+                        <label className="block text-sm font-semibold text-textPrimary mb-2">Province</label>
+                        <input
+                          type="text"
+                          value={bookingData.addressProvince}
+                          onChange={(e) => handleInputChange('addressProvince', e.target.value)}
+                          className="w-full px-4 py-2 border border-ocean-light/20 rounded-lg focus:outline-none focus:border-ocean-light"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-sm font-semibold text-textPrimary mb-2">Postal Code</label>
+                        <input
+                          type="text"
+                          value={bookingData.addressPostalCode}
+                          onChange={(e) => handleInputChange('addressPostalCode', e.target.value)}
+                          className="w-full px-4 py-2 border border-ocean-light/20 rounded-lg focus:outline-none focus:border-ocean-light"
+                        />
+                      </div>
                     </div>
                   </div>
                   

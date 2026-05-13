@@ -9,6 +9,22 @@ import { useGuestAuth } from '@/components/guest/GuestAuthContext';
 
 const genderOptions = ['Female', 'Male', 'Non-binary', 'Prefer not to say'];
 
+const resolveAddressPart = (address, key) => {
+  if (!address) return '';
+  if (typeof address === 'string') {
+    return key === 'street' ? address : '';
+  }
+  return address[key] || '';
+};
+
+const buildAddressPayload = (form) => ({
+  street: String(form.addressStreet || '').trim(),
+  barangay: String(form.addressBarangay || '').trim(),
+  city: String(form.addressCity || '').trim(),
+  province: String(form.addressProvince || '').trim(),
+  postalCode: String(form.addressPostalCode || '').trim()
+});
+
 function GuestAccountContent() {
   const { user, profile, loading, logout, updateGuestProfile } = useGuestAuth();
   const [isAuthOpen, setIsAuthOpen] = useState(false);
@@ -18,11 +34,13 @@ function GuestAccountContent() {
     dateOfBirth: '',
     gender: '',
     accessibilityNeeds: '',
-    contactName: '',
-    contactPhone: '',
     mobileNumber: '',
     contactEmail: '',
-    address: ''
+    addressStreet: '',
+    addressBarangay: '',
+    addressCity: '',
+    addressProvince: '',
+    addressPostalCode: ''
   });
   const [profileSaving, setProfileSaving] = useState(false);
   const [profileNotice, setProfileNotice] = useState('');
@@ -35,18 +53,41 @@ function GuestAccountContent() {
   const [settingsNotice, setSettingsNotice] = useState('');
 
   useEffect(() => {
+    if (!profileNotice) return undefined;
+
+    const timeoutId = window.setTimeout(() => {
+      setProfileNotice('');
+    }, 2800);
+
+    return () => window.clearTimeout(timeoutId);
+  }, [profileNotice]);
+
+  useEffect(() => {
+    if (!settingsNotice) return undefined;
+
+    const timeoutId = window.setTimeout(() => {
+      setSettingsNotice('');
+    }, 2800);
+
+    return () => window.clearTimeout(timeoutId);
+  }, [settingsNotice]);
+
+  useEffect(() => {
     if (!user) return;
+    const address = profile?.address;
     const nextProfileForm = {
       firstName: profile?.firstName || '',
       lastName: profile?.lastName || '',
       dateOfBirth: profile?.dateOfBirth || '',
       gender: profile?.gender || '',
       accessibilityNeeds: profile?.accessibilityNeeds || '',
-      contactName: profile?.contactName || '',
-      contactPhone: profile?.contactPhone || '',
       mobileNumber: profile?.mobileNumber || '',
       contactEmail: profile?.contactEmail || user.email || '',
-      address: profile?.address || ''
+      addressStreet: resolveAddressPart(address, 'street'),
+      addressBarangay: resolveAddressPart(address, 'barangay'),
+      addressCity: resolveAddressPart(address, 'city'),
+      addressProvince: resolveAddressPart(address, 'province'),
+      addressPostalCode: resolveAddressPart(address, 'postalCode')
     };
 
     setProfileForm(nextProfileForm);
@@ -86,11 +127,9 @@ function GuestAccountContent() {
         dateOfBirth: profileForm.dateOfBirth || '',
         gender: profileForm.gender || '',
         accessibilityNeeds: profileForm.accessibilityNeeds || '',
-        contactName: profileForm.contactName || '',
-        contactPhone: profileForm.contactPhone || '',
         mobileNumber: profileForm.mobileNumber || '',
         contactEmail: profileForm.contactEmail || '',
-        address: profileForm.address || ''
+        address: buildAddressPayload(profileForm)
       });
       setSettingsForm((prev) => ({
         ...prev,
@@ -145,8 +184,25 @@ function GuestAccountContent() {
   return (
     <>
       <div className="min-h-screen bg-slate-50 px-4 pb-16 pt-20 sm:px-6 sm:pt-24 lg:px-8">
+        {(profileNotice || settingsNotice) && (
+          <div className="pointer-events-none fixed right-6 top-24 z-50 w-[calc(100%-1.5rem)] max-w-md sm:w-[360px]">
+            <div className="space-y-2">
+              {profileNotice && (
+                <div className="toast-animate rounded-2xl border border-emerald-300 bg-emerald-100 px-4 py-3 text-sm font-semibold text-emerald-900 shadow-[0_10px_24px_rgba(16,185,129,0.18)] backdrop-blur-sm">
+                  {profileNotice}
+                </div>
+              )}
+              {settingsNotice && (
+                <div className="toast-animate rounded-2xl border border-emerald-300 bg-emerald-100 px-4 py-3 text-sm font-semibold text-emerald-900 shadow-[0_10px_24px_rgba(16,185,129,0.18)] backdrop-blur-sm">
+                  {settingsNotice}
+                </div>
+              )}
+            </div>
+          </div>
+        )}
+
         <div className="mx-auto max-w-7xl">
-          <div className="mb-6 flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
+          <div className="mb-6 flex flex-col gap-4 lg:flex-row lg:inptems-end lg:justify-between">
 
 
             {!user && (
@@ -221,13 +277,6 @@ function GuestAccountContent() {
                     className="flex w-full items-center justify-between rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm font-semibold text-slate-700 transition hover:bg-slate-50"
                   >
                     My bookings
-                    <i className="fas fa-chevron-right text-xs text-slate-400"></i>
-                  </Link>
-                  <Link
-                    href="/reservation-tracker"
-                    className="flex w-full items-center justify-between rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm font-semibold text-slate-700 transition hover:bg-slate-50"
-                  >
-                    Track reservations
                     <i className="fas fa-chevron-right text-xs text-slate-400"></i>
                   </Link>
                   <Link
@@ -310,27 +359,6 @@ function GuestAccountContent() {
 
                       <div className="grid gap-4 sm:grid-cols-2">
                         <label className="text-sm font-semibold text-slate-700">
-                          Contact Person
-                          <input
-                            type="text"
-                            value={profileForm.contactName}
-                            onChange={(event) => handleProfileChange('contactName', event.target.value)}
-                            className="mt-2 w-full rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm text-slate-800 outline-none transition focus:border-slate-500 focus:ring-2 focus:ring-slate-100"
-                          />
-                        </label>
-                        <label className="text-sm font-semibold text-slate-700">
-                          Contact Number
-                          <input
-                            type="tel"
-                            value={profileForm.contactPhone}
-                            onChange={(event) => handleProfileChange('contactPhone', event.target.value)}
-                            className="mt-2 w-full rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm text-slate-800 outline-none transition focus:border-slate-500 focus:ring-2 focus:ring-slate-100"
-                          />
-                        </label>
-                      </div>
-
-                      <div className="grid gap-4 sm:grid-cols-2">
-                        <label className="text-sm font-semibold text-slate-700">
                           Mobile Number
                           <input
                             type="tel"
@@ -351,14 +379,56 @@ function GuestAccountContent() {
                       </div>
 
                       <label className="text-sm font-semibold text-slate-700">
-                        Address
-                        <textarea
-                          rows="3"
-                          value={profileForm.address}
-                          onChange={(event) => handleProfileChange('address', event.target.value)}
-                          className="mt-2 w-full resize-none rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm text-slate-800 outline-none transition focus:border-slate-500 focus:ring-2 focus:ring-slate-100"
+                        Street / House No.
+                        <input
+                          type="text"
+                          value={profileForm.addressStreet}
+                          onChange={(event) => handleProfileChange('addressStreet', event.target.value)}
+                          className="mt-2 w-full rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm text-slate-800 outline-none transition focus:border-slate-500 focus:ring-2 focus:ring-slate-100"
                         />
                       </label>
+
+                      <div className="grid gap-4 sm:grid-cols-2">
+                        <label className="text-sm font-semibold text-slate-700">
+                          Barangay
+                          <input
+                            type="text"
+                            value={profileForm.addressBarangay}
+                            onChange={(event) => handleProfileChange('addressBarangay', event.target.value)}
+                            className="mt-2 w-full rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm text-slate-800 outline-none transition focus:border-slate-500 focus:ring-2 focus:ring-slate-100"
+                          />
+                        </label>
+                        <label className="text-sm font-semibold text-slate-700">
+                          City / Municipality
+                          <input
+                            type="text"
+                            value={profileForm.addressCity}
+                            onChange={(event) => handleProfileChange('addressCity', event.target.value)}
+                            className="mt-2 w-full rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm text-slate-800 outline-none transition focus:border-slate-500 focus:ring-2 focus:ring-slate-100"
+                          />
+                        </label>
+                      </div>
+
+                      <div className="grid gap-4 sm:grid-cols-2">
+                        <label className="text-sm font-semibold text-slate-700">
+                          Province
+                          <input
+                            type="text"
+                            value={profileForm.addressProvince}
+                            onChange={(event) => handleProfileChange('addressProvince', event.target.value)}
+                            className="mt-2 w-full rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm text-slate-800 outline-none transition focus:border-slate-500 focus:ring-2 focus:ring-slate-100"
+                          />
+                        </label>
+                        <label className="text-sm font-semibold text-slate-700">
+                          Postal Code
+                          <input
+                            type="text"
+                            value={profileForm.addressPostalCode}
+                            onChange={(event) => handleProfileChange('addressPostalCode', event.target.value)}
+                            className="mt-2 w-full rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm text-slate-800 outline-none transition focus:border-slate-500 focus:ring-2 focus:ring-slate-100"
+                          />
+                        </label>
+                      </div>
 
                       <div className="flex flex-wrap items-center gap-3">
                         <button
@@ -369,9 +439,6 @@ function GuestAccountContent() {
                         >
                           {profileSaving ? 'Saving...' : 'Save Profile'}
                         </button>
-                        {profileNotice && (
-                          <span className="text-xs font-semibold text-slate-500">{profileNotice}</span>
-                        )}
                       </div>
                     </div>
                   ) : (
@@ -431,7 +498,7 @@ function GuestAccountContent() {
                         />
                       </label>
 
-                      <div className="flex flex-wrap items-center gap-3">
+                      <div className="mt-4 flex flex-wrap items-center gap-3">
                         <button
                           type="button"
                           onClick={handleSaveSettings}
@@ -440,17 +507,6 @@ function GuestAccountContent() {
                         >
                           {settingsSaving ? 'Saving...' : 'Save Settings'}
                         </button>
-                        <a
-                          href="https://myaccount.google.com/security"
-                          target="_blank"
-                          rel="noreferrer"
-                          className="inline-flex items-center gap-2 rounded-xl border border-slate-200 px-5 py-2.5 text-sm font-semibold text-slate-700 transition-colors hover:border-slate-300"
-                        >
-                          Change Password
-                        </a>
-                        {settingsNotice && (
-                          <span className="text-xs font-semibold text-slate-500">{settingsNotice}</span>
-                        )}
                       </div>
                     </div>
                   ) : (

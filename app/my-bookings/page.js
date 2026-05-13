@@ -1,51 +1,24 @@
 'use client';
 
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useState, useCallback } from 'react';
 import GuestLayout from '@/app/guest/layout';
 import GuestAuthModal from '@/components/guest/GuestAuthModal';
 import { useGuestAuth } from '@/components/guest/GuestAuthContext';
-import { collection, getDocs, query, where } from 'firebase/firestore';
+import { collection, query, where, onSnapshot } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
+import BookingCard from './BookingCard';
+import {
+  normalizeBooking,
+  buildMultiRoomGroup,
+  toDateValue,
+  cancelBooking,
+} from './utils';
 
-const tabOptions = [
-  { id: 'pending', label: 'Pending' },
-  { id: 'success', label: 'Successful' }
+const TAB_OPTIONS = [
+  { id: 'pending',   label: 'Pending',   icon: 'fa-clock',        emptyIcon: 'fa-hourglass-half', emptyText: 'No pending reservations' },
+  { id: 'success',   label: 'Confirmed', icon: 'fa-check-circle', emptyIcon: 'fa-calendar-check', emptyText: 'No confirmed reservations yet' },
+  { id: 'cancelled', label: 'Cancelled', icon: 'fa-times-circle', emptyIcon: 'fa-ban',            emptyText: 'No cancelled reservations' },
 ];
-
-const toDateValue = (value) => {
-  if (!value) return null;
-  if (typeof value?.toDate === 'function') return value.toDate();
-  const parsed = new Date(value);
-  return Number.isNaN(parsed.getTime()) ? null : parsed;
-};
-
-const formatDate = (value) => {
-  const date = toDateValue(value);
-  if (!date) return 'Date pending';
-  return date.toLocaleDateString('en-US', {
-    month: 'short',
-    day: 'numeric',
-    year: 'numeric'
-  });
-};
-
-const normalizeBooking = (docSnap, type) => {
-  const data = docSnap.data();
-  return {
-    id: docSnap.id,
-    type,
-    bookingId: data.bookingId,
-    title: type === 'daytour'
-      ? 'Day Tour'
-      : data.isExclusiveResortBooking
-        ? 'Entire Resort'
-        : data.roomType || 'Room Booking',
-    status: data.status || 'pending',
-    schedule: type === 'daytour' ? data.selectedDate : data.checkIn,
-    totalPrice: Number(data.totalPrice || 0),
-    createdAt: data.createdAt
-  };
-};
 
 export default function MyBookingsPage() {
   const { user, loading } = useGuestAuth();
@@ -55,168 +28,248 @@ export default function MyBookingsPage() {
   const [bookingsLoading, setBookingsLoading] = useState(false);
   const [bookingsError, setBookingsError] = useState('');
 
+  // ─── Cancel Modal State ───
+  const [cancelTarget, setCancelTarget] = useState(null);
+  const [cancelReason, setCancelReason] = useState('');
+  const [cancelBusy, setCancelBusy] = useState(false);
+  const [cancelError, setCancelError] = useState('');
+  const [cancelSuccess, setCancelSuccess] = useState(false);
+
+  // ─── Real-time Firestore Listener ───
   useEffect(() => {
     if (!user?.email) {
       setBookings([]);
       return;
     }
 
-    let cancelled = false;
+    setBookingsLoading(true);
+    setBookingsError('');
 
-    const loadBookings = async () => {
-      setBookingsLoading(true);
-      setBookingsError('');
+    const normalizedEmail = user.email.toLowerCase().trim();
+    const unsubs = [];
+    const liveMap = new Map();
 
-      try {
-        const normalizedEmail = user.email.toLowerCase().trim();
-        const roomEmailQuery = query(
-          collection(db, 'bookings'),
-          where('guestInfo.email', '==', normalizedEmail)
-        );
-        const dayTourEmailQuery = query(
-          collection(db, 'dayTourBookings'),
-          where('guestInfo.email', '==', normalizedEmail)
-        );
-        const roomAccountQuery = query(
-          collection(db, 'bookings'),
-          where('guestUid', '==', user.uid)
-        );
-        const dayTourAccountQuery = query(
-          collection(db, 'dayTourBookings'),
-          where('guestUid', '==', user.uid)
-        );
+    const rebuild = () => {
+      const deduped = Array.from(liveMap.values());
+      const rooms = deduped.filter((b) => b.type === 'room');
+      const dayTours = deduped.filter((b) => b.type === 'daytour');
+      const grouped = [];
+      const groupMap = new Map();
 
-        const [roomEmailSnapshot, dayTourEmailSnapshot, roomAccountSnapshot, dayTourAccountSnapshot] = await Promise.all([
-          getDocs(roomEmailQuery),
-          getDocs(dayTourEmailQuery),
-          getDocs(roomAccountQuery),
-          getDocs(dayTourAccountQuery)
-        ]);
-
-        if (cancelled) return;
-
-        const bookingMap = new Map();
-        [
-          ...roomEmailSnapshot.docs.map((docSnap) => normalizeBooking(docSnap, 'room')),
-          ...roomAccountSnapshot.docs.map((docSnap) => normalizeBooking(docSnap, 'room')),
-          ...dayTourEmailSnapshot.docs.map((docSnap) => normalizeBooking(docSnap, 'daytour')),
-          ...dayTourAccountSnapshot.docs.map((docSnap) => normalizeBooking(docSnap, 'daytour'))
-        ].forEach((booking) => {
-          bookingMap.set(`${booking.type}-${booking.id}`, booking);
-        });
-
-        const nextBookings = Array.from(bookingMap.values()).sort((a, b) => {
-          const bDate = toDateValue(b.createdAt)?.getTime() || 0;
-          const aDate = toDateValue(a.createdAt)?.getTime() || 0;
-          return bDate - aDate;
-        });
-
-        setBookings(nextBookings);
-      } catch (err) {
-        console.error('Unable to load guest bookings:', err);
-        if (!cancelled) {
-          setBookingsError('Unable to load bookings right now.');
+      rooms.forEach((b) => {
+        if (b.parentBookingId) {
+          if (!groupMap.has(b.parentBookingId)) groupMap.set(b.parentBookingId, []);
+          groupMap.get(b.parentBookingId).push(b);
+        } else {
+          grouped.push(b);
         }
-      } finally {
-        if (!cancelled) {
-          setBookingsLoading(false);
-        }
-      }
+      });
+
+      groupMap.forEach((children, pid) => grouped.push(buildMultiRoomGroup(children, pid)));
+
+      const sorted = [...grouped, ...dayTours].sort((a, b) => {
+        const bD = toDateValue(b.createdAt)?.getTime() || 0;
+        const aD = toDateValue(a.createdAt)?.getTime() || 0;
+        return bD - aD;
+      });
+
+      setBookings(sorted);
+      setBookingsLoading(false);
     };
 
-    loadBookings();
-
-    return () => {
-      cancelled = true;
+    const makeSub = (col, field, value, type) => {
+      const q = query(collection(db, col), where(field, '==', value));
+      return onSnapshot(q, (snap) => {
+        snap.docs.forEach((d) => {
+          liveMap.set(`${type}-${d.id}`, normalizeBooking(d, type));
+        });
+        rebuild();
+      }, (err) => {
+        console.error(`Snapshot error (${col}):`, err);
+        setBookingsError('Unable to load bookings right now.');
+        setBookingsLoading(false);
+      });
     };
+
+    unsubs.push(makeSub('bookings', 'guestInfo.email', normalizedEmail, 'room'));
+    unsubs.push(makeSub('dayTourBookings', 'guestInfo.email', normalizedEmail, 'daytour'));
+    unsubs.push(makeSub('bookings', 'guestUid', user.uid, 'room'));
+    unsubs.push(makeSub('dayTourBookings', 'guestUid', user.uid, 'daytour'));
+
+    return () => unsubs.forEach((u) => u());
   }, [user?.email, user?.uid]);
 
-  const filteredBookings = useMemo(() => {
-    if (activeTab === 'pending') {
-      return bookings.filter((booking) => booking.status === 'pending');
-    }
-    return bookings.filter((booking) => ['confirmed', 'check-in'].includes(booking.status));
+  // ─── Filtered + Counts ───
+  const { filtered, counts } = useMemo(() => {
+    const pending = bookings.filter((b) => b.status === 'pending');
+    const confirmed = bookings.filter((b) => ['confirmed', 'check-in', 'check-out'].includes(b.status));
+    const cancelled = bookings.filter((b) => ['cancelled', 'cancelled-by-guest'].includes(b.status));
+
+    const c = { pending: pending.length, success: confirmed.length, cancelled: cancelled.length };
+    let f;
+    if (activeTab === 'pending') f = pending;
+    else if (activeTab === 'cancelled') f = cancelled;
+    else f = confirmed;
+
+    return { filtered: f, counts: c };
   }, [activeTab, bookings]);
+
+  // ─── Cancel Handlers ───
+  const openCancelModal = useCallback((booking) => {
+    setCancelTarget(booking);
+    setCancelReason('');
+    setCancelError('');
+    setCancelSuccess(false);
+  }, []);
+
+  const closeCancelModal = useCallback(() => {
+    if (cancelBusy) return;
+    setCancelTarget(null);
+    setCancelReason('');
+    setCancelError('');
+    setCancelSuccess(false);
+  }, [cancelBusy]);
+
+  const handleConfirmCancel = useCallback(async () => {
+    if (!cancelTarget) return;
+    const trimmed = cancelReason.trim();
+    if (!trimmed) {
+      setCancelError('Please provide a reason for cancellation.');
+      return;
+    }
+
+    setCancelBusy(true);
+    setCancelError('');
+
+    try {
+      await cancelBooking(cancelTarget, trimmed);
+      setCancelSuccess(true);
+      setTimeout(() => {
+        closeCancelModal();
+      }, 1800);
+    } catch (err) {
+      console.error('Cancellation failed:', err);
+      setCancelError('Something went wrong. Please try again.');
+    } finally {
+      setCancelBusy(false);
+    }
+  }, [cancelTarget, cancelReason, closeCancelModal]);
+
+  // ─── Current Tab Meta ───
+  const currentTab = TAB_OPTIONS.find((t) => t.id === activeTab) || TAB_OPTIONS[0];
 
   return (
     <GuestLayout>
-      <div className="min-h-screen bg-slate-50 px-4 pb-16 pt-20 sm:px-6 sm:pt-24 lg:px-8">
-        <div className="mx-auto max-w-4xl">
-          <div className="mb-6 flex flex-col gap-3">
-            <h1 className="font-playfair text-3xl font-bold text-slate-900">My Bookings</h1>
-            <p className="text-sm text-slate-600">
-              Track pending requests and confirmed bookings tied to your account.
-            </p>
+      <div className="min-h-screen bg-gradient-to-b from-slate-50 via-white to-slate-50 px-4 pb-20 pt-20 sm:px-6 sm:pt-24 lg:px-8">
+        <div className="mx-auto max-w-5xl">
+
+          {/* ══════ Hero Header ══════ */}
+          <div className="relative mb-10 overflow-hidden rounded-3xl bg-gradient-to-br from-slate-900 via-slate-800 to-slate-700 px-8 py-10 text-white shadow-xl sm:px-10 sm:py-12">
+            <div className="absolute -right-12 -top-12 h-48 w-48 rounded-full bg-white/5 blur-2xl" />
+            <div className="absolute -bottom-16 -left-16 h-56 w-56 rounded-full bg-white/5 blur-3xl" />
+            <div className="relative z-10">
+              <p className="text-[11px] font-bold uppercase tracking-[0.35em] text-slate-400">
+                Reservation Overview
+              </p>
+              <h1 className="mt-3 font-playfair text-3xl font-bold leading-tight sm:text-4xl">
+                My Bookings
+              </h1>
+              <p className="mt-2 max-w-lg text-sm leading-relaxed text-slate-300">
+                Track your reservations, payments, and schedules — all in one place.
+              </p>
+            </div>
           </div>
 
+          {/* ══════ Unauthenticated ══════ */}
           {!user && (
-            <div className="rounded-2xl border border-slate-200 bg-white p-6 text-sm text-slate-500">
-              Please sign in to view your bookings.
+            <div className="flex flex-col items-center rounded-2xl border border-slate-200 bg-white px-6 py-16 text-center shadow-sm">
+              <div className="flex h-16 w-16 items-center justify-center rounded-full bg-slate-100">
+                <i className="fas fa-lock text-2xl text-slate-400" />
+              </div>
+              <h2 className="mt-5 text-lg font-bold text-slate-800">Sign in to view your bookings</h2>
+              <p className="mt-2 max-w-xs text-sm text-slate-500">
+                Access your reservation details, schedules, and payment information.
+              </p>
               <button
                 type="button"
                 onClick={() => setIsAuthOpen(true)}
                 disabled={loading}
-                className="mt-4 inline-flex items-center gap-2 rounded-xl bg-slate-900 px-5 py-2.5 text-sm font-semibold text-white shadow-sm transition hover:bg-slate-800 disabled:opacity-60"
+                className="mt-6 inline-flex items-center gap-2.5 rounded-xl bg-slate-900 px-6 py-3 text-sm font-semibold text-white shadow-lg transition-all hover:bg-slate-800 hover:shadow-xl disabled:opacity-60"
               >
-                <i className="fas fa-user-circle"></i>
-                Sign in
+                <i className="fas fa-sign-in-alt" />
+                Sign In
               </button>
             </div>
           )}
 
+          {/* ══════ Authenticated ══════ */}
           {user && (
             <>
-              <div className="mb-6 flex flex-wrap gap-2">
-                {tabOptions.map((tab) => (
-                  <button
-                    key={tab.id}
-                    type="button"
-                    onClick={() => setActiveTab(tab.id)}
-                    className={`rounded-full px-4 py-2 text-sm font-semibold transition ${
-                      activeTab === tab.id
-                        ? 'bg-slate-900 text-white'
-                        : 'border border-slate-200 bg-white text-slate-600 hover:bg-slate-50'
-                    }`}
-                  >
-                    {tab.label}
-                  </button>
-                ))}
+              {/* ── Tab Navigation ── */}
+              <div className="mb-6 flex gap-2 overflow-x-auto pb-1">
+                {TAB_OPTIONS.map((tab) => {
+                  const isActive = activeTab === tab.id;
+                  const count = counts[tab.id] || 0;
+                  return (
+                    <button
+                      key={tab.id}
+                      type="button"
+                      onClick={() => setActiveTab(tab.id)}
+                      className={`group relative flex items-center gap-2 whitespace-nowrap rounded-xl px-5 py-2.5 text-sm font-semibold transition-all duration-200 ${
+                        isActive
+                          ? 'bg-slate-900 text-white shadow-lg shadow-slate-900/20'
+                          : 'bg-white text-slate-600 shadow-sm ring-1 ring-slate-200 hover:bg-slate-50 hover:text-slate-900'
+                      }`}
+                    >
+                      <i className={`fas ${tab.icon} text-xs ${isActive ? 'text-white/70' : 'text-slate-400 group-hover:text-slate-500'}`} />
+                      {tab.label}
+                      {count > 0 && (
+                        <span className={`ml-0.5 inline-flex h-5 min-w-[20px] items-center justify-center rounded-full px-1.5 text-[10px] font-bold ${
+                          isActive
+                            ? 'bg-white/20 text-white'
+                            : 'bg-slate-100 text-slate-500'
+                        }`}>
+                          {count}
+                        </span>
+                      )}
+                    </button>
+                  );
+                })}
               </div>
 
-              <div className="rounded-2xl border border-slate-200 bg-white p-6">
+              {/* ── Booking List ── */}
+              <div className="space-y-4">
                 {bookingsLoading ? (
-                  <div className="flex min-h-[200px] items-center justify-center text-slate-400">
-                    <i className="fas fa-spinner fa-spin text-2xl"></i>
+                  <div className="flex min-h-[280px] flex-col items-center justify-center rounded-2xl border border-slate-200 bg-white py-16 shadow-sm">
+                    <div className="relative">
+                      <div className="h-10 w-10 animate-spin rounded-full border-[3px] border-slate-200 border-t-slate-700" />
+                    </div>
+                    <p className="mt-4 text-sm text-slate-400">Loading your reservations…</p>
                   </div>
                 ) : bookingsError ? (
-                  <div className="rounded-xl border border-red-200 bg-red-50 p-4 text-sm text-red-700">
-                    {bookingsError}
+                  <div className="flex flex-col items-center rounded-2xl border border-red-200 bg-red-50 px-6 py-12 text-center">
+                    <div className="flex h-12 w-12 items-center justify-center rounded-full bg-red-100">
+                      <i className="fas fa-exclamation-triangle text-lg text-red-500" />
+                    </div>
+                    <p className="mt-4 text-sm font-medium text-red-700">{bookingsError}</p>
                   </div>
-                ) : filteredBookings.length > 0 ? (
-                  <div className="space-y-3">
-                    {filteredBookings.map((booking) => (
-                      <div key={`${booking.type}-${booking.id}`} className="rounded-xl border border-slate-200 bg-white p-4">
-                        <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-                          <div>
-                            <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-400">
-                              {booking.type === 'daytour' ? 'Day Tour' : 'Room'}
-                            </p>
-                            <h3 className="mt-1 text-base font-semibold text-slate-900">{booking.title}</h3>
-                            <p className="mt-1 text-xs text-slate-500">{booking.bookingId}</p>
-                          </div>
-                          <div className="text-left sm:text-right">
-                            <p className="text-sm font-semibold text-slate-900">{formatDate(booking.schedule)}</p>
-                            <p className="mt-1 text-sm font-semibold text-slate-700">
-                              Php {booking.totalPrice.toLocaleString()}
-                            </p>
-                          </div>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
+                ) : filtered.length > 0 ? (
+                  filtered.map((booking) => (
+                    <BookingCard key={booking.key} booking={booking} onCancel={openCancelModal} />
+                  ))
                 ) : (
-                  <div className="py-10 text-center text-sm text-slate-500">
-                    No {activeTab === 'pending' ? 'pending' : 'successful'} bookings found.
+                  <div className="flex flex-col items-center rounded-2xl border border-slate-200 bg-white px-6 py-16 text-center shadow-sm">
+                    <div className="flex h-14 w-14 items-center justify-center rounded-full bg-slate-100">
+                      <i className={`fas ${currentTab.emptyIcon} text-xl text-slate-400`} />
+                    </div>
+                    <p className="mt-4 text-sm font-medium text-slate-600">{currentTab.emptyText}</p>
+                    <p className="mt-1 text-xs text-slate-400">
+                      {activeTab === 'pending'
+                        ? 'New reservations will appear here.'
+                        : activeTab === 'success'
+                          ? 'Confirmed bookings will show up here once approved.'
+                          : 'Any cancelled reservations will be listed here.'}
+                    </p>
                   </div>
                 )}
               </div>
@@ -225,10 +278,111 @@ export default function MyBookingsPage() {
         </div>
       </div>
 
-      <GuestAuthModal
-        isOpen={isAuthOpen}
-        onClose={() => setIsAuthOpen(false)}
-      />
+      {/* ══════ Cancel Confirmation Modal ══════ */}
+      {cancelTarget && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+          {/* Backdrop */}
+          <div
+            className="absolute inset-0 bg-black/40 backdrop-blur-sm"
+            onClick={closeCancelModal}
+          />
+
+          {/* Modal */}
+          <div className="relative z-10 w-full max-w-md overflow-hidden rounded-2xl bg-white shadow-2xl animate-[fadeIn_0.2s_ease-out]">
+            {cancelSuccess ? (
+              /* ── Success State ── */
+              <div className="flex flex-col items-center px-8 py-12 text-center">
+                <div className="flex h-16 w-16 items-center justify-center rounded-full bg-emerald-100">
+                  <i className="fas fa-check text-2xl text-emerald-600" />
+                </div>
+                <h3 className="mt-5 text-lg font-bold text-slate-900">Reservation Cancelled</h3>
+                <p className="mt-2 text-sm text-slate-500">
+                  A confirmation email has been sent to you.
+                </p>
+              </div>
+            ) : (
+              /* ── Cancel Form ── */
+              <>
+                {/* Header */}
+                <div className="border-b border-slate-100 px-6 py-5">
+                  <div className="flex items-start gap-4">
+                    <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-red-100">
+                      <i className="fas fa-exclamation-triangle text-red-500" />
+                    </div>
+                    <div>
+                      <h3 className="text-base font-bold text-slate-900">Cancel Reservation</h3>
+                      <p className="mt-0.5 text-xs text-slate-500">
+                        Booking ID: <span className="font-mono">{cancelTarget.bookingId}</span>
+                      </p>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Body */}
+                <div className="px-6 py-5">
+                  <p className="text-sm text-slate-600">
+                    This action cannot be undone. Your down payment may be subject to the resort's cancellation policy.
+                  </p>
+
+                  <div className="mt-4">
+                    <label htmlFor="cancel-reason" className="block text-xs font-semibold text-slate-700">
+                      Reason for cancellation <span className="text-red-500">*</span>
+                    </label>
+                    <textarea
+                      id="cancel-reason"
+                      rows={3}
+                      value={cancelReason}
+                      onChange={(e) => setCancelReason(e.target.value)}
+                      placeholder="Please tell us why you're cancelling…"
+                      disabled={cancelBusy}
+                      className="mt-1.5 w-full resize-none rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-800 placeholder:text-slate-400 transition focus:border-slate-400 focus:bg-white focus:outline-none focus:ring-2 focus:ring-slate-200 disabled:opacity-50"
+                    />
+                  </div>
+
+                  {cancelError && (
+                    <p className="mt-2 text-xs font-medium text-red-600">
+                      <i className="fas fa-info-circle mr-1" />
+                      {cancelError}
+                    </p>
+                  )}
+                </div>
+
+                {/* Footer */}
+                <div className="flex items-center justify-end gap-3 border-t border-slate-100 px-6 py-4">
+                  <button
+                    type="button"
+                    onClick={closeCancelModal}
+                    disabled={cancelBusy}
+                    className="rounded-xl px-5 py-2.5 text-sm font-semibold text-slate-600 transition hover:bg-slate-100 disabled:opacity-50"
+                  >
+                    Keep Reservation
+                  </button>
+                  <button
+                    type="button"
+                    onClick={handleConfirmCancel}
+                    disabled={cancelBusy || !cancelReason.trim()}
+                    className="inline-flex items-center gap-2 rounded-xl bg-red-600 px-5 py-2.5 text-sm font-semibold text-white shadow-sm transition-all hover:bg-red-700 hover:shadow-md disabled:opacity-50"
+                  >
+                    {cancelBusy ? (
+                      <>
+                        <i className="fas fa-spinner fa-spin text-xs" />
+                        Cancelling…
+                      </>
+                    ) : (
+                      <>
+                        <i className="fas fa-times-circle text-xs" />
+                        Confirm Cancellation
+                      </>
+                    )}
+                  </button>
+                </div>
+              </>
+            )}
+          </div>
+        </div>
+      )}
+
+      <GuestAuthModal isOpen={isAuthOpen} onClose={() => setIsAuthOpen(false)} />
     </GuestLayout>
   );
 }

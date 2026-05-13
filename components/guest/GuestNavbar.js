@@ -133,7 +133,7 @@ export default function GuestNavbar() {
                       </div>
                       <div className="p-2">
                         <Link
-                          href="/my-bookings"
+                          href="/account"
                           onClick={() => setIsAccountDropdownOpen(false)}
                           className="flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium text-slate-700 hover:bg-slate-50 hover:text-[#3B82F6] transition-colors"
                         >
@@ -141,20 +141,12 @@ export default function GuestNavbar() {
                           Account
                         </Link>
                         <Link
-                          href="/account"
+                          href="/my-bookings"
                           onClick={() => setIsAccountDropdownOpen(false)}
                           className="flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium text-slate-700 hover:bg-slate-50 hover:text-[#3B82F6] transition-colors"
                         >
                           <i className="fas fa-suitcase w-5 text-center text-slate-400"></i>
                           My Bookings
-                        </Link>
-                        <Link
-                          href="/reservation-tracker"
-                          onClick={() => setIsAccountDropdownOpen(false)}
-                          className="flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium text-slate-700 hover:bg-slate-50 hover:text-[#3B82F6] transition-colors"
-                        >
-                          <i className="fas fa-map-location-dot w-5 text-center text-slate-400"></i>
-                          Track Reservation
                         </Link>
                         <Link
                           href="/feedback"
@@ -252,7 +244,7 @@ export default function GuestNavbar() {
                 {user ? (
                   <>
                     <Link
-                      href="/my-bookings"
+                      href="/account"
                       onClick={() => setIsMenuOpen(false)}
                       className="inline-flex w-full items-center justify-start gap-3 rounded-2xl px-4 py-3 text-sm font-semibold text-slate-700 transition-colors hover:bg-slate-50 hover:text-[#3B82F6]"
                     >
@@ -260,20 +252,12 @@ export default function GuestNavbar() {
                       Account
                     </Link>
                     <Link
-                      href="/account"
+                      href="/my-bookings"
                       onClick={() => setIsMenuOpen(false)}
                       className="inline-flex w-full items-center justify-start gap-3 rounded-2xl px-4 py-3 text-sm font-semibold text-slate-700 transition-colors hover:bg-slate-50 hover:text-[#3B82F6]"
                     >
                       <i className="fas fa-suitcase w-5 text-center text-slate-400"></i>
                       My Bookings
-                    </Link>
-                    <Link
-                      href="/reservation-tracker"
-                      onClick={() => setIsMenuOpen(false)}
-                      className="inline-flex w-full items-center justify-start gap-3 rounded-2xl px-4 py-3 text-sm font-semibold text-slate-700 transition-colors hover:bg-slate-50 hover:text-[#3B82F6]"
-                    >
-                      <i className="fas fa-map-location-dot w-5 text-center text-slate-400"></i>
-                      Track Reservation
                     </Link>
                     <Link
                       href="/feedback"

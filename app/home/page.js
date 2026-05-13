@@ -957,7 +957,6 @@ export default function HomePage() {
                 <li><Link href="/" className="hover:text-[#3B82F6] transition-colors">Home Page</Link></li>
                 <li><Link href="/rooms" className="hover:text-[#3B82F6] transition-colors">Room Offers</Link></li>
                 <li><Link href="/day-tour" className="hover:text-[#3B82F6] transition-colors">Book a Day Tour</Link></li>
-                <li><Link href="/reservation-tracker" className="hover:text-[#3B82F6] transition-colors">Track Reservation</Link></li>
               </ul>
             </div>
 
