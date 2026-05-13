@@ -4,6 +4,7 @@
 import { Suspense, useState, useEffect, useRef } from 'react';
 import { useSearchParams, useRouter } from 'next/navigation';
 import GuestLayout from '@/app/guest/layout';
+import GuestAuthModal from '@/components/guest/GuestAuthModal';
 import { auth, db } from '@/lib/firebase';
 import { onAuthStateChanged } from 'firebase/auth';
 import { collection, query, where, getDocs, addDoc, doc, getDoc, serverTimestamp, onSnapshot } from 'firebase/firestore';
@@ -15,25 +16,20 @@ import { useGuestAuth } from '@/components/guest/GuestAuthContext';
 const STORAGE_KEY = 'daytour_booking_data';
 const STEP_STORAGE_KEY = 'daytour_booking_step';
 
-const resolveAddressPart = (address, key) => {
-  if (!address) return '';
-  if (typeof address === 'string') {
-    return key === 'street' ? address : '';
-  }
-  return address[key] || '';
-};
+// Address fields removed for day-tour booking
 
 function DayTourBookingContent() {
   const searchParams = useSearchParams();
   const router = useRouter();
-  const { profile } = useGuestAuth();
+  const { user, profile, loading } = useGuestAuth();
+  const [isAuthOpen, setIsAuthOpen] = useState(false);
   const HARD_MAX_PACKS = 38;
   const LEAD_TIME_DAYS = 2;
   const dateParam = searchParams.get('date');
   const adultsParam = searchParams.get('adults');
   const kidsParam = searchParams.get('kids');
   
-  const [loading, setLoading] = useState(true);
+  const [pageLoading, setPageLoading] = useState(true);
   const [dayTour, setDayTour] = useState(null);
   const [selectedDate, setSelectedDate] = useState(null);
   const [remainingCapacity, setRemainingCapacity] = useState(0);
@@ -71,11 +67,6 @@ function DayTourBookingContent() {
     lastName: '',
     email: '',
     phone: '',
-    addressStreet: '',
-    addressBarangay: '',
-    addressCity: '',
-    addressProvince: '',
-    addressPostalCode: '',
     paymentProof: null,
     validIdType: '',
     validIdImage: null
@@ -153,12 +144,7 @@ function DayTourBookingContent() {
 
     setBookingData((prev) => ({
       ...prev,
-      phone: prev.phone || profile.mobileNumber || '',
-      addressStreet: prev.addressStreet || resolveAddressPart(profile.address, 'street'),
-      addressBarangay: prev.addressBarangay || resolveAddressPart(profile.address, 'barangay'),
-      addressCity: prev.addressCity || resolveAddressPart(profile.address, 'city'),
-      addressProvince: prev.addressProvince || resolveAddressPart(profile.address, 'province'),
-      addressPostalCode: prev.addressPostalCode || resolveAddressPart(profile.address, 'postalCode')
+      phone: prev.phone || profile.mobileNumber || profile.mobile || profile.phone || profile.mobile_number || ''
     }));
   }, [profile]);
 
@@ -217,11 +203,6 @@ function DayTourBookingContent() {
         lastName: bookingData.lastName,
         email: bookingData.email,
         phone: bookingData.phone,
-        addressStreet: bookingData.addressStreet,
-        addressBarangay: bookingData.addressBarangay,
-        addressCity: bookingData.addressCity,
-        addressProvince: bookingData.addressProvince,
-        addressPostalCode: bookingData.addressPostalCode,
         paymentProof: bookingData.paymentProof,
         validIdType: bookingData.validIdType,
         validIdImage: bookingData.validIdImage,
@@ -450,10 +431,10 @@ function DayTourBookingContent() {
         const tour = { id: tourDoc.id, ...tourDoc.data() };
         setDayTour(tour);
         
-        setLoading(false);
+        setPageLoading(false);
       } catch (error) {
         console.error('Error fetching day tour:', error);
-        setLoading(false);
+        setPageLoading(false);
       }
     };
     
@@ -753,14 +734,7 @@ function DayTourBookingContent() {
           firstName: bookingData.firstName,
           lastName: bookingData.lastName,
           email: bookingData.email,
-          phone: bookingData.phone,
-          address: {
-            street: bookingData.addressStreet || '',
-            barangay: bookingData.addressBarangay || '',
-            city: bookingData.addressCity || '',
-            province: bookingData.addressProvince || '',
-            postalCode: bookingData.addressPostalCode || ''
-          }
+          phone: bookingData.phone
         },
         status: 'pending',
         paymentMethod: paymentMethod,
@@ -1184,7 +1158,7 @@ function DayTourBookingContent() {
     </div>
   );
 
-  if (loading) {
+  if (loading || pageLoading) {
     return (
       <GuestLayout>
         <div className="min-h-screen bg-gradient-to-br from-ocean-ice to-blue-white flex items-center justify-center">
@@ -1210,6 +1184,39 @@ function DayTourBookingContent() {
             </button>
           </div>
         </div>
+      </GuestLayout>
+    );
+  }
+
+  // Show login modal if not authenticated
+  if (!loading && !user) {
+    return (
+      <GuestLayout>
+        <div className="min-h-screen bg-gradient-to-br from-ocean-ice to-blue-white px-4 pb-16 pt-20 sm:px-6 sm:pt-24 lg:px-8 flex items-center justify-center">
+          <div className="max-w-md w-full text-center">
+            <div className="rounded-3xl border border-blue-100 bg-white p-8 shadow-[0_10px_40px_rgba(30,58,138,0.04)]">
+              <div className="flex h-16 w-16 items-center justify-center rounded-full bg-blue-100 mx-auto mb-4">
+                <i className="fas fa-calendar-check text-2xl text-blue-600"></i>
+              </div>
+              <h2 className="text-2xl font-bold text-blue-900 mb-2">Sign In Required</h2>
+              <p className="text-sm text-blue-600/70 mb-6">
+                Please sign in with your Google account to book a day tour.
+              </p>
+              <button
+                type="button"
+                onClick={() => setIsAuthOpen(true)}
+                className="inline-flex items-center gap-2 rounded-xl bg-blue-600 px-6 py-3 text-sm font-semibold text-white shadow-sm transition hover:bg-blue-700"
+              >
+                <i className="fas fa-sign-in-alt"></i>
+                Sign In to Book
+              </button>
+            </div>
+          </div>
+        </div>
+        <GuestAuthModal
+          isOpen={isAuthOpen}
+          onClose={() => setIsAuthOpen(false)}
+        />
       </GuestLayout>
     );
   }
@@ -1399,57 +1406,7 @@ function DayTourBookingContent() {
                       {errors.phone && <p className="text-red-500 text-xs mt-1">{errors.phone}</p>}
                     </div>
 
-                    <div>
-                      <label className="block text-sm font-semibold text-textPrimary mb-2">Street / House No.</label>
-                      <input
-                        type="text"
-                        value={bookingData.addressStreet}
-                        onChange={(e) => handleInputChange('addressStreet', e.target.value)}
-                        className="w-full px-4 py-2 border border-ocean-light/20 rounded-lg focus:outline-none focus:border-ocean-light"
-                      />
-                    </div>
-
-                    <div className="grid gap-4 sm:grid-cols-2">
-                      <div>
-                        <label className="block text-sm font-semibold text-textPrimary mb-2">Barangay</label>
-                        <input
-                          type="text"
-                          value={bookingData.addressBarangay}
-                          onChange={(e) => handleInputChange('addressBarangay', e.target.value)}
-                          className="w-full px-4 py-2 border border-ocean-light/20 rounded-lg focus:outline-none focus:border-ocean-light"
-                        />
-                      </div>
-                      <div>
-                        <label className="block text-sm font-semibold text-textPrimary mb-2">City / Municipality</label>
-                        <input
-                          type="text"
-                          value={bookingData.addressCity}
-                          onChange={(e) => handleInputChange('addressCity', e.target.value)}
-                          className="w-full px-4 py-2 border border-ocean-light/20 rounded-lg focus:outline-none focus:border-ocean-light"
-                        />
-                      </div>
-                    </div>
-
-                    <div className="grid gap-4 sm:grid-cols-2">
-                      <div>
-                        <label className="block text-sm font-semibold text-textPrimary mb-2">Province</label>
-                        <input
-                          type="text"
-                          value={bookingData.addressProvince}
-                          onChange={(e) => handleInputChange('addressProvince', e.target.value)}
-                          className="w-full px-4 py-2 border border-ocean-light/20 rounded-lg focus:outline-none focus:border-ocean-light"
-                        />
-                      </div>
-                      <div>
-                        <label className="block text-sm font-semibold text-textPrimary mb-2">Postal Code</label>
-                        <input
-                          type="text"
-                          value={bookingData.addressPostalCode}
-                          onChange={(e) => handleInputChange('addressPostalCode', e.target.value)}
-                          className="w-full px-4 py-2 border border-ocean-light/20 rounded-lg focus:outline-none focus:border-ocean-light"
-                        />
-                      </div>
-                    </div>
+                    {/* address fields removed */}
                   </div>
                   
                   <div className="flex gap-3 mt-6">
@@ -1824,6 +1781,11 @@ function DayTourBookingContent() {
           </div>
         </div>
       )}
+
+      <GuestAuthModal
+        isOpen={isAuthOpen}
+        onClose={() => setIsAuthOpen(false)}
+      />
     </GuestLayout>
   );
 }

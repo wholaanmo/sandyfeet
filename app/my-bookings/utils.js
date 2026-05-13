@@ -27,7 +27,7 @@ export const formatDateTime = (value) => {
 export const formatAddress = (address) => {
   if (!address) return '';
   if (typeof address === 'string') return address;
-  return [address.street, address.barangay, address.city, address.province, address.postalCode]
+  return [address.street, address.city, address.province, address.postalCode]
     .map((p) => String(p || '').trim()).filter(Boolean).join(', ');
 };
 

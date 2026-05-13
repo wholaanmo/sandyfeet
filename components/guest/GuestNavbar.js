@@ -105,7 +105,7 @@ export default function GuestNavbar() {
                   <div className="relative" ref={dropdownRef}>
                     <button
                       onClick={() => setIsAccountDropdownOpen((prev) => !prev)}
-                    className="inline-flex items-center gap-2.5 rounded-full border border-slate-200 bg-white p-1 pr-4 text-[14px] font-semibold text-slate-700 shadow-sm transition-all hover:bg-slate-50 focus:outline-none"
+                    className="inline-flex items-center gap-2.5 rounded-full border border-blue-100 bg-white p-1 pr-4 text-[14px] font-semibold text-slate-700 shadow-sm transition-all hover:bg-blue-50/50 hover:border-blue-200 focus:outline-none"
                   >
                     {user.photoURL ? (
                       <Image
@@ -113,60 +113,68 @@ export default function GuestNavbar() {
                         alt={displayName}
                         width={32}
                         height={32}
-                        className="h-8 w-8 rounded-full object-cover"
+                        className="h-8 w-8 rounded-full object-cover ring-2 ring-blue-50"
                       />
                     ) : (
-                      <span className="flex h-8 w-8 items-center justify-center rounded-full bg-[#2563EB] text-xs font-bold text-white">
+                      <span className="flex h-8 w-8 items-center justify-center rounded-full bg-blue-600 text-xs font-bold text-white shadow-sm">
                         {avatarLetter}
                       </span>
                     )}
                     <span className="max-w-[100px] truncate">{displayName}</span>
-                    <i className={`fas fa-chevron-down text-[10px] text-slate-400 transition-transform ${isAccountDropdownOpen ? 'rotate-180' : ''}`}></i>
+                    <i className={`fas fa-chevron-down text-[10px] text-blue-400 transition-transform ${isAccountDropdownOpen ? 'rotate-180' : ''}`}></i>
                   </button>
 
                   {/* Expedia-style Dropdown */}
                   {isAccountDropdownOpen && (
-                    <div className="absolute right-0 mt-3 w-64 origin-top-right overflow-hidden rounded-2xl border border-slate-100 bg-white shadow-[0_10px_40px_-10px_rgba(0,0,0,0.15)] ring-1 ring-black ring-opacity-5 focus:outline-none">
-                      <div className="border-b border-slate-100 px-5 py-4">
-                        <p className="truncate text-[15px] font-bold text-slate-900">{displayName}</p>
-                        <p className="truncate text-[13px] text-slate-500">{user.email}</p>
+                    <div className="absolute right-0 mt-3 w-64 origin-top-right overflow-hidden rounded-2xl border border-blue-50 bg-white shadow-[0_20px_50px_rgba(37,99,235,0.15)] ring-1 ring-blue-50 focus:outline-none">
+                      <div className="border-b border-blue-50 bg-blue-50/30 px-5 py-4">
+                        <p className="truncate text-[15px] font-bold text-blue-900">{displayName}</p>
+                        <p className="truncate text-[13px] text-blue-600/70">{user.email}</p>
                       </div>
                       <div className="p-2">
                         <Link
                           href="/account"
                           onClick={() => setIsAccountDropdownOpen(false)}
-                          className="flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium text-slate-700 hover:bg-slate-50 hover:text-[#3B82F6] transition-colors"
+                          className="flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium text-slate-700 hover:bg-blue-50 hover:text-blue-600 transition-colors group"
                         >
-                          <i className="fas fa-user-circle w-5 text-center text-slate-400"></i>
+                          <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-blue-50 group-hover:bg-white transition-colors">
+                            <i className="fas fa-user-circle text-blue-500"></i>
+                          </div>
                           Account
                         </Link>
                         <Link
                           href="/my-bookings"
                           onClick={() => setIsAccountDropdownOpen(false)}
-                          className="flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium text-slate-700 hover:bg-slate-50 hover:text-[#3B82F6] transition-colors"
+                          className="flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium text-slate-700 hover:bg-blue-50 hover:text-blue-600 transition-colors group"
                         >
-                          <i className="fas fa-suitcase w-5 text-center text-slate-400"></i>
+                          <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-blue-50 group-hover:bg-white transition-colors">
+                            <i className="fas fa-suitcase text-blue-500"></i>
+                          </div>
                           My Bookings
                         </Link>
                         <Link
                           href="/feedback"
                           onClick={() => setIsAccountDropdownOpen(false)}
-                          className="flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium text-slate-700 hover:bg-slate-50 hover:text-[#3B82F6] transition-colors"
+                          className="flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium text-slate-700 hover:bg-blue-50 hover:text-blue-600 transition-colors group"
                         >
-                          <i className="fas fa-comment-dots w-5 text-center text-slate-400"></i>
+                          <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-blue-50 group-hover:bg-white transition-colors">
+                            <i className="fas fa-comment-dots text-blue-500"></i>
+                          </div>
                           Feedback
                         </Link>
                       </div>
-                      <div className="border-t border-slate-100 p-2">
+                      <div className="border-t border-blue-50 p-2">
                         <button
                           type="button"
                           onClick={() => {
                             setIsAccountDropdownOpen(false);
                             logout();
                           }}
-                          className="flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium text-slate-700 hover:bg-red-50 hover:text-red-600 transition-colors"
+                          className="flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium text-slate-600 hover:bg-red-50 hover:text-red-600 transition-colors group"
                         >
-                          <i className="fas fa-right-from-bracket w-5 text-center text-slate-400"></i>
+                          <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-red-50 group-hover:bg-white transition-colors">
+                            <i className="fas fa-right-from-bracket text-red-400 group-hover:text-red-500"></i>
+                          </div>
                           Sign out
                         </button>
                       </div>

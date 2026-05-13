@@ -1,9 +1,18 @@
 // app/feedback/page.js
 'use client';
 
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
+import { useSearchParams } from 'next/navigation';
 import GuestLayout from '../guest/layout';
 import { db } from '@/lib/firebase';
+import { useGuestAuth } from '@/components/guest/GuestAuthContext';
+import GuestAuthModal from '@/components/guest/GuestAuthModal';
+import {
+  fetchUserBookings,
+  getTypeDisplay,
+  getBookingTitle,
+  formatDateOnly,
+} from '../my-bookings/utils';
 import {
   addDoc,
   collection,
@@ -17,13 +26,91 @@ import {
 const completedStatuses = new Set(['completed', 'check-out']);
 
 export default function FeedbackPage() {
-  const [credentials, setCredentials] = useState({ email: '', reference: '' });
+  const { user, loading: authLoading } = useGuestAuth();
+  const [isAuthModalOpen, setIsAuthModalOpen] = useState(false);
+  
+  const searchParams = useSearchParams();
+  const urlBookingId = searchParams.get('bookingId');
+  
+  const [credentials, setCredentials] = useState({ 
+    email: '', 
+    reference: urlBookingId || '' 
+  });
   const [feedback, setFeedback] = useState({ rating: 5, comment: '' });
   const [verifying, setVerifying] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [verifiedBooking, setVerifiedBooking] = useState(null);
   const [message, setMessage] = useState({ text: '', type: '' });
   const [hoverRating, setHoverRating] = useState(0);
+
+  // For logged-in users
+  const [userBookings, setUserBookings] = useState([]);
+  const [fetchingBookings, setFetchingBookings] = useState(false);
+  const [selectedBookingId, setSelectedBookingId] = useState(null);
+
+  useEffect(() => {
+    if (user) {
+      loadUserBookings();
+    } else {
+      setUserBookings([]);
+      // If not logged in but has URL booking ID, pre-fill reference
+      if (urlBookingId) {
+        setCredentials(prev => ({ ...prev, reference: urlBookingId }));
+      }
+    }
+  }, [user, urlBookingId]);
+
+  // Automatically select booking from URL if it's in the list
+  useEffect(() => {
+    if (userBookings.length > 0 && urlBookingId && !verifiedBooking) {
+      const match = userBookings.find(b => b.bookingId === urlBookingId);
+      if (match) {
+        handleSelectBooking(match);
+      }
+    }
+  }, [userBookings, urlBookingId]);
+
+  const loadUserBookings = async () => {
+    if (!user) return;
+    setFetchingBookings(true);
+    try {
+      const allBookings = await fetchUserBookings(user);
+      // Filter for completed/checked-out stays
+      const completed = allBookings.filter(b => completedStatuses.has(b.status));
+      
+      // Check if any of these already have feedback
+      const feedbackQuery = query(
+        collection(db, 'feedbacks'),
+        where('guestEmail', '==', user.email.toLowerCase())
+      );
+      const feedbackSnap = await getDocs(feedbackQuery);
+      const existingBookingIds = new Set(feedbackSnap.docs.map(d => d.data().bookingId));
+      
+      // Filter out bookings that already have feedback
+      const toReview = completed.filter(b => !existingBookingIds.has(b.bookingId));
+      
+      setUserBookings(toReview);
+    } catch (error) {
+      console.error('Error loading user bookings:', error);
+    } finally {
+      setFetchingBookings(false);
+    }
+  };
+
+  const handleSelectBooking = (booking) => {
+    const guestName = `${booking.guestInfo?.firstName || ''} ${booking.guestInfo?.lastName || ''}`.trim();
+    setVerifiedBooking({
+      bookingId: booking.bookingId,
+      email: user?.email || booking.guestInfo?.email || '',
+      guestName,
+      sourceCollection: booking.type === 'daytour' ? 'dayTourBookings' : 'bookings',
+      sourceDocId: booking.id,
+      displayTitle: getBookingTitle(booking),
+      displayDate: booking.type === 'daytour' ? formatDateOnly(booking.selectedDate) : formatDateOnly(booking.checkIn),
+    });
+    setSelectedBookingId(booking.bookingId);
+    setMessage({ text: '', type: '' });
+  };
 
   const canVerify = useMemo(() => {
     return credentials.email.trim().length > 4 && credentials.reference.trim().length > 6;
@@ -151,34 +238,128 @@ export default function FeedbackPage() {
 
   return (
     <GuestLayout>
-      <div className="min-h-screen bg-slate-50 px-4 pb-20 pt-20 sm:px-6 sm:pt-24 lg:px-8">
-        <div className="mx-auto max-w-2xl">
+      <div className="min-h-screen bg-gradient-to-b from-slate-50 via-white to-slate-50 px-4 pb-20 pt-28 sm:px-6 sm:pt-32 lg:px-8">
+        <div className="mx-auto max-w-5xl">
           
           {/* ══════ Hero Header ══════ */}
-          <div className="relative mb-8 overflow-hidden rounded-2xl bg-gradient-to-br from-slate-900 via-slate-800 to-slate-700 px-6 py-8 text-white shadow-lg sm:px-8 sm:py-10">
-            <div className="absolute -right-12 -top-12 h-48 w-48 rounded-full bg-white/5 blur-2xl" />
-            <div className="absolute -bottom-16 -left-16 h-56 w-56 rounded-full bg-white/5 blur-3xl" />
+          <div className="relative mb-8 overflow-hidden rounded-3xl bg-gradient-to-br from-blue-900 via-blue-800 to-blue-700 px-6 py-8 text-white shadow-[0_20px_50px_rgba(30,58,138,0.3)] sm:px-8 sm:py-10">
+            <div className="absolute -right-12 -top-12 h-48 w-48 rounded-full bg-white/10 blur-2xl" />
+            <div className="absolute -bottom-16 -left-16 h-56 w-56 rounded-full bg-white/10 blur-3xl" />
             <div className="relative z-10 text-center sm:text-left">
-              <p className="text-[10px] font-bold uppercase tracking-[0.3em] text-slate-400">
+              <p className="text-[10px] font-bold uppercase tracking-[0.3em] text-blue-200/60">
                 GUEST EXPERIENCE
               </p>
               <h1 className="mt-2 font-playfair text-3xl font-bold leading-tight sm:text-4xl">
                 Share Your Feedback
               </h1>
-              <p className="mt-2 max-w-lg text-sm leading-relaxed text-slate-300">
+              <p className="mt-2 max-w-lg text-sm leading-relaxed text-blue-100/70">
                 Your feedback helps us provide a better experience for future guests.
               </p>
             </div>
           </div>
 
-          <div className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm transition-all duration-300">
-            {!verifiedBooking ? (
+          <div className="overflow-hidden rounded-3xl border border-blue-100 bg-white shadow-[0_8px_30px_rgba(0,0,0,0.04)] transition-all duration-300">
+            {authLoading ? (
+              <div className="flex flex-col items-center justify-center py-16">
+                <div className="h-10 w-10 animate-spin rounded-full border-4 border-blue-50 border-t-blue-600" />
+                <p className="mt-4 text-sm text-blue-600 font-medium">Checking authentication...</p>
+              </div>
+            ) : user ? (
+              // ─── Logged In View ───
+              !verifiedBooking ? (
+                <div className="px-6 py-8 sm:px-8">
+                  <div className="mb-6 text-center sm:text-left">
+                    <h2 className="text-lg font-bold text-blue-900">Select a stay to review</h2>
+                    <p className="mt-1 text-sm text-blue-600/60">
+                      Choose from your completed trips to share your experience.
+                    </p>
+                  </div>
+
+                  {fetchingBookings ? (
+                    <div className="flex flex-col items-center justify-center py-12">
+                      <div className="h-8 w-8 animate-spin rounded-full border-3 border-slate-100 border-t-blue-600" />
+                      <p className="mt-3 text-xs text-slate-400">Finding your stays...</p>
+                    </div>
+                  ) : userBookings.length > 0 ? (
+                    <div className="grid gap-4">
+                      {userBookings.map((booking) => {
+                        const typeInfo = getTypeDisplay(booking);
+                        const title = getBookingTitle(booking);
+                        const date = booking.type === 'daytour' ? formatDateOnly(booking.selectedDate) : formatDateOnly(booking.checkIn);
+                        
+                        return (
+                          <button
+                            key={booking.key}
+                            onClick={() => handleSelectBooking(booking)}
+                            className="flex items-center justify-between gap-4 rounded-2xl border border-blue-50 bg-white p-4 text-left transition-all hover:border-blue-300 hover:shadow-[0_10px_25px_-5px_rgba(37,99,235,0.1)] group"
+                          >
+                            <div className="min-w-0 flex-1">
+                              <div className="flex items-center gap-2 mb-1">
+                                <span className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[9px] font-bold uppercase tracking-wider shadow-sm ${typeInfo.color}`}>
+                                  <i className={`fas ${typeInfo.icon} text-[8px]`} />
+                                  {typeInfo.label}
+                                </span>
+                                <span className="text-[10px] font-mono text-slate-400">#{booking.bookingId}</span>
+                              </div>
+                              <h3 className="font-bold text-slate-900 truncate">{title}</h3>
+                              <p className="text-xs text-slate-500">{date}</p>
+                            </div>
+                            <div className="flex h-10 w-10 items-center justify-center rounded-full bg-slate-50 text-slate-400 transition-colors group-hover:bg-blue-50 group-hover:text-blue-500">
+                              <i className="fas fa-chevron-right text-xs" />
+                            </div>
+                          </button>
+                        );
+                      })}
+                    </div>
+                  ) : (
+                    <div className="flex flex-col items-center justify-center rounded-xl bg-slate-50 py-12 px-6 text-center">
+                      <div className="mb-4 flex h-14 w-14 items-center justify-center rounded-full bg-white shadow-sm">
+                        <i className="fas fa-calendar-check text-2xl text-slate-300" />
+                      </div>
+                      <h3 className="font-bold text-slate-800">No stays ready for review</h3>
+                      <p className="mt-2 text-xs leading-relaxed text-slate-500 max-w-[240px]">
+                        Only completed or checked-out stays that haven't been reviewed yet will appear here.
+                      </p>
+                      <button 
+                        onClick={() => window.location.href = '/my-bookings'}
+                        className="mt-6 text-sm font-bold text-blue-600 hover:underline"
+                      >
+                        View your bookings
+                      </button>
+                    </div>
+                  )}
+                </div>
+              ) : (
+                // Feedback form will be rendered by the else block below
+                null
+              )
+            ) : (
+              // ─── Unauthenticated View ───
               <div className="px-6 py-8 sm:px-8">
-                <div className="mb-6 text-center sm:text-left">
-                  <h2 className="text-lg font-bold text-slate-900">Verify Your Booking</h2>
-                  <p className="mt-1 text-sm text-slate-500">
-                    Enter your details to unlock the feedback form.
+                <div className="mb-8 text-center">
+                  <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-blue-50 text-blue-600">
+                    <i className="fas fa-user-circle text-3xl" />
+                  </div>
+                  <h2 className="text-xl font-bold text-slate-900">Sign in to share feedback</h2>
+                  <p className="mt-2 text-sm text-slate-500">
+                    Access your stay history and skip manual verification.
                   </p>
+                  <button
+                    onClick={() => setIsAuthModalOpen(true)}
+                    className="mt-6 inline-flex items-center gap-2 rounded-xl bg-slate-900 px-8 py-3 text-sm font-bold text-white transition-all hover:bg-slate-800 active:scale-[0.98] shadow-lg shadow-slate-900/10"
+                  >
+                    <i className="fab fa-google text-xs opacity-70" />
+                    Sign In with Google
+                  </button>
+                </div>
+
+                <div className="relative mb-8 text-center">
+                  <div className="absolute inset-0 flex items-center">
+                    <div className="w-full border-t border-slate-100" />
+                  </div>
+                  <span className="relative bg-white px-4 text-[10px] font-bold uppercase tracking-widest text-slate-400">
+                    Or verify manually
+                  </span>
                 </div>
 
                 <form onSubmit={handleVerifyBooking} className="space-y-6">
@@ -202,11 +383,11 @@ export default function FeedbackPage() {
                     </div>
 
                     <div className="space-y-1.5">
-                      <label htmlFor="reference" className="text-[11px] font-bold uppercase tracking-widest text-slate-400">
+                      <label htmlFor="reference" className="text-[11px] font-bold uppercase tracking-widest text-blue-600/40">
                         Reference Number
                       </label>
                       <div className="group relative">
-                        <i className="fas fa-hashtag absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400 transition-colors group-focus-within:text-blue-500 text-sm" />
+                        <i className="fas fa-hashtag absolute left-3.5 top-1/2 -translate-y-1/2 text-blue-300 transition-colors group-focus-within:text-blue-500 text-sm" />
                         <input
                           id="reference"
                           type="text"
@@ -215,7 +396,7 @@ export default function FeedbackPage() {
                             setCredentials((prev) => ({ ...prev, reference: e.target.value.toUpperCase() }))
                           }
                           placeholder="BOOK-..."
-                          className="w-full rounded-xl border border-slate-200 bg-slate-50 pl-10 pr-4 py-2.5 text-sm uppercase text-slate-800 transition-all focus:border-blue-400 focus:bg-white focus:outline-none focus:ring-4 focus:ring-blue-100/50"
+                          className="w-full rounded-2xl border border-blue-50 bg-blue-50/30 pl-10 pr-4 py-2.5 text-sm uppercase text-blue-900 transition-all focus:border-blue-400 focus:bg-white focus:outline-none focus:ring-4 focus:ring-blue-100/50"
                           required
                         />
                       </div>
@@ -225,7 +406,7 @@ export default function FeedbackPage() {
                   <button
                     type="submit"
                     disabled={!canVerify || verifying}
-                    className="group relative w-full overflow-hidden rounded-xl bg-slate-900 py-3 text-sm font-bold text-white transition-all hover:bg-slate-800 active:scale-[0.99] disabled:cursor-not-allowed disabled:opacity-60"
+                    className="group relative w-full overflow-hidden rounded-2xl bg-blue-600 py-3.5 text-sm font-bold text-white shadow-[0_10px_25px_-5px_rgba(37,99,235,0.4)] transition-all hover:bg-blue-700 hover:shadow-[0_15px_30px_-5px_rgba(37,99,235,0.5)] active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-60"
                   >
                     <div className="relative z-10 flex items-center justify-center gap-2">
                       {verifying ? (
@@ -243,25 +424,36 @@ export default function FeedbackPage() {
                   </button>
                 </form>
               </div>
-            ) : (
+            )}
+
+            {/* ─── Feedback Form (Shared) ─── */}
+            {verifiedBooking && (
               <div className="px-6 py-8 sm:px-8 animate-[fadeIn_0.3s_ease-out]">
-                <div className="mb-6 flex flex-col items-center justify-between gap-4 border-b border-slate-100 pb-5 sm:flex-row">
+                <div className="mb-6 flex flex-col items-center justify-between gap-4 border-b border-blue-50 pb-5 sm:flex-row">
                   <div>
-                    <h2 className="text-lg font-bold text-slate-900">Your Stay at Sandyfeet</h2>
-                    <p className="mt-0.5 text-xs text-slate-500">
-                      Booking: <span className="font-mono font-bold text-slate-900">{verifiedBooking.bookingId}</span>
+                    <h2 className="text-lg font-bold text-blue-900">
+                      {verifiedBooking.displayTitle || 'Your Stay at Sandyfeet'}
+                    </h2>
+                    <p className="mt-0.5 text-xs text-blue-600/60">
+                      Stay Date: <span className="font-bold text-blue-600">{verifiedBooking.displayDate}</span> • 
+                      Booking: <span className="font-mono font-bold text-blue-900">{verifiedBooking.bookingId}</span>
                     </p>
                   </div>
                   <button
                     type="button"
                     onClick={() => {
                       setVerifiedBooking(null);
+                      setSelectedBookingId(null);
                       setFeedback({ rating: 5, comment: '' });
                       setMessage({ text: '', type: '' });
                     }}
-                    className="rounded-lg bg-slate-100 px-3 py-1.5 text-xs font-bold text-slate-600 transition hover:bg-slate-200"
+                    className="rounded-xl bg-blue-50 px-4 py-2 text-xs font-bold text-blue-600 transition-all hover:bg-blue-100 hover:text-blue-700"
                   >
-                    Change Booking
+                    {user ? (
+                      <span className="flex items-center gap-2"><i className="fas fa-arrow-left" /> Back to List</span>
+                    ) : (
+                      <span className="flex items-center gap-2"><i className="fas fa-search" /> Change Booking</span>
+                    )}
                   </button>
                 </div>
 
@@ -282,7 +474,7 @@ export default function FeedbackPage() {
                             className={`fas fa-star text-2xl sm:text-3xl transition-all duration-200 ${
                               star <= (hoverRating || feedback.rating)
                                 ? 'scale-110 text-amber-400 drop-shadow-[0_0_8px_rgba(251,191,36,0.3)]'
-                                : 'text-slate-200'
+                                : 'text-blue-50'
                             }`}
                           />
                         </button>
@@ -320,7 +512,7 @@ export default function FeedbackPage() {
                   <button
                     type="submit"
                     disabled={submitting || feedback.comment.trim().length < 10}
-                    className="relative w-full overflow-hidden rounded-xl bg-blue-600 py-3 text-sm font-bold text-white shadow-md shadow-blue-500/20 transition-all hover:bg-blue-700 hover:shadow-lg active:scale-[0.99] disabled:cursor-not-allowed disabled:opacity-50 disabled:shadow-none"
+                    className="relative w-full overflow-hidden rounded-2xl bg-blue-600 py-3.5 text-sm font-bold text-white shadow-[0_10px_25px_-5px_rgba(37,99,235,0.4)] transition-all hover:bg-blue-700 hover:shadow-[0_15px_30px_-5px_rgba(37,99,235,0.5)] active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-50 disabled:shadow-none"
                   >
                     {submitting ? (
                       <span className="flex items-center justify-center gap-2">
@@ -359,6 +551,10 @@ export default function FeedbackPage() {
           </div>
         </div>
       </div>
+      <GuestAuthModal 
+        isOpen={isAuthModalOpen} 
+        onClose={() => setIsAuthModalOpen(false)} 
+      />
     </GuestLayout>
   );
 }

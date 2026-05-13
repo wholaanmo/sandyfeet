@@ -12,13 +12,7 @@ import { uploadImage } from '@/lib/cloudinary';
 import GuestAuthModal from '@/components/guest/GuestAuthModal';
 import { useGuestAuth } from '@/components/guest/GuestAuthContext';
 
-const resolveAddressPart = (address, key) => {
-  if (!address) return '';
-  if (typeof address === 'string') {
-    return key === 'street' ? address : '';
-  }
-  return address[key] || '';
-};
+// Address fields removed for room booking (no address helper needed)
 
 function BookingPageContent() {
   const searchParams = useSearchParams();
@@ -66,11 +60,6 @@ function BookingPageContent() {
     lastName: '',
     email: '',
     phone: '',
-    addressStreet: '',
-    addressBarangay: '',
-    addressCity: '',
-    addressProvince: '',
-    addressPostalCode: '',
     paymentProofUrl: null, // Changed to store URL instead of Base64
     validIdType: '',
     validIdUrl: null, // Changed to store URL instead of Base64
@@ -166,12 +155,7 @@ function BookingPageContent() {
 
     setBookingData((prev) => ({
       ...prev,
-      phone: prev.phone || profile.mobileNumber || '',
-      addressStreet: prev.addressStreet || resolveAddressPart(profile.address, 'street'),
-      addressBarangay: prev.addressBarangay || resolveAddressPart(profile.address, 'barangay'),
-      addressCity: prev.addressCity || resolveAddressPart(profile.address, 'city'),
-      addressProvince: prev.addressProvince || resolveAddressPart(profile.address, 'province'),
-      addressPostalCode: prev.addressPostalCode || resolveAddressPart(profile.address, 'postalCode')
+      phone: prev.phone || profile.mobileNumber || profile.mobile || profile.phone || profile.mobile_number || ''
     }));
   }, [profile]);
 
@@ -764,13 +748,7 @@ function BookingPageContent() {
           lastName: bookingData.lastName,
           email: bookingData.email,
           phone: bookingData.phone,
-          address: {
-            street: bookingData.addressStreet || '',
-            barangay: bookingData.addressBarangay || '',
-            city: bookingData.addressCity || '',
-            province: bookingData.addressProvince || '',
-            postalCode: bookingData.addressPostalCode || ''
-          }
+          address: null
         },
         status: 'pending',
         paymentMethod: paymentMethod,
@@ -1046,57 +1024,6 @@ function BookingPageContent() {
                       {errors.phone && <p className="text-red-500 text-sm mt-1">{errors.phone}</p>}
                     </div>
 
-                    <div>
-                      <label className="block text-sm font-semibold text-textPrimary mb-2">Street / House No.</label>
-                      <input
-                        type="text"
-                        value={bookingData.addressStreet}
-                        onChange={(e) => handleInputChange('addressStreet', e.target.value)}
-                        className="w-full px-4 py-2 border border-ocean-light/20 rounded-lg focus:outline-none focus:border-ocean-light"
-                      />
-                    </div>
-
-                    <div className="grid gap-4 sm:grid-cols-2">
-                      <div>
-                        <label className="block text-sm font-semibold text-textPrimary mb-2">Barangay</label>
-                        <input
-                          type="text"
-                          value={bookingData.addressBarangay}
-                          onChange={(e) => handleInputChange('addressBarangay', e.target.value)}
-                          className="w-full px-4 py-2 border border-ocean-light/20 rounded-lg focus:outline-none focus:border-ocean-light"
-                        />
-                      </div>
-                      <div>
-                        <label className="block text-sm font-semibold text-textPrimary mb-2">City / Municipality</label>
-                        <input
-                          type="text"
-                          value={bookingData.addressCity}
-                          onChange={(e) => handleInputChange('addressCity', e.target.value)}
-                          className="w-full px-4 py-2 border border-ocean-light/20 rounded-lg focus:outline-none focus:border-ocean-light"
-                        />
-                      </div>
-                    </div>
-
-                    <div className="grid gap-4 sm:grid-cols-2">
-                      <div>
-                        <label className="block text-sm font-semibold text-textPrimary mb-2">Province</label>
-                        <input
-                          type="text"
-                          value={bookingData.addressProvince}
-                          onChange={(e) => handleInputChange('addressProvince', e.target.value)}
-                          className="w-full px-4 py-2 border border-ocean-light/20 rounded-lg focus:outline-none focus:border-ocean-light"
-                        />
-                      </div>
-                      <div>
-                        <label className="block text-sm font-semibold text-textPrimary mb-2">Postal Code</label>
-                        <input
-                          type="text"
-                          value={bookingData.addressPostalCode}
-                          onChange={(e) => handleInputChange('addressPostalCode', e.target.value)}
-                          className="w-full px-4 py-2 border border-ocean-light/20 rounded-lg focus:outline-none focus:border-ocean-light"
-                        />
-                      </div>
-                    </div>
                   </div>
                   
                   <div className="flex gap-3 mt-6">

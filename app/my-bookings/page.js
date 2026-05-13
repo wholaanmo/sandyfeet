@@ -160,44 +160,32 @@ export default function MyBookingsPage() {
 
   return (
     <GuestLayout>
-      <div className="min-h-screen bg-gradient-to-b from-slate-50 via-white to-slate-50 px-4 pb-20 pt-20 sm:px-6 sm:pt-24 lg:px-8">
+      <div className="min-h-screen bg-gradient-to-b from-slate-50 via-white to-slate-50 px-4 pb-20 pt-28 sm:px-6 sm:pt-32 lg:px-8">
         <div className="mx-auto max-w-5xl">
 
           {/* ══════ Hero Header ══════ */}
-          <div className="relative mb-10 overflow-hidden rounded-3xl bg-gradient-to-br from-slate-900 via-slate-800 to-slate-700 px-8 py-10 text-white shadow-xl sm:px-10 sm:py-12">
-            <div className="absolute -right-12 -top-12 h-48 w-48 rounded-full bg-white/5 blur-2xl" />
-            <div className="absolute -bottom-16 -left-16 h-56 w-56 rounded-full bg-white/5 blur-3xl" />
-            <div className="relative z-10">
-              <p className="text-[11px] font-bold uppercase tracking-[0.35em] text-slate-400">
-                Reservation Overview
-              </p>
-              <h1 className="mt-3 font-playfair text-3xl font-bold leading-tight sm:text-4xl">
-                My Bookings
-              </h1>
-              <p className="mt-2 max-w-lg text-sm leading-relaxed text-slate-300">
-                Track your reservations, payments, and schedules — all in one place.
-              </p>
-            </div>
+          <div className="mb-6">
+            <h1 className="text-2xl font-bold text-gray-900">My Bookings</h1>
           </div>
 
           {/* ══════ Unauthenticated ══════ */}
           {!user && (
-            <div className="flex flex-col items-center rounded-2xl border border-slate-200 bg-white px-6 py-16 text-center shadow-sm">
-              <div className="flex h-16 w-16 items-center justify-center rounded-full bg-slate-100">
-                <i className="fas fa-lock text-2xl text-slate-400" />
+            <div className="flex flex-col items-center rounded-3xl border border-blue-100 bg-white px-6 py-16 text-center shadow-[0_10px_40px_rgba(30,58,138,0.04)]">
+              <div className="flex h-16 w-16 items-center justify-center rounded-2xl bg-blue-50 text-blue-500">
+                <i className="fas fa-lock text-2xl" />
               </div>
-              <h2 className="mt-5 text-lg font-bold text-slate-800">Sign in to view your bookings</h2>
-              <p className="mt-2 max-w-xs text-sm text-slate-500">
+              <h2 className="mt-5 text-xl font-bold text-blue-900">Sign in to view your bookings</h2>
+              <p className="mt-2 max-w-xs text-sm text-blue-600/60 leading-relaxed">
                 Access your reservation details, schedules, and payment information.
               </p>
               <button
                 type="button"
                 onClick={() => setIsAuthOpen(true)}
                 disabled={loading}
-                className="mt-6 inline-flex items-center gap-2.5 rounded-xl bg-slate-900 px-6 py-3 text-sm font-semibold text-white shadow-lg transition-all hover:bg-slate-800 hover:shadow-xl disabled:opacity-60"
+                className="mt-8 inline-flex items-center gap-2.5 rounded-2xl bg-blue-600 px-8 py-3.5 text-sm font-bold text-white shadow-[0_10px_25px_-5px_rgba(37,99,235,0.4)] transition-all hover:bg-blue-700 hover:shadow-[0_15px_30px_-5px_rgba(37,99,235,0.5)] active:scale-[0.98] disabled:opacity-60"
               >
                 <i className="fas fa-sign-in-alt" />
-                Sign In
+                Sign In to Account
               </button>
             </div>
           )}
@@ -215,10 +203,10 @@ export default function MyBookingsPage() {
                       key={tab.id}
                       type="button"
                       onClick={() => setActiveTab(tab.id)}
-                      className={`group relative flex items-center gap-2 whitespace-nowrap rounded-xl px-5 py-2.5 text-sm font-semibold transition-all duration-200 ${
+                      className={`group relative flex items-center gap-2 whitespace-nowrap rounded-2xl px-5 py-2.5 text-sm font-bold transition-all duration-300 ${
                         isActive
-                          ? 'bg-slate-900 text-white shadow-lg shadow-slate-900/20'
-                          : 'bg-white text-slate-600 shadow-sm ring-1 ring-slate-200 hover:bg-slate-50 hover:text-slate-900'
+                          ? 'bg-blue-600 text-white shadow-[0_10px_25px_-5px_rgba(37,99,235,0.4)]'
+                          : 'bg-white text-blue-600/70 shadow-sm ring-1 ring-blue-50 hover:bg-blue-50 hover:text-blue-600'
                       }`}
                     >
                       <i className={`fas ${tab.icon} text-xs ${isActive ? 'text-white/70' : 'text-slate-400 group-hover:text-slate-500'}`} />
@@ -227,7 +215,7 @@ export default function MyBookingsPage() {
                         <span className={`ml-0.5 inline-flex h-5 min-w-[20px] items-center justify-center rounded-full px-1.5 text-[10px] font-bold ${
                           isActive
                             ? 'bg-white/20 text-white'
-                            : 'bg-slate-100 text-slate-500'
+                            : 'bg-blue-50 text-blue-600'
                         }`}>
                           {count}
                         </span>
@@ -240,11 +228,11 @@ export default function MyBookingsPage() {
               {/* ── Booking List ── */}
               <div className="space-y-4">
                 {bookingsLoading ? (
-                  <div className="flex min-h-[280px] flex-col items-center justify-center rounded-2xl border border-slate-200 bg-white py-16 shadow-sm">
+                  <div className="flex min-h-[280px] flex-col items-center justify-center rounded-3xl border border-blue-50 bg-white py-16 shadow-[0_10px_40px_rgba(30,58,138,0.04)]">
                     <div className="relative">
-                      <div className="h-10 w-10 animate-spin rounded-full border-[3px] border-slate-200 border-t-slate-700" />
+                      <div className="h-10 w-10 animate-spin rounded-full border-[3px] border-blue-50 border-t-blue-600" />
                     </div>
-                    <p className="mt-4 text-sm text-slate-400">Loading your reservations…</p>
+                    <p className="mt-4 text-sm font-medium text-blue-600/50">Loading your reservations…</p>
                   </div>
                 ) : bookingsError ? (
                   <div className="flex flex-col items-center rounded-2xl border border-red-200 bg-red-50 px-6 py-12 text-center">

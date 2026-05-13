@@ -21,10 +21,10 @@ export default function BookingCard({ booking, onCancel }) {
 
   return (
     <div 
-      className={`group overflow-hidden rounded-2xl border transition-all duration-300 bg-white ${
+      className={`group overflow-hidden rounded-3xl border transition-all duration-500 bg-white ${
         expanded 
-          ? 'border-slate-300 shadow-md ring-1 ring-slate-200' 
-          : 'border-slate-200/80 shadow-sm hover:shadow-[0_12px_40px_rgba(0,0,0,0.08)] hover:border-slate-300 hover:scale-[1.01] active:scale-[0.99]'
+          ? 'border-blue-200 shadow-[0_20px_50px_rgba(37,99,235,0.12)] ring-1 ring-blue-50' 
+          : 'border-blue-100/50 shadow-[0_4px_20px_rgba(0,0,0,0.03)] hover:shadow-[0_20px_50px_rgba(37,99,235,0.08)] hover:border-blue-200 hover:scale-[1.005] active:scale-[0.995]'
       }`}
     >
       {/* ── Card Header (Clickable) ── */}
@@ -36,12 +36,12 @@ export default function BookingCard({ booking, onCancel }) {
           {/* Left: Type, Status, Title */}
           <div className="min-w-0 space-y-2.5">
             <div className="flex flex-wrap items-center gap-2">
-              <span className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-[10px] font-bold uppercase tracking-[0.15em] ${typeInfo.color}`}>
+              <span className={`inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-[10px] font-bold uppercase tracking-[0.15em] shadow-sm ${typeInfo.color}`}>
                 <i className={`fas ${typeInfo.icon} text-[9px]`} />
                 {typeInfo.label}
               </span>
-              <span className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-[10px] font-semibold ${statusInfo.color}`}>
-                <span className={`h-1.5 w-1.5 rounded-full ${statusInfo.dot}`} />
+              <span className={`inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-[10px] font-bold uppercase tracking-[0.15em] shadow-sm ${statusInfo.color}`}>
+                <span className={`h-1.5 w-1.5 rounded-full ${statusInfo.dot} animate-pulse`} />
                 {statusInfo.label}
               </span>
             </div>
@@ -267,6 +267,26 @@ export default function BookingCard({ booking, onCancel }) {
               >
                 <i className="fas fa-times-circle text-xs" />
                 Cancel Reservation
+              </button>
+            </div>
+          )}
+
+          {/* Feedback Button (completed bookings only) */}
+          {(booking.status === 'check-out' || booking.status === 'completed') && (
+            <div className="mt-5 flex items-center justify-between border-t border-blue-50 pt-4">
+              <p className="text-xs font-medium text-blue-600/70">
+                Share your experience with us!
+              </p>
+              <button
+                type="button"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  window.location.href = `/feedback?bookingId=${booking.bookingId}`;
+                }}
+                className="inline-flex items-center gap-2 rounded-xl bg-blue-600 px-5 py-2.5 text-sm font-semibold text-white transition-all hover:bg-blue-700 hover:shadow-[0_10px_20px_-5px_rgba(37,99,235,0.4)] active:scale-[0.98]"
+              >
+                <i className="fas fa-star text-[10px] text-amber-300" />
+                Share Feedback
               </button>
             </div>
           )}
