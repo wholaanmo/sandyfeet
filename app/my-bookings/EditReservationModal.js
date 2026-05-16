@@ -610,27 +610,60 @@ export default function EditReservationModal({ isOpen, booking, onClose, onSucce
     return true;
   };
 
-  const checkAvailability = async () => {
-    if (!checkIn || !booking || booking.type === 'daytour') return true;
-    
-    const checkInDate = new Date(checkIn);
-    const checkOutDate = new Date(checkOut);
-    setIsCheckingAvailability(true);
-    setAvailabilityError('');
-    
-    try {
-      let roomRequests = [];
-      if (isExclusive) {
-        // For exclusive, we need to check if the entire resort is available
-        const selectedDate = new Date(checkIn);
-        if (!isDateFullyAvailableForExclusive(selectedDate)) {
-          setAvailabilityError('The Entire Resort Package is not available for the selected dates. Some rooms are already booked.');
-          setIsCheckingAvailability(false);
-          return false;
+  const getUnavailableRoomTypeForStay = (date, roomRequests) => {
+  if (!date || !roomRequests.length) return null;
+  const checkInDate = new Date(date);
+  for (let dayOffset = 0; dayOffset < originalNights; dayOffset++) {
+    const currentDate = new Date(checkInDate);
+    currentDate.setDate(checkInDate.getDate() + dayOffset);
+    const dateStr = `${currentDate.getFullYear()}-${String(currentDate.getMonth() + 1).padStart(2, '0')}-${String(currentDate.getDate()).padStart(2, '0')}`;
+    for (const req of roomRequests) {
+      const roomTypeData = availableRoomTypes.find(t => t.type === req.type);
+      if (!roomTypeData) continue;
+      let totalAvailable = 0;
+      for (const roomId of roomTypeData.roomIds) {
+        const roomDetail = roomDetailsMap[req.type]?.[roomId];
+        const maxRooms = (roomDetail?.totalRooms || 1) - (roomDetail?.maintenanceRooms || 0);
+        if (maxRooms <= 0) continue;
+        let minAvailable = maxRooms;
+        for (let hour = CHECK_IN_HOUR; hour < 24; hour++) {
+          const blockedUnits = blockedSlots[dateStr]?.[roomId]?.[hour] || 0;
+          const bookedCount = bookedDates[dateStr]?.[roomId]?.[hour] || 0;
+          const availableNow = Math.max(0, maxRooms - bookedCount - blockedUnits);
+          minAvailable = Math.min(minAvailable, availableNow);
+          if (minAvailable <= 0) break;
         }
+        totalAvailable += minAvailable;
+      }
+      if (totalAvailable < req.quantity) {
+        return req.type;
+      }
+    }
+  }
+  return null;
+};
+
+ const checkAvailability = async () => {
+  if (!checkIn || !booking || booking.type === 'daytour') return true;
+  
+  const checkInDate = new Date(checkIn);
+  setIsCheckingAvailability(true);
+  setAvailabilityError('');
+  
+  try {
+    if (isExclusive) {
+      const selectedDate = new Date(checkIn);
+      if (!isDateFullyAvailableForExclusive(selectedDate)) {
+        setAvailabilityError('The Entire Resort Package is not available for the selected dates. Some rooms are already booked.');
         setIsCheckingAvailability(false);
-        return true;
-      } else if (isMultiRoom && booking.roomTypesArray) {
+        return false;
+      }
+      setIsCheckingAvailability(false);
+      return true;
+    } else {
+      // Build room requests (same as calendar)
+      let roomRequests = [];
+      if (isMultiRoom && booking.roomTypesArray) {
         roomRequests = booking.roomTypesArray.map(rt => ({
           type: rt.type,
           quantity: rt.quantity
@@ -644,66 +677,25 @@ export default function EditReservationModal({ isOpen, booking, onClose, onSucce
         setIsCheckingAvailability(false);
         return true;
       }
-
-      const bookingsRef = collection(db, 'bookings');
-      const overlappingQuery = query(
-        bookingsRef,
-        where('status', 'in', ['pending', 'confirmed', 'check-in'])
-      );
-      const snapshot = await getDocs(overlappingQuery);
       
-      for (let dayOffset = 0; dayOffset < originalNights; dayOffset++) {
-        const currentDate = new Date(checkInDate);
-        currentDate.setDate(checkInDate.getDate() + dayOffset);
-        currentDate.setHours(0, 0, 0, 0);
-        const dateStr = currentDate.toISOString().split('T')[0];
-
-        for (const req of roomRequests) {
-          let bookedCount = 0;
-          for (const docSnap of snapshot.docs) {
-            const data = docSnap.data();
-            if (isMultiRoom && booking.children) {
-              if (booking.children.some(child => child.id === docSnap.id)) continue;
-            } else if (docSnap.id === booking.id) continue;
-
-            if (data.roomType !== req.type) continue;
-            
-            const existingCheckIn = toDateValue(data.checkIn);
-            const existingCheckOut = toDateValue(data.checkOut);
-            if (!existingCheckIn || !existingCheckOut) continue;
-            
-            const existingStart = new Date(existingCheckIn);
-            const existingEnd = new Date(existingCheckOut);
-            existingStart.setHours(0, 0, 0, 0);
-            existingEnd.setHours(0, 0, 0, 0);
-            
-            if (currentDate >= existingStart && currentDate < existingEnd) {
-              bookedCount += data.numberOfRooms || 1;
-            }
-          }
-          
-          const totalCapacity = roomCapacities[req.type] || 10;
-          const available = totalCapacity - bookedCount;
-          if (available < req.quantity) {
-            setAvailabilityError(
-              `${req.type} is not fully available on ${dateStr}. ` +
-              `Only ${available} of ${req.quantity} room(s) available.`
-            );
-            setIsCheckingAvailability(false);
-            return false;
-          }
-        }
+      // Use the same availability logic as the calendar
+      const unavailableType = getUnavailableRoomTypeForStay(checkInDate, roomRequests);
+      if (unavailableType) {
+        setAvailabilityError(`${unavailableType} is not fully available on the selected dates. Please choose a different check‑in date.`);
+        setIsCheckingAvailability(false);
+        return false;
       }
       
       setIsCheckingAvailability(false);
       return true;
-    } catch (err) {
-      console.error('Availability check error:', err);
-      setAvailabilityError('Unable to check availability. Please try again.');
-      setIsCheckingAvailability(false);
-      return false;
     }
-  };
+  } catch (err) {
+    console.error('Availability check error:', err);
+    setAvailabilityError('Unable to check availability. Please try again.');
+    setIsCheckingAvailability(false);
+    return false;
+  }
+};
 
   const handleConfirmReschedule = async () => {
     setShowConfirmModal(false);
@@ -749,6 +741,30 @@ export default function EditReservationModal({ isOpen, booking, onClose, onSucce
     setIsLoading(true);
     
     try {
+      // Grouped multi-room / entire-resort UIs use booking.id === parentBookingId (logical group id).
+      // Only child Firestore documents exist; updating doc(bookings, parentBookingId) throws and shows a false error.
+      const isVirtualGroupParent = Boolean(
+        booking?.children?.length > 0 &&
+          booking?.parentBookingId &&
+          booking?.id === booking.parentBookingId
+      );
+
+      const omitUndefinedDeep = (value) => {
+        if (value === undefined) return undefined;
+        if (value === null || typeof value !== 'object') return value;
+        if (value instanceof Date) return value;
+        if (Array.isArray(value)) {
+          return value.map(omitUndefinedDeep).filter((entry) => entry !== undefined);
+        }
+        const out = {};
+        for (const [k, v] of Object.entries(value)) {
+          if (v === undefined) continue;
+          const cleaned = omitUndefinedDeep(v);
+          if (cleaned !== undefined) out[k] = cleaned;
+        }
+        return out;
+      };
+
       const updates = {
         checkIn: checkInDate,
         checkOut: checkOutDate,
@@ -772,7 +788,7 @@ export default function EditReservationModal({ isOpen, booking, onClose, onSucce
           for (const child of booking.children) {
             if (!child.id) continue;
             const childRef = doc(db, 'bookings', child.id);
-            await updateDoc(childRef, {
+            await updateDoc(childRef, omitUndefinedDeep({
               checkIn: checkInDate,
               checkOut: checkOutDate,
               nights: originalNights,
@@ -783,7 +799,7 @@ export default function EditReservationModal({ isOpen, booking, onClose, onSucce
               exclusiveKids,
               tentCount: exclusiveTentCount,
               updatedAt: new Date()
-            });
+            }));
           }
         }
       } else if (isMultiRoom && booking.children) {
@@ -793,12 +809,12 @@ export default function EditReservationModal({ isOpen, booking, onClose, onSucce
           const guestData = guestCounts[i];
           if (guestData && child.id) {
             const childRef = doc(db, 'bookings', child.id);
-            await updateDoc(childRef, {
+            await updateDoc(childRef, omitUndefinedDeep({
               adults: guestData.adults,
               kids: guestData.kids,
               guests: guestData.adults + guestData.kids,
               updatedAt: new Date()
-            });
+            }));
             totalAdults += guestData.adults;
             totalKids += guestData.kids;
           }
@@ -817,26 +833,37 @@ export default function EditReservationModal({ isOpen, booking, onClose, onSucce
         updates.perUnitGuests = guestCounts;
       }
       
-      if (isMultiRoom && booking.parentBookingId) {
+      if (isMultiRoom && booking.parentBookingId && booking.children?.length) {
         for (let i = 0; i < booking.children.length; i++) {
           const child = booking.children[i];
+          if (!child?.id) continue;
           const childRef = doc(db, 'bookings', child.id);
-          await updateDoc(childRef, {
+          await updateDoc(childRef, omitUndefinedDeep({
             checkIn: checkInDate,
             checkOut: checkOutDate,
             nights: originalNights,
             updatedAt: new Date()
-          });
+          }));
         }
-        const parentRef = doc(db, 'bookings', booking.parentBookingId);
-        await updateDoc(parentRef, updates);
+        if (!isVirtualGroupParent) {
+          const parentRef = doc(db, 'bookings', booking.parentBookingId);
+          await updateDoc(parentRef, omitUndefinedDeep(updates));
+        }
       } else {
         const bookingRef = doc(db, 'bookings', booking.id);
-        await updateDoc(bookingRef, updates);
+        await updateDoc(bookingRef, omitUndefinedDeep(updates));
       }
-      
-      onSuccess();
-      onClose();
+
+      try {
+        onSuccess?.();
+      } catch (cbErr) {
+        console.error('Post-update success handler error:', cbErr);
+      }
+      try {
+        onClose?.();
+      } catch (cbErr) {
+        console.error('Post-update close handler error:', cbErr);
+      }
     } catch (err) {
       console.error('Error updating booking:', err);
       setError('Failed to update reservation. Please try again.');
@@ -1163,6 +1190,7 @@ export default function EditReservationModal({ isOpen, booking, onClose, onSucce
                       <span>{exclusiveGuestError}</span>
                     </div>
                   )}
+                  
                 </div>
               ) : isMultiRoom ? (
                 <div className="space-y-4">

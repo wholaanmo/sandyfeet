@@ -2129,30 +2129,48 @@ const isNotificationDisabled = (booking) => {
   {!editingNote && !editingPayment && (
     <div className="space-y-3">
       {(() => {
-     const isCancelled = ['cancelled', 'cancelled-by-guest'].includes(sidebarBooking.status);
-let downPayment, totalAmount;
+   const isCancelled = ['cancelled', 'cancelled-by-guest'].includes(sidebarBooking.status);
+let downPayment, totalAmount, balance;
 
-if (isCancelled) {
-  // For cancelled: Total = Down Payment (balance = 0)
-  if (sidebarBooking.manualDownPayment !== undefined && sidebarBooking.manualDownPayment !== null) {
-    downPayment = sidebarBooking.manualDownPayment;
+if (activeTab === 'daytour' && sidebarBooking.downPayment !== undefined) {
+  // --- Day tour with stored down payment and remaining balance ---
+  totalAmount = sidebarBooking.manualTotalPrice ?? sidebarBooking.totalPrice;
+  downPayment = sidebarBooking.downPayment; // original down payment (fixed)
+
+  if (isCancelled) {
+    balance = 0;
+    totalAmount = downPayment; // for cancelled, total shown = down payment
   } else {
-    const originalTotal = Number(sidebarBooking.totalPrice) || 0;
-    downPayment = originalTotal * 0.5;
+    // Use manualBalance if set, otherwise stored remainingBalance, otherwise compute
+    balance = sidebarBooking.manualBalance !== undefined
+      ? sidebarBooking.manualBalance
+      : (sidebarBooking.remainingBalance !== undefined
+          ? sidebarBooking.remainingBalance
+          : totalAmount - downPayment);
   }
-  totalAmount = downPayment; // Total = Down + 0
 } else {
-  // Non-cancelled bookings: use existing logic (balance editing, etc.)
-  if (sidebarBooking.manualTotalPrice !== undefined && sidebarBooking.manualTotalPrice !== null) {
-    totalAmount = sidebarBooking.manualTotalPrice;
-    downPayment = totalAmount * 0.5;
+  // --- Original logic for room bookings (or day tours without downPayment) ---
+  if (isCancelled) {
+    if (sidebarBooking.manualDownPayment !== undefined && sidebarBooking.manualDownPayment !== null) {
+      downPayment = sidebarBooking.manualDownPayment;
+    } else {
+      const originalTotal = Number(sidebarBooking.totalPrice) || 0;
+      downPayment = originalTotal * 0.5;
+    }
+    totalAmount = downPayment;
+    balance = 0;
   } else {
-    const originalTotal = Number(sidebarBooking.totalPrice) || 0;
-    totalAmount = originalTotal;
-    downPayment = originalTotal * 0.5;
+    if (sidebarBooking.manualTotalPrice !== undefined && sidebarBooking.manualTotalPrice !== null) {
+      totalAmount = sidebarBooking.manualTotalPrice;
+      downPayment = totalAmount * 0.5;
+    } else {
+      const originalTotal = Number(sidebarBooking.totalPrice) || 0;
+      totalAmount = originalTotal;
+      downPayment = originalTotal * 0.5;
+    }
+    balance = sidebarBooking.manualBalance !== undefined ? sidebarBooking.manualBalance : downPayment;
   }
 }
-const balance = isCancelled ? 0 : (sidebarBooking.manualBalance !== undefined ? sidebarBooking.manualBalance : downPayment);
 
         return (
           <div className="grid grid-cols-2 gap-4">

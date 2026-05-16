@@ -2,15 +2,18 @@
 'use client';
 import { useState } from 'react';
 import EditReservationModal from './EditReservationModal';
+import DayTourEditReservationModal from './DayTourEditReservationModal';
 import {
   formatDateOnly, formatDateTime, formatAddress, calcNights,
   getStatusBadge, getTypeDisplay, getBookingTitle, getGuestTotal,
   getDownPayment, getBalance, getRoomTypes, canCancel,
 } from './utils';
 
+
 export default function BookingCard({ booking, onCancel, onEditSuccess }) {
   const [expanded, setExpanded] = useState(false);
   const [showEditModal, setShowEditModal] = useState(false);
+    const [showDayTourEditModal, setShowDayTourEditModal] = useState(false); // for day tour
   const typeInfo = getTypeDisplay(booking);
   const statusInfo = getStatusBadge(booking.status, booking.cancelledBy);
   const guestTotal = getGuestTotal(booking);
@@ -23,6 +26,7 @@ export default function BookingCard({ booking, onCancel, onEditSuccess }) {
   const showCancel = canCancel(booking);
   const isPending = booking.status === 'pending';
   const isRoomBooking = booking.type === 'room';
+  const isDayTour = booking.type === 'daytour';
 
   const handleEditSuccess = () => {
     if (onEditSuccess) {
@@ -285,19 +289,20 @@ export default function BookingCard({ booking, onCancel, onEditSuccess }) {
                 Booked on {formatDateTime(booking.createdAt)}
               </p>
               <div className="flex gap-3">
-                {isPending && isRoomBooking && (
-                  <button
-                    type="button"
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      setShowEditModal(true);
-                    }}
-                    className="inline-flex items-center gap-2 rounded-lg border border-blue-200 bg-white px-4 py-2 text-sm font-semibold text-blue-600 transition-all hover:bg-blue-50 hover:border-blue-300 hover:shadow-sm"
-                  >
-                    <i className="fas fa-pen text-xs" />
-                    Edit Reservation
-                  </button>
-                )}
+            {isPending && (isRoomBooking || isDayTour) && (
+    <button
+      type="button"
+      onClick={(e) => {
+        e.stopPropagation();
+        if (isRoomBooking) setShowEditModal(true);
+        else setShowDayTourEditModal(true);
+      }}
+      className="inline-flex items-center gap-2 rounded-lg border border-blue-200 bg-white px-4 py-2 text-sm font-semibold text-blue-600 transition-all hover:bg-blue-50 hover:border-blue-300 hover:shadow-sm"
+    >
+      <i className="fas fa-pen text-xs" />
+      Edit Reservation
+    </button>
+  )}
                 {showCancel && (
                   <button
                     type="button"
@@ -337,6 +342,13 @@ export default function BookingCard({ booking, onCancel, onEditSuccess }) {
         onClose={() => setShowEditModal(false)}
         onSuccess={handleEditSuccess}
       />
+
+        <DayTourEditReservationModal
+    isOpen={showDayTourEditModal}
+    booking={booking}
+    onClose={() => setShowDayTourEditModal(false)}
+    onSuccess={handleEditSuccess}
+  />
     </>
   );
 }
