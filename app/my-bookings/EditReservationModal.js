@@ -55,8 +55,8 @@ export default function EditReservationModal({ isOpen, booking, onClose, onSucce
   const handleExclusiveGuestChange = (guestType, rawValue) => {
     const parsedValue = Number.parseInt(rawValue, 10);
     const safeValue = Number.isNaN(parsedValue) ? 0 : Math.max(0, parsedValue);
-    let nextAdults = exclusiveAdults;
-    let nextKids = exclusiveKids;
+    let nextAdults = Number(exclusiveAdults) || 1;
+    let nextKids = Number(exclusiveKids) || 0;
     if (guestType === 'adults') nextAdults = safeValue;
     else nextKids = safeValue;
     const nextTotal = nextAdults + nextKids;
@@ -69,20 +69,9 @@ export default function EditReservationModal({ isOpen, booking, onClose, onSucce
     setExclusiveGuestError(errorMessage);
   };
 
-  const handleAddTentInExclusive = () => {
-    const maxTentsAvailable = 5; // Default max tents
-    if (exclusiveTentCount < maxTentsAvailable) {
-      setExclusiveTentCount(exclusiveTentCount + 1);
-    }
-  };
+  // No tent add/remove handlers needed — they are removed from UI.
 
-  const handleRemoveTentInExclusive = () => {
-    if (exclusiveTentCount > 0) {
-      setExclusiveTentCount(exclusiveTentCount - 1);
-    }
-  };
-
-  // Fetch available room types and room details
+  // Fetch available room types and room details (unchanged)
   useEffect(() => {
     const fetchRoomTypes = async () => {
       try {
@@ -149,7 +138,7 @@ export default function EditReservationModal({ isOpen, booking, onClose, onSucce
     if (isOpen) fetchRoomTypes();
   }, [isOpen]);
 
-  // Get total units for a room type (for exclusive availability check)
+  // Get total units for a room type (for exclusive availability check) — unchanged
   const getTotalUnitsForRoomType = (roomTypeData) => {
     if (!roomTypeData) return 0;
     let totalUnits = 0;
@@ -221,7 +210,7 @@ export default function EditReservationModal({ isOpen, booking, onClose, onSucce
     return true;
   };
 
-  // Fetch booked dates and blocked slots
+  // Fetch booked dates and blocked slots — unchanged
   useEffect(() => {
     if (availableRoomTypes.length === 0 || !isOpen) return;
     
@@ -301,7 +290,7 @@ export default function EditReservationModal({ isOpen, booking, onClose, onSucce
     fetchBookingsAndBlocks();
   }, [availableRoomTypes, isOpen, booking]);
 
-  // Fetch room capacity limits for the specific room type (single room)
+  // Fetch room capacity limits for the specific room type (single room) — unchanged
   useEffect(() => {
     const fetchRoomCapacity = async () => {
       if (!booking?.roomType || !isOpen) return;
@@ -331,7 +320,7 @@ export default function EditReservationModal({ isOpen, booking, onClose, onSucce
     }
   }, [booking?.roomType, isOpen, isMultiRoom, isExclusive]);
 
-  // Initialize form with booking data
+  // Initialize form with booking data — unchanged
   useEffect(() => {
     if (booking && isOpen) {
       const checkInDate = toDateValue(booking.checkIn);
@@ -347,8 +336,13 @@ export default function EditReservationModal({ isOpen, booking, onClose, onSucce
         setCheckOut(autoCheckOut.toISOString().split('T')[0]);
       }
 
-      // Initialize guest counts based on booking type
-      if (isMultiRoom && booking.children) {
+      // Initialize guest counts based on booking type (Entire Resort before multi-room)
+      if (isExclusive) {
+        setExclusiveAdults(booking.exclusiveAdults ?? booking.adults ?? 1);
+        setExclusiveKids(booking.exclusiveKids ?? booking.kids ?? 0);
+        setExclusiveTentCount(booking.tentCount || 0);
+        setExclusiveGuestError('');
+      } else if (isMultiRoom && booking.children) {
         const counts = {};
         booking.children.forEach((child, index) => {
           const roomCapacity = roomCapacitiesMap[child.roomType] || { max: 10, min: 1 };
@@ -362,11 +356,6 @@ export default function EditReservationModal({ isOpen, booking, onClose, onSucce
           };
         });
         setGuestCounts(counts);
-      } else if (isExclusive) {
-        // Initialize exclusive resort guest counts
-        setExclusiveAdults(booking.exclusiveAdults || 1);
-        setExclusiveKids(booking.exclusiveKids || 0);
-        setExclusiveTentCount(booking.tentCount || 0);
       } else {
         const numberOfUnits = booking.numberOfRooms || 1;
         const counts = {};
@@ -399,7 +388,7 @@ export default function EditReservationModal({ isOpen, booking, onClose, onSucce
     }
   }, [booking, isOpen, isMultiRoom, isExclusive, roomCapacitiesMap]);
 
-  // Auto-update check-out when check-in changes
+  // Auto-update check-out when check-in changes — unchanged
   useEffect(() => {
     if (checkIn && originalNights > 0) {
       const checkInDate = new Date(checkIn);
@@ -409,7 +398,7 @@ export default function EditReservationModal({ isOpen, booking, onClose, onSucce
     }
   }, [checkIn, originalNights]);
 
-  // Close calendar when clicking outside
+  // Close calendar when clicking outside — unchanged
   useEffect(() => {
     if (!isCalendarOpen) return;
     const handleClickOutside = (event) => {
@@ -561,7 +550,7 @@ export default function EditReservationModal({ isOpen, booking, onClose, onSucce
     return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
   };
 
-  // Validate per-unit guest counts (for non-exclusive bookings)
+  // Validate per-unit guest counts (for non-exclusive bookings) — unchanged
   const validateGuestCounts = () => {
     const errors = {};
     let hasError = false;
@@ -598,13 +587,13 @@ export default function EditReservationModal({ isOpen, booking, onClose, onSucce
     return !hasError;
   };
 
-  // Validate exclusive resort guest counts
+  // Validate exclusive resort guest counts (aligned with app/rooms handleProceed) — unchanged
   const validateExclusiveGuests = () => {
-    const adults = exclusiveAdults;
-    const kids = exclusiveKids;
+    const adults = Math.max(0, Number(exclusiveAdults) || 0);
+    const kids = Math.max(0, Number(exclusiveKids) || 0);
     const totalGuests = adults + kids;
     const maxPax = getExclusiveMaxPax();
-    
+
     if (adults < 1) {
       setExclusiveGuestError('At least 1 adult is required.');
       return false;
@@ -773,7 +762,31 @@ export default function EditReservationModal({ isOpen, booking, onClose, onSucce
       updates.downPayment = updates.totalPrice * 0.5;
       updates.remainingBalance = updates.totalPrice - updates.downPayment;
       
-      if (isMultiRoom && booking.children) {
+      if (isExclusive) {
+        updates.exclusiveAdults = exclusiveAdults;
+        updates.exclusiveKids = exclusiveKids;
+        updates.totalGuests = exclusiveAdults + exclusiveKids;
+        updates.guests = exclusiveAdults + exclusiveKids;
+        updates.tentCount = exclusiveTentCount;
+        if (booking.children?.length) {
+          for (const child of booking.children) {
+            if (!child.id) continue;
+            const childRef = doc(db, 'bookings', child.id);
+            await updateDoc(childRef, {
+              checkIn: checkInDate,
+              checkOut: checkOutDate,
+              nights: originalNights,
+              adults: exclusiveAdults,
+              kids: exclusiveKids,
+              guests: exclusiveAdults + exclusiveKids,
+              exclusiveAdults,
+              exclusiveKids,
+              tentCount: exclusiveTentCount,
+              updatedAt: new Date()
+            });
+          }
+        }
+      } else if (isMultiRoom && booking.children) {
         let totalAdults = 0, totalKids = 0;
         for (let i = 0; i < booking.children.length; i++) {
           const child = booking.children[i];
@@ -792,12 +805,6 @@ export default function EditReservationModal({ isOpen, booking, onClose, onSucce
         }
         updates.totalGuests = totalAdults + totalKids;
         updates.guests = totalAdults + totalKids;
-      } else if (isExclusive) {
-        updates.exclusiveAdults = exclusiveAdults;
-        updates.exclusiveKids = exclusiveKids;
-        updates.totalGuests = exclusiveAdults + exclusiveKids;
-        updates.guests = exclusiveAdults + exclusiveKids;
-        updates.tentCount = exclusiveTentCount;
       } else {
         let totalAdults = 0, totalKids = 0;
         for (const guest of Object.values(guestCounts)) {
@@ -1102,7 +1109,62 @@ export default function EditReservationModal({ isOpen, booking, onClose, onSucce
                 Guest Information <span className="text-xs font-normal text-gray-500">(can be modified)</span>
               </h4>
               
-              {isMultiRoom ? (
+              {isExclusive ? (
+                // ENTIRE RESORT — single Adults/Kids only, tent count is read-only (no +/- buttons)
+                <div className="rounded-xl border border-gray-200 p-4 bg-gradient-to-r from-blue-50/30 to-white">
+                  <div className="mb-3">
+                    <p className="text-sm font-semibold text-blue-800">Entire Resort Package</p>
+                    <p className="text-[10px] text-emerald-600 font-extrabold uppercase tracking-widest mt-1">
+                      Can entertain up to {exclusiveMaxPax} pax
+                    </p>
+                  </div>
+
+                  {/* Tents section — read-only display, no editing controls */}
+                  <div className="mt-3 p-3 bg-amber-50/50 rounded-xl border border-amber-100">
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <p className="text-[10px] font-bold text-amber-800 uppercase tracking-widest">Tents</p>
+                      </div>
+                      <div className="font-bold text-amber-800 text-base">
+                        {exclusiveTentCount}
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="bg-gray-50/80 rounded-xl p-3 mt-3">
+                    <div className="grid grid-cols-2 gap-3">
+                      <label className="flex flex-col gap-1">
+                        <span className="text-[10px] uppercase font-bold text-gray-500">Adults</span>
+                        <input
+                          type="number"
+                          min={1}
+                          value={exclusiveAdults}
+                          onChange={(e) => handleExclusiveGuestChange('adults', e.target.value)}
+                          className={`w-full text-xs font-bold border bg-white rounded-md pl-3 py-2 shadow-sm focus:outline-none focus:ring-2 ${exclusiveGuestError ? 'border-red-300 focus:border-red-400 ring-red-100 text-red-600' : 'border-gray-200 focus:border-blue-400 ring-blue-100'}`}
+                        />
+                      </label>
+                      <label className="flex flex-col gap-1">
+                        <span className="text-[10px] uppercase font-bold text-gray-500">Kids</span>
+                        <input
+                          type="number"
+                          min={0}
+                          value={exclusiveKids}
+                          onChange={(e) => handleExclusiveGuestChange('kids', e.target.value)}
+                          className={`w-full text-xs font-bold border bg-white rounded-md pl-3 py-2 shadow-sm focus:outline-none focus:ring-2 ${exclusiveGuestError ? 'border-red-300 focus:border-red-400 ring-red-100 text-red-600' : 'border-gray-200 focus:border-blue-400 ring-blue-100'}`}
+                        />
+                      </label>
+                    </div>
+                    <p className="text-[10px] font-semibold text-gray-500 mt-2">Total Pax: {exclusiveTotalPax} / {exclusiveMaxPax}</p>
+                  </div>
+
+                  {exclusiveGuestError && (
+                    <div className="bg-red-50/80 border-t border-red-100 p-2 text-[10px] text-red-600 font-semibold tracking-tight leading-tight flex items-start gap-1 w-full rounded-b-xl mt-3">
+                      <i className="fas fa-exclamation-circle mt-[0.1rem]"></i>
+                      <span>{exclusiveGuestError}</span>
+                    </div>
+                  )}
+                </div>
+              ) : isMultiRoom ? (
                 <div className="space-y-4">
                   {booking.children.map((child, index) => {
                     const guest = guestCounts[index] || { adults: 1, kids: 0, roomType: child.roomType };
@@ -1165,77 +1227,6 @@ export default function EditReservationModal({ isOpen, booking, onClose, onSucce
                       </div>
                     );
                   })}
-                </div>
-              ) : isExclusive ? (
-                // ENTIRE RESORT BOOKING - Combined guest structure matching app/rooms
-                <div className="rounded-xl border border-gray-200 p-4 bg-gradient-to-r from-blue-50/30 to-white">
-                  <div className="mb-3">
-                    <p className="text-sm font-semibold text-blue-800">Entire Resort Package</p>
-                    <p className="text-[10px] text-emerald-600 font-extrabold uppercase tracking-widest mt-1">
-                      Can entertain up to {exclusiveMaxPax} pax
-                    </p>
-                  </div>
-                  
-                  {/* Tents Section - matches app/rooms */}
-                  <div className="mt-3 p-3 bg-amber-50/50 rounded-xl border border-amber-100">
-                    <div className="flex items-center justify-between">
-                      <div>
-                        <p className="text-[10px] font-bold text-amber-800 uppercase tracking-widest">Tents</p>
-                        <p className="text-[9px] text-amber-700">+₱1,500 per tent/night</p>
-                      </div>
-                      <div className="flex items-center gap-2">
-                        <button 
-                          onClick={handleRemoveTentInExclusive} 
-                          disabled={exclusiveTentCount === 0} 
-                          className="w-7 h-7 rounded-full bg-white text-amber-600 border border-amber-200 flex items-center justify-center hover:bg-amber-100 disabled:opacity-40 disabled:cursor-not-allowed transition-all"
-                        >
-                          <i className="fas fa-minus text-[10px]"></i>
-                        </button>
-                        <span className="font-bold text-amber-800 text-base min-w-[30px] text-center">{exclusiveTentCount}</span>
-                        <button 
-                          onClick={handleAddTentInExclusive} 
-                          disabled={exclusiveTentCount >= 5} 
-                          className="w-7 h-7 rounded-full bg-white text-amber-600 border border-amber-200 flex items-center justify-center hover:bg-amber-100 disabled:opacity-40 disabled:cursor-not-allowed transition-all"
-                        >
-                          <i className="fas fa-plus text-[10px]"></i>
-                        </button>
-                      </div>
-                    </div>
-                  </div>
-                  
-                  {/* Guest Inputs - matches app/rooms */}
-                  <div className="bg-gray-50/80 rounded-xl p-3 mt-3">
-                    <div className="grid grid-cols-2 gap-3">
-                      <label className="flex flex-col gap-1">
-                        <span className="text-[10px] uppercase font-bold text-gray-500">Adults</span>
-                        <input 
-                          type="number" 
-                          min={1} 
-                          value={exclusiveAdults} 
-                          onChange={(e) => handleExclusiveGuestChange('adults', e.target.value)} 
-                          className={`w-full text-xs font-bold border bg-white rounded-md pl-3 py-2 shadow-sm focus:outline-none focus:ring-2 ${exclusiveGuestError ? 'border-red-300 focus:border-red-400 ring-red-100 text-red-600' : 'border-gray-200 focus:border-blue-400 ring-blue-100'}`} 
-                        />
-                      </label>
-                      <label className="flex flex-col gap-1">
-                        <span className="text-[10px] uppercase font-bold text-gray-500">Kids</span>
-                        <input 
-                          type="number" 
-                          min={0} 
-                          value={exclusiveKids} 
-                          onChange={(e) => handleExclusiveGuestChange('kids', e.target.value)} 
-                          className={`w-full text-xs font-bold border bg-white rounded-md pl-3 py-2 shadow-sm focus:outline-none focus:ring-2 ${exclusiveGuestError ? 'border-red-300 focus:border-red-400 ring-red-100 text-red-600' : 'border-gray-200 focus:border-blue-400 ring-blue-100'}`} 
-                        />
-                      </label>
-                    </div>
-                    <p className="text-[10px] font-semibold text-gray-500 mt-2">Total Pax: {exclusiveTotalPax} / {exclusiveMaxPax}</p>
-                  </div>
-                  
-                  {exclusiveGuestError && (
-                    <div className="bg-red-50/80 border-t border-red-100 p-2 text-[10px] text-red-600 font-semibold tracking-tight leading-tight flex items-start gap-1 w-full rounded-b-xl mt-3">
-                      <i className="fas fa-exclamation-circle mt-[0.1rem]"></i>
-                      <span>{exclusiveGuestError}</span>
-                    </div>
-                  )}
                 </div>
               ) : (
                 // Single room type bookings - unchanged
@@ -1383,17 +1374,17 @@ export default function EditReservationModal({ isOpen, booking, onClose, onSucce
               </div>
               <p className="text-sm text-gray-700">With the following guest counts:</p>
               <div className="rounded-lg bg-gray-50 p-3 text-sm max-h-40 overflow-y-auto">
-                {isMultiRoom ? (
-                  Object.entries(guestCounts).map(([idx, g]) => (
-                    <p key={idx}>{g.roomType}: {g.adults} adults, {g.kids} kids</p>
-                  ))
-                ) : isExclusive ? (
+                {isExclusive ? (
                   <>
                     <p>Adults: {exclusiveAdults}</p>
                     <p>Kids: {exclusiveKids}</p>
                     <p>Tents: {exclusiveTentCount}</p>
                     <p>Total Pax: {exclusiveTotalPax} / {exclusiveMaxPax}</p>
                   </>
+                ) : isMultiRoom ? (
+                  Object.entries(guestCounts).map(([idx, g]) => (
+                    <p key={idx}>{g.roomType}: {g.adults} adults, {g.kids} kids</p>
+                  ))
                 ) : (
                   Object.entries(guestCounts).map(([idx, g]) => (
                     <p key={idx}>Unit {parseInt(idx) + 1}: {g.adults} adults, {g.kids} kids</p>
