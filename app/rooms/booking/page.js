@@ -1,17 +1,29 @@
 // app/rooms/booking/page.js
 'use client';
 
-import { Suspense, useState, useEffect } from 'react';
+import { Suspense, useState, useEffect, useRef } from 'react';
 import { useSearchParams, useRouter } from 'next/navigation';
 import GuestLayout from '@/app/guest/layout';
-import { db } from '@/lib/firebase';
+import { auth, db } from '@/lib/firebase';
+import { onAuthStateChanged } from 'firebase/auth';
 import { collection, addDoc, serverTimestamp, updateDoc, doc, getDoc, query, where, getDocs, onSnapshot } from 'firebase/firestore';
 import Image from 'next/image';
 import { uploadImage } from '@/lib/cloudinary';
+import GuestAuthModal from '@/components/guest/GuestAuthModal';
+import { useGuestAuth } from '@/components/guest/GuestAuthContext';
+
+const resolveAddressPart = (address, key) => {
+  if (!address) return '';
+  if (typeof address === 'string') {
+    return key === 'street' ? address : '';
+  }
+  return address[key] || '';
+};
 
 function BookingPageContent() {
   const searchParams = useSearchParams();
   const router = useRouter();
+  const { profile } = useGuestAuth();
   const roomId = searchParams.get('roomId');
   const roomType = searchParams.get('roomType');
   const price = parseFloat(searchParams.get('price'));
@@ -33,8 +45,13 @@ function BookingPageContent() {
   const [copiedMessage, setCopiedMessage] = useState(false);
   const [generatedBookingId, setGeneratedBookingId] = useState('');
   const [roomDetails, setRoomDetails] = useState(null);
+  const [guestAccount, setGuestAccount] = useState(null);
+  const [isAuthOpen, setIsAuthOpen] = useState(false);
+  const [pendingNextStep, setPendingNextStep] = useState(false);
+  const hasAuthenticatedRef = useRef(false);
 
   const [step, setStep] = useState(1);
+  const stepRef = useRef(step);
   const [bookingData, setBookingData] = useState({
     roomId,
     roomType,
@@ -49,6 +66,11 @@ function BookingPageContent() {
     lastName: '',
     email: '',
     phone: '',
+    addressStreet: '',
+    addressBarangay: '',
+    addressCity: '',
+    addressProvince: '',
+    addressPostalCode: '',
     paymentProofUrl: null, // Changed to store URL instead of Base64
     validIdType: '',
     validIdUrl: null, // Changed to store URL instead of Base64
@@ -84,6 +106,74 @@ function BookingPageContent() {
   const [selectedBankAccount, setSelectedBankAccount] = useState(null);
   const [showBankSelection, setShowBankSelection] = useState(false);
   const [downPaymentAmount, setDownPaymentAmount] = useState(0);
+
+  useEffect(() => {
+    stepRef.current = step;
+  }, [step]);
+
+  const cancelBookingFlow = () => {
+    setIsAuthOpen(false);
+    setPendingNextStep(false);
+    setGuestAccount(null);
+    router.replace('/rooms');
+  };
+
+  useEffect(() => {
+    const unsubscribe = onAuthStateChanged(auth, (user) => {
+      const isGoogleGuest = user?.providerData?.some((provider) => provider.providerId === 'google.com');
+
+      if (!user || !isGoogleGuest) {
+        setGuestAccount(null);
+        if (hasAuthenticatedRef.current && stepRef.current < 4) {
+          cancelBookingFlow();
+        }
+        hasAuthenticatedRef.current = false;
+        return;
+      }
+
+      const nameParts = (user.displayName || '').trim().split(/\s+/).filter(Boolean);
+      const nextGuest = {
+        uid: user.uid,
+        email: user.email || '',
+        firstName: nameParts[0] || '',
+        lastName: nameParts.length > 1 ? nameParts.slice(1).join(' ') : ''
+      };
+
+      setGuestAccount(nextGuest);
+      hasAuthenticatedRef.current = true;
+      setBookingData((prev) => ({
+        ...prev,
+        firstName: prev.firstName || nextGuest.firstName,
+        lastName: prev.lastName || nextGuest.lastName,
+        email: prev.email || nextGuest.email
+      }));
+
+      // If the user just signed in to continue from step 1, advance automatically
+      setPendingNextStep((pending) => {
+        if (pending) {
+          setStep((s) => (s === 1 ? 2 : s));
+          return false;
+        }
+        return false;
+      });
+    });
+
+    return () => unsubscribe();
+  }, []);
+
+  useEffect(() => {
+    if (!profile) return;
+
+    setBookingData((prev) => ({
+      ...prev,
+      phone: prev.phone || profile.mobileNumber || '',
+      addressStreet: prev.addressStreet || resolveAddressPart(profile.address, 'street'),
+      addressBarangay: prev.addressBarangay || resolveAddressPart(profile.address, 'barangay'),
+      addressCity: prev.addressCity || resolveAddressPart(profile.address, 'city'),
+      addressProvince: prev.addressProvince || resolveAddressPart(profile.address, 'province'),
+      addressPostalCode: prev.addressPostalCode || resolveAddressPart(profile.address, 'postalCode')
+    }));
+  }, [profile]);
 
   const [showValidIdModal, setShowValidIdModal] = useState(false);
   const [tempValidIdType, setTempValidIdType] = useState('Passport');
@@ -464,7 +554,8 @@ function BookingPageContent() {
     });
     
     const bankRequestsRef = collection(db, 'bank_requests');
-    const docRef = await addDoc(bankRequestsRef, {
+      const docRef = await addDoc(bankRequestsRef, {
+      guestUid: guestAccount?.uid || null,
       guestName: `${bookingData.firstName} ${bookingData.lastName}`,
       guestEmail: bookingData.email,
       guestPhone: bookingData.phone,
@@ -513,9 +604,14 @@ function BookingPageContent() {
 
   const handleNextStep = () => {
     if (step === 1) {
-      if (validateGuests()) {
-        setStep(step + 1);
+      if (!validateGuests()) return;
+      // Room bookings require an account
+      if (!guestAccount) {
+        setPendingNextStep(true);
+        setIsAuthOpen(true);
+        return;
       }
+      setStep(2);
     } else if (step === 2) {
       if (validateStep2()) {
         setStep(step + 1);
@@ -651,6 +747,8 @@ function BookingPageContent() {
       
       const booking = {
         bookingId, // This is the formatted BOOK-xxx-xxx ID
+        guestUid: guestAccount?.uid || null,
+        guestAuthProvider: guestAccount?.uid ? 'google' : null,
         roomId: bookingData.roomId,
         roomType: bookingData.roomType,
         price: bookingData.price,
@@ -665,7 +763,14 @@ function BookingPageContent() {
           firstName: bookingData.firstName,
           lastName: bookingData.lastName,
           email: bookingData.email,
-          phone: bookingData.phone
+          phone: bookingData.phone,
+          address: {
+            street: bookingData.addressStreet || '',
+            barangay: bookingData.addressBarangay || '',
+            city: bookingData.addressCity || '',
+            province: bookingData.addressProvince || '',
+            postalCode: bookingData.addressPostalCode || ''
+          }
         },
         status: 'pending',
         paymentMethod: paymentMethod,
@@ -939,6 +1044,58 @@ function BookingPageContent() {
                         className={`w-full px-4 py-2 border ${errors.phone ? 'border-red-500' : 'border-ocean-light/20'} rounded-lg focus:outline-none focus:border-ocean-light`}
                       />
                       {errors.phone && <p className="text-red-500 text-sm mt-1">{errors.phone}</p>}
+                    </div>
+
+                    <div>
+                      <label className="block text-sm font-semibold text-textPrimary mb-2">Street / House No.</label>
+                      <input
+                        type="text"
+                        value={bookingData.addressStreet}
+                        onChange={(e) => handleInputChange('addressStreet', e.target.value)}
+                        className="w-full px-4 py-2 border border-ocean-light/20 rounded-lg focus:outline-none focus:border-ocean-light"
+                      />
+                    </div>
+
+                    <div className="grid gap-4 sm:grid-cols-2">
+                      <div>
+                        <label className="block text-sm font-semibold text-textPrimary mb-2">Barangay</label>
+                        <input
+                          type="text"
+                          value={bookingData.addressBarangay}
+                          onChange={(e) => handleInputChange('addressBarangay', e.target.value)}
+                          className="w-full px-4 py-2 border border-ocean-light/20 rounded-lg focus:outline-none focus:border-ocean-light"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-sm font-semibold text-textPrimary mb-2">City / Municipality</label>
+                        <input
+                          type="text"
+                          value={bookingData.addressCity}
+                          onChange={(e) => handleInputChange('addressCity', e.target.value)}
+                          className="w-full px-4 py-2 border border-ocean-light/20 rounded-lg focus:outline-none focus:border-ocean-light"
+                        />
+                      </div>
+                    </div>
+
+                    <div className="grid gap-4 sm:grid-cols-2">
+                      <div>
+                        <label className="block text-sm font-semibold text-textPrimary mb-2">Province</label>
+                        <input
+                          type="text"
+                          value={bookingData.addressProvince}
+                          onChange={(e) => handleInputChange('addressProvince', e.target.value)}
+                          className="w-full px-4 py-2 border border-ocean-light/20 rounded-lg focus:outline-none focus:border-ocean-light"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-sm font-semibold text-textPrimary mb-2">Postal Code</label>
+                        <input
+                          type="text"
+                          value={bookingData.addressPostalCode}
+                          onChange={(e) => handleInputChange('addressPostalCode', e.target.value)}
+                          className="w-full px-4 py-2 border border-ocean-light/20 rounded-lg focus:outline-none focus:border-ocean-light"
+                        />
+                      </div>
                     </div>
                   </div>
                   
@@ -1654,6 +1811,14 @@ function BookingPageContent() {
           animation: fadeIn 0.3s ease-out;
         }
       `}</style>
+
+      <GuestAuthModal
+        isOpen={isAuthOpen}
+        onClose={() => {
+          setIsAuthOpen(false);
+          setPendingNextStep(false);
+        }}
+      />
     </GuestLayout>
   );
 }

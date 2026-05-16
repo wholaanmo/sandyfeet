@@ -1,4 +1,5 @@
 import './globals.css'
+import Providers from './providers'
 
 export const metadata = {
   title: "Sandyfeet Resort",
@@ -33,7 +34,11 @@ export default function RootLayout({ children }) {
         {/* Material Icons */}
         <link href="https://fonts.googleapis.com/icon?family=Material+Icons" rel="stylesheet" />
       </head>
-      <body>{children}</body>
+      <body>
+        <Providers>
+          {children}
+        </Providers>
+      </body>
     </html>
   );
 }

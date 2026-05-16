@@ -7,9 +7,12 @@ import GuestLayout from '@/app/guest/layout';
 import { db } from '@/lib/firebase';
 import { collection, query, where, onSnapshot } from 'firebase/firestore';
 import ChatBot from '@/components/guest/ChatBot';
+import GuestAuthModal from '@/components/guest/GuestAuthModal';
+import { useGuestAuth } from '@/components/guest/GuestAuthContext';
 
 export default function RoomsPage() {
   const router = useRouter();
+  const { user } = useGuestAuth();
   const [availableRoomTypes, setAvailableRoomTypes] = useState([]);
   const [selectedRooms, setSelectedRooms] = useState({});
   // Per‑room guest arrays: perRoomGuests[roomType] = [{ adults, kids }, ...]
@@ -37,6 +40,7 @@ export default function RoomsPage() {
   const [exclusiveKids, setExclusiveKids] = useState(0);
   const [exclusiveGuestError, setExclusiveGuestError] = useState('');
   const [tentCount, setTentCount] = useState(0);
+  const [isAuthOpen, setIsAuthOpen] = useState(false);
   const calendarPopoverRef = useRef(null);
   const calendarTriggerRef = useRef(null);
 
@@ -999,6 +1003,11 @@ const handleProceed = () => {
   }
   if (hasError) return;
 
+  if (!user) {
+    setIsAuthOpen(true);
+    return;
+  }
+
     const computedTotalPrice = getTotalPrice();
     const bookingData = {
       selectedRooms,
@@ -1715,6 +1724,12 @@ const handleProceed = () => {
                       <div className="absolute top-full left-1/2 -translate-x-1/2 w-0 h-0 border-x-4 border-x-transparent border-t-4 border-t-red-600"></div>
                     </div>
                   )}
+                  {!user && !hasAnyGuestErrors && checkInDate && (isExclusiveResortBooking || Object.values(selectedRooms).some(q => q > 0)) && (
+                    <div className="absolute left-1/2 -top-10 -translate-x-1/2 opacity-0 group-hover:opacity-100 transition-opacity bg-gray-900 text-white text-[10px] font-medium py-1.5 px-3 rounded-lg shadow-xl whitespace-nowrap pointer-events-none z-10 tooltip">
+                      Sign in to continue to checkout.
+                      <div className="absolute top-full left-1/2 -translate-x-1/2 w-0 h-0 border-x-4 border-x-transparent border-t-4 border-t-gray-900"></div>
+                    </div>
+                  )}
                 </div>
 
                 <div className="mt-5 flex items-center justify-center gap-2 text-gray-400">
@@ -1727,6 +1742,11 @@ const handleProceed = () => {
         </div>
       </div>
       <ChatBot />
+
+      <GuestAuthModal
+        isOpen={isAuthOpen}
+        onClose={() => setIsAuthOpen(false)}
+      />
     </GuestLayout>
   );
 }

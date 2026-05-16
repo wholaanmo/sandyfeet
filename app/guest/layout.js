@@ -1,3 +1,5 @@
+'use client';
+
 // app/guest/layout.js
 import GuestNavbar from '@/components/guest/GuestNavbar';
 

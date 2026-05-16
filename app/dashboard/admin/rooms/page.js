@@ -1048,7 +1048,7 @@ export default function AdminRooms() {
                   >
                     <option value="">Select Room Type</option>
                     <option value="Tent">Tent</option>
-                    <option value="Ground Floor Rooms">Ground Floor Rooms</option>
+                    <option value="Ground Floor Room">Ground Floor Room</option>
                     <option value="Couple Room">Couple Room</option>
                     <option value="Group Room">Group Room</option>
                   </select>

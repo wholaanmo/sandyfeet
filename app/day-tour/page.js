@@ -460,7 +460,7 @@ export default function DayTourPage() {
 
   return (
     <GuestLayout>
-      <div className="min-h-screen bg-[#FAFAFA] pt-32 pb-32">
+      <div className="min-h-screen bg-[#F8FCFF] pt-32 pb-32">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 space-y-12">
 
           {/* HEADER & BOOKING SECTION */}

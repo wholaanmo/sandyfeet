@@ -2,6 +2,7 @@
 'use client';
 
 import { useState, useEffect, useRef } from 'react';
+import Link from 'next/link';
 import { db } from '../../lib/firebase';
 import { collection, query, where, getDocs, updateDoc, doc, addDoc, onSnapshot } from 'firebase/firestore';
 import GuestLayout from '../guest/layout';
@@ -10,6 +11,11 @@ import ChatBot from '@/components/guest/ChatBot';
 
 export default function ReservationTrackerPage() {
   const [contactIdentifier, setContactIdentifier] = useState('');
+import GuestAuthModal from '../../components/guest/GuestAuthModal';
+import { useGuestAuth } from '../../components/guest/GuestAuthContext';
+
+function ReservationTrackerContent() {
+  const [email, setEmail] = useState('');
   const [referenceNumber, setReferenceNumber] = useState('');
   const [loading, setLoading] = useState(false);
   const [reservation, setReservation] = useState(null);
@@ -23,6 +29,8 @@ export default function ReservationTrackerPage() {
   const [reservationCollection, setReservationCollection] = useState(null);
   const [isMultiRoomBooking, setIsMultiRoomBooking] = useState(false);
   const [childBookings, setChildBookings] = useState([]);
+  const [isAuthOpen, setIsAuthOpen] = useState(false);
+  const { user } = useGuestAuth();
   
   const unsubscribeRef = useRef(null);
   const childUnsubscribeRefs = useRef([]);
@@ -31,6 +39,8 @@ export default function ReservationTrackerPage() {
     const re = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
     return re.test(email);
   };
+
+  const openAuthModal = () => setIsAuthOpen(true);
 
   const getBookingTypeDisplay = () => {
     if (!reservation) return '';
@@ -62,6 +72,12 @@ export default function ReservationTrackerPage() {
       childUnsubscribeRefs.current = [];
     };
   }, []);
+
+  useEffect(() => {
+    if (user?.email && !email) {
+      setEmail(user.email.toLowerCase().trim());
+    }
+  }, [email, user?.email]);
 
   const fetchChildBookings = async (parentBookingId) => {
     try {
@@ -902,7 +918,7 @@ const paymentBalanceDisplay = reservation
     : 0;
 
   return (
-    <GuestLayout>
+    <>
       <div suppressHydrationWarning className="relative min-h-screen overflow-x-hidden bg-[#f6f8fc] px-4 pb-8 pt-24 sm:px-6 sm:pt-28 lg:px-8">
         <div className="absolute inset-x-0 top-0 h-[200px] bg-[radial-gradient(circle_at_top_left,_rgba(59,130,246,0.14),_transparent_45%),linear-gradient(180deg,_#ffffff_0%,_#f6f8fc_92%)]" />
         <div className="relative mx-auto max-w-7xl">
@@ -926,6 +942,44 @@ const paymentBalanceDisplay = reservation
                   <h2 className="mt-1 font-playfair text-2xl">Lookup</h2>
                 </div>
                 <div className="p-5 sm:p-6">
+                  <div className="mb-5 rounded-2xl border border-blue-100 bg-blue-50/80 p-4">
+                    <div className="flex items-start gap-3">
+                      <div className="flex h-10 w-10 flex-none items-center justify-center rounded-xl bg-white text-[#2563EB] shadow-sm">
+                        <i className="fab fa-google"></i>
+                      </div>
+                      <div className="min-w-0">
+                        <p className="text-sm font-bold text-slate-900">
+                          {user ? 'Signed in for faster tracking' : 'Track faster with a guest account'}
+                        </p>
+                        <p className="mt-1 text-xs leading-5 text-slate-600">
+                          {user
+                            ? `Using ${user.email}. You can also open your account bookings.`
+                            : 'Google sign-in lets guests see matching reservations without re-entering every detail.'}
+                        </p>
+                      </div>
+                    </div>
+                    <div className="mt-4 grid gap-2 sm:grid-cols-2 lg:grid-cols-1 xl:grid-cols-2">
+                      {user ? (
+                        <Link
+                          href="/my-bookings"
+                          className="inline-flex items-center justify-center gap-2 rounded-xl bg-[#2563EB] px-4 py-2.5 text-xs font-semibold text-white shadow-sm transition-all hover:bg-[#174FCC] sm:col-span-2 lg:col-span-1 xl:col-span-2"
+                        >
+                          <i className="fas fa-receipt"></i>
+                          My Bookings
+                        </Link>
+                      ) : (
+                        <button
+                          type="button"
+                          onClick={openAuthModal}
+                          className="inline-flex items-center justify-center gap-2 rounded-xl bg-[#111111] px-4 py-2.5 text-xs font-semibold text-white shadow-sm transition-all hover:bg-black sm:col-span-2 lg:col-span-1 xl:col-span-2"
+                        >
+                          <i className="fab fa-google"></i>
+                          Sign in or create an account
+                        </button>
+                      )}
+                    </div>
+                  </div>
+
                 <form onSubmit={handleSearch} className="space-y-4">
                   <div>
                     <label className="mb-1.5 block text-[11px] font-semibold uppercase tracking-[0.12em] text-slate-500">
@@ -1425,6 +1479,18 @@ const paymentBalanceDisplay = reservation
         </div>
       </div>
       <ChatBot />
+      <GuestAuthModal
+        isOpen={isAuthOpen}
+        onClose={() => setIsAuthOpen(false)}
+      />
+    </>
+  );
+}
+
+export default function ReservationTrackerPage() {
+  return (
+    <GuestLayout>
+      <ReservationTrackerContent />
     </GuestLayout>
   );
 }

@@ -1,4 +1,4 @@
-// app/day-tour/booking/page.js
+﻿// app/day-tour/booking/page.js
 'use client';
 
 import { Suspense, useState, useEffect } from 'react';
@@ -10,14 +10,18 @@ import { uploadImage } from '@/lib/cloudinary';
 import { sendDayTourPendingEmail } from '@/lib/emailService';
 import ChatBot from '@/components/guest/ChatBot';
 import { QRCodeSVG } from 'qrcode.react';
+import { useGuestAuth } from '@/components/guest/GuestAuthContext';
+import GuestAuthModal from '@/components/guest/GuestAuthModal';
 
-// Storage key for persisting booking data
+// Storage key for persisting payment‑related data
 const STORAGE_KEY = 'daytour_booking_data';
 const STEP_STORAGE_KEY = 'daytour_booking_step';
 
 function DayTourBookingContent() {
   const searchParams = useSearchParams();
   const router = useRouter();
+  const { user, profile, loading: authLoading } = useGuestAuth();
+  const [isAuthModalOpen, setIsAuthModalOpen] = useState(false);
   const HARD_MAX_PACKS = 38;
   const LEAD_TIME_DAYS = 2;
   const dateParam = searchParams.get('date');
@@ -47,20 +51,17 @@ function DayTourBookingContent() {
   const [modalNotification, setModalNotification] = useState(null);
   const [copiedMessage, setCopiedMessage] = useState(false);
   const [qrToken, setQrToken] = useState('');
-const [qrLoading, setQrLoading] = useState(false);
+  const [qrLoading, setQrLoading] = useState(false);
   
   const initialAdultsRaw = parseInt(adultsParam) || 1;
   const initialKidsRaw = parseInt(kidsParam) || 0;
   const initialAdults = Math.max(1, Math.min(HARD_MAX_PACKS, initialAdultsRaw));
   const initialKids = Math.max(0, Math.min(HARD_MAX_PACKS - initialAdults, initialKidsRaw));
 
+  // Booking data now only stores guest counts, uploaded files, and special request.
   const [bookingData, setBookingData] = useState({
     adults: String(initialAdults),
     kids: String(initialKids),
-    firstName: '',
-    lastName: '',
-    email: '',
-    phone: '',
     paymentProof: null,
     validIdType: '',
     validIdImage: null,
@@ -68,7 +69,6 @@ const [qrLoading, setQrLoading] = useState(false);
   });
   
   const [errors, setErrors] = useState({});
-
   const [showValidIdModal, setShowValidIdModal] = useState(false);
   const [tempValidIdType, setTempValidIdType] = useState('Passport');
   const [tempValidIdImage, setTempValidIdImage] = useState(null);
@@ -85,61 +85,46 @@ const [qrLoading, setQrLoading] = useState(false);
     'Other Government IDs'
   ];
 
-  // Load persisted data from localStorage on mount
+  // Check if user has a mobile number saved
+  const hasMobileNumber = user && profile?.mobileNumber && profile.mobileNumber.trim().length > 0;
+
+  // Load persisted payment data from localStorage on mount
   useEffect(() => {
     try {
-      // Load persisted step
       const savedStep = localStorage.getItem(STEP_STORAGE_KEY);
       if (savedStep && !isNaN(parseInt(savedStep))) {
         const stepNum = parseInt(savedStep);
-        if (stepNum >= 1 && stepNum <= 4) {
+        if (stepNum >= 1 && stepNum <= 3) {
           setStep(stepNum);
         }
       }
       
-      // Load persisted booking data
       const savedData = localStorage.getItem(STORAGE_KEY);
       if (savedData) {
         const parsed = JSON.parse(savedData);
         setBookingData(prev => ({
           ...prev,
-          ...parsed,
-          // Don't override URL params for adults/kids if they exist
-          adults: adultsParam ? prev.adults : (parsed.adults || prev.adults),
-          kids: kidsParam ? prev.kids : (parsed.kids || prev.kids)
+          paymentProof: parsed.paymentProof,
+          validIdType: parsed.validIdType,
+          validIdImage: parsed.validIdImage,
+          specialRequest: parsed.specialRequest || ''
         }));
-        
-        // Load payment method
-        if (parsed.paymentMethod) {
-          setPaymentMethod(parsed.paymentMethod);
-        }
-        
-        // Load bank request state if needed
-        if (parsed.bankRequestSent) {
-          setBankRequestSent(parsed.bankRequestSent);
-        }
-        if (parsed.bankRequestId) {
-          setBankRequestId(parsed.bankRequestId);
-        }
-        if (parsed.bankDetailsProvided) {
-          setBankDetailsProvided(parsed.bankDetailsProvided);
-        }
+        if (parsed.paymentMethod) setPaymentMethod(parsed.paymentMethod);
+        if (parsed.bankRequestSent) setBankRequestSent(parsed.bankRequestSent);
+        if (parsed.bankRequestId) setBankRequestId(parsed.bankRequestId);
+        if (parsed.bankDetailsProvided) setBankDetailsProvided(parsed.bankDetailsProvided);
       }
     } catch (error) {
       console.error('Error loading persisted booking data:', error);
     }
-  }, [adultsParam, kidsParam]);
+  }, []);
 
-  // Save booking data to localStorage whenever it changes
+  // Save payment‑related data to localStorage
   useEffect(() => {
     try {
       const dataToSave = {
         adults: bookingData.adults,
         kids: bookingData.kids,
-        firstName: bookingData.firstName,
-        lastName: bookingData.lastName,
-        email: bookingData.email,
-        phone: bookingData.phone,
         paymentProof: bookingData.paymentProof,
         validIdType: bookingData.validIdType,
         validIdImage: bookingData.validIdImage,
@@ -147,27 +132,26 @@ const [qrLoading, setQrLoading] = useState(false);
         bankRequestSent: bankRequestSent,
         bankRequestId: bankRequestId,
         bankDetailsProvided: bankDetailsProvided,
-        specialRequest: bookingData.specialRequest 
+        specialRequest: bookingData.specialRequest
       };
       localStorage.setItem(STORAGE_KEY, JSON.stringify(dataToSave));
     } catch (error) {
-      console.error('Error saving booking data to localStorage:', error);
+      console.error('Error saving payment data:', error);
     }
   }, [bookingData, paymentMethod, bankRequestSent, bankRequestId, bankDetailsProvided]);
 
-  // Save step to localStorage whenever it changes
+  // Save step to localStorage
   useEffect(() => {
     try {
       localStorage.setItem(STEP_STORAGE_KEY, String(step));
     } catch (error) {
-      console.error('Error saving step to localStorage:', error);
+      console.error('Error saving step:', error);
     }
   }, [step]);
 
-  // Clear persisted data when booking is completed (step 4)
+  // Clear persisted data when booking is completed (step 3)
   useEffect(() => {
-    if (step === 4) {
-      // Clear the persisted data after successful completion
+    if (step === 3) {
       try {
         localStorage.removeItem(STORAGE_KEY);
         localStorage.removeItem(STEP_STORAGE_KEY);
@@ -294,10 +278,8 @@ const [qrLoading, setQrLoading] = useState(false);
       const capacity = dayTour.maxCapacity
         ? dayTour.maxCapacity - (latestBookedGuests + latestUnavailableGuests)
         : Infinity;
-
       setRemainingCapacity(capacity);
 
-      // Re-validate guests if capacity changed
       const currentTotalGuests = toGuestNumber(bookingData.adults) + toGuestNumber(bookingData.kids);
       if (capacity !== Infinity && currentTotalGuests > capacity) {
         setErrors(prev => ({ ...prev, guests: `Only ${capacity} slot(s) remaining for this date` }));
@@ -391,7 +373,9 @@ const [qrLoading, setQrLoading] = useState(false);
   const canSubmitPayment = Boolean(
     bookingData.paymentProof &&
     bookingData.validIdImage &&
-    !submitting
+    !submitting &&
+    hasMobileNumber &&
+    (paymentMethod !== 'bank_transfer' || bankDetailsProvided || visibleGuestQrBank)
   );
   const visibleGuestQrBank = paymentSettings.bankAccounts.find(
     (account) => account.qrCodeUrl && account.showToGuest === true
@@ -439,30 +423,6 @@ const [qrLoading, setQrLoading] = useState(false);
     return true;
   };
 
-  const validateContactInfo = () => {
-    const newErrors = {};
-    
-    if (!bookingData.firstName.trim()) newErrors.firstName = 'First name is required';
-    if (!bookingData.lastName.trim()) newErrors.lastName = 'Last name is required';
-    
-    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-    if (!bookingData.email.trim()) {
-      newErrors.email = 'Email is required';
-    } else if (!emailRegex.test(bookingData.email)) {
-      newErrors.email = 'Please enter a valid email address';
-    }
-    
-    const phoneRegex = /^\d{11}$/;
-    if (!bookingData.phone.trim()) {
-      newErrors.phone = 'Phone number is required';
-    } else if (!phoneRegex.test(bookingData.phone)) {
-      newErrors.phone = 'Phone number must be exactly 11 digits';
-    }
-    
-    setErrors(newErrors);
-    return Object.keys(newErrors).length === 0;
-  };
-
   const handleGuestChange = (field, value) => {
     if (value === '') {
       setBookingData(prev => ({ ...prev, [field]: '' }));
@@ -490,22 +450,15 @@ const [qrLoading, setQrLoading] = useState(false);
     }
   };
 
-  const handleInputChange = (field, value) => {
-    const nextValue = field === 'phone' ? String(value).replace(/\D/g, '').slice(0, 11) : value;
-    setBookingData(prev => ({ ...prev, [field]: nextValue }));
-    if (errors[field]) {
-      setErrors(prev => ({ ...prev, [field]: '' }));
-    }
-  };
-
   const handleNextStep = () => {
     if (step === 1) {
       if (validateGuests()) {
+        // If user is not logged in, show auth modal and prevent moving to payment
+        if (!user) {
+          setIsAuthModalOpen(true);
+          return;
+        }
         setStep(2);
-      }
-    } else if (step === 2) {
-      if (validateContactInfo()) {
-        setStep(3);
       }
     } else {
       setStep(step + 1);
@@ -574,9 +527,9 @@ const [qrLoading, setQrLoading] = useState(false);
       
       const bankRequestsRef = collection(db, 'daytour_bank_requests');
       const docRef = await addDoc(bankRequestsRef, {
-        guestName: `${bookingData.firstName} ${bookingData.lastName}`,
-        guestEmail: bookingData.email,
-        guestPhone: bookingData.phone,
+        guestName: `${profile?.firstName || ''} ${profile?.lastName || ''}`.trim(),
+        guestEmail: user?.email || '',
+        guestPhone: profile?.mobileNumber || '',
         bookingType: 'daytour',
         bookingId: generatedBookingId,
         selectedDate: dateKey,
@@ -610,6 +563,16 @@ const [qrLoading, setQrLoading] = useState(false);
     if (!selectedDate || isDateBeforeLeadTime(selectedDate)) {
       alert('Walk-ins or same-day bookings are not allowed. Please choose a later date.');
       router.push('/day-tour');
+      return;
+    }
+
+    // Double-check that user is logged in and has mobile number
+    if (!user) {
+      setIsAuthModalOpen(true);
+      return;
+    }
+    if (!hasMobileNumber) {
+      setModalNotification({ message: 'Please add a mobile number in your account settings before booking.', type: 'error' });
       return;
     }
 
@@ -666,10 +629,10 @@ const [qrLoading, setQrLoading] = useState(false);
         downPayment: downPaymentAmount,
         remainingBalance: totalPrice - downPaymentAmount,
         guestInfo: {
-          firstName: bookingData.firstName,
-          lastName: bookingData.lastName,
-          email: bookingData.email,
-          phone: bookingData.phone
+          firstName: profile?.firstName || '',
+          lastName: profile?.lastName || '',
+          email: user.email,
+          phone: profile?.mobileNumber || ''
         },
         status: 'pending',
         paymentMethod: paymentMethod,
@@ -679,7 +642,7 @@ const [qrLoading, setQrLoading] = useState(false);
         createdAt: serverTimestamp(),
         updatedAt: serverTimestamp(),
         type: 'daytour',
-        specialRequest: bookingData.specialRequest || null, 
+        specialRequest: bookingData.specialRequest || null
       };
       
       if (bankDetailsProvided) {
@@ -693,8 +656,8 @@ const [qrLoading, setQrLoading] = useState(false);
         console.warn('Failed to send pending day tour email:', emailResult?.error);
       }
 
-await generateQrToken(generatedBookingId);
-      setStep(4);
+      await generateQrToken(generatedBookingId);
+      setStep(3);
       
     } catch (error) {
       console.error('Error creating booking:', error);
@@ -705,23 +668,23 @@ await generateQrToken(generatedBookingId);
   };
 
   const generateQrToken = async (bookingId) => {
-  try {
-    setQrLoading(true);
-    const response = await fetch('/api/checkin/generate-token', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ bookingId })
-    });
-    const data = await response.json();
-    if (data.token) {
-      setQrToken(data.token);
+    try {
+      setQrLoading(true);
+      const response = await fetch('/api/checkin/generate-token', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ bookingId })
+      });
+      const data = await response.json();
+      if (data.token) {
+        setQrToken(data.token);
+      }
+    } catch (error) {
+      console.error('Error generating QR token:', error);
+    } finally {
+      setQrLoading(false);
     }
-  } catch (error) {
-    console.error('Error generating QR token:', error);
-  } finally {
-    setQrLoading(false);
-  }
-};
+  };
 
   const copyToClipboard = async (text) => {
     try {
@@ -734,24 +697,24 @@ await generateQrToken(generatedBookingId);
   };
 
   const downloadQRCode = async () => {
-  if (!qrToken) return;
-  try {
-    const response = await fetch(`/api/download-qr?token=${qrToken}`);
-    if (!response.ok) throw new Error('Download failed');
-    const blob = await response.blob();
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = 'checkin_qrcode.png';
-    document.body.appendChild(a);
-    a.click();
-    document.body.removeChild(a);
-    URL.revokeObjectURL(url);
-  } catch (error) {
-    console.error('Error downloading QR code:', error);
-    setModalNotification({ message: 'Failed to download QR code. Please try again.', type: 'error' });
-  }
-};
+    if (!qrToken) return;
+    try {
+      const response = await fetch(`/api/download-qr?token=${qrToken}`);
+      if (!response.ok) throw new Error('Download failed');
+      const blob = await response.blob();
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = 'checkin_qrcode.png';
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+    } catch (error) {
+      console.error('Error downloading QR code:', error);
+      setModalNotification({ message: 'Failed to download QR code. Please try again.', type: 'error' });
+    }
+  };
 
   const formatDate = (date) => {
     if (!date) return '';
@@ -978,7 +941,7 @@ await generateQrToken(generatedBookingId);
             </div>
           )}
 
-          {/* QR Code Section - Separate Section */}
+          {/* QR Code Section */}
           {visibleGuestQrBank && (
             <div className="rounded-2xl border border-blue-200 bg-blue-50/50 p-5">
               <div className="flex items-center gap-2 mb-4">
@@ -1006,7 +969,7 @@ await generateQrToken(generatedBookingId);
             </div>
           )}
 
-          {/* Requested Bank Details Section - Separate Section */}
+          {/* Requested Bank Details Section */}
           {bankDetailsProvided ? (
             <div className="rounded-2xl border border-green-200 bg-green-50/80 p-5">
               <div className="flex items-center gap-2 mb-4">
@@ -1134,7 +1097,7 @@ await generateQrToken(generatedBookingId);
     </div>
   );
 
-  if (loading) {
+  if (loading || authLoading) {
     return (
       <GuestLayout>
         <div className="min-h-screen bg-gradient-to-br from-ocean-ice to-blue-white flex items-center justify-center">
@@ -1171,25 +1134,27 @@ await generateQrToken(generatedBookingId);
           <div className="flex flex-col gap-8">
             {/* Main Column - Booking Form */}
             <div className="w-full">
-              {/* Progress Steps */}
+              {/* Progress Steps - Now only 3 steps */}
               <div className="mb-8 rounded-2xl border border-ocean-light/20 bg-white/70 px-3 py-4 sm:px-5">
                 <div className="relative">
-                  <div className="absolute left-[12%] right-[12%] top-5 h-0.5 bg-gray-200"></div>
-                  <div className="absolute left-[12%] right-[12%] top-5 h-0.5 bg-transparent">
+                  <div className="absolute left-[15%] right-[15%] top-5 h-0.5 bg-gray-200"></div>
+                  <div className="absolute left-[15%] right-[15%] top-5 h-0.5 bg-transparent">
                     <div
                       className="h-full bg-ocean-mid transition-all duration-300"
-                      style={{ width: `${Math.max(0, ((step - 1) / 3) * 100)}%` }}
+                      style={{ width: `${Math.max(0, ((step - 1) / 2) * 100)}%` }}
                     ></div>
                   </div>
 
-                  <div className="grid grid-cols-4 gap-1">
-                    {[1, 2, 3, 4].map((s) => {
-                      const label = s === 1 ? 'Guests' : s === 2 ? 'Details' : s === 3 ? 'Payment' : 'Confirmation';
-                      const isCurrent = step === s;
-                      const isDone = step > s || (s === 4 && step === 4);
-
+                  <div className="grid grid-cols-3 gap-1">
+                    {[
+                      { id: 1, label: 'Guests' },
+                      { id: 2, label: 'Payment' },
+                      { id: 3, label: 'Confirmation' }
+                    ].map((item) => {
+                      const isCurrent = step === item.id;
+                      const isDone = step > item.id || (item.id === 3 && step === 3);
                       return (
-                        <div key={s} className="relative z-10 flex flex-col items-center">
+                        <div key={item.id} className="relative z-10 flex flex-col items-center">
                           <div
                             className={`w-10 h-10 rounded-full flex items-center justify-center text-sm font-bold border transition-all duration-300 ${
                               isCurrent
@@ -1199,10 +1164,10 @@ await generateQrToken(generatedBookingId);
                                   : 'bg-gray-100 text-gray-500 border-gray-200'
                             }`}
                           >
-                            {isDone ? <i className="fas fa-check text-xs"></i> : s}
+                            {isDone ? <i className="fas fa-check text-xs"></i> : item.id}
                           </div>
                           <span className={`mt-2 text-[12px] font-medium ${isCurrent ? 'text-textPrimary' : 'text-textSecondary'}`}>
-                            {label}
+                            {item.label}
                           </span>
                         </div>
                       );
@@ -1212,181 +1177,123 @@ await generateQrToken(generatedBookingId);
               </div>
 
               {/* Step 1: Guest Count */}
-{step === 1 && (
-  <div className="bg-white rounded-2xl shadow-lg border border-ocean-light/15 p-6 sm:p-8">
-    <div className="mb-6">
-      <h2 className="text-2xl font-bold text-textPrimary">Number of Guests</h2>
-    </div>
+              {step === 1 && (
+                <div className="bg-white rounded-2xl shadow-lg border border-ocean-light/15 p-6 sm:p-8">
+                  <div className="mb-6">
+                    <h2 className="text-2xl font-bold text-textPrimary">Number of Guests</h2>
+                  </div>
 
-    {/* Two‑column layout with 80/20 split on md+ */}
-    <div className="grid grid-cols-1 md:grid-cols-[80%_20%] gap-4">
-      {/* Left column – 80% width */}
-      <div className="flex flex-col gap-4">
-        {/* Row 1: Adults + Kids side by side */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-          {/* Adults */}
-          <div className="rounded-xl border border-ocean-light/20 bg-gradient-to-br from-white to-ocean-ice/35 p-4">
-            <label className="text-xs uppercase tracking-[0.16em] font-bold text-textSecondary">Adults (16+) </label>
-            <div className="mt-2 relative">
-              <i className="fas fa-user absolute left-3 top-1/2 -translate-y-1/2 text-ocean-mid text-sm"></i>
-              <input
-                type="number"
-                min="1"
-                value={bookingData.adults}
-                onChange={(e) => handleGuestChange('adults', e.target.value)}
-                onFocus={(e) => e.target.select()}
-                className="w-full h-12 pl-10 pr-3 rounded-xl border border-ocean-light/25 bg-white text-lg font-semibold text-textPrimary focus:outline-none focus:border-ocean-mid focus:ring-2 focus:ring-ocean-light/30"
-              />
-            </div>
-          </div>
+                  <div className="grid grid-cols-1 md:grid-cols-[80%_20%] gap-4">
+                    <div className="flex flex-col gap-4">
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                        <div className="rounded-xl border border-ocean-light/20 bg-gradient-to-br from-white to-ocean-ice/35 p-4">
+                          <label className="text-xs uppercase tracking-[0.16em] font-bold text-textSecondary">Adults (16+)</label>
+                          <div className="mt-2 relative">
+                            <i className="fas fa-user absolute left-3 top-1/2 -translate-y-1/2 text-ocean-mid text-sm"></i>
+                            <input
+                              type="number"
+                              min="1"
+                              value={bookingData.adults}
+                              onChange={(e) => handleGuestChange('adults', e.target.value)}
+                              onFocus={(e) => e.target.select()}
+                              className="w-full h-12 pl-10 pr-3 rounded-xl border border-ocean-light/25 bg-white text-lg font-semibold text-textPrimary focus:outline-none focus:border-ocean-mid focus:ring-2 focus:ring-ocean-light/30"
+                            />
+                          </div>
+                        </div>
 
-          {/* Kids */}
-          <div className="rounded-xl border border-ocean-light/20 bg-gradient-to-br from-white to-ocean-ice/35 p-4">
-            <label className="text-xs uppercase tracking-[0.16em] font-bold text-textSecondary">Kids (15 and below)</label>
-            <div className="mt-2 relative">
-              <i className="fas fa-child absolute left-3 top-1/2 -translate-y-1/2 text-ocean-mid text-sm"></i>
-              <input
-                type="number"
-                min="0"
-                value={bookingData.kids}
-                onChange={(e) => handleGuestChange('kids', e.target.value)}
-                onFocus={(e) => e.target.select()}
-                className="w-full h-12 pl-10 pr-3 rounded-xl border border-ocean-light/25 bg-white text-lg font-semibold text-textPrimary focus:outline-none focus:border-ocean-mid focus:ring-2 focus:ring-ocean-light/30"
-              />
-            </div>
-          </div>
-        </div>
+                        <div className="rounded-xl border border-ocean-light/20 bg-gradient-to-br from-white to-ocean-ice/35 p-4">
+                          <label className="text-xs uppercase tracking-[0.16em] font-bold text-textSecondary">Kids (15 and below)</label>
+                          <div className="mt-2 relative">
+                            <i className="fas fa-child absolute left-3 top-1/2 -translate-y-1/2 text-ocean-mid text-sm"></i>
+                            <input
+                              type="number"
+                              min="0"
+                              value={bookingData.kids}
+                              onChange={(e) => handleGuestChange('kids', e.target.value)}
+                              onFocus={(e) => e.target.select()}
+                              className="w-full h-12 pl-10 pr-3 rounded-xl border border-ocean-light/25 bg-white text-lg font-semibold text-textPrimary focus:outline-none focus:border-ocean-mid focus:ring-2 focus:ring-ocean-light/30"
+                            />
+                          </div>
+                        </div>
+                      </div>
 
-        {/* Row 2: Booking Summary (full width) */}
-        <div className="rounded-xl border border-ocean-light/20 bg-gradient-to-r from-ocean-ice/80 to-blue-white/80 p-4 sm:p-5">
-          <h3 className="text-base font-semibold text-textPrimary mb-3">Booking Summary</h3>
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-            <div className="rounded-lg bg-white/80 border border-ocean-light/15 p-3">
-              <p className="text-[11px] uppercase tracking-wide text-textSecondary">Total Guests</p>
-              <p className="text-xl font-bold text-textPrimary mt-1">{totalGuests}</p>
-            </div>
-            <div className="rounded-lg bg-white/80 border border-ocean-light/15 p-3">
-              <p className="text-[11px] uppercase tracking-wide text-textSecondary">Total Price</p>
-              <p className="text-xl font-bold text-ocean-mid mt-1">₱{totalPrice.toLocaleString()}</p>
-            </div>
-            <div className="rounded-lg bg-white/80 border border-ocean-light/15 p-3">
-              <p className="text-[11px] uppercase tracking-wide text-textSecondary">Down Payment</p>
-              <p className="text-xl font-bold text-amber-600 mt-1">₱{downPaymentAmount.toLocaleString()}</p>
-            </div>
-          </div>
-        </div>
-      </div>
-
-      {/* Right column – Special Request (20% width, full height) */}
-      <div className="rounded-xl border border-ocean-light/20 bg-gradient-to-br from-white to-ocean-ice/35 p-4 h-full">
-        <label className="text-xs uppercase tracking-[0.16em] font-bold text-textSecondary">Special Request (Optional)</label>
-        <div className="mt-2">
-          <textarea
-            value={bookingData.specialRequest}
-            onChange={(e) => {
-              setBookingData(prev => ({ ...prev, specialRequest: e.target.value }));
-              if (errors.specialRequest) setErrors(prev => ({ ...prev, specialRequest: '' }));
-            }}
-            rows={2}
-            placeholder="e.g., request to add additional guests, etc."
-className="w-full px-3 py-2.5 h-46 rounded-xl border border-ocean-light/25 bg-white text-sm text-textPrimary focus:outline-none focus:border-ocean-mid focus:ring-2 focus:ring-ocean-light/30 resize-none overflow-hidden"/>
-          {errors.specialRequest && <p className="text-red-500 text-xs mt-1">{errors.specialRequest}</p>}
-        </div>
-      </div>
-    </div>
-
-    {errors.guests && (
-      <p className="text-[12px] text-rose-600/80 mt-3">{errors.guests}</p>
-    )}
-
-    <div className="flex flex-col-reverse sm:flex-row gap-3 mt-6">
-      <button
-        onClick={handlePreviousStep}
-        className="flex-1 h-12 border border-ocean-light/25 rounded-xl text-textSecondary font-medium bg-white hover:bg-ocean-ice transition-all duration-300"
-      >
-        <i className="fas fa-arrow-left mr-2"></i>
-        Back
-      </button>
-      <button
-        onClick={handleNextStep}
-        disabled={bookingData.adults === '' || bookingData.kids === '' || adultsCount < 1 || totalGuests < 1 || totalGuests > maxAllowedGuests || (remainingCapacity !== Infinity && totalGuests > remainingCapacity)}
-        className={`flex-1 h-12 rounded-xl font-semibold transition-all duration-300 ${
-          bookingData.adults !== '' && bookingData.kids !== '' && adultsCount >= 1 && totalGuests >= 1 && totalGuests <= maxAllowedGuests && (remainingCapacity === Infinity || totalGuests <= remainingCapacity)
-            ? 'bg-gradient-to-r from-ocean-mid to-ocean-light text-white hover:shadow-lg'
-            : 'bg-gray-200 text-gray-500 cursor-not-allowed'
-        }`}
-      >
-        Continue to Details
-      </button>
-    </div>
-  </div>
-)}
-
-              {/* Step 2: Guest Details */}
-              {step === 2 && (
-                <div className="bg-white rounded-2xl shadow-lg p-8">
-                  <h2 className="text-2xl font-bold text-textPrimary mb-6">Guest Details</h2>
-                  
-                  <div className="space-y-5">
-                    <div>
-                      <label className="block text-sm font-semibold text-textPrimary mb-2">First Name</label>
-                      <input
-                        type="text"
-                        value={bookingData.firstName}
-                        onChange={(e) => handleInputChange('firstName', e.target.value)}
-                        className={`w-full px-4 py-2 border ${errors.firstName ? 'border-red-500' : 'border-ocean-light/20'} rounded-lg focus:outline-none focus:border-ocean-light`}
-                      />
-                      {errors.firstName && <p className="text-red-500 text-xs mt-1">{errors.firstName}</p>}
+                      <div className="rounded-xl border border-ocean-light/20 bg-gradient-to-r from-ocean-ice/80 to-blue-white/80 p-4 sm:p-5">
+                        <h3 className="text-base font-semibold text-textPrimary mb-3">Booking Summary</h3>
+                        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                          <div className="rounded-lg bg-white/80 border border-ocean-light/15 p-3">
+                            <p className="text-[11px] uppercase tracking-wide text-textSecondary">Total Guests</p>
+                            <p className="text-xl font-bold text-textPrimary mt-1">{totalGuests}</p>
+                          </div>
+                          <div className="rounded-lg bg-white/80 border border-ocean-light/15 p-3">
+                            <p className="text-[11px] uppercase tracking-wide text-textSecondary">Total Price</p>
+                            <p className="text-xl font-bold text-ocean-mid mt-1">₱{totalPrice.toLocaleString()}</p>
+                          </div>
+                          <div className="rounded-lg bg-white/80 border border-ocean-light/15 p-3">
+                            <p className="text-[11px] uppercase tracking-wide text-textSecondary">Down Payment</p>
+                            <p className="text-xl font-bold text-amber-600 mt-1">₱{downPaymentAmount.toLocaleString()}</p>
+                          </div>
+                        </div>
+                      </div>
                     </div>
-                    
-                    <div>
-                      <label className="block text-sm font-semibold text-textPrimary mb-2">Last Name</label>
-                      <input
-                        type="text"
-                        value={bookingData.lastName}
-                        onChange={(e) => handleInputChange('lastName', e.target.value)}
-                        className={`w-full px-4 py-2 border ${errors.lastName ? 'border-red-500' : 'border-ocean-light/20'} rounded-lg focus:outline-none focus:border-ocean-light`}
-                      />
-                      {errors.lastName && <p className="text-red-500 text-xs mt-1">{errors.lastName}</p>}
-                    </div>
-                    
-                    <div>
-                      <label className="block text-sm font-semibold text-textPrimary mb-2">Email Address</label>
-                      <input
-                        type="email"
-                        value={bookingData.email}
-                        onChange={(e) => handleInputChange('email', e.target.value)}
-                        className={`w-full px-4 py-2 border ${errors.email ? 'border-red-500' : 'border-ocean-light/20'} rounded-lg focus:outline-none focus:border-ocean-light`}
-                      />
-                      {errors.email && <p className="text-red-500 text-xs mt-1">{errors.email}</p>}
-                    </div>
-                    
-                    <div>
-                      <label className="block text-sm font-semibold text-textPrimary mb-2">Phone Number (11 digits)</label>
-                      <input
-                        type="tel"
-                        value={bookingData.phone}
-                        onChange={(e) => handleInputChange('phone', e.target.value)}
-                        maxLength={11}
-                        inputMode="numeric"
-                        placeholder="09123456789"
-                        className={`w-full px-4 py-2 border ${errors.phone ? 'border-red-500' : 'border-ocean-light/20'} rounded-lg focus:outline-none focus:border-ocean-light`}
-                      />
-                      {errors.phone && <p className="text-red-500 text-xs mt-1">{errors.phone}</p>}
+
+                    <div className="rounded-xl border border-ocean-light/20 bg-gradient-to-br from-white to-ocean-ice/35 p-4 h-full">
+                      <label className="text-xs uppercase tracking-[0.16em] font-bold text-textSecondary">Special Request (Optional)</label>
+                      <div className="mt-2">
+                        <textarea
+                          value={bookingData.specialRequest}
+                          onChange={(e) => setBookingData(prev => ({ ...prev, specialRequest: e.target.value }))}
+                          rows={2}
+                          placeholder="e.g., request to add additional guests, etc."
+                          className="w-full px-3 py-2.5 h-46 rounded-xl border border-ocean-light/25 bg-white text-sm text-textPrimary focus:outline-none focus:border-ocean-mid focus:ring-2 focus:ring-ocean-light/30 resize-none overflow-hidden"
+                        />
+                      </div>
                     </div>
                   </div>
-                  
+
+                  {errors.guests && (
+                    <p className="text-[12px] text-rose-600/80 mt-3">{errors.guests}</p>
+                  )}
+
+                  {!user && (
+                    <div className="mt-4 p-4 bg-amber-50 border border-amber-200 rounded-xl">
+                      <p className="text-sm text-amber-800">
+                        <i className="fas fa-info-circle mr-2"></i>
+                        You need to be signed in to continue. Please sign in or create an account.
+                      </p>
+                      <button
+                        onClick={() => setIsAuthModalOpen(true)}
+                        className="mt-2 inline-flex items-center gap-1 text-sm font-medium text-amber-800 underline hover:text-amber-900"
+                      >
+                        Sign in now
+                        <i className="fas fa-arrow-right text-[10px]"></i>
+                      </button>
+                    </div>
+                  )}
+
                   <div className="flex flex-col-reverse sm:flex-row gap-3 mt-6">
                     <button
                       onClick={handlePreviousStep}
-                      className="flex-1 py-3 border border-ocean-light/20 rounded-xl text-textSecondary font-medium hover:bg-ocean-ice transition-all duration-300"
+                      className="flex-1 h-12 border border-ocean-light/25 rounded-xl text-textSecondary font-medium bg-white hover:bg-ocean-ice transition-all duration-300"
                     >
                       <i className="fas fa-arrow-left mr-2"></i>
                       Back
                     </button>
                     <button
                       onClick={handleNextStep}
-                      className="flex-1 py-3 bg-gradient-to-r from-ocean-mid to-ocean-light text-white rounded-xl font-medium hover:shadow-lg transition-all duration-300"
+                      disabled={
+                        bookingData.adults === '' ||
+                        bookingData.kids === '' ||
+                        adultsCount < 1 ||
+                        totalGuests < 1 ||
+                        totalGuests > maxAllowedGuests ||
+                        (remainingCapacity !== Infinity && totalGuests > remainingCapacity) ||
+                        !user
+                      }
+                      className={`flex-1 h-12 rounded-xl font-semibold transition-all duration-300 ${
+                        bookingData.adults !== '' && bookingData.kids !== '' && adultsCount >= 1 && totalGuests >= 1 && totalGuests <= maxAllowedGuests && (remainingCapacity === Infinity || totalGuests <= remainingCapacity) && user
+                          ? 'bg-gradient-to-r from-ocean-mid to-ocean-light text-white hover:shadow-lg'
+                          : 'bg-gray-200 text-gray-500 cursor-not-allowed'
+                      }`}
                     >
                       Continue to Payment
                     </button>
@@ -1394,8 +1301,8 @@ className="w-full px-3 py-2.5 h-46 rounded-xl border border-ocean-light/25 bg-wh
                 </div>
               )}
 
-              {/* Step 3: Payment */}
-              {step === 3 && (
+              {/* Step 2: Payment (formerly step 3) */}
+              {step === 2 && (
                 <div className="rounded-[2rem] border border-ocean-light/20 bg-white p-5 shadow-lg sm:p-8">
                   <div className="overflow-hidden rounded-[1.75rem] border border-ocean-light/20 bg-[radial-gradient(circle_at_top_left,_rgba(103,183,255,0.22),_transparent_32%),linear-gradient(135deg,_rgba(244,251,255,0.98),_rgba(255,255,255,0.98))] p-6">
                     <div className="flex flex-col gap-6 xl:flex-row xl:items-end xl:justify-between">
@@ -1431,6 +1338,28 @@ className="w-full px-3 py-2.5 h-46 rounded-xl border border-ocean-light/25 bg-wh
                       </div>
                     </div>
                   </div>
+
+                  {/* Mobile Number Validation Warning */}
+                  {!hasMobileNumber && (
+                    <div className="mt-6 p-4 bg-red-50 border border-red-200 rounded-xl">
+                      <div className="flex items-start gap-2">
+                        <i className="fas fa-exclamation-triangle text-red-500 mt-0.5"></i>
+                        <div>
+                          <p className="text-sm font-semibold text-red-800">Mobile number required</p>
+                          <p className="text-xs text-red-700 mt-1">
+                            You must add a mobile number to your account before you can complete a booking.
+                          </p>
+                          <button
+                            onClick={() => router.push('/account')}
+                            className="mt-2 inline-flex items-center gap-1 text-xs font-medium text-red-800 underline hover:text-red-900"
+                          >
+                            Update your account
+                            <i className="fas fa-arrow-right text-[10px]"></i>
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+                  )}
                   
                   <div className="mt-6 mb-6">
                     <label className="mb-3 block text-xs font-bold uppercase tracking-[0.18em] text-textSecondary">Select Payment Method</label>
@@ -1483,7 +1412,6 @@ className="w-full px-3 py-2.5 h-46 rounded-xl border border-ocean-light/25 bg-wh
                   </div>
                   
                   {paymentMethod === 'gcash' && renderGcashPanel()}
-                  
                   {paymentMethod === 'bank_transfer' && renderBankTransferPanel()}
                   
                   <div className="mt-6 grid gap-4 lg:grid-cols-[minmax(0,1fr)_320px]">
@@ -1539,8 +1467,8 @@ className="w-full px-3 py-2.5 h-46 rounded-xl border border-ocean-light/25 bg-wh
                 </div>
               )}
 
-              {/* Step 4: Confirmation */}
-              {step === 4 && (
+              {/* Step 3: Confirmation */}
+              {step === 3 && (
                 <div className="rounded-[2rem] bg-white p-6 shadow-lg sm:p-8">
                   <div className="mx-auto max-w-3xl">
                     <div className="text-center">
@@ -1549,7 +1477,7 @@ className="w-full px-3 py-2.5 h-46 rounded-xl border border-ocean-light/25 bg-wh
                       </div>
                       <h2 className="text-2xl font-bold text-textPrimary mb-2">Reservation Received</h2>
                       <p className="text-textSecondary mb-6">
-                        Your day tour reservation is pending admin confirmation. We sent your tracker details to {bookingData.email}. Once the resort confirms your reservation, you will receive a separate confirmation email.
+                        Your day tour reservation is pending admin confirmation. We sent your tracker details to {user?.email}. Once the resort confirms your reservation, you will receive a separate confirmation email.
                       </p>
                     </div>
 
@@ -1583,9 +1511,11 @@ className="w-full px-3 py-2.5 h-46 rounded-xl border border-ocean-light/25 bg-wh
                       <div className="grid gap-6 border-b border-dashed border-ocean-light/30 py-5 md:grid-cols-2">
                         <div className="space-y-2">
                           <p className="text-[11px] uppercase tracking-[0.16em] text-textSecondary">Guest</p>
-                          <p className="text-base font-semibold text-textPrimary">{bookingData.firstName} {bookingData.lastName}</p>
-                          <p className="text-sm text-textSecondary">{bookingData.email}</p>
-                          <p className="text-sm text-textSecondary">{bookingData.phone}</p>
+                          <p className="text-base font-semibold text-textPrimary">
+                            {profile?.firstName || ''} {profile?.lastName || ''}
+                          </p>
+                          <p className="text-sm text-textSecondary">{user?.email}</p>
+                          <p className="text-sm text-textSecondary">{profile?.mobileNumber || ''}</p>
                         </div>
                         <div className="space-y-2">
                           <p className="text-[11px] uppercase tracking-[0.16em] text-textSecondary">Payment Method</p>
@@ -1628,34 +1558,33 @@ className="w-full px-3 py-2.5 h-46 rounded-xl border border-ocean-light/25 bg-wh
                         Use your reference number in the Reservation Tracker while this booking is pending. Remaining balance is payable at the resort. Cancellations will result in forfeiture of the down payment, unless the booking is rescheduled.
                       </div>
                       {qrToken && (
-  <div className="mt-6 mb-6 p-4 bg-white rounded-xl border-2 border-blue-200">
-    <h3 className="text-sm font-semibold text-gray-700 mb-2 text-center">Check-in QR Code</h3>
-    <div className="flex justify-center">
-      <QRCodeSVG 
-        value={`${window.location.origin}/check-in?token=${qrToken}`}
-        size={200}
-        bgColor="#ffffff"
-        fgColor="#000000"
-        level="M"
-        includeMargin={false}
-      />
-    </div>
-            <div className="mt-4 flex justify-center">
-      <button
-        onClick={downloadQRCode}
-        className="inline-flex items-center gap-2 px-4 py-2 bg-blue-600 text-white text-sm font-medium rounded-lg hover:bg-blue-700 transition shadow-sm"
-      >
-        <i className="fas fa-download"></i>
-        Download QR Code
-      </button>
-    </div>
-    <p className="text-xs text-gray-500 mt-3 text-center">
-      Staff will scan this QR code at the resort.
-    </p>
-  </div>
-)}
+                        <div className="mt-6 mb-6 p-4 bg-white rounded-xl border-2 border-blue-200">
+                          <h3 className="text-sm font-semibold text-gray-700 mb-2 text-center">Check-in QR Code</h3>
+                          <div className="flex justify-center">
+                            <QRCodeSVG 
+                              value={`${window.location.origin}/check-in?token=${qrToken}`}
+                              size={200}
+                              bgColor="#ffffff"
+                              fgColor="#000000"
+                              level="M"
+                              includeMargin={false}
+                            />
+                          </div>
+                          <div className="mt-4 flex justify-center">
+                            <button
+                              onClick={downloadQRCode}
+                              className="inline-flex items-center gap-2 px-4 py-2 bg-blue-600 text-white text-sm font-medium rounded-lg hover:bg-blue-700 transition shadow-sm"
+                            >
+                              <i className="fas fa-download"></i>
+                              Download QR Code
+                            </button>
+                          </div>
+                          <p className="text-xs text-gray-500 mt-3 text-center">
+                            Staff will scan this QR code at the resort.
+                          </p>
+                        </div>
+                      )}
                     </div>
-
 
                     <div className="flex flex-col-reverse sm:flex-row gap-3">
                       <button
@@ -1679,6 +1608,7 @@ className="w-full px-3 py-2.5 h-46 rounded-xl border border-ocean-light/25 bg-wh
         </div>
       </div>
 
+      {/* Valid ID Modal */}
       {showValidIdModal && (
         <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4">
           <div className="bg-white rounded-2xl w-full max-w-[380px] p-5 shadow-2xl" onClick={(e) => e.stopPropagation()}>
@@ -1686,7 +1616,7 @@ className="w-full px-3 py-2.5 h-46 rounded-xl border border-ocean-light/25 bg-wh
               <h3 className="text-base font-bold text-textPrimary">Upload Valid ID</h3>
               <button
                 onClick={() => setShowValidIdModal(false)}
- className="w-7 h-7 rounded-md bg-ocean-ice text-neutral hover:bg-ocean-light/20 hover:text-textPrimary transition-all duration-200 flex items-center justify-center">
+                className="w-7 h-7 rounded-md bg-ocean-ice text-neutral hover:bg-ocean-light/20 hover:text-textPrimary transition-all duration-200 flex items-center justify-center">
                 <i className="fas fa-times text-xs"></i>
               </button>
             </div>
@@ -1779,6 +1709,14 @@ className="w-full px-3 py-2.5 h-46 rounded-xl border border-ocean-light/25 bg-wh
           </div>
         </div>
       )}
+
+      {/* Guest Auth Modal */}
+      <GuestAuthModal
+        isOpen={isAuthModalOpen}
+        onClose={() => setIsAuthModalOpen(false)}
+        prefillEmail={user?.email || ''}
+      />
+
       <ChatBot />
     </GuestLayout>
   );

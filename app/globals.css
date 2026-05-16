@@ -131,12 +131,43 @@
   animation-play-state: paused;
 }
 
+@keyframes fadeIn {
+  0% {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+  100% {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes toast-in {
+  0% {
+    opacity: 0;
+    transform: translateY(-8px) scale(0.98);
+  }
+  100% {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+.toast-animate {
+  animation: toast-in 220ms ease-out;
+  transform-origin: top right;
+}
+
 @media (prefers-reduced-motion: reduce) {
   .gallery-track {
     animation: none;
   }
 
   .testimonials-track {
+    animation: none;
+  }
+
+  .toast-animate {
     animation: none;
   }
 }
