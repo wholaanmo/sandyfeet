@@ -7,6 +7,10 @@ import { collection, query, orderBy, onSnapshot, updateDoc, doc, getDoc, getDocs
 import { logAdminAction } from '../../../../lib/auditLogger';
 import { sendConfirmationEmail, sendCancellationEmail } from '../../../../lib/emailService';
 import { useSearchParams } from 'next/navigation';
+import AdminRequestChangesModal from './components/AdminRequestChangesModal';
+import AdminActionReasonModal from './components/AdminActionReasonModal';
+import AdminEditBookingModal, { canAdminEditBooking } from './components/AdminEditBookingModal';
+import AdminEditDayTourModal, { canAdminEditDayTour } from './components/AdminEditDayTourModal';
 
 export default function AdminReservations() {
     const searchParams = useSearchParams(); // <-- ADDED
@@ -29,6 +33,13 @@ export default function AdminReservations() {
   const sliderRef = useRef(null);
   const buttonRefs = useRef({});
   const [idRequestModal, setIdRequestModal] = useState({ show: false, booking: null, message: '', sending: false });
+  const [editBookingModal, setEditBookingModal] = useState({ show: false, booking: null });
+  const [editDayTourModal, setEditDayTourModal] = useState({ show: false, booking: null });
+  const [showRequestDetailsModal, setShowRequestDetailsModal] = useState(false);
+const [selectedRequestBooking, setSelectedRequestBooking] = useState(null);
+const [requestAction, setRequestAction] = useState(null); // 'approve' or 'reject'
+const [showRequestReasonModal, setShowRequestReasonModal] = useState(false);
+const [requestReasonLoading, setRequestReasonLoading] = useState(false);
 
   const [editingNote, setEditingNote] = useState(false);
 const [tempNoteForEdit, setTempNoteForEdit] = useState('');
@@ -370,6 +381,14 @@ useEffect(() => {
       bookingIdDisplay = 'Single Room Type';
     }
 
+            let hasPendingChangeRequest = false;
+for (const child of group.bookings) {
+  if (child.changeRequest?.status === 'pending') {
+    hasPendingChangeRequest = true;
+    break;
+  }
+}
+
     consolidatedGroups.push({
       id: parentId,
       bookingId: parentId,
@@ -398,6 +417,7 @@ useEffect(() => {
       totalGuests,
       childBookings: childBookingsWithGuests,
       originalChildBookings: group.bookings,
+      hasPendingChangeRequest,
       tentCount: tentCount,
       exclusiveAdults: exclusiveAdults,
       exclusiveKids: exclusiveKids,
@@ -420,6 +440,110 @@ useEffect(() => {
   }));
 
   return [...enhancedSingleBookings, ...consolidatedGroups];
+};
+
+const handleRequestDecision = async (decision, reason) => {
+  if (!selectedRequestBooking) return;
+  setRequestReasonLoading(true);
+  try {
+    const isRoom = selectedRequestBooking.type === 'room';
+    
+    // Handle multi-room groups - update all child bookings
+    if (selectedRequestBooking.originalChildBookings && selectedRequestBooking.originalChildBookings.length > 0) {
+      // This is a multi-room group - update each child booking individually
+      for (const childBooking of selectedRequestBooking.originalChildBookings) {
+        const childBookingRef = doc(db, 'bookings', childBooking.id);
+        await updateDoc(childBookingRef, {
+          'changeRequest.status': decision === 'approve' ? 'approved' : 'rejected',
+          'changeRequest.adminReason': reason,
+          'changeRequest.adminNote': reason,
+          'changeRequest.processedAt': new Date().toISOString(),
+          updatedAt: new Date().toISOString()
+        });
+      }
+    } else {
+      // Single booking (room or day tour)
+      const collectionName = isRoom ? 'bookings' : 'dayTourBookings';
+      const docId = selectedRequestBooking.id;
+      const bookingRef = doc(db, collectionName, docId);
+      await updateDoc(bookingRef, {
+        'changeRequest.status': decision === 'approve' ? 'approved' : 'rejected',
+        'changeRequest.adminReason': reason,
+        'changeRequest.adminNote': reason,
+        'changeRequest.processedAt': new Date().toISOString(),
+        updatedAt: new Date().toISOString()
+      });
+    }
+
+    // Optional: send email notification to guest
+    try {
+      await fetch('/api/admin/send-change-request-response', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          bookingId: selectedRequestBooking.bookingId,
+          type: isRoom ? 'room' : 'daytour',
+          decision,
+          reason,
+          requestedChanges: selectedRequestBooking.changeRequest?.text
+        })
+      });
+    } catch (emailErr) {
+      console.error('Failed to send email:', emailErr);
+    }
+
+    await logAdminAction({
+      action: decision === 'approve' ? 'Change Request Approved' : 'Change Request Rejected',
+      module: 'Reservations',
+      details: `${decision === 'approve' ? 'Approved' : 'Rejected'} change request for booking ${selectedRequestBooking.bookingId}. Reason: ${reason}`
+    });
+
+    showNotification(`Change request ${decision === 'approve' ? 'approved' : 'rejected'} and guest notified.`, 'success');
+    setShowRequestReasonModal(false);
+    setShowRequestDetailsModal(false);
+    setSelectedRequestBooking(null);
+  } catch (error) {
+    console.error('Error processing request:', error);
+    showNotification('Failed to process request. Please try again.', 'error');
+  } finally {
+    setRequestReasonLoading(false);
+  }
+};
+
+const shouldShowRequestButton = (booking) => {
+  if (activeTab === 'rooms') {
+    const statusOk = ['pending', 'confirmed'].includes(booking.status);
+    const typeOk = booking.bookingIdDisplay === 'Single Room Type' ||
+                   booking.bookingIdDisplay === 'Multi-Room Types' ||
+                   booking.isExclusiveResortBooking;
+    
+    // Check if there's a pending OR processed request to still show the button
+    // For multi‑room groups, check all child bookings
+    let hasPendingRequest = false;
+    let hasProcessedRequest = false;
+    
+    if (booking.isMultiRoomGroup && booking.originalChildBookings) {
+      for (const child of booking.originalChildBookings) {
+        if (child.changeRequest?.status === 'pending') {
+          hasPendingRequest = true;
+          break;
+        }
+        if (child.changeRequest && (child.changeRequest.status === 'approved' || child.changeRequest.status === 'rejected')) {
+          hasProcessedRequest = true;
+        }
+      }
+    } else {
+      hasPendingRequest = booking.changeRequest?.status === 'pending';
+      hasProcessedRequest = booking.changeRequest && (booking.changeRequest.status === 'approved' || booking.changeRequest.status === 'rejected');
+    }
+    
+    // Show button if there's any change request (pending or processed)
+    return statusOk && typeOk && (hasPendingRequest || hasProcessedRequest);
+  } else if (activeTab === 'daytour') {
+    return booking.status === 'confirmed' && (booking.changeRequest?.status === 'pending' || 
+           (booking.changeRequest && (booking.changeRequest.status === 'approved' || booking.changeRequest.status === 'rejected')));
+  }
+  return false;
 };
 
  const handleConfirmCheckIn = async () => {
@@ -618,7 +742,8 @@ if (now > dayEnd) {
         const data = doc.data();
         dayToursList.push({
           id: doc.id,
-          ...data
+          ...data,
+          type: 'daytour',
         });
       });
       setDayTours(dayToursList);
@@ -1086,7 +1211,8 @@ if (now > dayEnd) {
       const bookingRef = doc(db, 'dayTourBookings', booking.id);
       await updateDoc(bookingRef, {
         status: 'confirmed',
-        adminNote: confirmModal.note || null,  // Save admin note
+        confirmationNote: confirmModal.note?.trim() || null,
+        adminNote: confirmModal.note?.trim() || null,
         updatedAt: new Date().toISOString()
       });
 
@@ -1188,7 +1314,8 @@ if (now > dayEnd) {
           const bookingRef = doc(db, 'bookings', childBooking.id);
           await updateDoc(bookingRef, {
             status: 'confirmed',
-            adminNote: confirmModal.note || null,  // Save admin note
+            confirmationNote: confirmModal.note?.trim() || null,
+            adminNote: confirmModal.note?.trim() || null,
             updatedAt: new Date().toISOString()
           });
         }
@@ -1196,7 +1323,8 @@ if (now > dayEnd) {
         const bookingRef = doc(db, 'bookings', booking.id);
         await updateDoc(bookingRef, {
           status: 'confirmed',
-          adminNote: confirmModal.note || null,  // Save admin note
+          confirmationNote: confirmModal.note?.trim() || null,
+          adminNote: confirmModal.note?.trim() || null,
           updatedAt: new Date().toISOString()
         });
       }
@@ -1675,6 +1803,18 @@ const isNotificationDisabled = (booking) => {
                               >
                                 <i className="fas fa-eye text-sm"></i>
                               </button>
+                              {shouldShowRequestButton(booking) && (
+  <button
+    onClick={() => {
+      setSelectedRequestBooking(booking);
+      setShowRequestDetailsModal(true);
+    }}
+    className="w-8 h-8 rounded-lg bg-amber-100 text-amber-700 hover:bg-amber-500 hover:text-white transition-all duration-200 flex items-center justify-center"
+    title="Review Change Request"
+  >
+    <i className="fas fa-exchange-alt text-sm"></i>
+  </button>
+)}
                               {booking.status === 'cancelled-by-guest' && (
                                 <button
                                   onClick={() => {
@@ -1784,6 +1924,19 @@ const isNotificationDisabled = (booking) => {
                               >
                                 <i className="fas fa-eye text-sm"></i>
                               </button>
+    {shouldShowRequestButton(tour) && (
+      <button
+        onClick={() => {
+          setSelectedRequestBooking(tour);
+          setShowRequestDetailsModal(true);
+        }}
+        className="w-8 h-8 rounded-lg bg-amber-100 text-amber-700 hover:bg-amber-500 hover:text-white transition-all duration-200 flex items-center justify-center"
+        title="Review Change Request"
+      >
+        <i className="fas fa-exchange-alt text-sm"></i>
+      </button>
+    )}
+
                               {tour.status === 'cancelled-by-guest' && (
                                 <button
                                   onClick={() => setShowReasonModal({
@@ -2129,30 +2282,48 @@ const isNotificationDisabled = (booking) => {
   {!editingNote && !editingPayment && (
     <div className="space-y-3">
       {(() => {
-     const isCancelled = ['cancelled', 'cancelled-by-guest'].includes(sidebarBooking.status);
-let downPayment, totalAmount;
+   const isCancelled = ['cancelled', 'cancelled-by-guest'].includes(sidebarBooking.status);
+let downPayment, totalAmount, balance;
 
-if (isCancelled) {
-  // For cancelled: Total = Down Payment (balance = 0)
-  if (sidebarBooking.manualDownPayment !== undefined && sidebarBooking.manualDownPayment !== null) {
-    downPayment = sidebarBooking.manualDownPayment;
+if (activeTab === 'daytour' && sidebarBooking.downPayment !== undefined) {
+  // --- Day tour with stored down payment and remaining balance ---
+  totalAmount = sidebarBooking.manualTotalPrice ?? sidebarBooking.totalPrice;
+  downPayment = sidebarBooking.downPayment; // original down payment (fixed)
+
+  if (isCancelled) {
+    balance = 0;
+    totalAmount = downPayment; // for cancelled, total shown = down payment
   } else {
-    const originalTotal = Number(sidebarBooking.totalPrice) || 0;
-    downPayment = originalTotal * 0.5;
+    // Use manualBalance if set, otherwise stored remainingBalance, otherwise compute
+    balance = sidebarBooking.manualBalance !== undefined
+      ? sidebarBooking.manualBalance
+      : (sidebarBooking.remainingBalance !== undefined
+          ? sidebarBooking.remainingBalance
+          : totalAmount - downPayment);
   }
-  totalAmount = downPayment; // Total = Down + 0
 } else {
-  // Non-cancelled bookings: use existing logic (balance editing, etc.)
-  if (sidebarBooking.manualTotalPrice !== undefined && sidebarBooking.manualTotalPrice !== null) {
-    totalAmount = sidebarBooking.manualTotalPrice;
-    downPayment = totalAmount * 0.5;
+  // --- Original logic for room bookings (or day tours without downPayment) ---
+  if (isCancelled) {
+    if (sidebarBooking.manualDownPayment !== undefined && sidebarBooking.manualDownPayment !== null) {
+      downPayment = sidebarBooking.manualDownPayment;
+    } else {
+      const originalTotal = Number(sidebarBooking.totalPrice) || 0;
+      downPayment = originalTotal * 0.5;
+    }
+    totalAmount = downPayment;
+    balance = 0;
   } else {
-    const originalTotal = Number(sidebarBooking.totalPrice) || 0;
-    totalAmount = originalTotal;
-    downPayment = originalTotal * 0.5;
+    if (sidebarBooking.manualTotalPrice !== undefined && sidebarBooking.manualTotalPrice !== null) {
+      totalAmount = sidebarBooking.manualTotalPrice;
+      downPayment = totalAmount * 0.5;
+    } else {
+      const originalTotal = Number(sidebarBooking.totalPrice) || 0;
+      totalAmount = originalTotal;
+      downPayment = originalTotal * 0.5;
+    }
+    balance = sidebarBooking.manualBalance !== undefined ? sidebarBooking.manualBalance : downPayment;
   }
 }
-const balance = isCancelled ? 0 : (sidebarBooking.manualBalance !== undefined ? sidebarBooking.manualBalance : downPayment);
 
         return (
           <div className="grid grid-cols-2 gap-4">
@@ -2287,6 +2458,22 @@ const balance = isCancelled ? 0 : (sidebarBooking.manualBalance !== undefined ? 
 
             {/* Fixed Footer with Confirm and Cancel buttons */}
             <div className="sticky bottom-0 bg-white/80 backdrop-blur-lg border-t border-[#4D8CF5]/10 px-5 py-2.5 flex gap-2 justify-end flex-shrink-0">
+              {activeTab === 'rooms' && canAdminEditBooking(sidebarBooking) && (
+                <button
+                  onClick={() => setEditBookingModal({ show: true, booking: sidebarBooking })}
+                  className="px-3.5 py-2.5 rounded-lg bg-[#4D8CF5]/10 text-[#1E3A8A] hover:bg-[#4D8CF5] hover:text-white transition-all duration-200 flex items-center gap-1.5 text-xs font-medium"
+                >
+                  <i className="fas fa-edit text-[10px]"></i> Edit
+                </button>
+              )}
+              {activeTab === 'daytour' && canAdminEditDayTour(sidebarBooking) && (
+                <button
+                  onClick={() => setEditDayTourModal({ show: true, booking: sidebarBooking })}
+                  className="px-3.5 py-2.5 rounded-lg bg-[#4D8CF5]/10 text-[#1E3A8A] hover:bg-[#4D8CF5] hover:text-white transition-all duration-200 flex items-center gap-1.5 text-xs font-medium"
+                >
+                  <i className="fas fa-edit text-[10px]"></i> Edit
+                </button>
+              )}
               {!['cancelled', 'cancelled-by-guest', 'confirmed', 'check-in', 'check-out', 'completed'].includes(sidebarBooking.status) && (
                 <button
                   onClick={() => setIdRequestModal({ show: true, booking: sidebarBooking, message: '', sending: false })}
@@ -2853,7 +3040,7 @@ const balance = isCancelled ? 0 : (sidebarBooking.manualBalance !== undefined ? 
               </div>
             </div>
 
-            <div className="flex gap-3 justify-center">
+            <div className="flex gap-3 justify-end items-end">
               <button
                 onClick={() => setShowReasonModal({ show: false, booking: null, reason: '', sending: false })}
                 className="px-4 py-2 border border-ocean-light/20 rounded-xl text-textSecondary text-sm font-medium hover:bg-ocean-ice transition-all duration-300"
@@ -2872,18 +3059,6 @@ const balance = isCancelled ? 0 : (sidebarBooking.manualBalance !== undefined ? 
               >
                 <i className="fas fa-dollar-sign mr-1"></i>
                 Notify Guest
-              </button>
-              <button
-                onClick={() => setMoveDateConfirmModal({ show: true, booking: showReasonModal.booking, message: '', sending: false })}
-                disabled={isNotificationDisabled(showReasonModal.booking)}
-                className={`px-4 py-2 rounded-xl text-white text-sm font-medium transition-all duration-300 flex items-center gap-2 ${isNotificationDisabled(showReasonModal.booking)
-                  ? 'bg-gray-400 cursor-not-allowed opacity-50'
-                  : 'bg-gradient-to-r from-blue-500 to-blue-600 hover:shadow-lg hover:-translate-y-0.5'
-                  }`}
-                title={isNotificationDisabled(showReasonModal.booking) ? "Notification already sent" : ""}
-              >
-                <i className="fas fa-calendar-alt mr-1"></i>
-                Move Date Notify
               </button>
             </div>
           </div>
@@ -2951,9 +3126,9 @@ const balance = isCancelled ? 0 : (sidebarBooking.manualBalance !== undefined ? 
               <div className="w-14 h-14 mx-auto mb-3 rounded-full bg-yellow-100 flex items-center justify-center">
                 <i className="fas fa-exclamation-triangle text-yellow-500 text-2xl"></i>
               </div>
-              <h3 className="text-lg font-bold text-textPrimary mb-2">Confirm Refund Notification</h3>
+              <h3 className="text-lg font-bold text-textPrimary mb-2">Send Non-Refundable Payment Notice</h3>
               <p className="text-textSecondary text-sm">
-                Are you sure you want to send a refund notification to{" "}
+                Are you sure you want to send a non-refundable payment notice to{" "}
                 <strong>{refundConfirmModal.booking.guestInfo?.firstName} {refundConfirmModal.booking.guestInfo?.lastName}</strong>?
               </p>
               <p className="text-xs text-neutral mt-2">
@@ -3107,6 +3282,74 @@ const balance = isCancelled ? 0 : (sidebarBooking.manualBalance !== undefined ? 
           animation: scaleIn 0.2s ease-out;
         }
       `}</style>
+
+ {showRequestDetailsModal && selectedRequestBooking && (
+  <AdminRequestChangesModal
+    isOpen={showRequestDetailsModal}
+    booking={selectedRequestBooking}
+    onClose={() => {
+      setShowRequestDetailsModal(false);
+      setSelectedRequestBooking(null);
+    }}
+    onConfirm={(action) => {
+      setRequestAction(action);
+      setShowRequestDetailsModal(false);
+      setShowRequestReasonModal(true);
+    }}
+  />
+)}
+
+{showRequestReasonModal && (
+  <AdminActionReasonModal
+    isOpen={showRequestReasonModal}
+    action={requestAction}
+    booking={selectedRequestBooking}
+    onClose={() => {
+      setShowRequestReasonModal(false);
+      setRequestAction(null);
+    }}
+    onConfirm={(reason) => handleRequestDecision(requestAction, reason)}
+  />
+)}
+
+{editBookingModal.show && editBookingModal.booking && (
+  <AdminEditBookingModal
+    isOpen={editBookingModal.show}
+    booking={editBookingModal.booking}
+    onClose={() => setEditBookingModal({ show: false, booking: null })}
+    onSuccess={(updated) => {
+      const editedId = editBookingModal.booking?.id;
+      setSidebarBooking((prev) => {
+        if (!prev || prev.id !== editedId) return prev;
+        return {
+          ...prev,
+          ...updated,
+          childBookings: updated.childBookings ?? prev.childBookings,
+          originalChildBookings: updated.originalChildBookings ?? prev.originalChildBookings,
+        };
+      });
+      showNotification('Booking updated successfully.', 'success');
+      setEditBookingModal({ show: false, booking: null });
+    }}
+  />
+)}
+
+{editDayTourModal.show && editDayTourModal.booking && (
+  <AdminEditDayTourModal
+    isOpen={editDayTourModal.show}
+    booking={editDayTourModal.booking}
+    onClose={() => setEditDayTourModal({ show: false, booking: null })}
+    onSuccess={(updated) => {
+      const editedId = editDayTourModal.booking?.id;
+      setSidebarBooking((prev) => {
+        if (!prev || prev.id !== editedId) return prev;
+        return { ...prev, ...updated, type: 'daytour' };
+      });
+      showNotification('Day tour booking updated successfully.', 'success');
+      setEditDayTourModal({ show: false, booking: null });
+    }}
+  />
+)}
     </div>
   );
 }

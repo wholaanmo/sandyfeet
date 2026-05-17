@@ -3,6 +3,7 @@ import { NextResponse } from 'next/server';
 import { db } from '../../../../lib/firebase';
 import { doc, getDoc } from 'firebase/firestore';
 import { sendIdRequestEmail } from '../../../../lib/emailService';
+import { applyIdRequestToBookingDocs } from '../../../../lib/idRequestUtils';
 
 export async function POST(request) {
   try {
@@ -41,6 +42,7 @@ export async function POST(request) {
     const result = await sendIdRequestEmail(booking, adminMessage);
 
     if (result.success) {
+      await applyIdRequestToBookingDocs(collectionName, booking, adminMessage);
       return NextResponse.json({ message: 'ID request email sent successfully' });
     } else {
       return NextResponse.json({ error: result.error || 'Failed to send email' }, { status: 500 });

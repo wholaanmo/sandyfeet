@@ -7,7 +7,8 @@ import Link from 'next/link';
 import GuestLayout from '@/app/guest/layout';
 import GuestAuthModal from '@/components/guest/GuestAuthModal';
 import { useGuestAuth } from '@/components/guest/GuestAuthContext';
-import SignOutConfirmationModal from '@/components/SignOutConfirmationModal'; // Add this import
+import SignOutConfirmationModal from '@/components/SignOutConfirmationModal';
+import IdRequestNotifications from '@/components/guest/IdRequestNotifications';
 
 function GuestAccountContent() {
   const { user, profile, loading, logout, updateGuestProfile } = useGuestAuth();
@@ -211,6 +212,8 @@ function GuestAccountContent() {
 
   </div>
 </div>
+
+      <IdRequestNotifications />
             </aside>
 
             {/* Main Profile Details */}

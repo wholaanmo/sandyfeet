@@ -208,7 +208,7 @@ export default function BookingCard({ booking, onCancel, onEditSuccess }) {
                 </div>
               </div>
 
-              {/* Schedule (unchanged) */}
+              {/* Schedule (UPDATED: added total guests for day tours) */}
               <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
                 <h4 className="flex items-center gap-2 text-xs font-semibold uppercase tracking-wider text-slate-500">
                   <span className="flex h-6 w-6 items-center justify-center rounded-full bg-emerald-100 text-emerald-600">
@@ -223,6 +223,11 @@ export default function BookingCard({ booking, onCancel, onEditSuccess }) {
                       <div className="flex flex-wrap gap-3 text-xs text-slate-500">
                         <span>{booking.adults || 0} adult(s)</span>
                         <span>{booking.kids || 0} kid(s)</span>
+                      </div>
+                      {/* Total Guests added below */}
+                      <div className="flex flex-wrap gap-3 text-sm text-slate-500 pt-1">
+                        <span className="font-semibold">Total Guests:</span>
+                        <span>{(booking.adults || 0) + (booking.kids || 0)}</span>
                       </div>
                     </>
                   ) : (

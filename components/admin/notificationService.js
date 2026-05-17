@@ -1,4 +1,7 @@
 // components/admin/notificationService.js
+'use client';
+
+import { useState } from 'react';
 import { db } from '../../lib/firebase';
 import { collection, query, orderBy, onSnapshot, updateDoc, writeBatch, getDocs, doc, where, setDoc, getDoc, deleteDoc } from 'firebase/firestore';
 
@@ -124,6 +127,8 @@ const getDayTourGuestCount = (data) => {
 };
 
 const saveNotification = async (notification) => {
+  if (isNotificationDismissed(notification.type, notification.id)) return;
+
   try {
     const notificationId = `${notification.type}_${notification.id}`;
     const notificationRef = doc(db, 'notifications', notificationId);
@@ -136,18 +141,94 @@ const saveNotification = async (notification) => {
   }
 };
 
+const dismissedNotificationKeys = new Set();
+let dismissedNotificationsLoaded = false;
+
+const getDismissedNotificationKey = (type, id) => `${type}_${id}`;
+
+export const isNotificationDismissed = (type, id) =>
+  dismissedNotificationKeys.has(getDismissedNotificationKey(type, id));
+
+export const initializeDismissedNotifications = async () => {
+  if (dismissedNotificationsLoaded) return;
+  try {
+    const snapshot = await getDocs(collection(db, 'dismissedNotifications'));
+    snapshot.forEach((docSnap) => dismissedNotificationKeys.add(docSnap.id));
+    dismissedNotificationsLoaded = true;
+  } catch (error) {
+    console.error('Error loading dismissed notifications:', error);
+  }
+};
+
+const markNotificationDismissed = async (type, id) => {
+  const key = getDismissedNotificationKey(type, id);
+  dismissedNotificationKeys.add(key);
+  await setDoc(doc(db, 'dismissedNotifications', key), {
+    type,
+    id,
+    dismissedAt: new Date().toISOString(),
+  });
+};
+
+const removeNotificationFromInternalState = (notification) => {
+  const { type, id } = notification;
+
+  if (type === 'check_in') {
+    generatedRoomCheckIns.delete(id.replace('_checkin', ''));
+    generatedDayTourCheckIns.delete(id.replace('_checkin', ''));
+  }
+  if (type === 'check_out') {
+    generatedRoomCheckOuts.delete(id.replace('_checkout', ''));
+  }
+  if (type === 'guest_reservation_edit') {
+    generatedGuestEdits.delete(id);
+  }
+  if (type === 'guest_change_request') {
+    generatedGuestChangeRequests.delete(id);
+  }
+};
+
 export const deleteNotification = async (notificationId, type) => {
   try {
     const fullId = `${type}_${notificationId}`;
     const notificationRef = doc(db, 'notifications', fullId);
     await deleteDoc(notificationRef);
-    console.log(`Notification ${fullId} deleted successfully`);
     return true;
   } catch (error) {
     console.error('Error deleting notification:', error);
     return false;
   }
 };
+
+export const permanentlyDeleteNotification = async (notification) => {
+  if (!notification?.type || !notification?.id) return false;
+
+  try {
+    const userId = getCurrentUserId();
+    await markNotificationDismissed(notification.type, notification.id);
+    await deleteNotification(notification.id, notification.type);
+    removeNotificationFromInternalState(notification);
+
+    if (userId) {
+      const readStatusRef = doc(
+        db,
+        'notificationReadStatus',
+        `${userId}_${notification.type}_${notification.id}`
+      );
+      await deleteDoc(readStatusRef).catch(() => {});
+    }
+
+    return true;
+  } catch (error) {
+    console.error('Error permanently deleting notification:', error);
+    return false;
+  }
+};
+
+export const filterActiveNotifications = (notifications = []) =>
+  notifications.filter(
+    (notification) => !isNotificationDismissed(notification.type, notification.id)
+  );
 
 const getUserReadStatus = async (userId, notificationId, type) => {
   if (!userId) return false;
@@ -807,7 +888,15 @@ export const markAllNotificationsAsRead = async () => {
   if (!userId) return;
   
   try {
-    const notificationTypes = ['bank_transfer', 'bank_transfer_daytour', 'reservation_room', 'reservation_daytour', 'cancellation'];
+    const notificationTypes = [
+      'bank_transfer',
+      'bank_transfer_daytour',
+      'reservation_room',
+      'reservation_daytour',
+      'cancellation',
+      'guest_reservation_edit',
+      'guest_change_request',
+    ];
     
     for (const type of notificationTypes) {
       let collectionName = '';
@@ -816,6 +905,20 @@ export const markAllNotificationsAsRead = async () => {
       if (type === 'reservation_room') collectionName = 'bookings';
       if (type === 'reservation_daytour') collectionName = 'dayTourBookings';
       if (type === 'cancellation') collectionName = 'guest_cancellations';
+
+      if (type === 'guest_reservation_edit') {
+        for (const notification of generatedGuestEdits.values()) {
+          await setUserReadStatus(userId, notification.id, type, true);
+        }
+        continue;
+      }
+
+      if (type === 'guest_change_request') {
+        for (const notification of generatedGuestChangeRequests.values()) {
+          await setUserReadStatus(userId, notification.id, type, true);
+        }
+        continue;
+      }
       
       if (collectionName) {
         const ref = collection(db, collectionName);
@@ -853,6 +956,219 @@ export const markAllNotificationsAsRead = async () => {
   }
 };
 
+let guestBookingPreviousStates = new Map();
+let generatedGuestEdits = new Map();
+let generatedGuestChangeRequests = new Map();
+let guestBookingActivitySeeded = false;
+
+const toIsoTimestamp = (value) => {
+  if (!value) return new Date().toISOString();
+  if (typeof value?.toDate === 'function') return value.toDate().toISOString();
+  if (value?.seconds) return new Date(value.seconds * 1000).toISOString();
+  const parsed = new Date(value);
+  return Number.isNaN(parsed.getTime()) ? new Date().toISOString() : parsed.toISOString();
+};
+
+const getGuestFullName = (data) =>
+  `${data.guestInfo?.firstName || ''} ${data.guestInfo?.lastName || ''}`.trim() || 'Guest';
+
+const getGuestActivityGroupKey = (data, docId) => {
+  if (data.isMultiRoomBooking && data.parentBookingId) return data.parentBookingId;
+  return docId;
+};
+
+const getGuestActivityRoomTypeLabel = async (data, isDayTour) => {
+  if (isDayTour) return 'Day Tour';
+  if (data.isExclusiveResortBooking) return 'Entire Resort';
+  if (data.isMultiRoomBooking && data.parentBookingId) {
+    const distinctCount = await getCachedParentRoomTypeCount(data.parentBookingId);
+    return getRoomTypeLabel(false, distinctCount);
+  }
+  return 'Single Room Type';
+};
+
+const emitGuestActivityNotification = async (notification, onUpdate) => {
+  const userId = getCurrentUserId();
+  const isRead = await getUserReadStatus(userId, notification.id, notification.type);
+  const notificationWithRead = { ...notification, read: isRead };
+  await saveNotification(notificationWithRead);
+  onUpdate([notificationWithRead], notification.type);
+};
+
+const processGuestBookingActivityDoc = async (docSnap, isDayTour, onUpdate) => {
+  const data = docSnap.data();
+  const docId = docSnap.id;
+  const prev = guestBookingPreviousStates.get(docId);
+  const guestName = getGuestFullName(data);
+  const groupKey = getGuestActivityGroupKey(data, docId);
+  const bookingId = data.bookingId || groupKey;
+  const roomType = await getGuestActivityRoomTypeLabel(data, isDayTour);
+
+  if (guestBookingActivitySeeded && data.hasBeenEdited === true && !prev?.hasBeenEdited) {
+    const notificationId = `${groupKey}_guest_edit`;
+    if (!generatedGuestEdits.has(notificationId)) {
+      const notification = {
+        id: notificationId,
+        type: 'guest_reservation_edit',
+        action: 'Reservation Edited',
+        guestName,
+        bookingId,
+        roomType,
+        createdAt: toIsoTimestamp(data.updatedAt),
+        read: false,
+      };
+      generatedGuestEdits.set(notificationId, notification);
+      await emitGuestActivityNotification(notification, onUpdate);
+    }
+  }
+
+  if (
+    guestBookingActivitySeeded &&
+    data.changeRequest?.status === 'pending' &&
+    prev?.changeRequestStatus !== 'pending'
+  ) {
+    const notificationId = `${groupKey}_guest_change`;
+    if (!generatedGuestChangeRequests.has(notificationId)) {
+      const notification = {
+        id: notificationId,
+        type: 'guest_change_request',
+        action: 'Request Change Submitted',
+        guestName,
+        bookingId,
+        roomType,
+        createdAt: toIsoTimestamp(data.changeRequest?.submittedAt || data.updatedAt),
+        read: false,
+      };
+      generatedGuestChangeRequests.set(notificationId, notification);
+      await emitGuestActivityNotification(notification, onUpdate);
+    }
+  }
+
+  guestBookingPreviousStates.set(docId, {
+    hasBeenEdited: data.hasBeenEdited === true,
+    changeRequestStatus: data.changeRequest?.status || null,
+  });
+};
+
+const seedGuestBookingActivityStates = (snapshot) => {
+  snapshot.docs.forEach((docSnap) => {
+    const data = docSnap.data();
+    guestBookingPreviousStates.set(docSnap.id, {
+      hasBeenEdited: data.hasBeenEdited === true,
+      changeRequestStatus: data.changeRequest?.status || null,
+    });
+  });
+};
+
+const loadExistingGuestActivityNotifications = async (onUpdate) => {
+  const userId = getCurrentUserId();
+  if (!userId) return;
+
+  try {
+    const notificationsRef = collection(db, 'notifications');
+    const snapshot = await getDocs(notificationsRef);
+    const edits = [];
+    const changeRequests = [];
+
+    for (const docSnap of snapshot.docs) {
+      const notification = docSnap.data();
+      if (notification.type === 'guest_reservation_edit') {
+        const isRead = await getUserReadStatus(userId, notification.id, notification.type);
+        const withRead = { ...notification, read: isRead };
+        generatedGuestEdits.set(notification.id, withRead);
+        edits.push(withRead);
+      }
+      if (notification.type === 'guest_change_request') {
+        const isRead = await getUserReadStatus(userId, notification.id, notification.type);
+        const withRead = { ...notification, read: isRead };
+        generatedGuestChangeRequests.set(notification.id, withRead);
+        changeRequests.push(withRead);
+      }
+    }
+
+    if (edits.length > 0) onUpdate(edits, 'guest_reservation_edit');
+    if (changeRequests.length > 0) onUpdate(changeRequests, 'guest_change_request');
+  } catch (error) {
+    console.error('Error loading guest activity notifications:', error);
+  }
+};
+
+let guestActivityRoomSeeded = false;
+let guestActivityDayTourSeeded = false;
+let guestActivityUnsubscribers = null;
+
+const tryEnableGuestBookingActivityProcessing = () => {
+  if (guestActivityRoomSeeded && guestActivityDayTourSeeded) {
+    guestBookingActivitySeeded = true;
+  }
+};
+
+const setupGuestBookingActivityListener = (onUpdate) => {
+  if (guestActivityUnsubscribers) {
+    return guestActivityUnsubscribers;
+  }
+
+  loadExistingGuestActivityNotifications(onUpdate);
+
+  const bookingsRef = collection(db, 'bookings');
+  const dayTourRef = collection(db, 'dayTourBookings');
+  const roomQuery = query(bookingsRef, orderBy('createdAt', 'desc'));
+  const dayTourQuery = query(dayTourRef, orderBy('createdAt', 'desc'));
+
+  const handleRoomSnapshot = async (snapshot) => {
+    if (!guestBookingActivitySeeded) {
+      seedGuestBookingActivityStates(snapshot);
+      guestActivityRoomSeeded = true;
+      tryEnableGuestBookingActivityProcessing();
+      return;
+    }
+
+    for (const docSnap of snapshot.docs) {
+      if (docSnap.data().type !== 'room') continue;
+      await processGuestBookingActivityDoc(docSnap, false, onUpdate);
+    }
+  };
+
+  const handleDayTourSnapshot = async (snapshot) => {
+    if (!guestBookingActivitySeeded) {
+      seedGuestBookingActivityStates(snapshot);
+      guestActivityDayTourSeeded = true;
+      tryEnableGuestBookingActivityProcessing();
+      return;
+    }
+
+    for (const docSnap of snapshot.docs) {
+      await processGuestBookingActivityDoc(docSnap, true, onUpdate);
+    }
+  };
+
+  const unsubscribeRoom = onSnapshot(roomQuery, handleRoomSnapshot, (error) => {
+    console.error('Error fetching guest booking activity notifications (room):', error);
+  });
+
+  const unsubscribeDayTour = onSnapshot(dayTourQuery, handleDayTourSnapshot, (error) => {
+    console.error('Error fetching guest booking activity notifications (day tour):', error);
+  });
+
+  guestActivityUnsubscribers = () => {
+    unsubscribeRoom();
+    unsubscribeDayTour();
+    guestActivityUnsubscribers = null;
+    guestBookingActivitySeeded = false;
+    guestActivityRoomSeeded = false;
+    guestActivityDayTourSeeded = false;
+    guestBookingPreviousStates = new Map();
+  };
+
+  return guestActivityUnsubscribers;
+};
+
+export const setupGuestReservationEditsListener = (onUpdate) =>
+  setupGuestBookingActivityListener(onUpdate);
+
+export const setupGuestChangeRequestsListener = (onUpdate) =>
+  setupGuestBookingActivityListener(onUpdate);
+
 export const getAllNotifications = async () => {
   try {
     const notificationsRef = collection(db, 'notifications');
@@ -868,3 +1184,92 @@ export const getAllNotifications = async () => {
     return [];
   }
 };
+
+export function NotificationDeleteConfirmModal({
+  isOpen,
+  onConfirm,
+  onCancel,
+  isDeleting,
+}) {
+  if (!isOpen) return null;
+
+  return (
+    <div
+      className="fixed inset-0 z-[100] flex items-center justify-center p-4"
+      onClick={onCancel}
+    >
+      <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" />
+      <div
+        className="relative z-10 w-full max-w-sm overflow-hidden rounded-2xl bg-white shadow-2xl"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <div className="border-b border-[#4D8CF5]/10 bg-gradient-to-r from-[#4D8CF5]/5 to-white px-5 py-4">
+          <h3 className="text-base font-bold text-[#1E3A8A]">Delete Notification</h3>
+          <p className="mt-1 text-sm text-[#5C7AA6]">
+            Are you sure you want to delete this notification? This action cannot be undone.
+          </p>
+        </div>
+        <div className="flex items-center justify-end gap-2 px-5 py-4">
+          <button
+            type="button"
+            onClick={onCancel}
+            disabled={isDeleting}
+            className="rounded-xl border border-[#4D8CF5]/20 bg-white px-4 py-2 text-sm font-semibold text-[#1E3A8A] transition hover:bg-[#4D8CF5]/5 disabled:opacity-60"
+          >
+            Cancel
+          </button>
+          <button
+            type="button"
+            onClick={onConfirm}
+            disabled={isDeleting}
+            className="rounded-xl bg-red-600 px-4 py-2 text-sm font-semibold text-white transition hover:bg-red-700 disabled:opacity-60"
+          >
+            {isDeleting ? 'Deleting...' : 'Confirm'}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+export function NotificationDeleteButton({ notification, onDeleted }) {
+  const [confirmOpen, setConfirmOpen] = useState(false);
+  const [isDeleting, setIsDeleting] = useState(false);
+
+  const handleConfirm = async (event) => {
+    event.stopPropagation();
+    setIsDeleting(true);
+    const success = await permanentlyDeleteNotification(notification);
+    setIsDeleting(false);
+    setConfirmOpen(false);
+    if (success && onDeleted) {
+      onDeleted(notification);
+    }
+  };
+
+  return (
+    <>
+      <button
+        type="button"
+        aria-label="Delete notification"
+        onClick={(event) => {
+          event.stopPropagation();
+          setConfirmOpen(true);
+        }}
+        className="flex h-7 w-7 items-center justify-center rounded-lg border border-red-200/80 bg-red-50 text-red-500 transition hover:bg-red-100 hover:text-red-600"
+      >
+        <i className="fas fa-trash-alt text-[10px]" />
+      </button>
+
+      <NotificationDeleteConfirmModal
+        isOpen={confirmOpen}
+        onConfirm={handleConfirm}
+        onCancel={(event) => {
+          event?.stopPropagation?.();
+          if (!isDeleting) setConfirmOpen(false);
+        }}
+        isDeleting={isDeleting}
+      />
+    </>
+  );
+}

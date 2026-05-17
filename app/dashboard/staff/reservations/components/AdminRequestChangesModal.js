@@ -1,0 +1,115 @@
+// app/dashboard/admin/reservations/components/AdminRequestChangesModal.js
+'use client';
+
+export default function AdminRequestChangesModal({ isOpen, booking, onClose, onConfirm }) {
+  if (!isOpen || !booking) return null;
+
+  // Try to get change request from direct field
+  let request = booking.changeRequest;
+
+  // If not found and it's a multi‑room group, look in child bookings
+  if ((!request || request.status !== 'pending') && booking.originalChildBookings && booking.originalChildBookings.length > 0) {
+    for (const child of booking.originalChildBookings) {
+      if (child.changeRequest && child.changeRequest.status === 'pending') {
+        request = child.changeRequest;
+        break;
+      }
+    }
+  }
+  
+  // Also check for approved/rejected requests in child bookings
+  if (!request && booking.originalChildBookings && booking.originalChildBookings.length > 0) {
+    for (const child of booking.originalChildBookings) {
+      if (child.changeRequest && (child.changeRequest.status === 'approved' || child.changeRequest.status === 'rejected')) {
+        request = child.changeRequest;
+        break;
+      }
+    }
+  }
+
+  const requestText = request?.text || 'No request text found.';
+  const submittedAt = request?.submittedAt ? new Date(request.submittedAt).toLocaleString() : 'Unknown';
+  
+  // Check if request has already been processed
+  const isProcessed = request?.status === 'approved' || request?.status === 'rejected';
+  const processedStatus = request?.status === 'approved' ? 'Approved' : 'Rejected';
+  const adminNote = request?.adminNote || request?.adminReason;
+
+  // Title based on request status
+  let title = 'Guest Change Request';
+  if (isProcessed) {
+    title = `Change Request - ${processedStatus}`;
+  }
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+      <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" onClick={onClose} />
+      <div className="relative z-10 w-full max-w-md overflow-hidden rounded-2xl bg-white shadow-2xl animate-[fadeIn_0.2s_ease-out]">
+        <div className="border-b border-blue-100 bg-gradient-to-r from-blue-50 to-white px-6 py-5">
+          <div className="flex items-start gap-4">
+            <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-full bg-blue-100">
+              <i className="fas fa-exchange-alt text-blue-600" />
+            </div>
+            <div className="flex-1">
+              <h3 className="text-xl font-bold text-blue-900">{title}</h3>
+              <p className="mt-1 text-sm text-blue-600">
+                Booking ID: <span className="font-mono font-semibold">{booking.bookingId}</span>
+              </p>
+            </div>
+            <button
+              onClick={onClose}
+              className="rounded-full p-2 text-gray-400 transition-all hover:bg-gray-100 hover:text-gray-600"
+            >
+              <i className="fas fa-times" />
+            </button>
+          </div>
+        </div>
+
+        <div className="px-6 py-5 space-y-4">
+          <div className={`rounded-lg p-4 text-sm ${isProcessed ? 'bg-gray-50 text-gray-700' : 'bg-amber-50 text-amber-800'}`}>
+            <p className="font-semibold mb-2">Guest's requested changes:</p>
+            <p className="whitespace-pre-wrap">{requestText}</p>
+            <p className="text-xs mt-2 text-gray-500">
+              Submitted on: {submittedAt}
+            </p>
+          </div>
+          
+          {isProcessed && adminNote && (
+            <div className="rounded-lg bg-blue-50 p-4 text-sm text-blue-800">
+              <p className="font-semibold mb-2">Resort's response ({processedStatus}):</p>
+              <p className="whitespace-pre-wrap">{adminNote}</p>
+            </div>
+          )}
+        </div>
+
+        <div className="flex items-center justify-end gap-3 border-t border-gray-100 bg-gray-50 px-6 py-4">
+          <button
+            type="button"
+            onClick={onClose}
+            className="rounded-xl bg-gray-200 px-5 py-2.5 text-sm font-semibold text-gray-700 shadow-sm hover:bg-gray-300"
+          >
+            Close
+          </button>
+          {!isProcessed && (
+            <>
+              <button
+                type="button"
+                onClick={() => onConfirm('reject')}
+                className="rounded-xl bg-red-600 px-5 py-2.5 text-sm font-semibold text-white shadow-sm hover:bg-red-700"
+              >
+                Cancel Request
+              </button>
+              <button
+                type="button"
+                onClick={() => onConfirm('approve')}
+                className="rounded-xl bg-green-600 px-5 py-2.5 text-sm font-semibold text-white shadow-sm hover:bg-green-700"
+              >
+                Confirm Request Changes
+              </button>
+            </>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}

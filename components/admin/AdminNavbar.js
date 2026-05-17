@@ -12,9 +12,13 @@ import {
   setupRoomReservationsListener, 
   setupDayTourReservationsListener, 
   setupGuestCancellationsListener,
+  setupGuestReservationEditsListener,
   setupRoomStatusListener, 
   markNotificationAsRead,
-  markAllNotificationsAsRead
+  markAllNotificationsAsRead,
+  initializeDismissedNotifications,
+  filterActiveNotifications,
+  NotificationDeleteButton,
 } from './notificationService';
 
 export default function AdminNavbar({ toggleSidebar, sidebarOpen, isDesktop }) {
@@ -85,9 +89,11 @@ export default function AdminNavbar({ toggleSidebar, sidebarOpen, isDesktop }) {
       const filtered = prev.filter(n => n.type !== type);
 
       // Mark read status for status notifications
-      let itemsWithReadState = isStatusType
-        ? newItems.map(item => ({ ...item, read: statusReadMapRef.current[`${item.type}-${item.id}`] === true }))
-        : newItems;
+      let itemsWithReadState = filterActiveNotifications(
+        isStatusType
+          ? newItems.map(item => ({ ...item, read: statusReadMapRef.current[`${item.type}-${item.id}`] === true }))
+          : newItems
+      );
 
       // --- DEDUPLICATE based on type + id ---
       const uniqueMap = new Map();
@@ -103,13 +109,21 @@ export default function AdminNavbar({ toggleSidebar, sidebarOpen, isDesktop }) {
     });
   };
 
+  const handleNotificationDeleted = (notification) => {
+    setNotifications((prev) =>
+      prev.filter((item) => !(item.type === notification.type && item.id === notification.id))
+    );
+  };
+
   // Set up all notification listeners
   useEffect(() => {
+    initializeDismissedNotifications();
     const unsubscribeBank = setupBankRequestsListener(handleNotificationsUpdate);
     const unsubscribeDayTourBank = setupDayTourBankRequestsListener(handleNotificationsUpdate);
     const unsubscribeRoomReservations = setupRoomReservationsListener(handleNotificationsUpdate);
     const unsubscribeDayTourReservations = setupDayTourReservationsListener(handleNotificationsUpdate);
     const unsubscribeCancellations = setupGuestCancellationsListener(handleNotificationsUpdate);
+    const unsubscribeGuestActivity = setupGuestReservationEditsListener(handleNotificationsUpdate);
     const unsubscribeRoomStatus = setupRoomStatusListener(handleNotificationsUpdate);
 
     return () => {
@@ -118,6 +132,7 @@ export default function AdminNavbar({ toggleSidebar, sidebarOpen, isDesktop }) {
       unsubscribeRoomReservations();
       unsubscribeDayTourReservations();
       unsubscribeCancellations();
+      unsubscribeGuestActivity();
       unsubscribeRoomStatus();
     };
   }, []);
@@ -198,6 +213,10 @@ export default function AdminNavbar({ toggleSidebar, sidebarOpen, isDesktop }) {
         return { icon: 'fas fa-sign-in-alt', bgColor: 'bg-gradient-to-br from-green-50 to-green-100', iconColor: 'text-green-600', borderColor: 'border-green-200' };
       case 'check_out':
         return { icon: 'fas fa-sign-out-alt', bgColor: 'bg-gradient-to-br from-purple-50 to-purple-100', iconColor: 'text-purple-600', borderColor: 'border-purple-200' };
+      case 'guest_reservation_edit':
+        return { icon: 'fas fa-pen-to-square', bgColor: 'bg-gradient-to-br from-indigo-50 to-indigo-100', iconColor: 'text-indigo-600', borderColor: 'border-indigo-200' };
+      case 'guest_change_request':
+        return { icon: 'fas fa-exchange-alt', bgColor: 'bg-gradient-to-br from-teal-50 to-teal-100', iconColor: 'text-teal-600', borderColor: 'border-teal-200' };
       default:
         return { icon: 'fas fa-bell', bgColor: 'bg-gradient-to-br from-gray-50 to-gray-100', iconColor: 'text-gray-600', borderColor: 'border-gray-200' };
     }
@@ -367,6 +386,36 @@ export default function AdminNavbar({ toggleSidebar, sidebarOpen, isDesktop }) {
       <span className="text-[11px] font-medium text-blue-700">Check-in: {notification.eventDate}</span>
     </div>
   </>
+) : notification.type === 'guest_reservation_edit' ? (
+  <>
+    <p className="text-sm font-bold text-gray-800 mb-1">{notification.action || 'Reservation Edited'}</p>
+    <p className="text-xs text-gray-600 mb-1">
+      <span className="font-semibold">{notification.guestName}</span>
+    </p>
+    <p className="text-xs text-gray-600 mb-1">
+      <span className="font-semibold">Booking ID:</span>{' '}
+      <span className="font-mono">{notification.bookingId}</span>
+    </p>
+    <div className="inline-flex items-center gap-1.5 mt-1 px-2 py-0.5 bg-indigo-50 rounded-full">
+      <i className="fas fa-bed text-indigo-500 text-[10px]" />
+      <span className="text-[11px] font-medium text-indigo-700">{notification.roomType}</span>
+    </div>
+  </>
+) : notification.type === 'guest_change_request' ? (
+  <>
+    <p className="text-sm font-bold text-gray-800 mb-1">{notification.action || 'Request Change Submitted'}</p>
+    <p className="text-xs text-gray-600 mb-1">
+      <span className="font-semibold">{notification.guestName}</span>
+    </p>
+    <p className="text-xs text-gray-600 mb-1">
+      <span className="font-semibold">Booking ID:</span>{' '}
+      <span className="font-mono">{notification.bookingId}</span>
+    </p>
+    <div className="inline-flex items-center gap-1.5 mt-1 px-2 py-0.5 bg-teal-50 rounded-full">
+      <i className="fas fa-exchange-alt text-teal-500 text-[10px]" />
+      <span className="text-[11px] font-medium text-teal-700">{notification.roomType}</span>
+    </div>
+  </>
 ) : notification.type === 'check_out' ? (
   <>
     <p className="text-sm font-bold text-gray-800 mb-1">
@@ -410,9 +459,15 @@ export default function AdminNavbar({ toggleSidebar, sidebarOpen, isDesktop }) {
                             </div>
                             
                             {/* Unread indicator */}
-                            {!notification.read && (
-                              <div className="w-2 h-2 rounded-full bg-[#4D8CF5] flex-shrink-0 mt-2"></div>
-                            )}
+                            <div className="flex flex-col items-end gap-2 shrink-0">
+                              <NotificationDeleteButton
+                                notification={notification}
+                                onDeleted={handleNotificationDeleted}
+                              />
+                              {!notification.read && (
+                                <div className="w-2 h-2 rounded-full bg-[#4D8CF5] flex-shrink-0" />
+                              )}
+                            </div>
                           </div>
                         </div>
                       );

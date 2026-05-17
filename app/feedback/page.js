@@ -9,7 +9,8 @@ import GuestLayout from '../guest/layout';
 import { db } from '@/lib/firebase';
 import { useGuestAuth } from '@/components/guest/GuestAuthContext';
 import GuestAuthModal from '@/components/guest/GuestAuthModal';
-import SignOutConfirmationModal from '@/components/SignOutConfirmationModal'; // Add this import
+import SignOutConfirmationModal from '@/components/SignOutConfirmationModal';
+import IdRequestNotifications from '@/components/guest/IdRequestNotifications';
 import {
   fetchUserBookings,
   getTypeDisplay,
@@ -351,6 +352,8 @@ export default function FeedbackPage() {
                   </Link>
                 </div>
               </div>
+
+              <IdRequestNotifications />
             </aside>
 
             {/* Main Content Area (existing feedback UI) */}

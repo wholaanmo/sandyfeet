@@ -11,6 +11,7 @@ import { collection, query, where, onSnapshot } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 import BookingCard from './BookingCard';
 import SignOutConfirmationModal from '@/components/SignOutConfirmationModal';
+import IdRequestNotifications from '@/components/guest/IdRequestNotifications';
 import {
   normalizeBooking,
   buildMultiRoomGroup,
@@ -304,6 +305,8 @@ export default function MyBookingsPage() {
                   </Link>
                 </div>
               </div>
+
+              <IdRequestNotifications />
             </aside>
 
             {/* ─── Main Content ─── */}

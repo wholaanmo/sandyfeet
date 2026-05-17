@@ -6,15 +6,18 @@ import { db } from '../../../../lib/firebase';
 import { collection, query, orderBy, onSnapshot, updateDoc, doc, getDoc, getDocs, where } from 'firebase/firestore';
 import { logAdminAction } from '../../../../lib/auditLogger';
 import { sendConfirmationEmail, sendCancellationEmail } from '../../../../lib/emailService';
-import { useSearchParams } from 'next/navigation';
+import { useRouter, useSearchParams } from 'next/navigation';
+import { ADMIN_RESERVATIONS_RESTORE_KEY } from './guest-profile/page';
 import AdminRequestChangesModal from './components/AdminRequestChangesModal';
 import AdminActionReasonModal from './components/AdminActionReasonModal';
 import AdminEditBookingModal, { canAdminEditBooking } from './components/AdminEditBookingModal';
 import AdminEditDayTourModal, { canAdminEditDayTour } from './components/AdminEditDayTourModal';
 
 export default function AdminReservations() {
-    const searchParams = useSearchParams(); // <-- ADDED
-  const checkinToken = searchParams.get('checkinToken'); 
+  const router = useRouter();
+  const searchParams = useSearchParams(); // <-- ADDED
+  const checkinToken = searchParams.get('checkinToken');
+  const restoreGuestProfile = searchParams.get('restoreGuestProfile'); 
   const [activeTab, setActiveTab] = useState('rooms');
   const [statusFilter, setStatusFilter] = useState('all');
   const [bookings, setBookings] = useState([]);
@@ -1211,6 +1214,7 @@ if (now > dayEnd) {
       const bookingRef = doc(db, 'dayTourBookings', booking.id);
       await updateDoc(bookingRef, {
         status: 'confirmed',
+        confirmationNote: confirmModal.note?.trim() || null,
         updatedAt: new Date().toISOString()
       });
 
@@ -1312,6 +1316,7 @@ if (now > dayEnd) {
           const bookingRef = doc(db, 'bookings', childBooking.id);
           await updateDoc(bookingRef, {
             status: 'confirmed',
+            confirmationNote: confirmModal.note?.trim() || null,
             updatedAt: new Date().toISOString()
           });
         }
@@ -1319,6 +1324,7 @@ if (now > dayEnd) {
         const bookingRef = doc(db, 'bookings', booking.id);
         await updateDoc(bookingRef, {
           status: 'confirmed',
+          confirmationNote: confirmModal.note?.trim() || null,
           updatedAt: new Date().toISOString()
         });
       }
@@ -1589,6 +1595,46 @@ const isNotificationDisabled = (booking) => {
     setIsSidebarOpen(false);
     setSidebarBooking(null);
   };
+
+  const handleViewGuestProfile = () => {
+    if (!sidebarBooking?.guestInfo) return;
+
+    sessionStorage.setItem(
+      ADMIN_RESERVATIONS_RESTORE_KEY,
+      JSON.stringify({
+        activeTab,
+        sidebarBooking,
+      })
+    );
+
+    const email = encodeURIComponent(sidebarBooking.guestInfo.email || '');
+    const guestUid = sidebarBooking.guestUid || '';
+    const uidQuery = guestUid ? `&guestUid=${encodeURIComponent(guestUid)}` : '';
+    router.push(`/dashboard/admin/reservations/guest-profile?email=${email}${uidQuery}`);
+  };
+
+  useEffect(() => {
+    if (restoreGuestProfile !== '1' || loading) return;
+
+    try {
+      const raw = sessionStorage.getItem(ADMIN_RESERVATIONS_RESTORE_KEY);
+      if (!raw) return;
+
+      const restore = JSON.parse(raw);
+      sessionStorage.removeItem(ADMIN_RESERVATIONS_RESTORE_KEY);
+
+      if (restore.activeTab) {
+        setActiveTab(restore.activeTab);
+      }
+      if (restore.sidebarBooking) {
+        setSidebarBooking(restore.sidebarBooking);
+        setIsSidebarOpen(true);
+        setShowPaymentModal(false);
+      }
+    } catch (error) {
+      console.error('Error restoring booking details modal:', error);
+    }
+  }, [restoreGuestProfile, loading]);
 
   return (
     <div className="px-4 sm:px-9 py-1 min-h-screen" style={{ backgroundColor: 'var(--color-blue-whites)' }}>
@@ -1863,7 +1909,6 @@ const isNotificationDisabled = (booking) => {
                       <th className="px-4 py-3 text-left text-sm font-semibold text-textPrimary">Booking ID</th>
                       <th className="px-4 py-3 text-left text-sm font-semibold text-textPrimary">Guest Name</th>
                       <th className="px-4 py-3 text-left text-sm font-semibold text-textPrimary">Date</th>
-                      <th className="px-4 py-3 text-left text-sm font-semibold text-textPrimary">Senior</th>
                       <th className="px-4 py-3 text-left text-sm font-semibold text-textPrimary">Adult</th>
                       <th className="px-4 py-3 text-left text-sm font-semibold text-textPrimary">Kid</th>
                       <th className="px-4 py-3 text-left text-sm font-semibold text-textPrimary min-w-[80px]">Status</th>
@@ -1998,10 +2043,20 @@ const isNotificationDisabled = (booking) => {
             <div className="flex-1 overflow-y-auto p-5 space-y-4">
               {/* Guest Information */}
               <div className="bg-white/70 backdrop-blur-md border border-[#4D8CF5]/10 rounded-xl p-4 shadow-sm">
-                <h3 className="text-xs font-semibold text-[#1E3A8A] uppercase tracking-wide mb-3 flex items-center gap-2 border-b border-[#4D8CF5]/10 pb-2">
-                  <i className="fas fa-user text-[#4D8CF5]"></i>
-                  Guest Information
-                </h3>
+                <div className="mb-3 flex items-center justify-between gap-2 border-b border-[#4D8CF5]/10 pb-2">
+                  <h3 className="text-xs font-semibold text-[#1E3A8A] uppercase tracking-wide flex items-center gap-2">
+                    <i className="fas fa-user text-[#4D8CF5]"></i>
+                    Guest Information
+                  </h3>
+                  <button
+                    type="button"
+                    onClick={handleViewGuestProfile}
+                    className="inline-flex items-center gap-1.5 rounded-lg border border-[#4D8CF5]/25 bg-white px-2.5 py-1 text-[10px] font-semibold text-[#4D8CF5] transition hover:bg-[#4D8CF5]/10"
+                  >
+                    <i className="fas fa-eye text-[9px]" />
+                    View
+                  </button>
+                </div>
                 <p className="text-sm font-medium text-[#1E3A8A]">
                   {sidebarBooking.guestInfo?.firstName} {sidebarBooking.guestInfo?.lastName}
                 </p>
@@ -2141,7 +2196,7 @@ const isNotificationDisabled = (booking) => {
                     </p>
                     <p className="text-sm mt-1">
                       <span className="text-[#1E3A8A]/70">Guest Breakdown:</span>{' '}
-                      <span className="font-medium text-[#1E3A8A]"> Senior: {sidebarBooking.seniors || 0} | Adult: {sidebarBooking.adults || 0} | Kid: {sidebarBooking.kids || 0} </span>
+                      <span className="font-medium text-[#1E3A8A]"> Adult: {sidebarBooking.adults || 0} | Kid: {sidebarBooking.kids || 0} </span>
                     </p>
                     <p className="text-sm mt-1">
                       <span className="text-[#1E3A8A]/70">Total Guests:</span>{' '}
@@ -2669,7 +2724,7 @@ if (activeTab === 'daytour' && sidebarBooking.downPayment !== undefined) {
                     <p className="text-sm mt-1">
                       <span className="text-textSecondary">Guest Breakdown:</span>{' '}
                       <span className="font-medium text-textPrimary">
-                        Senior: {selectedBooking.seniors || 0} | Adult: {selectedBooking.adults || 0} | Kid: {selectedBooking.kids || 0}
+                         Adult: {selectedBooking.adults || 0} | Kid: {selectedBooking.kids || 0}
                       </span>
                     </p>
                     <p className="text-sm mt-1">
