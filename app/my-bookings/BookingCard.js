@@ -1,19 +1,40 @@
 // app/my-bookings/BookingCard.js
 'use client';
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
+import { doc, onSnapshot } from 'firebase/firestore';
+import { db } from '@/lib/firebase';
 import EditReservationModal from './EditReservationModal';
 import DayTourEditReservationModal from './DayTourEditReservationModal';
+import RequestChangesModal from './RequestChangesModal';
+import DayTourRequestChangesModal from './DayTourRequestChangesModal';
 import {
   formatDateOnly, formatDateTime, formatAddress, calcNights,
   getStatusBadge, getTypeDisplay, getBookingTitle, getGuestTotal,
   getDownPayment, getBalance, getRoomTypes, canCancel,
 } from './utils';
 
+// Constant for Entire Resort base price (matches multi-room-booking/page.js)
+const BASE_EXCLUSIVE_PRICE = 22500;
+
+const pickChangeRequest = (requests) => {
+  const list = requests.filter(Boolean);
+  if (!list.length) return null;
+  const processed = list.find(
+    (r) => (r.status === 'approved' || r.status === 'rejected') && (r.adminNote || r.adminReason)
+  );
+  if (processed) return processed;
+  const pending = list.find((r) => r.status === 'pending');
+  if (pending) return pending;
+  return list[0];
+};
 
 export default function BookingCard({ booking, onCancel, onEditSuccess }) {
   const [expanded, setExpanded] = useState(false);
+  const [changeRequest, setChangeRequest] = useState(null);
   const [showEditModal, setShowEditModal] = useState(false);
-    const [showDayTourEditModal, setShowDayTourEditModal] = useState(false); // for day tour
+  const [showDayTourEditModal, setShowDayTourEditModal] = useState(false);
+  const [showRequestModal, setShowRequestModal] = useState(false);
+  const [showDayTourRequestModal, setShowDayTourRequestModal] = useState(false);
   const typeInfo = getTypeDisplay(booking);
   const statusInfo = getStatusBadge(booking.status, booking.cancelledBy);
   const guestTotal = getGuestTotal(booking);
@@ -28,11 +49,57 @@ export default function BookingCard({ booking, onCancel, onEditSuccess }) {
   const isRoomBooking = booking.type === 'room';
   const isDayTour = booking.type === 'daytour';
 
+  // For Entire Resort bookings, recompute totals using the same formula as multi-room-booking
+  let exclusiveTotalPrice = null;
+  let exclusiveDownPayment = null;
+  let exclusiveRemainingBalance = null;
+  if (booking.isExclusiveResortBooking && nights > 0) {
+    const tentCount = booking.tentCount || 0;
+    const nightlyTotal = BASE_EXCLUSIVE_PRICE + (tentCount * 1500);
+    exclusiveTotalPrice = nightlyTotal * nights;
+    exclusiveDownPayment = exclusiveTotalPrice * 0.5;
+    exclusiveRemainingBalance = exclusiveTotalPrice - exclusiveDownPayment;
+  }
+
   const handleEditSuccess = () => {
     if (onEditSuccess) {
       onEditSuccess();
     }
   };
+
+  useEffect(() => {
+    const docIds = booking.children?.length > 0
+      ? booking.children.map((c) => c.id).filter(Boolean)
+      : booking.id ? [booking.id] : [];
+
+    if (!docIds.length) {
+      setChangeRequest(null);
+      return;
+    }
+
+    const requestsByDoc = {};
+    const unsubs = docIds.map((id) =>
+      onSnapshot(
+        doc(db, 'bookings', id),
+        (snap) => {
+          requestsByDoc[id] = snap.exists() ? snap.data()?.changeRequest : null;
+          setChangeRequest(pickChangeRequest(Object.values(requestsByDoc)));
+        },
+        (err) => {
+          console.error('Error syncing change request:', err);
+          setChangeRequest(null);
+        }
+      )
+    );
+
+    return () => unsubs.forEach((u) => u());
+  }, [booking.id, booking.children]);
+
+  const resortResponseNote = changeRequest?.adminNote || changeRequest?.adminReason;
+  const isProcessedChangeRequest =
+    changeRequest &&
+    (changeRequest.status === 'approved' || changeRequest.status === 'rejected') &&
+    resortResponseNote;
 
   return (
     <>
@@ -43,13 +110,12 @@ export default function BookingCard({ booking, onCancel, onEditSuccess }) {
             : 'border-slate-200 shadow-sm hover:shadow-md hover:border-blue-200'
         }`}
       >
-        {/* ── Card Header (Clickable) ── */}
+        {/* Card Header (unchanged) */}
         <div 
           onClick={() => setExpanded(!expanded)}
           className="relative cursor-pointer select-none p-5 sm:p-6 transition-colors hover:bg-slate-50/40"
         >
           <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
-            {/* Left: Type, Status, Title */}
             <div className="min-w-0 space-y-2">
               <div className="flex flex-wrap items-center gap-2">
                 <span className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-0.5 text-[11px] font-semibold uppercase tracking-wide shadow-sm ${typeInfo.color}`}>
@@ -65,7 +131,6 @@ export default function BookingCard({ booking, onCancel, onEditSuccess }) {
               <p className="font-mono text-xs text-slate-400">ID: {booking.bookingId}</p>
             </div>
 
-            {/* Right: Date + Price */}
             <div className="flex shrink-0 flex-col items-start gap-1 sm:items-end">
               <div className="flex items-baseline gap-2">
                 <p className="text-sm font-semibold text-slate-700">{primaryDate}</p>
@@ -73,11 +138,12 @@ export default function BookingCard({ booking, onCancel, onEditSuccess }) {
                   <span className="text-xs text-slate-400">→ {formatDateOnly(booking.checkOut)}</span>
                 )}
               </div>
-              <p className="mt-1 text-2xl font-bold text-slate-800">₱{booking.totalPrice.toLocaleString()}</p>
+              <p className="mt-1 text-2xl font-bold text-slate-800">
+                ₱{(exclusiveTotalPrice !== null ? exclusiveTotalPrice : booking.totalPrice).toLocaleString()}
+              </p>
             </div>
           </div>
 
-          {/* Quick Stats Row */}
           <div className="mt-5 flex flex-wrap items-center gap-x-5 gap-y-2 border-t border-slate-100 pt-4 text-sm">
             <div className="flex items-center gap-2 text-slate-500">
               <i className="fas fa-users text-slate-400 w-4" />
@@ -90,11 +156,10 @@ export default function BookingCard({ booking, onCancel, onEditSuccess }) {
             {balance > 0 && (
               <div className="flex items-center gap-2 text-slate-500">
                 <i className="fas fa-wallet text-slate-400 w-4" />
-                <span>Balance ₱{balance.toLocaleString()}</span>
+                <span>Balance ₱{(exclusiveRemainingBalance !== null ? exclusiveRemainingBalance : balance).toLocaleString()}</span>
               </div>
             )}
 
-            {/* Expand Toggle Visual */}
             <div className="ml-auto flex items-center gap-1.5 rounded-full bg-slate-100 px-3 py-1.5 text-xs font-medium text-slate-600 transition-colors group-hover:bg-slate-200">
               <span>{expanded ? 'Less info' : 'More info'}</span>
               <i className={`fas fa-chevron-down text-[10px] transition-transform duration-200 ${expanded ? 'rotate-180' : ''}`} />
@@ -102,12 +167,11 @@ export default function BookingCard({ booking, onCancel, onEditSuccess }) {
           </div>
         </div>
 
-        {/* ── Expanded Detail ── */}
+        {/* Expanded Detail */}
         {expanded && (
           <div className="border-t border-slate-100 bg-gradient-to-b from-slate-50 to-white px-5 py-5 sm:px-6 animate-in fade-in duration-200">
             <div className="grid gap-5 md:grid-cols-2">
-
-              {/* Guest Information */}
+              {/* Guest Information (unchanged) */}
               <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
                 <h4 className="flex items-center gap-2 text-xs font-semibold uppercase tracking-wider text-slate-500">
                   <span className="flex h-6 w-6 items-center justify-center rounded-full bg-blue-100 text-blue-600">
@@ -125,20 +189,19 @@ export default function BookingCard({ booking, onCancel, onEditSuccess }) {
                 </div>
               </div>
 
-              {/* Schedule */}
+              {/* Schedule (unchanged) */}
               <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
                 <h4 className="flex items-center gap-2 text-xs font-semibold uppercase tracking-wider text-slate-500">
                   <span className="flex h-6 w-6 items-center justify-center rounded-full bg-emerald-100 text-emerald-600">
                     <i className="fas fa-calendar-alt text-xs" />
                   </span>
-                  {booking.type === 'daytour' ? 'Tour Schedule' : 'Stay Schedule'}
+                  {booking.type === 'daytour' ? 'Daytour Schedule' : 'Stay Schedule'}
                 </h4>
                 <div className="mt-3 space-y-1.5 text-sm">
                   {booking.type === 'daytour' ? (
                     <>
                       <p className="font-semibold text-slate-800">{formatDateOnly(booking.selectedDate)}</p>
                       <div className="flex flex-wrap gap-3 text-xs text-slate-500">
-                        <span>{booking.seniors || 0} senior(s)</span>
                         <span>{booking.adults || 0} adult(s)</span>
                         <span>{booking.kids || 0} kid(s)</span>
                       </div>
@@ -159,75 +222,79 @@ export default function BookingCard({ booking, onCancel, onEditSuccess }) {
                 </div>
               </div>
 
-              {/* Room Details (room bookings only) */}
-            {booking.type === 'room' && (
-  <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
-    <h4 className="flex items-center gap-2 text-xs font-semibold uppercase tracking-wider text-slate-500">
-      <span className="flex h-6 w-6 items-center justify-center rounded-full bg-amber-100 text-amber-600">
-        <i className="fas fa-bed text-xs" />
-      </span>
-      Room Details
-    </h4>
-    <div className="mt-3 space-y-2 text-sm">
-      {booking.isExclusiveResortBooking ? (
-        <>
-          <p className="font-semibold text-slate-800">Entire Resort Package</p>
-          {booking.tentCount > 0 && <p className="text-xs text-slate-500">+ {booking.tentCount} tent(s)</p>}
-          <div className="mt-2 space-y-1 text-slate-600">
-            <div className="flex justify-between"><span>Adults</span><span className="font-medium">{booking.exclusiveAdults || 0}</span></div>
-            <div className="flex justify-between"><span>Kids</span><span className="font-medium">{booking.exclusiveKids || 0}</span></div>
-          </div>
-        </>
-      ) : booking.children && booking.children.length > 0 ? (
-        <>
-          {roomTypes.map((r, i) => (
-            <div key={i} className="flex justify-between border-b border-slate-100 pb-1.5 last:border-0">
-              <span className="font-medium text-slate-700">{r.quantity} × {r.type}</span>
-            </div>
-          ))}
-          <div className="mt-2 border-t border-slate-100 pt-2">
-            <p className="text-xs font-semibold uppercase text-slate-400">Guest Breakdown</p>
-            {booking.children.map((child, i) => (
-              <div key={i} className="mt-1.5 text-xs text-slate-600">
-                <span className="font-medium text-slate-700">{child.roomType}:</span>{' '}
-                {child.adults || 0} adult(s), {child.kids || 0} kid(s)
-              </div>
-            ))}
-            <div className="mt-2 flex justify-between text-sm font-semibold text-slate-800">
-              <span>Total Guests</span><span>{booking.totalGuests || guestTotal}</span>
-            </div>
-          </div>
-        </>
-      ) : (
-        // Single Room Type - FIXED: Use roomTypes array to get correct quantity
-        <>
-          {roomTypes.length > 0 ? (
-            roomTypes.map((room, idx) => (
-              <div key={idx}>
-                <p className="font-semibold text-slate-800">
-                  {room.quantity} × {room.type}
-                </p>
-                <p className="text-xs text-slate-500">{room.quantity} room(s)</p>
-              </div>
-            ))
-          ) : (
-            <>
-              <p className="font-semibold text-slate-800">{booking.roomType || 'Room'}</p>
-              <p className="text-xs text-slate-500">{booking.numberOfRooms || 1} room(s)</p>
-            </>
-          )}
-          <div className="mt-2 space-y-1 text-slate-600">
-            <div className="flex justify-between"><span>Adults</span><span className="font-medium">{booking.adults || 1}</span></div>
-            <div className="flex justify-between"><span>Kids</span><span className="font-medium">{booking.kids || 0}</span></div>
-            <div className="flex justify-between font-semibold text-slate-800"><span>Total</span><span>{booking.guests || 1}</span></div>
-          </div>
-        </>
-      )}
+              {/* Room Details (unchanged) */}
+              {booking.type === 'room' && (
+                <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
+                  <h4 className="flex items-center gap-2 text-xs font-semibold uppercase tracking-wider text-slate-500">
+                    <span className="flex h-6 w-6 items-center justify-center rounded-full bg-amber-100 text-amber-600">
+                      <i className="fas fa-bed text-xs" />
+                    </span>
+                    Room Details
+                  </h4>
+                  <div className="mt-3 space-y-2 text-sm">
+                    {booking.isExclusiveResortBooking ? (
+                      <>
+                        <p className="font-semibold text-slate-800">Entire Resort Package</p>
+                        {booking.tentCount > 0 && <p className="text-xs text-slate-500">+ {booking.tentCount} tent(s)</p>}
+                        <div className="mt-2 space-y-1 text-slate-600">
+                          <div className="flex justify-between"><span>Adults</span><span className="font-medium">{booking.exclusiveAdults || 0}</span></div>
+                          <div className="flex justify-between"><span>Kids</span><span className="font-medium">{booking.exclusiveKids || 0}</span></div>
+                        </div>
+                            <div className="mt-2 pt-2 border-t border-slate-100 flex justify-between font-semibold text-slate-800">
+      <span>Total Guests</span>
+      <span>{(booking.exclusiveAdults || 0) + (booking.exclusiveKids || 0)}</span>
     </div>
-  </div>
-)}
+                      </>
+                    ) : booking.children && booking.children.length > 0 ? (
+                      <>
+                        {roomTypes.map((r, i) => (
+                          <div key={i} className="flex justify-between border-b border-slate-100 pb-1.5 last:border-0">
+                            <span className="font-medium text-slate-700">{r.quantity} × {r.type}</span>
+                          </div>
+                        ))}
+                        <div className="mt-2 border-t border-slate-100 pt-2">
+                          <p className="text-xs font-semibold uppercase text-slate-400">Guest Breakdown</p>
+                          {booking.children.map((child, i) => (
+                            <div key={i} className="mt-1.5 text-xs text-slate-600">
+                              <span className="font-medium text-slate-700">{child.roomType}:</span>{' '}
+                              {child.adults || 0} adult(s), {child.kids || 0} kid(s)
+                            </div>
+                          ))}
+                          <div className="mt-2 flex justify-between text-sm font-semibold text-slate-800">
+                            <span>Total Guests</span><span>{booking.totalGuests || guestTotal}</span>
+                          </div>
+                        </div>
+                      </>
+                    ) : (
+                      // Single Room Type
+                      <>
+                        {roomTypes.length > 0 ? (
+                          roomTypes.map((room, idx) => (
+                            <div key={idx}>
+                              <p className="font-semibold text-slate-800">
+                                {room.quantity} × {room.type}
+                              </p>
+                              <p className="text-xs text-slate-500">{room.quantity} room(s)</p>
+                            </div>
+                          ))
+                        ) : (
+                          <>
+                            <p className="font-semibold text-slate-800">{booking.roomType || 'Room'}</p>
+                            <p className="text-xs text-slate-500">{booking.numberOfRooms || 1} room(s)</p>
+                          </>
+                        )}
+                        <div className="mt-2 space-y-1 text-slate-600">
+                          <div className="flex justify-between"><span>Adults</span><span className="font-medium">{booking.adults || 1}</span></div>
+                          <div className="flex justify-between"><span>Kids</span><span className="font-medium">{booking.kids || 0}</span></div>
+                          <div className="flex justify-between font-semibold text-slate-800"><span>Total Guests</span><span>{booking.guests || 1}</span></div>
+                        </div>
+                      </>
+                    )}
+                  </div>
+                </div>
+              )}
 
-              {/* Payment Summary */}
+              {/* Payment Summary - UPDATED for Entire Resort */}
               <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
                 <h4 className="flex items-center gap-2 text-xs font-semibold uppercase tracking-wider text-slate-500">
                   <span className="flex h-6 w-6 items-center justify-center rounded-full bg-slate-100 text-slate-600">
@@ -236,25 +303,63 @@ export default function BookingCard({ booking, onCancel, onEditSuccess }) {
                   Payment Summary
                 </h4>
                 <div className="mt-3 space-y-2 text-sm">
-                  <div className="flex justify-between text-slate-600">
-                    <span>Total Price</span>
-                    <span className="font-bold text-slate-800">₱{booking.totalPrice.toLocaleString()}</span>
-                  </div>
-                  <div className="flex justify-between text-slate-600">
-                    <span>Down Payment (50%)</span>
-                    <span className="font-semibold text-emerald-600">₱{dp.toLocaleString()}</span>
-                  </div>
-                  <div className="flex justify-between border-t border-slate-100 pt-2 text-slate-600">
-                    <span>Remaining Balance</span>
-                    <span className="font-bold text-slate-800">₱{balance.toLocaleString()}</span>
-                  </div>
-                  {booking.paymentMethod && (
-                    <p className="text-xs text-slate-500">Via {booking.paymentMethod}</p>
+                  {booking.isExclusiveResortBooking && exclusiveTotalPrice !== null ? (
+                    // Entire Resort: use recomputed values that match multi-room-booking
+                    <>
+                      <div className="flex justify-between">
+                        <span className="text-slate-600">Base Rate (per night)</span>
+                        <span className="font-semibold text-slate-800">₱{BASE_EXCLUSIVE_PRICE.toLocaleString()}</span>
+                      </div>
+                      {booking.tentCount > 0 && (
+                        <div className="flex justify-between">
+                          <span className="text-slate-600">Tent Charge (₱1,500/tent/night)</span>
+                          <span className="font-semibold text-slate-800">₱{(booking.tentCount * 1500).toLocaleString()}</span>
+                        </div>
+                      )}
+                      <div className="flex justify-between">
+                        <span className="text-slate-600">Nights</span>
+                        <span className="font-semibold text-slate-800">{nights}</span>
+                      </div>
+                      <div className="flex justify-between pt-2 border-t border-slate-100">
+                        <span className="text-slate-600">Total Price</span>
+                        <span className="font-bold text-slate-800">₱{exclusiveTotalPrice.toLocaleString()}</span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span className="text-slate-600">Down Payment (50%)</span>
+                        <span className="font-semibold text-emerald-600">₱{exclusiveDownPayment.toLocaleString()}</span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span className="text-slate-600">Remaining Balance</span>
+                        <span className="font-bold text-slate-800">₱{exclusiveRemainingBalance.toLocaleString()}</span>
+                      </div>
+                      {booking.paymentMethod && (
+                        <p className="text-xs text-slate-500">Via {booking.paymentMethod}</p>
+                      )}
+                    </>
+                  ) : (
+                    // Regular room or day tour: use stored values and helper functions
+                    <>
+                      <div className="flex justify-between text-slate-600">
+                        <span>Total Price</span>
+                        <span className="font-bold text-slate-800">₱{booking.totalPrice.toLocaleString()}</span>
+                      </div>
+                      <div className="flex justify-between text-slate-600">
+                        <span>Down Payment (50%)</span>
+                        <span className="font-semibold text-emerald-600">₱{dp.toLocaleString()}</span>
+                      </div>
+                      <div className="flex justify-between border-t border-slate-100 pt-2 text-slate-600">
+                        <span>Remaining Balance</span>
+                        <span className="font-bold text-slate-800">₱{balance.toLocaleString()}</span>
+                      </div>
+                      {booking.paymentMethod && (
+                        <p className="text-xs text-slate-500">Via {booking.paymentMethod}</p>
+                      )}
+                    </>
                   )}
                 </div>
               </div>
 
-              {/* Notes / Cancellation Info */}
+              {/* Notes (unchanged) */}
               {(booking.adminNote || booking.cancellationReason) && (
                 <div className="rounded-xl border border-slate-200 bg-white p-4 md:col-span-2 shadow-sm">
                   <h4 className="flex items-center gap-2 text-xs font-semibold uppercase tracking-wider text-slate-500">
@@ -283,13 +388,42 @@ export default function BookingCard({ booking, onCancel, onEditSuccess }) {
               )}
             </div>
 
-            {/* Action Buttons */}
+            {isProcessedChangeRequest && (
+              <div className="mt-5 rounded-xl border border-blue-200 bg-blue-50/60 p-4 shadow-sm">
+    <h4 className="flex items-center gap-2 text-xs font-semibold uppercase tracking-wider text-blue-700">
+      <span className="flex h-6 w-6 items-center justify-center rounded-full bg-blue-200 text-blue-700">
+        <i className="fas fa-exchange-alt text-xs" />
+      </span>
+      Note from Resort
+    </h4>
+    <div className="mt-2 space-y-1">
+      <div className="rounded-lg bg-white/80 p-3 border border-blue-100">
+        <div className="flex items-start gap-2">
+          <i className={`fas ${changeRequest.status === 'approved' ? 'fa-check-circle text-green-600' : 'fa-times-circle text-red-600'} text-sm mt-0.5`} />
+          <div>
+            <p className={`text-sm font-medium ${changeRequest.status === 'approved' ? 'text-green-700' : 'text-red-700'}`}>
+              {changeRequest.status === 'approved' ? 'Request Approved' : 'Request Declined'}
+            </p>
+            <p className="text-sm text-slate-700 mt-1 whitespace-pre-wrap">{resortResponseNote}</p>
+            {changeRequest.processedAt && (
+              <p className="text-xs text-slate-400 mt-2">
+                Processed on: {new Date(changeRequest.processedAt).toLocaleDateString()}
+              </p>
+            )}
+          </div>
+        </div>
+      </div>
+    </div>
+              </div>
+            )}
+
+            {/* Action Buttons (unchanged) */}
             <div className="mt-6 flex flex-wrap items-center justify-between gap-3 border-t border-slate-100 pt-5">
               <p className="text-xs text-slate-400">
                 Booked on {formatDateTime(booking.createdAt)}
               </p>
               <div className="flex gap-3">
-            {isPending && (isRoomBooking || isDayTour) && (
+  {isPending && (isRoomBooking || isDayTour) && (
     <button
       type="button"
       onClick={(e) => {
@@ -303,6 +437,87 @@ export default function BookingCard({ booking, onCancel, onEditSuccess }) {
       Edit Reservation
     </button>
   )}
+
+  {/* Request Changes button for room bookings with CONFIRMED status */}
+{isRoomBooking && booking.status === 'confirmed' && (
+  (booking.changeRequest && booking.changeRequest.status === 'pending') ? (
+    <button
+      type="button"
+      disabled
+      className="inline-flex items-center gap-2 rounded-lg border border-gray-200 bg-gray-100 px-4 py-2 text-sm font-semibold text-gray-400 cursor-not-allowed"
+      title="You have already submitted a change request"
+    >
+      <i className="fas fa-exchange-alt text-xs" />
+      Request Changes
+    </button>
+  ) : (
+    <button
+      type="button"
+      onClick={(e) => {
+        e.stopPropagation();
+        setShowRequestModal(true);
+      }}
+      className="inline-flex items-center gap-2 rounded-lg border border-amber-200 bg-white px-4 py-2 text-sm font-semibold text-amber-600 transition-all hover:bg-amber-50 hover:border-amber-300 hover:shadow-sm"
+    >
+      <i className="fas fa-exchange-alt text-xs" />
+      Request Changes
+    </button>
+  )
+)}
+
+{/* Request Changes button for room bookings with PENDING status */}
+{isPending && isRoomBooking && (
+  (booking.changeRequest && booking.changeRequest.status === 'pending') ? (
+    <button
+      type="button"
+      disabled
+      className="inline-flex items-center gap-2 rounded-lg border border-gray-200 bg-gray-100 px-4 py-2 text-sm font-semibold text-gray-400 cursor-not-allowed"
+      title="You have already submitted a change request"
+    >
+      <i className="fas fa-exchange-alt text-xs" />
+      Request Changes
+    </button>
+  ) : (
+    <button
+      type="button"
+      onClick={(e) => {
+        e.stopPropagation();
+        setShowRequestModal(true);
+      }}
+      className="inline-flex items-center gap-2 rounded-lg border border-amber-200 bg-white px-4 py-2 text-sm font-semibold text-amber-600 transition-all hover:bg-amber-50 hover:border-amber-300 hover:shadow-sm"
+    >
+      <i className="fas fa-exchange-alt text-xs" />
+      Request Changes
+    </button>
+  )
+)}
+
+  {/* Request Changes button for day tours with CONFIRMED status */}
+{!isPending && isDayTour && booking.status === 'confirmed' && (
+  (booking.changeRequest && booking.changeRequest.status === 'pending') ? (
+    <button
+      type="button"
+      disabled
+      className="inline-flex items-center gap-2 rounded-lg border border-gray-200 bg-gray-100 px-4 py-2 text-sm font-semibold text-gray-400 cursor-not-allowed"
+      title="You have already submitted a change request"
+    >
+      <i className="fas fa-exchange-alt text-xs" />
+      Request Changes
+    </button>
+  ) : (
+    <button
+      type="button"
+      onClick={(e) => {
+        e.stopPropagation();
+        setShowDayTourRequestModal(true);
+      }}
+      className="inline-flex items-center gap-2 rounded-lg border border-amber-200 bg-white px-4 py-2 text-sm font-semibold text-amber-600 transition-all hover:bg-amber-50 hover:border-amber-300 hover:shadow-sm"
+    >
+      <i className="fas fa-exchange-alt text-xs" />
+      Request Changes
+    </button>
+  )
+)}
                 {showCancel && (
                   <button
                     type="button"
@@ -335,20 +550,43 @@ export default function BookingCard({ booking, onCancel, onEditSuccess }) {
         )}
       </div>
 
-      {/* Edit Reservation Modal */}
+      {/* Edit Modals (unchanged) */}
       <EditReservationModal
         isOpen={showEditModal}
         booking={booking}
         onClose={() => setShowEditModal(false)}
         onSuccess={handleEditSuccess}
       />
+      <DayTourEditReservationModal
+        isOpen={showDayTourEditModal}
+        booking={booking}
+        onClose={() => setShowDayTourEditModal(false)}
+        onSuccess={handleEditSuccess}
+      />
 
-        <DayTourEditReservationModal
-    isOpen={showDayTourEditModal}
-    booking={booking}
-    onClose={() => setShowDayTourEditModal(false)}
-    onSuccess={handleEditSuccess}
-  />
+<RequestChangesModal
+  isOpen={showRequestModal}
+  booking={booking}
+  onClose={() => setShowRequestModal(false)}
+  onRequestSubmitted={() => {
+    // Refresh booking data or update the booking object
+    if (onEditSuccess) {
+      onEditSuccess();
+    }
+  }}
+/>
+
+<DayTourRequestChangesModal
+  isOpen={showDayTourRequestModal}
+  booking={booking}
+  onClose={() => setShowDayTourRequestModal(false)}
+  onRequestSubmitted={() => {
+    // Refresh booking data or update the booking object
+    if (onEditSuccess) {
+      onEditSuccess();
+    }
+  }}
+/>
     </>
   );
 }

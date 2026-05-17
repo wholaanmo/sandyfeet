@@ -2,7 +2,7 @@
 'use client';
 
 import { useState, useEffect, useRef } from 'react';
-import { doc, updateDoc, getDocs, collection, query, where } from 'firebase/firestore';
+import { doc, updateDoc, getDocs, collection, query, where, getDoc } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 import { toDateValue } from './utils';
 
@@ -21,6 +21,10 @@ export default function EditReservationModal({ isOpen, booking, onClose, onSucce
   const [roomMinCapacity, setRoomMinCapacity] = useState(null);
   const [roomCapacitiesMap, setRoomCapacitiesMap] = useState({});
   const [showConfirmModal, setShowConfirmModal] = useState(false);
+  
+  // State for tracking if booking has already been edited
+  const [hasBeenEdited, setHasBeenEdited] = useState(false);
+  const [loadingEditStatus, setLoadingEditStatus] = useState(false);
   
   // Exclusive Resort specific state
   const [exclusiveAdults, setExclusiveAdults] = useState(0);
@@ -44,6 +48,57 @@ export default function EditReservationModal({ isOpen, booking, onClose, onSucce
 
   const isExclusive = booking?.isExclusiveResortBooking || false;
   const isMultiRoom = booking?.isMultiRoom || (booking?.children && booking.children.length > 0);
+  const isPending = booking?.status === 'pending';
+  const isRoomBooking = booking?.type === 'room';
+
+  // Check if the booking has already been edited
+  useEffect(() => {
+    if (!isOpen || !booking || !isPending || !isRoomBooking) {
+      setHasBeenEdited(false);
+      return;
+    }
+
+    const checkIfAlreadyEdited = async () => {
+      setLoadingEditStatus(true);
+      try {
+        let edited = false;
+        
+        if (booking.children && booking.children.length > 0) {
+          // Multi-room group: check each child booking
+          for (const child of booking.children) {
+            if (child.id) {
+              const bookingRef = doc(db, 'bookings', child.id);
+              const docSnap = await getDoc(bookingRef);
+              if (docSnap.exists()) {
+                const data = docSnap.data();
+                if (data.hasBeenEdited === true) {
+                  edited = true;
+                  break;
+                }
+              }
+            }
+          }
+        } else {
+          // Single room or exclusive resort
+          const bookingRef = doc(db, 'bookings', booking.id);
+          const docSnap = await getDoc(bookingRef);
+          if (docSnap.exists()) {
+            const data = docSnap.data();
+            edited = data.hasBeenEdited === true;
+          }
+        }
+        
+        setHasBeenEdited(edited);
+      } catch (error) {
+        console.error('Error checking edit status:', error);
+        setHasBeenEdited(false);
+      } finally {
+        setLoadingEditStatus(false);
+      }
+    };
+
+    checkIfAlreadyEdited();
+  }, [isOpen, booking, isPending, isRoomBooking]);
 
   // Helper functions for Exclusive Resort (mirroring app/rooms)
   const getExclusiveMaxPax = () => {
@@ -68,8 +123,6 @@ export default function EditReservationModal({ isOpen, booking, onClose, onSucce
     setExclusiveKids(Math.max(0, nextKids));
     setExclusiveGuestError(errorMessage);
   };
-
-  // No tent add/remove handlers needed — they are removed from UI.
 
   // Fetch available room types and room details (unchanged)
   useEffect(() => {
@@ -611,91 +664,91 @@ export default function EditReservationModal({ isOpen, booking, onClose, onSucce
   };
 
   const getUnavailableRoomTypeForStay = (date, roomRequests) => {
-  if (!date || !roomRequests.length) return null;
-  const checkInDate = new Date(date);
-  for (let dayOffset = 0; dayOffset < originalNights; dayOffset++) {
-    const currentDate = new Date(checkInDate);
-    currentDate.setDate(checkInDate.getDate() + dayOffset);
-    const dateStr = `${currentDate.getFullYear()}-${String(currentDate.getMonth() + 1).padStart(2, '0')}-${String(currentDate.getDate()).padStart(2, '0')}`;
-    for (const req of roomRequests) {
-      const roomTypeData = availableRoomTypes.find(t => t.type === req.type);
-      if (!roomTypeData) continue;
-      let totalAvailable = 0;
-      for (const roomId of roomTypeData.roomIds) {
-        const roomDetail = roomDetailsMap[req.type]?.[roomId];
-        const maxRooms = (roomDetail?.totalRooms || 1) - (roomDetail?.maintenanceRooms || 0);
-        if (maxRooms <= 0) continue;
-        let minAvailable = maxRooms;
-        for (let hour = CHECK_IN_HOUR; hour < 24; hour++) {
-          const blockedUnits = blockedSlots[dateStr]?.[roomId]?.[hour] || 0;
-          const bookedCount = bookedDates[dateStr]?.[roomId]?.[hour] || 0;
-          const availableNow = Math.max(0, maxRooms - bookedCount - blockedUnits);
-          minAvailable = Math.min(minAvailable, availableNow);
-          if (minAvailable <= 0) break;
+    if (!date || !roomRequests.length) return null;
+    const checkInDate = new Date(date);
+    for (let dayOffset = 0; dayOffset < originalNights; dayOffset++) {
+      const currentDate = new Date(checkInDate);
+      currentDate.setDate(checkInDate.getDate() + dayOffset);
+      const dateStr = `${currentDate.getFullYear()}-${String(currentDate.getMonth() + 1).padStart(2, '0')}-${String(currentDate.getDate()).padStart(2, '0')}`;
+      for (const req of roomRequests) {
+        const roomTypeData = availableRoomTypes.find(t => t.type === req.type);
+        if (!roomTypeData) continue;
+        let totalAvailable = 0;
+        for (const roomId of roomTypeData.roomIds) {
+          const roomDetail = roomDetailsMap[req.type]?.[roomId];
+          const maxRooms = (roomDetail?.totalRooms || 1) - (roomDetail?.maintenanceRooms || 0);
+          if (maxRooms <= 0) continue;
+          let minAvailable = maxRooms;
+          for (let hour = CHECK_IN_HOUR; hour < 24; hour++) {
+            const blockedUnits = blockedSlots[dateStr]?.[roomId]?.[hour] || 0;
+            const bookedCount = bookedDates[dateStr]?.[roomId]?.[hour] || 0;
+            const availableNow = Math.max(0, maxRooms - bookedCount - blockedUnits);
+            minAvailable = Math.min(minAvailable, availableNow);
+            if (minAvailable <= 0) break;
+          }
+          totalAvailable += minAvailable;
         }
-        totalAvailable += minAvailable;
-      }
-      if (totalAvailable < req.quantity) {
-        return req.type;
+        if (totalAvailable < req.quantity) {
+          return req.type;
+        }
       }
     }
-  }
-  return null;
-};
+    return null;
+  };
 
- const checkAvailability = async () => {
-  if (!checkIn || !booking || booking.type === 'daytour') return true;
-  
-  const checkInDate = new Date(checkIn);
-  setIsCheckingAvailability(true);
-  setAvailabilityError('');
-  
-  try {
-    if (isExclusive) {
-      const selectedDate = new Date(checkIn);
-      if (!isDateFullyAvailableForExclusive(selectedDate)) {
-        setAvailabilityError('The Entire Resort Package is not available for the selected dates. Some rooms are already booked.');
+  const checkAvailability = async () => {
+    if (!checkIn || !booking || booking.type === 'daytour') return true;
+    
+    const checkInDate = new Date(checkIn);
+    setIsCheckingAvailability(true);
+    setAvailabilityError('');
+    
+    try {
+      if (isExclusive) {
+        const selectedDate = new Date(checkIn);
+        if (!isDateFullyAvailableForExclusive(selectedDate)) {
+          setAvailabilityError('The Entire Resort Package is not available for the selected dates. Some rooms are already booked.');
+          setIsCheckingAvailability(false);
+          return false;
+        }
         setIsCheckingAvailability(false);
-        return false;
-      }
-      setIsCheckingAvailability(false);
-      return true;
-    } else {
-      // Build room requests (same as calendar)
-      let roomRequests = [];
-      if (isMultiRoom && booking.roomTypesArray) {
-        roomRequests = booking.roomTypesArray.map(rt => ({
-          type: rt.type,
-          quantity: rt.quantity
-        }));
-      } else if (booking.roomType) {
-        roomRequests = [{
-          type: booking.roomType,
-          quantity: booking.numberOfRooms || 1
-        }];
+        return true;
       } else {
+        // Build room requests (same as calendar)
+        let roomRequests = [];
+        if (isMultiRoom && booking.roomTypesArray) {
+          roomRequests = booking.roomTypesArray.map(rt => ({
+            type: rt.type,
+            quantity: rt.quantity
+          }));
+        } else if (booking.roomType) {
+          roomRequests = [{
+            type: booking.roomType,
+            quantity: booking.numberOfRooms || 1
+          }];
+        } else {
+          setIsCheckingAvailability(false);
+          return true;
+        }
+        
+        // Use the same availability logic as the calendar
+        const unavailableType = getUnavailableRoomTypeForStay(checkInDate, roomRequests);
+        if (unavailableType) {
+          setAvailabilityError(`${unavailableType} is not fully available on the selected dates. Please choose a different check‑in date.`);
+          setIsCheckingAvailability(false);
+          return false;
+        }
+        
         setIsCheckingAvailability(false);
         return true;
       }
-      
-      // Use the same availability logic as the calendar
-      const unavailableType = getUnavailableRoomTypeForStay(checkInDate, roomRequests);
-      if (unavailableType) {
-        setAvailabilityError(`${unavailableType} is not fully available on the selected dates. Please choose a different check‑in date.`);
-        setIsCheckingAvailability(false);
-        return false;
-      }
-      
+    } catch (err) {
+      console.error('Availability check error:', err);
+      setAvailabilityError('Unable to check availability. Please try again.');
       setIsCheckingAvailability(false);
-      return true;
+      return false;
     }
-  } catch (err) {
-    console.error('Availability check error:', err);
-    setAvailabilityError('Unable to check availability. Please try again.');
-    setIsCheckingAvailability(false);
-    return false;
-  }
-};
+  };
 
   const handleConfirmReschedule = async () => {
     setShowConfirmModal(false);
@@ -769,7 +822,8 @@ export default function EditReservationModal({ isOpen, booking, onClose, onSucce
         checkIn: checkInDate,
         checkOut: checkOutDate,
         nights: originalNights,
-        updatedAt: new Date()
+        updatedAt: new Date(),
+        hasBeenEdited: true  // Mark as edited
       };
       
       const nightlyRate = booking.totalPrice / originalNights;
@@ -798,7 +852,8 @@ export default function EditReservationModal({ isOpen, booking, onClose, onSucce
               exclusiveAdults,
               exclusiveKids,
               tentCount: exclusiveTentCount,
-              updatedAt: new Date()
+              updatedAt: new Date(),
+              hasBeenEdited: true
             }));
           }
         }
@@ -813,7 +868,8 @@ export default function EditReservationModal({ isOpen, booking, onClose, onSucce
               adults: guestData.adults,
               kids: guestData.kids,
               guests: guestData.adults + guestData.kids,
-              updatedAt: new Date()
+              updatedAt: new Date(),
+              hasBeenEdited: true
             }));
             totalAdults += guestData.adults;
             totalKids += guestData.kids;
@@ -842,7 +898,8 @@ export default function EditReservationModal({ isOpen, booking, onClose, onSucce
             checkIn: checkInDate,
             checkOut: checkOutDate,
             nights: originalNights,
-            updatedAt: new Date()
+            updatedAt: new Date(),
+            hasBeenEdited: true
           }));
         }
         if (!isVirtualGroupParent) {
@@ -853,6 +910,9 @@ export default function EditReservationModal({ isOpen, booking, onClose, onSucce
         const bookingRef = doc(db, 'bookings', booking.id);
         await updateDoc(bookingRef, omitUndefinedDeep(updates));
       }
+
+      // Update local state to disable the button
+      setHasBeenEdited(true);
 
       try {
         onSuccess?.();
@@ -945,6 +1005,12 @@ export default function EditReservationModal({ isOpen, booking, onClose, onSucce
   const numberOfUnits = booking.numberOfRooms || 1;
   const exclusiveTotalPax = exclusiveAdults + exclusiveKids;
   const exclusiveMaxPax = getExclusiveMaxPax();
+  
+  // Determine if the Confirm Reschedule button should be disabled
+  const isConfirmDisabled = isLoading || isCheckingAvailability || !checkIn || 
+    (isExclusive ? exclusiveGuestError : Object.keys(guestErrors).length > 0) ||
+    (isPending && isRoomBooking && hasBeenEdited) ||
+    loadingEditStatus;
 
   return (
     <>
@@ -1003,22 +1069,29 @@ export default function EditReservationModal({ isOpen, booking, onClose, onSucce
                     <input
                       type="text"
                       value={formatDisplayDate(checkIn)}
-                      placeholder="Select date"
+                      placeholder={hasBeenEdited && isPending && isRoomBooking ? "You have already edited this booking" : "Select date"}
                       readOnly
                       onClick={toggleCalendar}
-                      className="w-full rounded-xl border border-gray-200 bg-gray-50 px-4 py-2.5 pr-10 text-sm text-gray-800 cursor-pointer transition-all focus:border-blue-400 focus:bg-white focus:outline-none focus:ring-2 focus:ring-blue-100"
+                      disabled={hasBeenEdited && isPending && isRoomBooking}
+                      className={`w-full rounded-xl border px-4 py-2.5 pr-10 text-sm transition-all ${
+                        hasBeenEdited && isPending && isRoomBooking
+                          ? 'border-gray-200 bg-gray-100 text-gray-500 cursor-not-allowed'
+                          : 'border-gray-200 bg-gray-50 text-gray-800 cursor-pointer focus:border-blue-400 focus:bg-white focus:outline-none focus:ring-2 focus:ring-blue-100'
+                      }`}
                     />
-                    <button
-                      type="button"
-                      onClick={toggleCalendar}
-                      className="absolute right-3 top-1/2 -translate-y-1/2 text-blue-500 hover:text-blue-700 transition-colors cursor-pointer"
-                    >
-                      <i className="fas fa-calendar-alt text-sm"></i>
-                    </button>
+                    {!(hasBeenEdited && isPending && isRoomBooking) && (
+                      <button
+                        type="button"
+                        onClick={toggleCalendar}
+                        className="absolute right-3 top-1/2 -translate-y-1/2 text-blue-500 hover:text-blue-700 transition-colors cursor-pointer"
+                      >
+                        <i className="fas fa-calendar-alt text-sm"></i>
+                      </button>
+                    )}
                   </div>
                   
                   {/* Calendar Popover - positioned directly below the input */}
-                  {isCalendarOpen && (
+                  {isCalendarOpen && !(hasBeenEdited && isPending && isRoomBooking) && (
                     <div 
                       ref={calendarPopoverRef} 
                       className="absolute z-50 bg-white w-[320px] rounded-2xl shadow-[0_16px_40px_rgb(0,0,0,0.14)] p-3 border border-gray-100"
@@ -1138,7 +1211,7 @@ export default function EditReservationModal({ isOpen, booking, onClose, onSucce
               
               {isExclusive ? (
                 // ENTIRE RESORT — single Adults/Kids only, tent count is read-only (no +/- buttons)
-                <div className="rounded-xl border border-gray-200 p-4 bg-gradient-to-r from-blue-50/30 to-white">
+                <div className={`rounded-xl border p-4 bg-gradient-to-r from-blue-50/30 to-white transition-all ${hasBeenEdited && isPending && isRoomBooking ? 'opacity-60' : ''}`}>
                   <div className="mb-3">
                     <p className="text-sm font-semibold text-blue-800">Entire Resort Package</p>
                     <p className="text-[10px] text-emerald-600 font-extrabold uppercase tracking-widest mt-1">
@@ -1167,7 +1240,12 @@ export default function EditReservationModal({ isOpen, booking, onClose, onSucce
                           min={1}
                           value={exclusiveAdults}
                           onChange={(e) => handleExclusiveGuestChange('adults', e.target.value)}
-                          className={`w-full text-xs font-bold border bg-white rounded-md pl-3 py-2 shadow-sm focus:outline-none focus:ring-2 ${exclusiveGuestError ? 'border-red-300 focus:border-red-400 ring-red-100 text-red-600' : 'border-gray-200 focus:border-blue-400 ring-blue-100'}`}
+                          disabled={hasBeenEdited && isPending && isRoomBooking}
+                          className={`w-full text-xs font-bold border bg-white rounded-md pl-3 py-2 shadow-sm focus:outline-none focus:ring-2 transition-all ${
+                            hasBeenEdited && isPending && isRoomBooking
+                              ? 'border-gray-200 text-gray-400 cursor-not-allowed'
+                              : exclusiveGuestError ? 'border-red-300 focus:border-red-400 ring-red-100 text-red-600' : 'border-gray-200 focus:border-blue-400 ring-blue-100'
+                          }`}
                         />
                       </label>
                       <label className="flex flex-col gap-1">
@@ -1177,7 +1255,12 @@ export default function EditReservationModal({ isOpen, booking, onClose, onSucce
                           min={0}
                           value={exclusiveKids}
                           onChange={(e) => handleExclusiveGuestChange('kids', e.target.value)}
-                          className={`w-full text-xs font-bold border bg-white rounded-md pl-3 py-2 shadow-sm focus:outline-none focus:ring-2 ${exclusiveGuestError ? 'border-red-300 focus:border-red-400 ring-red-100 text-red-600' : 'border-gray-200 focus:border-blue-400 ring-blue-100'}`}
+                          disabled={hasBeenEdited && isPending && isRoomBooking}
+                          className={`w-full text-xs font-bold border bg-white rounded-md pl-3 py-2 shadow-sm focus:outline-none focus:ring-2 transition-all ${
+                            hasBeenEdited && isPending && isRoomBooking
+                              ? 'border-gray-200 text-gray-400 cursor-not-allowed'
+                              : exclusiveGuestError ? 'border-red-300 focus:border-red-400 ring-red-100 text-red-600' : 'border-gray-200 focus:border-blue-400 ring-blue-100'
+                          }`}
                         />
                       </label>
                     </div>
@@ -1193,7 +1276,7 @@ export default function EditReservationModal({ isOpen, booking, onClose, onSucce
                   
                 </div>
               ) : isMultiRoom ? (
-                <div className="space-y-4">
+                <div className={`space-y-4 ${hasBeenEdited && isPending && isRoomBooking ? 'opacity-60 pointer-events-none' : ''}`}>
                   {booking.children.map((child, index) => {
                     const guest = guestCounts[index] || { adults: 1, kids: 0, roomType: child.roomType };
                     const maxCapacity = roomCapacitiesMap[child.roomType]?.max || 10;
@@ -1218,10 +1301,13 @@ export default function EditReservationModal({ isOpen, booking, onClose, onSucce
                               max={maxCapacity}
                               value={guest.adults || 1}
                               onChange={(e) => updateGuestCount(index, 'adults', e.target.value)}
+                              disabled={hasBeenEdited && isPending && isRoomBooking}
                               className={`w-full rounded-xl border px-4 py-2.5 text-sm focus:outline-none focus:ring-2 transition-all ${
-                                guestErrors[index] 
-                                  ? 'border-red-300 bg-white focus:border-red-400 focus:ring-red-100' 
-                                  : 'border-gray-200 bg-white focus:border-blue-400 focus:ring-blue-100'
+                                hasBeenEdited && isPending && isRoomBooking
+                                  ? 'border-gray-200 bg-gray-100 text-gray-400 cursor-not-allowed'
+                                  : guestErrors[index] 
+                                    ? 'border-red-300 bg-white focus:border-red-400 focus:ring-red-100' 
+                                    : 'border-gray-200 bg-white focus:border-blue-400 focus:ring-blue-100'
                               }`}
                             />
                           </div>
@@ -1233,15 +1319,18 @@ export default function EditReservationModal({ isOpen, booking, onClose, onSucce
                               max={Math.max(0, maxCapacity - (guest.adults || 1))}
                               value={guest.kids || 0}
                               onChange={(e) => updateGuestCount(index, 'kids', e.target.value)}
+                              disabled={hasBeenEdited && isPending && isRoomBooking}
                               className={`w-full rounded-xl border px-4 py-2.5 text-sm focus:outline-none focus:ring-2 transition-all ${
-                                guestErrors[index] 
-                                  ? 'border-red-300 bg-white focus:border-red-400 focus:ring-red-100' 
-                                  : 'border-gray-200 bg-white focus:border-blue-400 focus:ring-blue-100'
+                                hasBeenEdited && isPending && isRoomBooking
+                                  ? 'border-gray-200 bg-gray-100 text-gray-400 cursor-not-allowed'
+                                  : guestErrors[index] 
+                                    ? 'border-red-300 bg-white focus:border-red-400 focus:ring-red-100' 
+                                    : 'border-gray-200 bg-white focus:border-blue-400 focus:ring-blue-100'
                               }`}
                             />
                           </div>
                         </div>
-                        {guestErrors[index] && (
+                        {guestErrors[index] && !(hasBeenEdited && isPending && isRoomBooking) && (
                           <p className="mt-2 text-xs text-red-600 flex items-center gap-1">
                             <i className="fas fa-exclamation-circle text-[10px]"></i>
                             {guestErrors[index]}
@@ -1257,8 +1346,8 @@ export default function EditReservationModal({ isOpen, booking, onClose, onSucce
                   })}
                 </div>
               ) : (
-                // Single room type bookings - unchanged
-                <div className="space-y-3">
+                // Single room type bookings
+                <div className={`space-y-3 ${hasBeenEdited && isPending && isRoomBooking ? 'opacity-60 pointer-events-none' : ''}`}>
                   <div className="rounded-xl bg-blue-50 p-3 mb-3">
                     <div className="flex justify-between items-center">
                       <p className="text-sm font-semibold text-blue-800">
@@ -1289,10 +1378,13 @@ export default function EditReservationModal({ isOpen, booking, onClose, onSucce
                             max={roomMaxCapacity || 10}
                             value={guest.adults || 1}
                             onChange={(e) => updateGuestCount(index, 'adults', e.target.value)}
+                            disabled={hasBeenEdited && isPending && isRoomBooking}
                             className={`w-full rounded-xl border px-4 py-2.5 text-sm focus:outline-none focus:ring-2 transition-all ${
-                              guestErrors[index] 
-                                ? 'border-red-300 bg-white focus:border-red-400 focus:ring-red-100' 
-                                : 'border-gray-200 bg-white focus:border-blue-400 focus:ring-blue-100'
+                              hasBeenEdited && isPending && isRoomBooking
+                                ? 'border-gray-200 bg-gray-100 text-gray-400 cursor-not-allowed'
+                                : guestErrors[index] 
+                                  ? 'border-red-300 bg-white focus:border-red-400 focus:ring-red-100' 
+                                  : 'border-gray-200 bg-white focus:border-blue-400 focus:ring-blue-100'
                             }`}
                           />
                         </div>
@@ -1304,15 +1396,18 @@ export default function EditReservationModal({ isOpen, booking, onClose, onSucce
                             max={(roomMaxCapacity || 10) - (guest.adults || 1)}
                             value={guest.kids || 0}
                             onChange={(e) => updateGuestCount(index, 'kids', e.target.value)}
+                            disabled={hasBeenEdited && isPending && isRoomBooking}
                             className={`w-full rounded-xl border px-4 py-2.5 text-sm focus:outline-none focus:ring-2 transition-all ${
-                              guestErrors[index] 
-                                ? 'border-red-300 bg-white focus:border-red-400 focus:ring-red-100' 
-                                : 'border-gray-200 bg-white focus:border-blue-400 focus:ring-blue-100'
+                              hasBeenEdited && isPending && isRoomBooking
+                                ? 'border-gray-200 bg-gray-100 text-gray-400 cursor-not-allowed'
+                                : guestErrors[index] 
+                                  ? 'border-red-300 bg-white focus:border-red-400 focus:ring-red-100' 
+                                  : 'border-gray-200 bg-white focus:border-blue-400 focus:ring-blue-100'
                             }`}
                           />
                         </div>
                       </div>
-                      {guestErrors[index] && (
+                      {guestErrors[index] && !(hasBeenEdited && isPending && isRoomBooking) && (
                         <p className="mt-2 text-xs text-red-600 flex items-center gap-1">
                           <i className="fas fa-exclamation-circle text-[10px]"></i>
                           {guestErrors[index]}
@@ -1333,7 +1428,17 @@ export default function EditReservationModal({ isOpen, booking, onClose, onSucce
             <div className="mt-4 rounded-xl bg-blue-50 p-3">
               <p className="text-xs text-blue-800 flex items-start gap-2">
                 <i className="fas fa-calculator mt-0.5" />
-                <span>Your total price will remain based on the original nightly rate (₱{(booking.totalPrice / originalNights).toLocaleString()} per night).</span>
+                <span>
+                  {booking.isExclusiveResortBooking && originalNights > 0 ? (
+                    <>
+                      Your total price will remain based on the original nightly rate ₱{((BASE_EXCLUSIVE_PRICE + (booking.tentCount || 0) * 1500) * originalNights).toLocaleString()}
+                    </>
+                  ) : (
+                    <>
+                      Your total price will remain based on the original nightly rate (₱{(booking.totalPrice / originalNights).toLocaleString()} per night).
+                    </>
+                  )}
+                </span>
               </p>
             </div>
 
@@ -1342,6 +1447,16 @@ export default function EditReservationModal({ isOpen, booking, onClose, onSucce
                 <p className="text-xs text-red-700 flex items-center gap-2">
                   <i className="fas fa-exclamation-circle" />
                   {error}
+                </p>
+              </div>
+            )}
+            
+            {/* Message for already edited booking */}
+            {hasBeenEdited && isPending && isRoomBooking && (
+              <div className="mt-4 rounded-xl bg-amber-50 border border-amber-200 p-3">
+                <p className="text-xs text-amber-700 flex items-center gap-2">
+                  <i className="fas fa-info-circle" />
+                  You have already edited this booking. Further edits are not allowed.
                 </p>
               </div>
             )}
@@ -1360,8 +1475,13 @@ export default function EditReservationModal({ isOpen, booking, onClose, onSucce
             <button
               type="button"
               onClick={() => setShowConfirmModal(true)}
-              disabled={isLoading || isCheckingAvailability || !checkIn || (isExclusive ? exclusiveGuestError : Object.keys(guestErrors).length > 0)}
-              className="inline-flex items-center gap-2 rounded-xl bg-blue-600 px-5 py-2.5 text-sm font-semibold text-white shadow-sm transition-all hover:bg-blue-700 hover:shadow-md disabled:opacity-50"
+              disabled={isConfirmDisabled}
+              className={`inline-flex items-center gap-2 rounded-xl px-5 py-2.5 text-sm font-semibold text-white shadow-sm transition-all ${
+                (hasBeenEdited && isPending && isRoomBooking)
+                  ? 'bg-gray-400 cursor-not-allowed'
+                  : 'bg-blue-600 hover:bg-blue-700 hover:shadow-md'
+              }`}
+              title={hasBeenEdited && isPending && isRoomBooking ? "You have already edited this booking" : ""}
             >
               {isLoading ? (
                 <>
@@ -1371,7 +1491,7 @@ export default function EditReservationModal({ isOpen, booking, onClose, onSucce
               ) : (
                 <>
                   <i className="fas fa-calendar-check text-xs" />
-                  Confirm Reschedule
+                  Save Changes
                 </>
               )}
             </button>
@@ -1380,7 +1500,7 @@ export default function EditReservationModal({ isOpen, booking, onClose, onSucce
       </div>
 
       {/* Confirmation Modal */}
-      {showConfirmModal && (
+      {showConfirmModal && !(hasBeenEdited && isPending && isRoomBooking) && (
         <div className="fixed inset-0 z-[60] flex items-center justify-center p-4">
           <div className="absolute inset-0 bg-black/50 backdrop-blur-sm" onClick={() => setShowConfirmModal(false)} />
           <div className="relative z-10 w-full max-w-md overflow-hidden rounded-2xl bg-white shadow-2xl animate-[fadeIn_0.2s_ease-out]">
@@ -1435,7 +1555,7 @@ export default function EditReservationModal({ isOpen, booking, onClose, onSucce
                 onClick={handleConfirmReschedule}
                 className="rounded-xl bg-blue-600 px-4 py-2 text-sm font-semibold text-white hover:bg-blue-700"
               >
-                Yes, Reschedule
+                Confirm
               </button>
             </div>
           </div>

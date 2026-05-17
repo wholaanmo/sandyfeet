@@ -3,7 +3,7 @@
 
 import { useState, useEffect, useRef } from 'react';
 import { db } from '@/lib/firebase';
-import { doc, updateDoc, collection, query, where, onSnapshot } from 'firebase/firestore';
+import { doc, updateDoc, collection, query, where, onSnapshot, getDoc } from 'firebase/firestore';
 
 export default function DayTourEditReservationModal({ isOpen, booking, onClose, onSuccess }) {
   // Form state
@@ -13,7 +13,12 @@ export default function DayTourEditReservationModal({ isOpen, booking, onClose, 
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [success, setSuccess] = useState(false);
+  const [showConfirmModal, setShowConfirmModal] = useState(false);
   const timeoutRef = useRef(null);
+  
+  // State for tracking if booking has already been edited
+  const [hasBeenEdited, setHasBeenEdited] = useState(false);
+  const [loadingEditStatus, setLoadingEditStatus] = useState(false);
 
   // Day tour configuration
   const [dayTour, setDayTour] = useState(null);
@@ -31,6 +36,59 @@ export default function DayTourEditReservationModal({ isOpen, booking, onClose, 
   const originalDateKey = booking.selectedDate || '';
   const originalTotalGuests = (booking.adults || 0) + (booking.kids || 0);
   const originalDownPayment = booking.downPayment || (booking.totalPrice * 0.5);
+  const isPending = booking.status === 'pending';
+
+  // Helper: format date for display
+  const formatDisplayDate = (dateKey) => {
+    if (!dateKey) return '';
+    const [year, month, day] = dateKey.split('-').map(Number);
+    const date = new Date(year, month - 1, day);
+    return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+  };
+
+  // Reset loading state and success state when modal closes
+  useEffect(() => {
+    if (!isOpen) {
+      // Reset all states when modal is closed
+      setLoading(false);
+      setSuccess(false);
+      setError('');
+      setShowConfirmModal(false);
+      if (timeoutRef.current) {
+        clearTimeout(timeoutRef.current);
+        timeoutRef.current = null;
+      }
+    }
+  }, [isOpen]);
+
+  // Check if the booking has already been edited
+  useEffect(() => {
+    if (!isOpen || !booking || !isPending) {
+      setHasBeenEdited(false);
+      return;
+    }
+
+    const checkIfAlreadyEdited = async () => {
+      setLoadingEditStatus(true);
+      try {
+        const bookingRef = doc(db, 'dayTourBookings', booking.id);
+        const docSnap = await getDoc(bookingRef);
+        if (docSnap.exists()) {
+          const data = docSnap.data();
+          setHasBeenEdited(data.hasBeenEdited === true);
+        } else {
+          setHasBeenEdited(false);
+        }
+      } catch (error) {
+        console.error('Error checking edit status:', error);
+        setHasBeenEdited(false);
+      } finally {
+        setLoadingEditStatus(false);
+      }
+    };
+
+    checkIfAlreadyEdited();
+  }, [isOpen, booking, isPending]);
 
   // Helper: date <-> YYYY-MM-DD
   const toLocalDateKey = (date) => {
@@ -45,13 +103,6 @@ export default function DayTourEditReservationModal({ isOpen, booking, onClose, 
     if (!key) return null;
     const [year, month, day] = key.split('-').map(Number);
     return new Date(year, month - 1, day);
-  };
-
-  const formatDisplayDate = (dateKey) => {
-    if (!dateKey) return '';
-    const date = parseDateKey(dateKey);
-    if (!date) return '';
-    return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
   };
 
   // Fetch day tour details (prices, maxCapacity)
@@ -89,23 +140,26 @@ export default function DayTourEditReservationModal({ isOpen, booking, onClose, 
     return () => unsubscribe();
   }, [isOpen]);
 
+  // Reset form state when modal opens
   useEffect(() => {
-  if (isOpen) {
-    // Clear any pending timeout from previous instance
-    if (timeoutRef.current) {
-      clearTimeout(timeoutRef.current);
-      timeoutRef.current = null;
+    if (isOpen) {
+      // Clear any pending timeout from previous instance
+      if (timeoutRef.current) {
+        clearTimeout(timeoutRef.current);
+        timeoutRef.current = null;
+      }
+      setSuccess(false);
+      setError('');
+      setLoading(false);
+      setShowConfirmModal(false);
+      setSelectedDate(booking.selectedDate || '');
+      setAdults(String(booking.adults || 1));
+      setKids(String(booking.kids || 0));
+      // Reset calendar month to current (optional)
+      setCurrentMonth(new Date());
+      setIsCalendarOpen(false);
     }
-    setSuccess(false);
-    setError('');
-    setSelectedDate(booking.selectedDate || '');
-    setAdults(String(booking.adults || 1));
-    setKids(String(booking.kids || 0));
-    // Reset calendar month to current (optional)
-    setCurrentMonth(new Date());
-    setIsCalendarOpen(false);
-  }
-}, [isOpen, booking]);
+  }, [isOpen, booking]);
 
   // Fetch admin-blocked unavailable dates
   useEffect(() => {
@@ -170,6 +224,7 @@ export default function DayTourEditReservationModal({ isOpen, booking, onClose, 
 
   // Handle date selection
   const handleDateSelect = (date) => {
+    if (hasBeenEdited && isPending) return;
     const key = toLocalDateKey(date);
     if (isDateSelectable(key)) {
       setSelectedDate(key);
@@ -221,58 +276,74 @@ export default function DayTourEditReservationModal({ isOpen, booking, onClose, 
     );
   };
 
- const handleSubmit = async (e) => {
-  e.preventDefault();
-  if (!hasChanges()) {
-    onClose();
-    return;
-  }
-
-  const validationError = validateGuests(adults, kids, selectedDate);
-  if (validationError) {
-    setError(validationError);
-    return;
-  }
-
-  setLoading(true);
-  setError('');
-
-  try {
-    const bookingRef = doc(db, 'dayTourBookings', booking.id);
-    const updateData = {
-      selectedDate,
-      adults: parseInt(adults, 10),
-      kids: parseInt(kids, 10),
-      totalPrice: newTotal,
-      remainingBalance: newRemainingBalance,
-      updatedAt: new Date().toISOString(),
-    };
-    await updateDoc(bookingRef, updateData);
-    setSuccess(true);
+  // Handle save button click - show confirmation modal
+  const handleSaveClick = () => {
+    if (hasBeenEdited && isPending) {
+      setError('You have already edited this booking. Further edits are not allowed.');
+      return;
+    }
     
-    // Clear any existing timeout
-    if (timeoutRef.current) clearTimeout(timeoutRef.current);
-    // Set new timeout to close modal after success
-    timeoutRef.current = setTimeout(() => {
-      onSuccess();
+    if (!hasChanges()) {
       onClose();
-      timeoutRef.current = null;
-    }, 1500);
-  } catch (err) {
-    console.error('Error updating day tour booking:', err);
-    setError('Failed to update reservation. Please try again.');
-    setLoading(false);
-  }
-};
+      return;
+    }
 
-// Cleanup timeout on unmount or when modal closes
-useEffect(() => {
-  return () => {
-    if (timeoutRef.current) {
-      clearTimeout(timeoutRef.current);
+    const validationError = validateGuests(adults, kids, selectedDate);
+    if (validationError) {
+      setError(validationError);
+      return;
+    }
+
+    setShowConfirmModal(true);
+  };
+
+  // Handle actual submission after confirmation
+  const handleConfirmSubmit = async () => {
+    setShowConfirmModal(false);
+    setLoading(true);
+    setError('');
+
+    try {
+      const bookingRef = doc(db, 'dayTourBookings', booking.id);
+      const updateData = {
+        selectedDate,
+        adults: parseInt(adults, 10),
+        kids: parseInt(kids, 10),
+        totalPrice: newTotal,
+        remainingBalance: newRemainingBalance,
+        updatedAt: new Date().toISOString(),
+        hasBeenEdited: true  // Mark as edited
+      };
+      await updateDoc(bookingRef, updateData);
+      setSuccess(true);
+      
+      // Update local state to disable the button
+      setHasBeenEdited(true);
+      
+      // Clear any existing timeout
+      if (timeoutRef.current) clearTimeout(timeoutRef.current);
+      // Set new timeout to close modal after success
+      timeoutRef.current = setTimeout(() => {
+        setLoading(false); // Reset loading state before closing
+        onSuccess();
+        onClose();
+        timeoutRef.current = null;
+      }, 1500);
+    } catch (err) {
+      console.error('Error updating day tour booking:', err);
+      setError('Failed to update reservation. Please try again.');
+      setLoading(false);
     }
   };
-}, []);
+
+  // Cleanup timeout on unmount or when modal closes
+  useEffect(() => {
+    return () => {
+      if (timeoutRef.current) {
+        clearTimeout(timeoutRef.current);
+      }
+    };
+  }, []);
 
   // Calendar helpers
   const getDaysInMonth = (date) => {
@@ -314,6 +385,10 @@ useEffect(() => {
   const totalGuests = (parseInt(adults,10)||0) + (parseInt(kids,10)||0);
   const effectiveRemaining = selectedDate ? getEffectiveRemainingCapacity(selectedDate) : 0;
   const capacityWarning = selectedDate && effectiveRemaining < totalGuests;
+  
+  // Determine if the Save Changes button should be disabled
+  const isSaveDisabled = loading || !!error || !hasChanges() || capacityWarning || 
+    (hasBeenEdited && isPending) || loadingEditStatus;
 
   return (
     <>
@@ -369,22 +444,28 @@ useEffect(() => {
                       <input
                         type="text"
                         value={formatDisplayDate(selectedDate)}
-                        placeholder="Select date"
+                        placeholder={hasBeenEdited && isPending ? "You have already edited this booking" : "Select date"}
                         readOnly
-                        onClick={() => setIsCalendarOpen(!isCalendarOpen)}
-                        className="w-full rounded-xl border border-gray-200 bg-gray-50 px-4 py-2.5 pr-10 text-sm text-gray-800 cursor-pointer transition-all focus:border-blue-400 focus:bg-white focus:outline-none focus:ring-2 focus:ring-blue-100"
+                        onClick={() => !(hasBeenEdited && isPending) && setIsCalendarOpen(!isCalendarOpen)}
+                        className={`w-full rounded-xl border px-4 py-2.5 pr-10 text-sm transition-all ${
+                          hasBeenEdited && isPending
+                            ? 'border-gray-200 bg-gray-100 text-gray-500 cursor-not-allowed'
+                            : 'border-gray-200 bg-gray-50 text-gray-800 cursor-pointer focus:border-blue-400 focus:bg-white focus:outline-none focus:ring-2 focus:ring-blue-100'
+                        }`}
                       />
-                      <button
-                        type="button"
-                        onClick={() => setIsCalendarOpen(!isCalendarOpen)}
-                        className="absolute right-3 top-1/2 -translate-y-1/2 text-blue-500 hover:text-blue-700 transition-colors cursor-pointer"
-                      >
-                        <i className="fas fa-calendar-alt text-sm"></i>
-                      </button>
+                      {!(hasBeenEdited && isPending) && (
+                        <button
+                          type="button"
+                          onClick={() => setIsCalendarOpen(!isCalendarOpen)}
+                          className="absolute right-3 top-1/2 -translate-y-1/2 text-blue-500 hover:text-blue-700 transition-colors cursor-pointer"
+                        >
+                          <i className="fas fa-calendar-alt text-sm"></i>
+                        </button>
+                      )}
                     </div>
 
                     {/* Calendar Popover */}
-                    {isCalendarOpen && (
+                    {isCalendarOpen && !(hasBeenEdited && isPending) && (
                       <div
                         ref={calendarPopoverRef}
                         className="absolute z-50 bg-white w-[320px] rounded-2xl shadow-[0_16px_40px_rgb(0,0,0,0.14)] p-3 border border-gray-100"
@@ -470,7 +551,7 @@ useEffect(() => {
                     )}
                   </div>
                   
-                  {selectedDate && (
+                  {selectedDate && !(hasBeenEdited && isPending) && (
                     <p className="text-xs text-gray-500 mt-2">
                       Available slots for your booking: {getEffectiveRemainingCapacity(selectedDate)} guest(s)
                     </p>
@@ -491,7 +572,12 @@ useEffect(() => {
                         min="1"
                         value={adults}
                         onChange={(e) => setAdults(e.target.value)}
-                        className="w-full rounded-xl border border-gray-200 bg-gray-50 px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-100 focus:border-blue-400"
+                        disabled={hasBeenEdited && isPending}
+                        className={`w-full rounded-xl border px-4 py-2.5 text-sm transition-all ${
+                          hasBeenEdited && isPending
+                            ? 'border-gray-200 bg-gray-100 text-gray-400 cursor-not-allowed'
+                            : 'border-gray-200 bg-gray-50 focus:outline-none focus:ring-2 focus:ring-blue-100 focus:border-blue-400'
+                        }`}
                       />
                     </div>
                     <div>
@@ -501,11 +587,16 @@ useEffect(() => {
                         min="0"
                         value={kids}
                         onChange={(e) => setKids(e.target.value)}
-                        className="w-full rounded-xl border border-gray-200 bg-gray-50 px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-100 focus:border-blue-400"
+                        disabled={hasBeenEdited && isPending}
+                        className={`w-full rounded-xl border px-4 py-2.5 text-sm transition-all ${
+                          hasBeenEdited && isPending
+                            ? 'border-gray-200 bg-gray-100 text-gray-400 cursor-not-allowed'
+                            : 'border-gray-200 bg-gray-50 focus:outline-none focus:ring-2 focus:ring-blue-100 focus:border-blue-400'
+                        }`}
                       />
                     </div>
                   </div>
-                  {capacityWarning && (
+                  {capacityWarning && !(hasBeenEdited && isPending) && (
                     <p className="mt-2 text-xs text-red-600 flex items-center gap-1">
                       <i className="fas fa-exclamation-circle" />
                       Not enough capacity. You can have at most {effectiveRemaining} guests on this date.
@@ -515,7 +606,7 @@ useEffect(() => {
 
                 {/* Price Summary */}
                 {dayTour && (
-                  <div className="rounded-xl bg-gray-50 p-4 space-y-2 text-sm">
+                  <div className={`rounded-xl p-4 space-y-2 text-sm transition-all ${hasBeenEdited && isPending ? 'bg-gray-100 opacity-60' : 'bg-gray-50'}`}>
                     <div className="flex justify-between">
                       <span>Adult (₱{dayTour.adultPrice?.toLocaleString()}) x {adults || 0}</span>
                       <span>₱{((adults || 0) * dayTour.adultPrice).toLocaleString()}</span>
@@ -550,6 +641,16 @@ useEffect(() => {
                     </p>
                   </div>
                 )}
+                
+                {/* Message for already edited booking */}
+                {hasBeenEdited && isPending && (
+                  <div className="rounded-xl bg-amber-50 border border-amber-200 p-3">
+                    <p className="text-xs text-amber-700 flex items-center gap-2">
+                      <i className="fas fa-info-circle" />
+                      You have already edited this booking. Further edits are not allowed.
+                    </p>
+                  </div>
+                )}
               </div>
 
               {/* Footer */}
@@ -564,9 +665,14 @@ useEffect(() => {
                 </button>
                 <button
                   type="button"
-                  onClick={handleSubmit}
-                  disabled={loading || !!error || !hasChanges() || capacityWarning}
-                  className="inline-flex items-center gap-2 rounded-xl bg-blue-600 px-5 py-2.5 text-sm font-semibold text-white shadow-sm transition-all hover:bg-blue-700 hover:shadow-md disabled:opacity-50"
+                  onClick={handleSaveClick}
+                  disabled={isSaveDisabled}
+                  className={`inline-flex items-center gap-2 rounded-xl px-5 py-2.5 text-sm font-semibold text-white shadow-sm transition-all ${
+                    (hasBeenEdited && isPending)
+                      ? 'bg-gray-400 cursor-not-allowed'
+                      : 'bg-blue-600 hover:bg-blue-700 hover:shadow-md'
+                  }`}
+                  title={hasBeenEdited && isPending ? "You have already edited this booking" : ""}
                 >
                   {loading ? (
                     <>
@@ -585,6 +691,69 @@ useEffect(() => {
           )}
         </div>
       </div>
+
+      {/* Confirmation Modal */}
+      {showConfirmModal && !(hasBeenEdited && isPending) && (
+        <div className="fixed inset-0 z-[60] flex items-center justify-center p-4">
+          <div className="absolute inset-0 bg-black/50 backdrop-blur-sm" onClick={() => setShowConfirmModal(false)} />
+          <div className="relative z-10 w-full max-w-md overflow-hidden rounded-2xl bg-white shadow-2xl animate-[fadeIn_0.2s_ease-out]">
+            <div className="border-b border-blue-100 bg-blue-50 px-6 py-4">
+              <div className="flex items-center gap-3">
+                <div className="flex h-10 w-10 items-center justify-center rounded-full bg-blue-100">
+                  <i className="fas fa-question-circle text-blue-600" />
+                </div>
+                <h3 className="text-lg font-bold text-blue-900">Confirm Changes</h3>
+              </div>
+            </div>
+            <div className="px-6 py-5 space-y-3">
+              <p className="text-sm text-gray-700">
+                Are you sure you want to update this reservation to:
+              </p>
+              <div className="rounded-lg bg-gray-50 p-3 text-sm">
+                <p><span className="font-semibold">Date:</span> {formatDisplayDate(selectedDate)}</p>
+              </div>
+              <p className="text-sm text-gray-700">With the following guest counts:</p>
+              <div className="rounded-lg bg-gray-50 p-3 text-sm">
+                <p>Adults: {parseInt(adults, 10) || 0}</p>
+                <p>Kids: {parseInt(kids, 10) || 0}</p>
+                <p>Total Guests: {totalGuests}</p>
+              </div>
+              <div className="rounded-lg bg-blue-50 p-3 text-sm">
+                <p className="font-semibold text-blue-800">Price Update:</p>
+                <div className="flex justify-between mt-1">
+                  <span>New Total Price:</span>
+                  <span className="font-bold">₱{newTotal.toLocaleString()}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span>Remaining Balance:</span>
+                  <span>₱{newRemainingBalance.toLocaleString()}</span>
+                </div>
+                <p className="text-xs text-blue-600 mt-1">
+                  * Down payment (₱{originalDownPayment.toLocaleString()}) remains unchanged.
+                </p>
+              </div>
+              <p className="text-xs text-amber-600">
+                <i className="fas fa-info-circle mr-1" />
+                This action will update the reservation immediately.
+              </p>
+            </div>
+            <div className="flex justify-end gap-3 border-t border-gray-100 bg-gray-50 px-6 py-4">
+              <button
+                onClick={() => setShowConfirmModal(false)}
+                className="rounded-xl px-4 py-2 text-sm font-semibold text-gray-600 hover:bg-gray-100"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleConfirmSubmit}
+                className="rounded-xl bg-blue-600 px-4 py-2 text-sm font-semibold text-white hover:bg-blue-700"
+              >
+                Confirm
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </>
   );
 }

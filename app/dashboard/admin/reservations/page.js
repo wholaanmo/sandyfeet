@@ -7,6 +7,8 @@ import { collection, query, orderBy, onSnapshot, updateDoc, doc, getDoc, getDocs
 import { logAdminAction } from '../../../../lib/auditLogger';
 import { sendConfirmationEmail, sendCancellationEmail } from '../../../../lib/emailService';
 import { useSearchParams } from 'next/navigation';
+import AdminRequestChangesModal from './components/AdminRequestChangesModal';
+import AdminActionReasonModal from './components/AdminActionReasonModal';
 
 export default function AdminReservations() {
     const searchParams = useSearchParams(); // <-- ADDED
@@ -29,6 +31,11 @@ export default function AdminReservations() {
   const sliderRef = useRef(null);
   const buttonRefs = useRef({});
   const [idRequestModal, setIdRequestModal] = useState({ show: false, booking: null, message: '', sending: false });
+  const [showRequestDetailsModal, setShowRequestDetailsModal] = useState(false);
+const [selectedRequestBooking, setSelectedRequestBooking] = useState(null);
+const [requestAction, setRequestAction] = useState(null); // 'approve' or 'reject'
+const [showRequestReasonModal, setShowRequestReasonModal] = useState(false);
+const [requestReasonLoading, setRequestReasonLoading] = useState(false);
 
   const [editingNote, setEditingNote] = useState(false);
 const [tempNoteForEdit, setTempNoteForEdit] = useState('');
@@ -370,6 +377,14 @@ useEffect(() => {
       bookingIdDisplay = 'Single Room Type';
     }
 
+            let hasPendingChangeRequest = false;
+for (const child of group.bookings) {
+  if (child.changeRequest?.status === 'pending') {
+    hasPendingChangeRequest = true;
+    break;
+  }
+}
+
     consolidatedGroups.push({
       id: parentId,
       bookingId: parentId,
@@ -398,6 +413,7 @@ useEffect(() => {
       totalGuests,
       childBookings: childBookingsWithGuests,
       originalChildBookings: group.bookings,
+      hasPendingChangeRequest,
       tentCount: tentCount,
       exclusiveAdults: exclusiveAdults,
       exclusiveKids: exclusiveKids,
@@ -420,6 +436,110 @@ useEffect(() => {
   }));
 
   return [...enhancedSingleBookings, ...consolidatedGroups];
+};
+
+const handleRequestDecision = async (decision, reason) => {
+  if (!selectedRequestBooking) return;
+  setRequestReasonLoading(true);
+  try {
+    const isRoom = selectedRequestBooking.type === 'room';
+    
+    // Handle multi-room groups - update all child bookings
+    if (selectedRequestBooking.originalChildBookings && selectedRequestBooking.originalChildBookings.length > 0) {
+      // This is a multi-room group - update each child booking individually
+      for (const childBooking of selectedRequestBooking.originalChildBookings) {
+        const childBookingRef = doc(db, 'bookings', childBooking.id);
+        await updateDoc(childBookingRef, {
+          'changeRequest.status': decision === 'approve' ? 'approved' : 'rejected',
+          'changeRequest.adminReason': reason,
+          'changeRequest.adminNote': reason,
+          'changeRequest.processedAt': new Date().toISOString(),
+          updatedAt: new Date().toISOString()
+        });
+      }
+    } else {
+      // Single booking (room or day tour)
+      const collectionName = isRoom ? 'bookings' : 'dayTourBookings';
+      const docId = selectedRequestBooking.id;
+      const bookingRef = doc(db, collectionName, docId);
+      await updateDoc(bookingRef, {
+        'changeRequest.status': decision === 'approve' ? 'approved' : 'rejected',
+        'changeRequest.adminReason': reason,
+        'changeRequest.adminNote': reason,
+        'changeRequest.processedAt': new Date().toISOString(),
+        updatedAt: new Date().toISOString()
+      });
+    }
+
+    // Optional: send email notification to guest
+    try {
+      await fetch('/api/admin/send-change-request-response', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          bookingId: selectedRequestBooking.bookingId,
+          type: isRoom ? 'room' : 'daytour',
+          decision,
+          reason,
+          requestedChanges: selectedRequestBooking.changeRequest?.text
+        })
+      });
+    } catch (emailErr) {
+      console.error('Failed to send email:', emailErr);
+    }
+
+    await logAdminAction({
+      action: decision === 'approve' ? 'Change Request Approved' : 'Change Request Rejected',
+      module: 'Reservations',
+      details: `${decision === 'approve' ? 'Approved' : 'Rejected'} change request for booking ${selectedRequestBooking.bookingId}. Reason: ${reason}`
+    });
+
+    showNotification(`Change request ${decision === 'approve' ? 'approved' : 'rejected'} and guest notified.`, 'success');
+    setShowRequestReasonModal(false);
+    setShowRequestDetailsModal(false);
+    setSelectedRequestBooking(null);
+  } catch (error) {
+    console.error('Error processing request:', error);
+    showNotification('Failed to process request. Please try again.', 'error');
+  } finally {
+    setRequestReasonLoading(false);
+  }
+};
+
+const shouldShowRequestButton = (booking) => {
+  if (activeTab === 'rooms') {
+    const statusOk = ['pending', 'confirmed'].includes(booking.status);
+    const typeOk = booking.bookingIdDisplay === 'Single Room Type' ||
+                   booking.bookingIdDisplay === 'Multi-Room Types' ||
+                   booking.isExclusiveResortBooking;
+    
+    // Check if there's a pending OR processed request to still show the button
+    // For multi‑room groups, check all child bookings
+    let hasPendingRequest = false;
+    let hasProcessedRequest = false;
+    
+    if (booking.isMultiRoomGroup && booking.originalChildBookings) {
+      for (const child of booking.originalChildBookings) {
+        if (child.changeRequest?.status === 'pending') {
+          hasPendingRequest = true;
+          break;
+        }
+        if (child.changeRequest && (child.changeRequest.status === 'approved' || child.changeRequest.status === 'rejected')) {
+          hasProcessedRequest = true;
+        }
+      }
+    } else {
+      hasPendingRequest = booking.changeRequest?.status === 'pending';
+      hasProcessedRequest = booking.changeRequest && (booking.changeRequest.status === 'approved' || booking.changeRequest.status === 'rejected');
+    }
+    
+    // Show button if there's any change request (pending or processed)
+    return statusOk && typeOk && (hasPendingRequest || hasProcessedRequest);
+  } else if (activeTab === 'daytour') {
+    return booking.status === 'confirmed' && (booking.changeRequest?.status === 'pending' || 
+           (booking.changeRequest && (booking.changeRequest.status === 'approved' || booking.changeRequest.status === 'rejected')));
+  }
+  return false;
 };
 
  const handleConfirmCheckIn = async () => {
@@ -1675,6 +1795,18 @@ const isNotificationDisabled = (booking) => {
                               >
                                 <i className="fas fa-eye text-sm"></i>
                               </button>
+                              {shouldShowRequestButton(booking) && (
+  <button
+    onClick={() => {
+      setSelectedRequestBooking(booking);
+      setShowRequestDetailsModal(true);
+    }}
+    className="w-8 h-8 rounded-lg bg-amber-100 text-amber-700 hover:bg-amber-500 hover:text-white transition-all duration-200 flex items-center justify-center"
+    title="Review Change Request"
+  >
+    <i className="fas fa-exchange-alt text-sm"></i>
+  </button>
+)}
                               {booking.status === 'cancelled-by-guest' && (
                                 <button
                                   onClick={() => {
@@ -1784,6 +1916,19 @@ const isNotificationDisabled = (booking) => {
                               >
                                 <i className="fas fa-eye text-sm"></i>
                               </button>
+    {shouldShowRequestButton(tour) && (
+      <button
+        onClick={() => {
+          setSelectedRequestBooking(tour);
+          setShowRequestDetailsModal(true);
+        }}
+        className="w-8 h-8 rounded-lg bg-amber-100 text-amber-700 hover:bg-amber-500 hover:text-white transition-all duration-200 flex items-center justify-center"
+        title="Review Change Request"
+      >
+        <i className="fas fa-exchange-alt text-sm"></i>
+      </button>
+    )}
+
                               {tour.status === 'cancelled-by-guest' && (
                                 <button
                                   onClick={() => setShowReasonModal({
@@ -3125,6 +3270,35 @@ if (activeTab === 'daytour' && sidebarBooking.downPayment !== undefined) {
           animation: scaleIn 0.2s ease-out;
         }
       `}</style>
+
+ {showRequestDetailsModal && selectedRequestBooking && (
+  <AdminRequestChangesModal
+    isOpen={showRequestDetailsModal}
+    booking={selectedRequestBooking}
+    onClose={() => {
+      setShowRequestDetailsModal(false);
+      setSelectedRequestBooking(null);
+    }}
+    onConfirm={(action) => {
+      setRequestAction(action);
+      setShowRequestDetailsModal(false);
+      setShowRequestReasonModal(true);
+    }}
+  />
+)}
+
+{showRequestReasonModal && (
+  <AdminActionReasonModal
+    isOpen={showRequestReasonModal}
+    action={requestAction}
+    booking={selectedRequestBooking}
+    onClose={() => {
+      setShowRequestReasonModal(false);
+      setRequestAction(null);
+    }}
+    onConfirm={(reason) => handleRequestDecision(requestAction, reason)}
+  />
+)}
     </div>
   );
 }

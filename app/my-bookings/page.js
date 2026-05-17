@@ -10,29 +10,33 @@ import { useGuestAuth } from '@/components/guest/GuestAuthContext';
 import { collection, query, where, onSnapshot } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 import BookingCard from './BookingCard';
-import SignOutConfirmationModal from '@/components/SignOutConfirmationModal'; // Add this import
+import SignOutConfirmationModal from '@/components/SignOutConfirmationModal';
 import {
   normalizeBooking,
   buildMultiRoomGroup,
   toDateValue,
   cancelBooking,
+  getTypeDisplay,
 } from './utils';
 
+// Updated TAB_OPTIONS with "All" tab as the first option
 const TAB_OPTIONS = [
-  { id: 'pending',   label: 'Pending',   icon: 'fa-clock',        emptyIcon: 'fa-hourglass-half', emptyText: 'No pending reservations', color: 'amber' },
-  { id: 'success',   label: 'Confirmed', icon: 'fa-check-circle', emptyIcon: 'fa-calendar-check', emptyText: 'No confirmed reservations yet', color: 'emerald' },
-  { id: 'cancelled', label: 'Cancelled', icon: 'fa-times-circle', emptyIcon: 'fa-ban',            emptyText: 'No cancelled reservations', color: 'red' },
-  { id: 'completed', label: 'Completed', icon: 'fa-check-double', emptyIcon: 'fa-calendar-check', emptyText: 'No completed reservations', color: 'blue' },
+  { id: 'all',       label: 'All',       icon: 'fa-list',          emptyIcon: 'fa-calendar-alt', emptyText: 'No bookings found', color: 'blue' },
+  { id: 'pending',   label: 'Pending',   icon: 'fa-clock',         emptyIcon: 'fa-hourglass-half', emptyText: 'No pending reservations', color: 'amber' },
+  { id: 'success',   label: 'Confirmed', icon: 'fa-check-circle',  emptyIcon: 'fa-calendar-check', emptyText: 'No confirmed reservations yet', color: 'emerald' },
+  { id: 'cancelled', label: 'Cancelled', icon: 'fa-times-circle',  emptyIcon: 'fa-ban',            emptyText: 'No cancelled reservations', color: 'red' },
+  { id: 'completed', label: 'Completed', icon: 'fa-check-double',  emptyIcon: 'fa-calendar-check', emptyText: 'No completed reservations', color: 'blue' },
 ];
 
 export default function MyBookingsPage() {
   const { user, profile, loading, logout, updateGuestProfile } = useGuestAuth();
   const [isAuthOpen, setIsAuthOpen] = useState(false);
-  const [showSignOutModal, setShowSignOutModal] = useState(false); // Add this state
+  const [showSignOutModal, setShowSignOutModal] = useState(false);
   const [activeTab, setActiveTab] = useState('pending');
   const [bookings, setBookings] = useState([]);
   const [bookingsLoading, setBookingsLoading] = useState(false);
   const [bookingsError, setBookingsError] = useState('');
+  const [searchQuery, setSearchQuery] = useState(''); // <-- added search state
 
   // ─── Cancel Modal State ───
   const [cancelTarget, setCancelTarget] = useState(null);
@@ -45,21 +49,11 @@ export default function MyBookingsPage() {
   const email = user?.email || '';
   const avatarLetter = (displayName || email || 'G').charAt(0).toUpperCase();
 
-  // Add this handler for sign out
-  const handleSignOutClick = () => {
-    setShowSignOutModal(true);
-  };
+  const handleSignOutClick = () => setShowSignOutModal(true);
+  const handleConfirmSignOut = () => { setShowSignOutModal(false); logout(); };
+  const handleCancelSignOut = () => setShowSignOutModal(false);
 
-  const handleConfirmSignOut = () => {
-    setShowSignOutModal(false);
-    logout();
-  };
-
-  const handleCancelSignOut = () => {
-    setShowSignOutModal(false);
-  };
-
-  // ─── Real-time Firestore Listener ───
+  // ─── Real-time Firestore Listener (unchanged) ───
   useEffect(() => {
     if (!user?.email) {
       setBookings([]);
@@ -123,30 +117,52 @@ export default function MyBookingsPage() {
     return () => unsubs.forEach((u) => u());
   }, [user?.email, user?.uid]);
 
-  // ─── Filtered + Counts ───
+  // ─── Filtered + Counts (updated for All tab and search) ───
   const { filtered, counts } = useMemo(() => {
-    const pending = bookings.filter((b) => b.status === 'pending');
-    const confirmed = bookings.filter((b) => ['confirmed', 'check-in', 'check-out'].includes(b.status));
-    const cancelled = bookings.filter((b) => ['cancelled', 'cancelled-by-guest'].includes(b.status));
-    const completed = bookings.filter((b) => b.status === 'completed');
+    // First, filter by search query (booking type or booking ID)
+    const searchLower = searchQuery.toLowerCase().trim();
+    let searchFiltered = bookings;
+    if (searchLower) {
+      searchFiltered = bookings.filter((b) => {
+        // Get booking type label from utils
+        const typeLabel = getTypeDisplay(b).label.toLowerCase();
+        // Check if bookingId matches (case‑insensitive)
+        const idMatch = b.bookingId?.toLowerCase().includes(searchLower);
+        const typeMatch = typeLabel.includes(searchLower);
+        return idMatch || typeMatch;
+      });
+    }
 
-    const c = { pending: pending.length, success: confirmed.length, cancelled: cancelled.length, completed: completed.length };
+    // Then split by status groups
+    const pending = searchFiltered.filter((b) => b.status === 'pending');
+    const confirmed = searchFiltered.filter((b) => ['confirmed', 'check-in', 'check-out'].includes(b.status));
+    const cancelled = searchFiltered.filter((b) => ['cancelled', 'cancelled-by-guest'].includes(b.status));
+    const completed = searchFiltered.filter((b) => b.status === 'completed');
+
+    // Counts for tab badges (using searchFiltered length for 'all')
+    const c = {
+      all: searchFiltered.length,
+      pending: pending.length,
+      success: confirmed.length,
+      cancelled: cancelled.length,
+      completed: completed.length,
+    };
+
     let f;
-    if (activeTab === 'pending') f = pending;
+    if (activeTab === 'all') f = searchFiltered;
+    else if (activeTab === 'pending') f = pending;
     else if (activeTab === 'cancelled') f = cancelled;
     else if (activeTab === 'completed') f = completed;
-    else f = confirmed;
+    else f = confirmed; // activeTab === 'success'
 
     return { filtered: f, counts: c };
-  }, [activeTab, bookings]);
+  }, [activeTab, bookings, searchQuery]);
 
   const handleBookingUpdated = useCallback(() => {
-  // The real-time listener will automatically refresh the data
-  // This function is called after successful edit to trigger any additional UI updates
-  setBookings(prev => [...prev]); // Force re-render if needed
-}, []);
+    setBookings(prev => [...prev]); // Force re-render if needed
+  }, []);
 
-  // ─── Cancel Handlers ───
+  // ─── Cancel Handlers (unchanged) ───
   const openCancelModal = useCallback((booking) => {
     setCancelTarget(booking);
     setCancelReason('');
@@ -238,7 +254,7 @@ export default function MyBookingsPage() {
                   {user ? (
                     <button
                       type="button"
-                      onClick={handleSignOutClick} // Changed from onClick={logout}
+                      onClick={handleSignOutClick}
                       className="inline-flex items-center gap-2 rounded-xl border border-[#4D8CF5]/15 bg-white px-3 py-2 text-xs font-semibold text-[#1E3A8A] shadow-sm transition-all duration-200 hover:-translate-y-0.5 hover:bg-[#4D8CF5]/10 hover:shadow-md"
                     >
                       <i className="fas fa-right-from-bracket text-[11px]"></i>
@@ -290,29 +306,24 @@ export default function MyBookingsPage() {
               </div>
             </aside>
 
-            {/* ─── Main Content (existing bookings UI) ─── */}
+            {/* ─── Main Content ─── */}
             <section className="space-y-5">
-<div className="mb-6 overflow-hidden rounded-2xl border border-[#7AAAF8]/15 bg-[#7AAAF8]/3 p-5 shadow-sm">
-  <div className="flex items-center justify-between">
-
-    <div className="relative">
-      <div className="pointer-events-none absolute -left-6 -top-6 h-24 w-24 rounded-full bg-[#7AAAF8]/10 blur-2xl"></div>
-
-      <h1 className="mt-2 text-2xl font-bold tracking-tight text-[#1E3A8A] font-playfair">
-        My Bookings
-      </h1>
-
-      <p className="mt-1 text-sm leading-relaxed text-[#4D6FA8]">
-        Track your reservations and stay updated with booking status.
-      </p>
-    </div>
-
-    <div className="hidden sm:flex h-14 w-14 items-center justify-center rounded-2xl border border-[#7AAAF8]/15 bg-white shadow-sm transition-all duration-200 hover:scale-105">
-      <i className="fas fa-calendar-check text-xl text-[#4D6FA8]"></i>
-    </div>
-
-  </div>
-</div>
+              <div className="mb-6 overflow-hidden rounded-2xl border border-[#7AAAF8]/15 bg-[#7AAAF8]/3 p-5 shadow-sm">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                  <div className="relative">
+                    <div className="pointer-events-none absolute -left-6 -top-6 h-24 w-24 rounded-full bg-[#7AAAF8]/10 blur-2xl"></div>
+                    <h1 className="text-2xl font-bold tracking-tight text-[#1E3A8A] font-playfair">
+                      My Bookings
+                    </h1>
+                    <p className="mt-1 text-sm leading-relaxed text-[#4D6FA8]">
+                      Track your reservations and stay updated with booking status.
+                    </p>
+                  </div>
+                  <div className="hidden sm:flex h-14 w-14 items-center justify-center rounded-2xl border border-[#7AAAF8]/15 bg-white shadow-sm transition-all duration-200 hover:scale-105">
+                    <i className="fas fa-calendar-check text-xl text-[#4D6FA8]"></i>
+                  </div>
+                </div>
+              </div>
 
               {/* Unauthenticated */}
               {!user && (
@@ -339,7 +350,29 @@ export default function MyBookingsPage() {
               {/* Authenticated */}
               {user && (
                 <>
-                  {/* Tab Navigation */}
+                  {/* Search Bar */}
+                  <div className="mb-4">
+                    <div className="relative w-full group">
+                      <i className="fas fa-search absolute left-4 top-1/2 -translate-y-1/2 text-[#4D8CF5] text-sm transition-all duration-300 group-focus-within:text-[#3B78E7]"></i>
+                      <input
+                        type="text"
+                        placeholder="Search by booking ID or type (Day Tour, Entire Resort, Single Room, Multi-Room)..."
+                        value={searchQuery}
+                        onChange={(e) => setSearchQuery(e.target.value)}
+                        className="w-full pl-11 pr-5 py-3 border-2 border-[#4D8CF5]/20 rounded-xl text-sm focus:outline-none focus:border-[#4D8CF5] focus:ring-2 focus:ring-[#4D8CF5]/20 transition-all duration-300 bg-white shadow-sm hover:shadow-md"
+                      />
+                      {searchQuery && (
+                        <button
+                          onClick={() => setSearchQuery('')}
+                          className="absolute right-4 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 transition-colors"
+                        >
+                          <i className="fas fa-times-circle text-sm"></i>
+                        </button>
+                      )}
+                    </div>
+                  </div>
+
+                  {/* Tab Navigation (including All tab) */}
                   <div className="mb-6 flex gap-2 overflow-x-auto pb-1">
                     {TAB_OPTIONS.map((tab) => {
                       const isActive = activeTab === tab.id;
@@ -389,14 +422,14 @@ export default function MyBookingsPage() {
                         <p className="mt-4 text-sm font-medium text-red-700">{bookingsError}</p>
                       </div>
                     ) : filtered.length > 0 ? (
-filtered.map((booking) => (
-  <BookingCard 
-    key={booking.key} 
-    booking={booking} 
-    onCancel={openCancelModal}
-    onEditSuccess={handleBookingUpdated}
-  />
-))
+                      filtered.map((booking) => (
+                        <BookingCard
+                          key={booking.key}
+                          booking={booking}
+                          onCancel={openCancelModal}
+                          onEditSuccess={handleBookingUpdated}
+                        />
+                      ))
                     ) : (
                       <div className="flex flex-col items-center rounded-2xl border border-slate-200 bg-white px-6 py-16 text-center shadow-sm">
                         <div className="flex h-14 w-14 items-center justify-center rounded-full bg-slate-100">
@@ -410,7 +443,9 @@ filtered.map((booking) => (
                               ? 'Confirmed bookings will show up here once approved.'
                               : activeTab === 'cancelled'
                               ? 'Any cancelled reservations will be listed here.'
-                              : 'Completed stays will appear here after checkout.'}
+                              : activeTab === 'completed'
+                              ? 'Completed stays will appear here after checkout.'
+                              : 'Try adjusting your search or clear the filter.'}
                         </p>
                       </div>
                     )}
