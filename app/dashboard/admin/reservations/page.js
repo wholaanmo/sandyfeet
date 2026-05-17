@@ -1,13 +1,13 @@
 // app/dashboard/admin/reservations/page.js
 'use client';
 
-import { useState, useEffect, useRef, useCallback } from 'react';
+import { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import { db } from '../../../../lib/firebase';
 import { collection, query, orderBy, onSnapshot, updateDoc, doc, getDoc, getDocs, where } from 'firebase/firestore';
 import { logAdminAction } from '../../../../lib/auditLogger';
 import { sendConfirmationEmail, sendCancellationEmail } from '../../../../lib/emailService';
 import { useRouter, useSearchParams } from 'next/navigation';
-import { ADMIN_RESERVATIONS_RESTORE_KEY } from './guest-profile/page';
+import { ADMIN_RESERVATIONS_RESTORE_KEY, mapGuestProfileToDisplayInfo } from './guest-profile/page';
 import AdminRequestChangesModal from './components/AdminRequestChangesModal';
 import AdminActionReasonModal from './components/AdminActionReasonModal';
 import AdminEditBookingModal, { canAdminEditBooking } from './components/AdminEditBookingModal';
@@ -513,38 +513,28 @@ const handleRequestDecision = async (decision, reason) => {
   }
 };
 
+const hasChangeRequest = (booking) => {
+  if (booking.isMultiRoomGroup && booking.originalChildBookings) {
+    return booking.originalChildBookings.some((child) => {
+      const cr = child.changeRequest;
+      return cr?.status === 'pending' ||
+        (cr && (cr.status === 'approved' || cr.status === 'rejected'));
+    });
+  }
+  const cr = booking.changeRequest;
+  return cr?.status === 'pending' ||
+    (cr && (cr.status === 'approved' || cr.status === 'rejected'));
+};
+
 const shouldShowRequestButton = (booking) => {
   if (activeTab === 'rooms') {
-    const statusOk = ['pending', 'confirmed'].includes(booking.status);
     const typeOk = booking.bookingIdDisplay === 'Single Room Type' ||
                    booking.bookingIdDisplay === 'Multi-Room Types' ||
                    booking.isExclusiveResortBooking;
-    
-    // Check if there's a pending OR processed request to still show the button
-    // For multi‑room groups, check all child bookings
-    let hasPendingRequest = false;
-    let hasProcessedRequest = false;
-    
-    if (booking.isMultiRoomGroup && booking.originalChildBookings) {
-      for (const child of booking.originalChildBookings) {
-        if (child.changeRequest?.status === 'pending') {
-          hasPendingRequest = true;
-          break;
-        }
-        if (child.changeRequest && (child.changeRequest.status === 'approved' || child.changeRequest.status === 'rejected')) {
-          hasProcessedRequest = true;
-        }
-      }
-    } else {
-      hasPendingRequest = booking.changeRequest?.status === 'pending';
-      hasProcessedRequest = booking.changeRequest && (booking.changeRequest.status === 'approved' || booking.changeRequest.status === 'rejected');
-    }
-    
-    // Show button if there's any change request (pending or processed)
-    return statusOk && typeOk && (hasPendingRequest || hasProcessedRequest);
-  } else if (activeTab === 'daytour') {
-    return booking.status === 'confirmed' && (booking.changeRequest?.status === 'pending' || 
-           (booking.changeRequest && (booking.changeRequest.status === 'approved' || booking.changeRequest.status === 'rejected')));
+    return typeOk && hasChangeRequest(booking);
+  }
+  if (activeTab === 'daytour') {
+    return hasChangeRequest(booking);
   }
   return false;
 };
@@ -1570,6 +1560,7 @@ const isNotificationDisabled = (booking) => {
   // State for sidebar modal
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const [sidebarBooking, setSidebarBooking] = useState(null);
+  const [liveGuestProfile, setLiveGuestProfile] = useState(null);
 
   // Lock body scroll when sidebar is open
   useEffect(() => {
@@ -1594,7 +1585,45 @@ const isNotificationDisabled = (booking) => {
   const closeSidebar = () => {
     setIsSidebarOpen(false);
     setSidebarBooking(null);
+    setLiveGuestProfile(null);
   };
+
+  const sidebarGuestInfo = useMemo(() => {
+    if (!sidebarBooking) return null;
+    return mapGuestProfileToDisplayInfo(
+      liveGuestProfile,
+      sidebarBooking.guestInfo || {},
+      sidebarBooking.guestInfo?.email || ''
+    );
+  }, [sidebarBooking, liveGuestProfile]);
+
+  useEffect(() => {
+    if (!isSidebarOpen || !sidebarBooking) {
+      setLiveGuestProfile(null);
+      return undefined;
+    }
+
+    const profileUid = sidebarBooking.guestUid || '';
+    const profileEmail = sidebarBooking.guestInfo?.email?.toLowerCase().trim() || '';
+
+    if (profileUid) {
+      return onSnapshot(doc(db, 'guestProfiles', profileUid), (snap) => {
+        setLiveGuestProfile(snap.exists() ? snap.data() : null);
+      });
+    }
+
+    if (profileEmail) {
+      return onSnapshot(
+        query(collection(db, 'guestProfiles'), where('email', '==', profileEmail)),
+        (snapshot) => {
+          setLiveGuestProfile(snapshot.empty ? null : snapshot.docs[0].data());
+        }
+      );
+    }
+
+    setLiveGuestProfile(null);
+    return undefined;
+  }, [isSidebarOpen, sidebarBooking?.id, sidebarBooking?.guestUid, sidebarBooking?.guestInfo?.email]);
 
   const handleViewGuestProfile = () => {
     if (!sidebarBooking?.guestInfo) return;
@@ -1941,9 +1970,6 @@ const isNotificationDisabled = (booking) => {
                             {formatDateOnly(tour.selectedDate)}
                           </td>
                           <td className="px-3 py-2 text-xs text-textSecondary text-center">
-                            {tour.seniors || 0}
-                          </td>
-                          <td className="px-3 py-2 text-xs text-textSecondary text-center">
                             {tour.adults || 0}
                           </td>
                           <td className="px-3 py-2 text-xs text-textSecondary text-center">
@@ -2058,10 +2084,10 @@ const isNotificationDisabled = (booking) => {
                   </button>
                 </div>
                 <p className="text-sm font-medium text-[#1E3A8A]">
-                  {sidebarBooking.guestInfo?.firstName} {sidebarBooking.guestInfo?.lastName}
+                  {sidebarGuestInfo?.firstName} {sidebarGuestInfo?.lastName}
                 </p>
-                <p className="text-xs text-[#1E3A8A]/70">{sidebarBooking.guestInfo?.email}</p>
-                <p className="text-xs text-[#1E3A8A]/70">{sidebarBooking.guestInfo?.phone}</p>
+                <p className="text-xs text-[#1E3A8A]/70">{sidebarGuestInfo?.email}</p>
+                <p className="text-xs text-[#1E3A8A]/70">{sidebarGuestInfo?.mobile}</p>
               </div>
 
               {/* Room/Tour Details */}

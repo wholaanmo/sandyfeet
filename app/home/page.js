@@ -747,22 +747,28 @@ export default function HomePage() {
                     ).map((item, index) => (
                       <div
                         key={`${item.id}-${index}`}
-                        className="w-[320px] flex-none rounded-3xl border border-gray-100 bg-white p-8 shadow-[0_8px_30px_rgb(0,0,0,0.03)] md:w-[360px]"
+                        className="w-[320px] flex-none rounded-3xl border border-slate-100 bg-white p-8 shadow-[0_10px_35px_rgba(0,0,0,0.03)] transition-all duration-300 hover:shadow-[0_15px_45px_rgba(0,0,0,0.06)] md:w-[360px]"
                       >
-                        <div className="mb-6 flex items-center gap-4">
-                          <div className="flex h-12 w-12 items-center justify-center rounded-full bg-blue-50 text-lg font-bold text-[#3B82F6]">
-                            {(item.guestName || 'Guest').charAt(0)}
-                          </div>
-                          <div>
-                            <h4 className="font-bold text-[#0f2824]">
-                              {item.guestName ? item.guestName.split(' ')[0] : 'Guest'}
-                            </h4>
-                            <div className="mt-1">
-                              <StarRating rating={item.rating} />
+                        <div className="mb-6 flex items-center justify-between">
+                          <div className="flex items-center gap-4">
+                            <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-gradient-to-br from-blue-50 to-white border border-blue-100 text-lg font-bold text-[#3B82F6] shadow-sm">
+                              {(item.guestName || 'Guest').charAt(0).toUpperCase()}
+                            </div>
+                            <div>
+                              <h4 className="font-bold text-[#0f2824]">
+                                {item.guestName ? item.guestName.split(' ')[0] : 'Guest'}
+                              </h4>
+                              <div className="mt-1">
+                                <StarRating rating={item.rating} />
+                              </div>
                             </div>
                           </div>
+                          {/* Quote Icon */}
+                          <div className="text-[#3B82F6]/20 text-4xl font-serif">
+                            &rdquo;
+                          </div>
                         </div>
-                        <p className="mb-8 text-[15px] leading-relaxed text-gray-600">
+                        <p className="text-[15px] leading-relaxed text-gray-600 italic">
                           &quot;{item.comment}&quot;
                         </p>
                       </div>
@@ -789,16 +795,6 @@ export default function HomePage() {
                     </div>
                   </div>
                 )}
-              </div>
-
-              <div className="mt-8 flex justify-center">
-                <button
-                  type="button"
-                  onClick={() => setShowFeedbackModal(true)}
-                  className="rounded-full bg-[#3B82F6] px-6 py-3 text-sm font-semibold text-white shadow-md shadow-blue-500/20 transition-all hover:-translate-y-0.5 hover:bg-[#2563EB]"
-                >
-                  Add Feedback
-                </button>
               </div>
             </div>
           </div>

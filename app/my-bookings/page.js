@@ -207,10 +207,10 @@ export default function MyBookingsPage() {
   // ─── Current Tab Meta ───
   const currentTab = TAB_OPTIONS.find((t) => t.id === activeTab) || TAB_OPTIONS[0];
   const colorMap = {
-    amber: 'bg-yellow-500',
-    emerald: 'bg-green-500',
-    red: 'bg-red-500',
-    blue: 'bg-blue-500',
+    amber: 'bg-amber-50 text-amber-700 ring-2 ring-amber-200 shadow-sm',
+    emerald: 'bg-emerald-50 text-emerald-700 ring-2 ring-emerald-200 shadow-sm',
+    red: 'bg-red-50 text-red-700 ring-2 ring-red-200 shadow-sm',
+    blue: 'bg-blue-50 text-blue-700 ring-2 ring-blue-200 shadow-sm',
   };
 
   return (
@@ -311,22 +311,26 @@ export default function MyBookingsPage() {
 
             {/* ─── Main Content ─── */}
             <section className="space-y-5">
-              <div className="mb-6 overflow-hidden rounded-2xl border border-[#7AAAF8]/15 bg-[#7AAAF8]/3 p-5 shadow-sm">
-                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-                  <div className="relative">
-                    <div className="pointer-events-none absolute -left-6 -top-6 h-24 w-24 rounded-full bg-[#7AAAF8]/10 blur-2xl"></div>
-                    <h1 className="text-2xl font-bold tracking-tight text-[#1E3A8A] font-playfair">
-                      My Bookings
-                    </h1>
-                    <p className="mt-1 text-sm leading-relaxed text-[#4D6FA8]">
-                      Track your reservations and stay updated with booking status.
-                    </p>
-                  </div>
-                  <div className="hidden sm:flex h-14 w-14 items-center justify-center rounded-2xl border border-[#7AAAF8]/15 bg-white shadow-sm transition-all duration-200 hover:scale-105">
-                    <i className="fas fa-calendar-check text-xl text-[#4D6FA8]"></i>
-                  </div>
-                </div>
-              </div>
+<div className="relative mb-6 overflow-hidden rounded-2xl border border-[#7AAAF8]/20 bg-gradient-to-br from-[#7AAAF8]/5 via-white to-[#7AAAF8]/5 p-5 shadow-sm backdrop-blur-sm sm:p-6">
+  <div className="absolute -right-12 -top-12 h-32 w-32 rounded-full bg-[#4D8CF5]/10 blur-3xl"></div>
+  <div className="absolute -bottom-16 -left-16 h-40 w-40 rounded-full bg-[#1E3A8A]/5 blur-3xl"></div>
+
+  <div className="relative flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+    <div>
+      <h1 className="text-2xl font-bold tracking-tight text-[#1E3A8A] font-playfair sm:text-3xl">
+        My Bookings
+      </h1>
+
+      <p className="mt-2 max-w-lg text-sm leading-relaxed text-[#4D6FA8]">
+        Track your reservations and stay updated with booking status.
+      </p>
+    </div>
+
+    <div className="hidden h-14 w-14 items-center justify-center rounded-2xl border border-[#7AAAF8]/20 bg-white shadow-sm transition-all duration-200 hover:scale-105 sm:flex">
+      <i className="fas fa-calendar-check text-xl text-[#4D6FA8]"></i>
+    </div>
+  </div>
+</div>
 
               {/* Unauthenticated */}
               {!user && (
@@ -376,11 +380,20 @@ export default function MyBookingsPage() {
                   </div>
 
                   {/* Tab Navigation (including All tab) */}
-                  <div className="mb-6 flex gap-2 overflow-x-auto pb-1">
+                  <div className="mb-6 flex gap-2 overflow-x-auto pt-1.5 pb-2 px-1">
                     {TAB_OPTIONS.map((tab) => {
                       const isActive = activeTab === tab.id;
                       const count = counts[tab.id] || 0;
                       const activeColor = colorMap[tab.color];
+                      
+                      // Map for badge styles when active
+                      const activeBadgeStyles = {
+                        amber: 'bg-amber-100 text-amber-800',
+                        emerald: 'bg-emerald-100 text-emerald-800',
+                        red: 'bg-red-100 text-red-800',
+                        blue: 'bg-blue-100 text-blue-800',
+                      };
+
                       return (
                         <button
                           key={tab.id}
@@ -388,16 +401,16 @@ export default function MyBookingsPage() {
                           onClick={() => setActiveTab(tab.id)}
                           className={`group relative flex items-center gap-2 whitespace-nowrap rounded-2xl px-5 py-2.5 text-sm font-bold transition-all duration-300 ${
                             isActive
-                              ? `${activeColor} text-white shadow-md`
+                              ? activeColor
                               : 'bg-white text-slate-600 shadow-sm ring-1 ring-slate-200 hover:bg-slate-50 hover:text-slate-800'
                           }`}
                         >
-                          <i className={`fas ${tab.icon} text-xs ${isActive ? 'text-white/70' : 'text-slate-400 group-hover:text-slate-500'}`} />
+                          <i className={`fas ${tab.icon} text-xs ${isActive ? '' : 'text-slate-400 group-hover:text-slate-500'}`} />
                           {tab.label}
                           {count > 0 && (
                             <span className={`ml-0.5 inline-flex h-5 min-w-[20px] items-center justify-center rounded-full px-1.5 text-[10px] font-bold ${
                               isActive
-                                ? 'bg-white/20 text-white'
+                                ? activeBadgeStyles[tab.color]
                                 : 'bg-slate-100 text-slate-600'
                             }`}>
                               {count}

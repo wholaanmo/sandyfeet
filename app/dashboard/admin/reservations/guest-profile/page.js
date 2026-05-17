@@ -1,9 +1,9 @@
 // app/dashboard/admin/reservations/guest-profile/page.js
 'use client';
 
-import { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
-import { collection, doc, getDoc, onSnapshot, query, where } from 'firebase/firestore';
+import { collection, doc, onSnapshot, query, where } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 import {
   normalizeBooking,
@@ -14,12 +14,21 @@ import {
   calcNights,
   formatDateOnly,
   formatDateTime,
-  getDownPayment,
   getBalance,
-  getRoomTypes,
 } from '@/app/my-bookings/utils';
 
 export const ADMIN_RESERVATIONS_RESTORE_KEY = 'adminReservationsGuestProfileRestore';
+
+export const mapGuestProfileToDisplayInfo = (profile, fallbackGuestInfo = {}, fallbackEmail = '') => ({
+  firstName: profile?.firstName?.trim() || fallbackGuestInfo?.firstName?.trim() || '—',
+  lastName: profile?.lastName?.trim() || fallbackGuestInfo?.lastName?.trim() || '—',
+  mobile:
+    profile?.mobileNumber?.trim() ||
+    profile?.phone?.trim() ||
+    fallbackGuestInfo?.phone?.trim() ||
+    '—',
+  email: profile?.email?.trim() || fallbackGuestInfo?.email?.trim() || fallbackEmail?.trim() || '—',
+});
 
 const formatAddress = (address) => {
   if (!address) return '';
@@ -29,6 +38,120 @@ const formatAddress = (address) => {
 };
 
 const BASE_EXCLUSIVE_PRICE = 22500;
+const FIXED_CHECK_IN_DISPLAY = '02:00 PM';
+const FIXED_CHECK_OUT_DISPLAY = '12:00 PM';
+
+const enrichBookingFromRaw = (normalized, raw) => ({
+  ...normalized,
+  paymentProof: raw.paymentProof || null,
+  paymentProofUrl: raw.paymentProofUrl || null,
+  validIdImage: raw.validIdImage || null,
+  validIdUrl: raw.validIdUrl || null,
+  validIdType: raw.validIdType || null,
+  specialRequest: raw.specialRequest || null,
+  manualBalance: raw.manualBalance,
+  manualDownPayment: raw.manualDownPayment,
+  manualTotalPrice: raw.manualTotalPrice,
+  exclusivePackagePrice: raw.exclusivePackagePrice || null,
+  refundNotificationSent: Boolean(raw.refundNotificationSent),
+  moveDateNotificationSent: Boolean(raw.moveDateNotificationSent),
+  changeRequest: raw.changeRequest || null,
+});
+
+const pickFromChildren = (children, ...keys) => {
+  for (const child of children) {
+    for (const key of keys) {
+      if (child[key]) return child[key];
+    }
+  }
+  return null;
+};
+
+const formatDateWithTime = (date, type) => {
+  if (!date) return 'N/A';
+  try {
+    let dateObj;
+    if (date && typeof date.toDate === 'function') {
+      dateObj = date.toDate();
+    } else if (date && typeof date === 'object' && date.seconds) {
+      dateObj = new Date(date.seconds * 1000);
+    } else {
+      dateObj = new Date(date);
+    }
+    if (isNaN(dateObj.getTime())) return 'Invalid Date';
+    const formattedDate = dateObj.toLocaleDateString('en-US', {
+      year: 'numeric',
+      month: 'short',
+      day: 'numeric',
+    });
+    if (type === 'check-in') return `${formattedDate} at ${FIXED_CHECK_IN_DISPLAY}`;
+    if (type === 'check-out') return `${formattedDate} at ${FIXED_CHECK_OUT_DISPLAY}`;
+    return formattedDate;
+  } catch {
+    return 'Invalid Date';
+  }
+};
+
+const getBookingTypeLabel = (booking) => {
+  if (booking.type === 'daytour') return 'Day Tour';
+  if (booking.isExclusiveResortBooking) return 'Entire Resort';
+  if (booking.isMultiRoom && booking.roomTypesArray?.length > 1) return 'Multi-Room Types';
+  return 'Single Room Type';
+};
+
+const getTotalGuestsForDisplay = (booking) => {
+  if (booking.type === 'daytour') {
+    return (booking.seniors || 0) + (booking.adults || 0) + (booking.kids || 0);
+  }
+  if (booking.isExclusiveResortBooking) {
+    return (booking.exclusiveAdults || 0) + (booking.exclusiveKids || 0);
+  }
+  if (booking.children?.length) {
+    return booking.totalGuests || booking.children.reduce((s, c) => s + Number(c.guests || 0), 0);
+  }
+  return booking.guests || (booking.adults || 0) + (booking.kids || 0) || 1;
+};
+
+const computePaymentDisplay = (booking) => {
+  const isCancelled = ['cancelled', 'cancelled-by-guest'].includes(booking.status);
+  let downPayment;
+  let totalAmount;
+  let balance;
+
+  if (booking.type === 'daytour' && booking.downPayment !== undefined) {
+    totalAmount = booking.manualTotalPrice ?? booking.totalPrice;
+    downPayment = booking.downPayment;
+    if (isCancelled) {
+      balance = 0;
+      totalAmount = downPayment;
+    } else {
+      balance = booking.manualBalance !== undefined
+        ? booking.manualBalance
+        : (booking.remainingBalance !== undefined
+            ? booking.remainingBalance
+            : totalAmount - downPayment);
+    }
+  } else if (isCancelled) {
+    if (booking.manualDownPayment !== undefined && booking.manualDownPayment !== null) {
+      downPayment = booking.manualDownPayment;
+    } else {
+      downPayment = (Number(booking.totalPrice) || 0) * 0.5;
+    }
+    totalAmount = downPayment;
+    balance = 0;
+  } else {
+    if (booking.manualTotalPrice !== undefined && booking.manualTotalPrice !== null) {
+      totalAmount = booking.manualTotalPrice;
+      downPayment = totalAmount * 0.5;
+    } else {
+      totalAmount = Number(booking.totalPrice) || 0;
+      downPayment = totalAmount * 0.5;
+    }
+    balance = booking.manualBalance !== undefined ? booking.manualBalance : downPayment;
+  }
+
+  return { totalAmount, downPayment, balance };
+};
 
 export default function AdminGuestProfilePage() {
   const router = useRouter();
@@ -38,12 +161,19 @@ export default function AdminGuestProfilePage() {
 
   const [roomRaw, setRoomRaw] = useState([]);
   const [dayTourRaw, setDayTourRaw] = useState([]);
-  const [userProfile, setUserProfile] = useState(null);
+  const [guestProfile, setGuestProfile] = useState(null);
+  const [feedbackByBookingId, setFeedbackByBookingId] = useState({});
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
 
+  const resolvedGuestUid = useMemo(() => {
+    if (guestUid) return guestUid;
+    const bookingWithUid = roomRaw.find((booking) => booking.guestUid) || dayTourRaw.find((booking) => booking.guestUid);
+    return bookingWithUid?.guestUid || '';
+  }, [guestUid, roomRaw, dayTourRaw]);
+
   useEffect(() => {
-    if (!email && !guestUid) {
+    if (!email && !resolvedGuestUid) {
       setLoading(false);
       return undefined;
     }
@@ -80,10 +210,10 @@ export default function AdminGuestProfilePage() {
       );
     }
 
-    if (guestUid) {
+    if (resolvedGuestUid) {
       unsubs.push(
         onSnapshot(
-          query(collection(db, 'bookings'), where('guestUid', '==', guestUid)),
+          query(collection(db, 'bookings'), where('guestUid', '==', resolvedGuestUid)),
           (snapshot) => {
             setRoomRaw((prev) => {
               const merged = new Map(prev.map((b) => [b.id, b]));
@@ -98,7 +228,7 @@ export default function AdminGuestProfilePage() {
 
       unsubs.push(
         onSnapshot(
-          query(collection(db, 'dayTourBookings'), where('guestUid', '==', guestUid)),
+          query(collection(db, 'dayTourBookings'), where('guestUid', '==', resolvedGuestUid)),
           (snapshot) => {
             setDayTourRaw((prev) => {
               const merged = new Map(prev.map((b) => [b.id, b]));
@@ -111,24 +241,41 @@ export default function AdminGuestProfilePage() {
         )
       );
 
-      const userDocRef = doc(db, 'users', guestUid);
-      const unsubscribeUser = onSnapshot(
-        userDocRef,
-        (snap) => {
-          if (snap.exists()) setUserProfile(snap.data());
-          else setUserProfile(null);
-        },
-        (err) => console.error('User profile listener error:', err)
+      const profileDocRef = doc(db, 'guestProfiles', resolvedGuestUid);
+      unsubs.push(
+        onSnapshot(
+          profileDocRef,
+          (snap) => {
+            setGuestProfile(snap.exists() ? snap.data() : null);
+          },
+          (err) => console.error('Guest profile listener error:', err)
+        )
       );
-      unsubs.push(unsubscribeUser);
+    } else if (email) {
+      unsubs.push(
+        onSnapshot(
+          query(collection(db, 'guestProfiles'), where('email', '==', email)),
+          (snapshot) => {
+            if (snapshot.empty) {
+              setGuestProfile(null);
+              return;
+            }
+            setGuestProfile(snapshot.docs[0].data());
+          },
+          (err) => console.error('Guest profile email listener error:', err)
+        )
+      );
     }
 
     setLoading(false);
     return () => unsubs.forEach((unsub) => unsub());
-  }, [email, guestUid]);
+  }, [email, resolvedGuestUid]);
 
   const normalizedRoomBookings = useMemo(() => {
-    const normalized = roomRaw.map(b => normalizeBooking({ data: () => b, id: b.id }, 'room'));
+    const rawById = new Map(roomRaw.map((b) => [b.id, b]));
+    const normalized = roomRaw.map((b) =>
+      enrichBookingFromRaw(normalizeBooking({ data: () => b, id: b.id }, 'room'), b)
+    );
     const singles = [];
     const childrenMap = new Map();
     for (const booking of normalized) {
@@ -141,13 +288,39 @@ export default function AdminGuestProfilePage() {
     }
     const groups = [];
     for (const [parentId, children] of childrenMap.entries()) {
-      groups.push(buildMultiRoomGroup(children, parentId));
+      const group = buildMultiRoomGroup(children, parentId);
+      groups.push({
+        ...group,
+        isMultiRoomGroup: children.length > 1,
+        bookingIdDisplay: group.isExclusiveResortBooking
+          ? 'Entire Resort'
+          : (group.isMultiRoom ? 'Multi-Room Types' : 'Single Room Type'),
+        paymentProof: pickFromChildren(children, 'paymentProof'),
+        paymentProofUrl: pickFromChildren(children, 'paymentProofUrl'),
+        validIdImage: pickFromChildren(children, 'validIdImage'),
+        validIdUrl: pickFromChildren(children, 'validIdUrl'),
+        validIdType: pickFromChildren(children, 'validIdType'),
+        specialRequest: pickFromChildren(children, 'specialRequest') || group.specialRequest,
+        manualBalance: children.find((c) => c.manualBalance !== undefined)?.manualBalance,
+        manualDownPayment: children.find((c) => c.manualDownPayment !== undefined)?.manualDownPayment,
+        manualTotalPrice: children.find((c) => c.manualTotalPrice !== undefined)?.manualTotalPrice,
+        adminNote: children.find((c) => c.adminNote)?.adminNote || group.adminNote,
+        childBookings: children.map((c) => ({
+          roomType: c.roomType,
+          adults: c.adults || c.guests || 1,
+          kids: c.kids || 0,
+          guests: c.guests || 1,
+        })),
+        originalChildBookings: children.map((c) => rawById.get(c.id) || c),
+      });
     }
     return [...singles, ...groups];
   }, [roomRaw]);
 
   const normalizedDayTours = useMemo(() => {
-    return dayTourRaw.map(b => normalizeBooking({ data: () => b, id: b.id }, 'daytour'));
+    return dayTourRaw.map((b) =>
+      enrichBookingFromRaw(normalizeBooking({ data: () => b, id: b.id }, 'daytour'), b)
+    );
   }, [dayTourRaw]);
 
   const allBookings = useMemo(() => {
@@ -171,23 +344,45 @@ export default function AdminGuestProfilePage() {
   }, [allBookings, searchQuery]);
 
   const personalInfo = useMemo(() => {
-    if (userProfile) {
-      return {
-        firstName: userProfile.firstName || userProfile.name?.split(' ')?.[0] || '—',
-        lastName: userProfile.lastName || userProfile.name?.split(' ')?.slice(1).join(' ') || '—',
-        mobile: userProfile.mobileNumber || userProfile.phone || '—',
-        email: userProfile.email || email || '—',
-      };
-    }
     const sample = roomRaw[0] || dayTourRaw[0];
-    const guestInfo = sample?.guestInfo || {};
-    return {
-      firstName: guestInfo.firstName || '—',
-      lastName: guestInfo.lastName || '—',
-      mobile: guestInfo.phone || '—',
-      email: guestInfo.email || email || '—',
-    };
-  }, [userProfile, roomRaw, dayTourRaw, email]);
+    const fallbackGuestInfo = sample?.guestInfo || {};
+    return mapGuestProfileToDisplayInfo(guestProfile, fallbackGuestInfo, email);
+  }, [guestProfile, roomRaw, dayTourRaw, email]);
+
+  const feedbackEmail = useMemo(() => {
+    const fromProfile = personalInfo.email?.trim().toLowerCase();
+    if (fromProfile && fromProfile !== '—') return fromProfile;
+    return email || '';
+  }, [personalInfo.email, email]);
+
+  useEffect(() => {
+    if (!feedbackEmail) {
+      setFeedbackByBookingId({});
+      return undefined;
+    }
+
+    const feedbackQuery = query(
+      collection(db, 'feedbacks'),
+      where('guestEmail', '==', feedbackEmail)
+    );
+
+    const unsub = onSnapshot(
+      feedbackQuery,
+      (snapshot) => {
+        const map = {};
+        snapshot.docs.forEach((docSnap) => {
+          const data = docSnap.data();
+          if (data.bookingId) {
+            map[data.bookingId] = { id: docSnap.id, ...data };
+          }
+        });
+        setFeedbackByBookingId(map);
+      },
+      (err) => console.error('Feedback listener error:', err)
+    );
+
+    return () => unsub();
+  }, [feedbackEmail]);
 
   const handleBack = () => {
     router.push('/dashboard/admin/reservations?restoreGuestProfile=1');
@@ -299,7 +494,11 @@ export default function AdminGuestProfilePage() {
         ) : (
           <div className="space-y-4">
             {filteredBookings.map((booking) => (
-              <GuestBookingHistoryCard key={booking.key} booking={booking} />
+              <GuestBookingHistoryCard
+                key={booking.key}
+                booking={booking}
+                feedback={feedbackByBookingId[booking.bookingId] || null}
+              />
             ))}
           </div>
         )}
@@ -330,20 +529,23 @@ function GuestInfoCardField({ label, value, icon }) {
   );
 }
 
-// Expandable Booking Card (unchanged from original)
-function GuestBookingHistoryCard({ booking }) {
+function GuestBookingHistoryCard({ booking, feedback }) {
   const [expanded, setExpanded] = useState(false);
+  const [imageZoom, setImageZoom] = useState({ show: false, imageUrl: '', title: '' });
   const typeInfo = getTypeDisplay(booking);
   const statusInfo = getStatusBadge(booking.status, booking.cancelledBy);
   const guestTotal = getGuestTotal(booking);
+  const displayGuestTotal = getTotalGuestsForDisplay(booking);
   const nights = booking.type === 'daytour' ? 0 : calcNights(booking.checkIn, booking.checkOut);
   const primaryDate = booking.type === 'daytour'
     ? formatDateOnly(booking.selectedDate)
     : formatDateOnly(booking.checkIn);
   const balance = getBalance(booking);
-  const dp = getDownPayment(booking);
-  const roomTypes = getRoomTypes(booking);
   const address = formatAddress(booking.guestInfo?.address);
+  const paymentProofUrl = booking.paymentProof || booking.paymentProofUrl;
+  const validIdUrl = booking.validIdImage || booking.validIdUrl;
+  const paymentDisplay = computePaymentDisplay(booking);
+  const bookingTypeLabel = booking.bookingIdDisplay || getBookingTypeLabel(booking);
 
   let exclusiveTotalPrice = null;
   let exclusiveDownPayment = null;
@@ -357,6 +559,11 @@ function GuestBookingHistoryCard({ booking }) {
   }
 
   const toggleExpand = () => setExpanded(!expanded);
+
+  const openImage = (imageUrl, title) => {
+    if (!imageUrl) return;
+    setImageZoom({ show: true, imageUrl, title });
+  };
 
   return (
     <div className={`overflow-hidden rounded-2xl border transition-all duration-300 bg-white ${
@@ -379,6 +586,12 @@ function GuestBookingHistoryCard({ booking }) {
                 <span className={`h-1.5 w-1.5 rounded-full ${statusInfo.dot} animate-pulse`} />
                 {statusInfo.label}
               </span>
+              {feedback && (
+                <span className="inline-flex items-center gap-1 rounded-full bg-amber-100 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-amber-700">
+                  <i className="fas fa-star text-[8px]" />
+                  Feedback
+                </span>
+              )}
             </div>
             <h3 className="text-lg font-bold text-slate-800 tracking-tight">{getBookingTitle(booking)}</h3>
             <p className="font-mono text-xs text-slate-400">ID: {booking.bookingId}</p>
@@ -419,203 +632,284 @@ function GuestBookingHistoryCard({ booking }) {
       </div>
 
       {expanded && (
-        <div className="border-t border-slate-100 bg-gradient-to-b from-slate-50 to-white px-5 py-5 sm:px-6 animate-in fade-in duration-200">
-          <div className="grid gap-5 md:grid-cols-2">
-            <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
-              <h4 className="flex items-center gap-2 text-xs font-semibold uppercase tracking-wider text-slate-500">
-                <span className="flex h-6 w-6 items-center justify-center rounded-full bg-blue-100 text-blue-600">
-                  <i className="fas fa-user text-xs" />
-                </span>
-                Guest Info
-              </h4>
-              <div className="mt-3 space-y-1.5 text-sm">
-                <p className="font-semibold text-slate-800">
-                  {`${booking.guestInfo?.firstName || ''} ${booking.guestInfo?.lastName || ''}`.trim() || 'Guest'}
-                </p>
-                <p className="text-slate-600 break-all">{booking.guestInfo?.email || 'Email not available'}</p>
-                <p className="text-slate-600">{booking.guestInfo?.phone || 'Phone not available'}</p>
-                {address && <p className="text-xs text-slate-500 mt-1">{address}</p>}
-              </div>
-            </div>
+        <BookingHistoryExpandedDetails
+          booking={booking}
+          feedback={feedback}
+          statusInfo={statusInfo}
+          address={address}
+          paymentProofUrl={paymentProofUrl}
+          validIdUrl={validIdUrl}
+          paymentDisplay={paymentDisplay}
+          bookingTypeLabel={bookingTypeLabel}
+          displayGuestTotal={displayGuestTotal}
+          nights={nights}
+          openImage={openImage}
+        />
+      )}
 
-            <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
-              <h4 className="flex items-center gap-2 text-xs font-semibold uppercase tracking-wider text-slate-500">
-                <span className="flex h-6 w-6 items-center justify-center rounded-full bg-emerald-100 text-emerald-600">
-                  <i className="fas fa-calendar-alt text-xs" />
-                </span>
-                {booking.type === 'daytour' ? 'Daytour Schedule' : 'Stay Schedule'}
-              </h4>
-              <div className="mt-3 space-y-1.5 text-sm">
-                {booking.type === 'daytour' ? (
-                  <>
-                    <p className="font-semibold text-slate-800">{formatDateOnly(booking.selectedDate)}</p>
-                    <div className="flex flex-wrap gap-3 text-xs text-slate-500">
-                      <span>{booking.adults || 0} adult(s)</span>
-                      <span>{booking.kids || 0} kid(s)</span>
-                    </div>
-                    <div className="flex flex-wrap gap-3 text-sm text-slate-500 pt-1">
-                      <span className="font-semibold">Total Guests:</span>
-                      <span>{(booking.adults || 0) + (booking.kids || 0)}</span>
-                    </div>
-                  </>
-                ) : (
-                  <>
-                    <div className="flex items-baseline gap-2">
-                      <span className="w-8 text-xs font-bold text-slate-400">IN</span>
-                      <span className="font-medium text-slate-700">{formatDateTime(booking.checkIn)}</span>
-                    </div>
-                    <div className="flex items-baseline gap-2">
-                      <span className="w-8 text-xs font-bold text-slate-400">OUT</span>
-                      <span className="font-medium text-slate-700">{formatDateTime(booking.checkOut)}</span>
-                    </div>
-                    <p className="text-xs text-slate-500">{nights} night{nights !== 1 ? 's' : ''} stay</p>
-                  </>
-                )}
-              </div>
-            </div>
-
-            {booking.type === 'room' && (
-              <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
-                <h4 className="flex items-center gap-2 text-xs font-semibold uppercase tracking-wider text-slate-500">
-                  <span className="flex h-6 w-6 items-center justify-center rounded-full bg-amber-100 text-amber-600">
-                    <i className="fas fa-bed text-xs" />
-                  </span>
-                  Room Details
-                </h4>
-                <div className="mt-3 space-y-2 text-sm">
-                  {booking.isExclusiveResortBooking ? (
-                    <>
-                      <p className="font-semibold text-slate-800">Entire Resort Package</p>
-                      {booking.tentCount > 0 && <p className="text-xs text-slate-500">+ {booking.tentCount} tent(s)</p>}
-                      <div className="mt-2 space-y-1 text-slate-600">
-                        <div className="flex justify-between"><span>Adults</span><span className="font-medium">{booking.exclusiveAdults || 0}</span></div>
-                        <div className="flex justify-between"><span>Kids</span><span className="font-medium">{booking.exclusiveKids || 0}</span></div>
-                      </div>
-                      <div className="mt-2 pt-2 border-t border-slate-100 flex justify-between font-semibold text-slate-800">
-                        <span>Total Guests</span>
-                        <span>{(booking.exclusiveAdults || 0) + (booking.exclusiveKids || 0)}</span>
-                      </div>
-                    </>
-                  ) : booking.children && booking.children.length > 0 ? (
-                    <>
-                      {roomTypes.map((r, i) => (
-                        <div key={i} className="flex justify-between border-b border-slate-100 pb-1.5 last:border-0">
-                          <span className="font-medium text-slate-700">{r.quantity} × {r.type}</span>
-                        </div>
-                      ))}
-                      <div className="mt-2 border-t border-slate-100 pt-2">
-                        <p className="text-xs font-semibold uppercase text-slate-400">Guest Breakdown</p>
-                        {booking.children.map((child, i) => (
-                          <div key={i} className="mt-1.5 text-xs text-slate-600">
-                            <span className="font-medium text-slate-700">{child.roomType}:</span>{' '}
-                            {child.adults || 0} adult(s), {child.kids || 0} kid(s)
-                          </div>
-                        ))}
-                        <div className="mt-2 flex justify-between text-sm font-semibold text-slate-800">
-                          <span>Total Guests</span><span>{booking.totalGuests || guestTotal}</span>
-                        </div>
-                      </div>
-                    </>
-                  ) : (
-                    <>
-                      {roomTypes.length > 0 ? (
-                        roomTypes.map((room, idx) => (
-                          <div key={idx}>
-                            <p className="font-semibold text-slate-800">
-                              {room.quantity} × {room.type}
-                            </p>
-                            <p className="text-xs text-slate-500">{room.quantity} room(s)</p>
-                          </div>
-                        ))
-                      ) : (
-                        <>
-                          <p className="font-semibold text-slate-800">{booking.roomType || 'Room'}</p>
-                          <p className="text-xs text-slate-500">{booking.numberOfRooms || 1} room(s)</p>
-                        </>
-                      )}
-                      <div className="mt-2 space-y-1 text-slate-600">
-                        <div className="flex justify-between"><span>Adults</span><span className="font-medium">{booking.adults || 1}</span></div>
-                        <div className="flex justify-between"><span>Kids</span><span className="font-medium">{booking.kids || 0}</span></div>
-                        <div className="flex justify-between font-semibold text-slate-800"><span>Total Guests</span><span>{booking.guests || 1}</span></div>
-                      </div>
-                    </>
-                  )}
-                </div>
-              </div>
-            )}
-
-            <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
-              <h4 className="flex items-center gap-2 text-xs font-semibold uppercase tracking-wider text-slate-500">
-                <span className="flex h-6 w-6 items-center justify-center rounded-full bg-slate-100 text-slate-600">
-                  <i className="fas fa-credit-card text-xs" />
-                </span>
-                Payment Summary
-              </h4>
-              <div className="mt-3 space-y-2 text-sm">
-                {booking.isExclusiveResortBooking && exclusiveTotalPrice !== null ? (
-                  <>
-                    <div className="flex justify-between">
-                      <span className="text-slate-600">Base Rate (per night)</span>
-                      <span className="font-semibold text-slate-800">₱{BASE_EXCLUSIVE_PRICE.toLocaleString()}</span>
-                    </div>
-                    {booking.tentCount > 0 && (
-                      <div className="flex justify-between">
-                        <span className="text-slate-600">Tent Charge (₱1,500/tent/night)</span>
-                        <span className="font-semibold text-slate-800">₱{(booking.tentCount * 1500).toLocaleString()}</span>
-                      </div>
-                    )}
-                    <div className="flex justify-between">
-                      <span className="text-slate-600">Nights</span>
-                      <span className="font-semibold text-slate-800">{nights}</span>
-                    </div>
-                    <div className="flex justify-between pt-2 border-t border-slate-100">
-                      <span className="text-slate-600">Total Price</span>
-                      <span className="font-bold text-slate-800">₱{exclusiveTotalPrice.toLocaleString()}</span>
-                    </div>
-                    <div className="flex justify-between">
-                      <span className="text-slate-600">Down Payment (50%)</span>
-                      <span className="font-semibold text-emerald-600">₱{exclusiveDownPayment.toLocaleString()}</span>
-                    </div>
-                    <div className="flex justify-between">
-                      <span className="text-slate-600">Remaining Balance</span>
-                      <span className="font-bold text-slate-800">₱{exclusiveRemainingBalance.toLocaleString()}</span>
-                    </div>
-                    {booking.paymentMethod && (
-                      <p className="text-xs text-slate-500">Via {booking.paymentMethod}</p>
-                    )}
-                  </>
-                ) : (
-                  <>
-                    <div className="flex justify-between text-slate-600">
-                      <span>Total Price</span>
-                      <span className="font-bold text-slate-800">₱{booking.totalPrice.toLocaleString()}</span>
-                    </div>
-                    <div className="flex justify-between text-slate-600">
-                      <span>Down Payment (50%)</span>
-                      <span className="font-semibold text-emerald-600">₱{dp.toLocaleString()}</span>
-                    </div>
-                    <div className="flex justify-between border-t border-slate-100 pt-2 text-slate-600">
-                      <span>Remaining Balance</span>
-                      <span className="font-bold text-slate-800">₱{balance.toLocaleString()}</span>
-                    </div>
-                    {booking.paymentMethod && (
-                      <p className="text-xs text-slate-500">Via {booking.paymentMethod}</p>
-                    )}
-                  </>
-                )}
-              </div>
-            </div>
-          </div>
-          <div className="mt-6 flex justify-end border-t border-slate-100 pt-5">
-            <p className="text-xs text-slate-400">
-              Booked on {formatDateTime(booking.createdAt)}
-            </p>
+      {imageZoom.show && (
+        <div
+          className="fixed inset-0 z-[100] flex items-center justify-center bg-black/70 p-4"
+          onClick={() => setImageZoom({ show: false, imageUrl: '', title: '' })}
+        >
+          <div className="relative max-h-[90vh] max-w-3xl w-full" onClick={(e) => e.stopPropagation()}>
+            <button
+              type="button"
+              onClick={() => setImageZoom({ show: false, imageUrl: '', title: '' })}
+              className="absolute -top-10 right-0 text-white hover:text-gray-200"
+            >
+              <i className="fas fa-times text-xl" />
+            </button>
+            <p className="mb-2 text-center text-sm font-semibold text-white">{imageZoom.title}</p>
+            <img src={imageZoom.imageUrl} alt={imageZoom.title} className="max-h-[80vh] w-full rounded-xl object-contain bg-white" />
           </div>
         </div>
       )}
     </div>
   );
 }
+
+function BookingHistoryExpandedDetails({
+  booking, feedback, statusInfo, address, paymentProofUrl, validIdUrl,
+  paymentDisplay, bookingTypeLabel, displayGuestTotal, nights, openImage,
+}) {
+  return (
+    <div className="border-t border-slate-100 bg-gradient-to-b from-slate-50 to-white px-5 py-5 sm:px-6">
+      <div className="space-y-4">
+        <DetailSection title="Booking Information" icon="fa-info-circle" iconColor="text-[#4D8CF5]">
+          <div className="grid gap-2 text-sm sm:grid-cols-2">
+            <DetailRow label="Booking ID" value={booking.bookingId} mono />
+            <DetailRow label="Booking Type" value={bookingTypeLabel} />
+            <DetailRow label="Status" value={statusInfo.label} />
+            <DetailRow label="Booked On" value={formatDateTime(booking.createdAt)} />
+            {booking.paymentMethod && <DetailRow label="Payment Method" value={booking.paymentMethod} />}
+          </div>
+          {booking.adminNote && (
+            <p className="mt-3 rounded-lg border border-gray-100 bg-gray-50 p-2 text-xs text-gray-600">
+              <span className="font-medium">Admin Note:</span> {booking.adminNote}
+            </p>
+          )}
+        </DetailSection>
+
+        <DetailSection title="Guest Information" icon="fa-user" iconColor="text-[#4D8CF5]">
+          <div className="space-y-1.5 text-sm">
+            <p className="font-semibold text-[#1E3A8A]">
+              {`${booking.guestInfo?.firstName || ''} ${booking.guestInfo?.lastName || ''}`.trim() || 'Guest'}
+            </p>
+            <p className="text-[#1E3A8A]/70 break-all">{booking.guestInfo?.email || '—'}</p>
+            <p className="text-[#1E3A8A]/70">{booking.guestInfo?.phone || '—'}</p>
+            {address && <p className="text-xs text-[#1E3A8A]/60">{address}</p>}
+          </div>
+        </DetailSection>
+
+        {booking.type === 'room' ? (
+          <>
+            <DetailSection title="Room Details" icon="fa-bed" iconColor="text-amber-600">
+              {booking.isExclusiveResortBooking && (
+                <p className="mb-2 rounded-lg border border-amber-200 bg-amber-50 px-2 py-1 text-xs font-semibold text-amber-700">
+                  Entire Resort Package: all room types are booked for this schedule.
+                </p>
+              )}
+              {booking.isMultiRoomGroup && booking.roomTypesArray?.length > 0 ? (
+                <div className="space-y-1 text-sm">
+                  {booking.roomTypesArray.map((room, idx) => (
+                    <p key={idx} className="text-[#1E3A8A]/80">{room.quantity} × {room.type}</p>
+                  ))}
+                </div>
+              ) : (
+                <div className="space-y-1 text-sm">
+                  <DetailRow label="Room Type" value={booking.roomType || '—'} />
+                  <DetailRow label="Number of Rooms" value={String(booking.numberOfRooms || 1)} />
+                </div>
+              )}
+              <p className="mt-2 border-t border-[#4D8CF5]/10 pt-2 text-sm">
+                <span className="text-[#1E3A8A]/70">Total Rooms:</span>{' '}
+                <span className="font-medium text-[#1E3A8A]">{booking.totalRooms || booking.numberOfRooms || 1}</span>
+              </p>
+            </DetailSection>
+
+            <DetailSection title="Schedule" icon="fa-calendar-alt" iconColor="text-emerald-600">
+              <div className="space-y-1 text-sm">
+                <DetailRow label="Check-in" value={formatDateWithTime(booking.checkIn, 'check-in')} />
+                <DetailRow label="Check-out" value={formatDateWithTime(booking.checkOut, 'check-out')} />
+                <p className="text-xs text-slate-500">{nights} night{nights !== 1 ? 's' : ''}</p>
+              </div>
+            </DetailSection>
+
+            <DetailSection title="Guest Count" icon="fa-users" iconColor="text-violet-600">
+              {booking.isExclusiveResortBooking ? (
+                <div className="space-y-1 text-sm">
+                  <DetailRow label="Adults" value={String(booking.exclusiveAdults || 0)} />
+                  <DetailRow label="Kids" value={String(booking.exclusiveKids || 0)} />
+                  <p className="border-t border-[#4D8CF5]/10 pt-2 font-semibold text-[#1E3A8A]">
+                    Total Guests: {(booking.exclusiveAdults || 0) + (booking.exclusiveKids || 0)}
+                  </p>
+                </div>
+              ) : booking.childBookings?.length > 0 ? (
+                <div className="space-y-2 text-sm">
+                  {booking.childBookings.map((child, idx) => (
+                    <p key={idx} className="text-xs text-[#1E3A8A]">
+                      {child.roomType} — Adults: {child.adults || child.guests || 1} | Kids: {child.kids || 0}
+                    </p>
+                  ))}
+                  <p className="border-t border-[#4D8CF5]/10 pt-2 font-semibold text-[#1E3A8A]">
+                    Total Guests: {booking.totalGuests || displayGuestTotal}
+                  </p>
+                </div>
+              ) : (
+                <div className="space-y-1 text-sm">
+                  <DetailRow label="Adults" value={String(booking.adults || booking.guests || 1)} />
+                  <DetailRow label="Kids" value={String(booking.kids || 0)} />
+                  <p className="border-t border-[#4D8CF5]/10 pt-2 font-semibold text-[#1E3A8A]">
+                    Total Guests: {booking.guests || displayGuestTotal}
+                  </p>
+                </div>
+              )}
+            </DetailSection>
+          </>
+        ) : (
+          <DetailSection title="Tour Details" icon="fa-sun" iconColor="text-emerald-600">
+            <div className="space-y-1 text-sm">
+              <DetailRow label="Tour Date" value={formatDateOnly(booking.selectedDate)} />
+              <DetailRow
+                label="Guest Breakdown"
+                value={`Adult: ${booking.adults || 0} | Kid: ${booking.kids || 0}${booking.seniors ? ` | Senior: ${booking.seniors}` : ''}`}
+              />
+              <DetailRow label="Total Guests" value={String(displayGuestTotal)} />
+            </div>
+          </DetailSection>
+        )}
+
+        <DetailSection title="Payment Information" icon="fa-credit-card" iconColor="text-slate-600">
+          <div className="grid grid-cols-2 gap-3">
+            <div className="rounded-lg border border-blue-100/50 bg-blue-50/50 p-3">
+              <p className="text-xs text-[#1E3A8A]/70 mb-1">Total Amount</p>
+              <p className="font-bold text-[#1E3A8A] text-lg">₱{paymentDisplay.totalAmount.toLocaleString()}</p>
+            </div>
+            <div className="rounded-lg border border-blue-100/50 bg-blue-50/50 p-3">
+              <p className="text-xs text-[#1E3A8A]/70 mb-1">Balance</p>
+              <p className="font-bold text-[#1E3A8A] text-lg">₱{paymentDisplay.balance.toLocaleString()}</p>
+            </div>
+            <div className="col-span-2 flex flex-wrap justify-between gap-2 rounded-lg border border-gray-100 bg-gray-50/80 p-3 text-sm">
+              <p>
+                <span className="text-[#1E3A8A]/70">50% Down:</span>{' '}
+                <span className="font-bold text-amber-600">₱{paymentDisplay.downPayment.toLocaleString()}</span>
+              </p>
+              <span className={`inline-flex px-2 py-0.5 rounded-full text-[10px] font-medium ${statusInfo.color}`}>
+                {statusInfo.label}
+              </span>
+            </div>
+          </div>
+        </DetailSection>
+
+        {paymentProofUrl && (
+          <DetailSection title="Payment Proof" icon="fa-receipt" iconColor="text-[#4D8CF5]">
+            <UploadImagePreview src={paymentProofUrl} alt="Payment Proof" onClick={() => openImage(paymentProofUrl, 'Payment Proof')} />
+          </DetailSection>
+        )}
+
+        {validIdUrl && (
+          <DetailSection title="Valid ID" icon="fa-id-card" iconColor="text-[#4D8CF5]" badge={booking.validIdType}>
+            <UploadImagePreview src={validIdUrl} alt="Valid ID" onClick={() => openImage(validIdUrl, `Valid ID - ${booking.validIdType || 'ID'}`)} />
+          </DetailSection>
+        )}
+
+        <DetailSection title="Special Request" icon="fa-comment-alt" iconColor="text-amber-600" amber>
+          <p className={`text-sm ${booking.specialRequest ? 'text-amber-800' : 'italic text-amber-600'}`}>
+            {booking.specialRequest || 'No special requests from guest'}
+          </p>
+        </DetailSection>
+
+        {booking.cancellationReason && (
+          <DetailSection title="Cancellation Reason" icon="fa-ban" iconColor="text-red-600">
+            <p className="text-sm text-red-700">{booking.cancellationReason}</p>
+          </DetailSection>
+        )}
+
+        {feedback && (
+          <DetailSection title="Guest Feedback" icon="fa-star" iconColor="text-amber-600">
+            <div className="rounded-lg border border-amber-100 bg-amber-50/50 p-3 space-y-3">
+              <div className="flex items-center gap-1">
+                {[1, 2, 3, 4, 5].map((star) => (
+                  <i
+                    key={star}
+                    className={`fas fa-star text-sm ${star <= (feedback.rating || 0) ? 'text-amber-400' : 'text-amber-200'}`}
+                  />
+                ))}
+                <span className="ml-2 text-xs font-semibold text-amber-700">{feedback.rating}/5</span>
+              </div>
+              <p className="text-sm text-slate-700 whitespace-pre-wrap">{feedback.comment}</p>
+              {feedback.createdAt && (
+                <p className="text-[10px] text-slate-400">Submitted {formatFeedbackDate(feedback.createdAt)}</p>
+              )}
+              <p className="text-[10px] font-medium uppercase tracking-wide text-slate-400">Read-only</p>
+            </div>
+          </DetailSection>
+        )}
+      </div>
+    </div>
+  );
+}
+
+function DetailSection({ title, icon, iconColor, badge, amber, children }) {
+  return (
+    <div className={`rounded-xl border p-4 shadow-sm ${amber ? 'border-amber-200 bg-amber-50/70' : 'border-[#4D8CF5]/10 bg-white/70'}`}>
+      <div className={`mb-3 flex items-center justify-between gap-2 border-b pb-2 ${amber ? 'border-amber-200/50' : 'border-[#4D8CF5]/10'}`}>
+        <h4 className={`flex items-center gap-2 text-xs font-semibold uppercase tracking-wide ${amber ? 'text-amber-700' : 'text-[#1E3A8A]'}`}>
+          <i className={`fas ${icon} ${iconColor}`} />
+          {title}
+        </h4>
+        {badge && (
+          <span className="rounded-md bg-[#4D8CF5]/10 px-2 py-0.5 text-[10px] font-semibold text-[#1E3A8A]">{badge}</span>
+        )}
+      </div>
+      {children}
+    </div>
+  );
+}
+
+function DetailRow({ label, value, mono }) {
+  return (
+    <p className="text-sm">
+      <span className="text-[#1E3A8A]/70">{label}:</span>{' '}
+      <span className={`font-medium text-[#1E3A8A] ${mono ? 'font-mono text-xs' : ''}`}>{value}</span>
+    </p>
+  );
+}
+
+function UploadImagePreview({ src, alt, onClick }) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className="relative w-full overflow-hidden rounded-xl border border-gray-100 bg-gray-50 group transition hover:shadow-md"
+    >
+      <img
+        src={src}
+        alt={alt}
+        className="h-48 w-full object-cover transition group-hover:scale-105"
+        onError={(e) => {
+          e.target.style.display = 'none';
+          const parent = e.target.parentElement;
+          if (parent) {
+            parent.innerHTML = '<div class="p-6 text-center"><i class="fas fa-image text-3xl text-gray-400 mb-2 block"></i><p class="text-sm text-gray-500">Unable to load image</p></div>';
+          }
+        }}
+      />
+      <div className="absolute inset-0 flex items-center justify-center bg-[#1E3A8A]/0 transition group-hover:bg-[#1E3A8A]/20">
+        <i className="fas fa-search-plus text-2xl text-white opacity-0 transition group-hover:opacity-100" />
+      </div>
+    </button>
+  );
+}
+
+function formatFeedbackDate(value) {
+  if (!value) return '';
+  if (value?.toDate) return formatDateTime(value.toDate());
+  if (value?.seconds) return formatDateTime(new Date(value.seconds * 1000));
+  return formatDateTime(value);
+}
+
 
 function getStatusBadge(status, cancelledBy) {
   if (status === 'cancelled') {

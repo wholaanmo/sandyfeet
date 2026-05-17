@@ -147,7 +147,10 @@ const deriveGroupStatus = (children) => {
   if (children.some(c => c.status === 'pending')) return 'pending';
   if (children.some(c => c.status === 'check-in')) return 'check-in';
   if (children.some(c => c.status === 'check-out')) return 'check-out';
-  return 'confirmed';
+  if (children.every(c => c.status === 'completed')) return 'completed';
+  if (children.some(c => c.status === 'completed')) return 'completed';
+  if (children.some(c => c.status === 'confirmed')) return 'confirmed';
+  return children[0]?.status || 'confirmed';
 };
 
 export const buildMultiRoomGroup = (children, parentId) => {

@@ -13,8 +13,8 @@ import IdRequestNotifications from '@/components/guest/IdRequestNotifications';
 function GuestAccountContent() {
   const { user, profile, loading, logout, updateGuestProfile } = useGuestAuth();
   const [isAuthOpen, setIsAuthOpen] = useState(false);
-  const [showSignOutModal, setShowSignOutModal] = useState(false); // Add this state
-  
+  const [showSignOutModal, setShowSignOutModal] = useState(false);
+
   // Profile editing state
   const [isEditing, setIsEditing] = useState(false);
   const [originalProfile, setOriginalProfile] = useState({});
@@ -26,36 +26,26 @@ function GuestAccountContent() {
   const [profileSaving, setProfileSaving] = useState(false);
   const [profileNotice, setProfileNotice] = useState('');
 
-  // Add these handlers
-  const handleSignOutClick = () => {
-    setShowSignOutModal(true);
-  };
-
+  const handleSignOutClick = () => setShowSignOutModal(true);
   const handleConfirmSignOut = () => {
     setShowSignOutModal(false);
     logout();
   };
-
-  const handleCancelSignOut = () => {
-    setShowSignOutModal(false);
-  };
+  const handleCancelSignOut = () => setShowSignOutModal(false);
 
   useEffect(() => {
-    if (!profileNotice) return undefined;
-    const timeoutId = window.setTimeout(() => {
-      setProfileNotice('');
-    }, 2800);
-    return () => window.clearTimeout(timeoutId);
+    if (!profileNotice) return;
+    const timeoutId = setTimeout(() => setProfileNotice(''), 2800);
+    return () => clearTimeout(timeoutId);
   }, [profileNotice]);
 
   useEffect(() => {
     if (!user) return;
-    const nextProfileForm = {
+    setProfileForm({
       firstName: profile?.firstName || '',
       lastName: profile?.lastName || '',
       mobileNumber: profile?.mobileNumber || '',
-    };
-    setProfileForm(nextProfileForm);
+    });
   }, [profile, user]);
 
   const displayName = profile?.displayName || user?.displayName || 'Guest';
@@ -63,7 +53,7 @@ function GuestAccountContent() {
   const avatarLetter = (displayName || email || 'G').charAt(0).toUpperCase();
 
   const handleProfileChange = (field, value) => {
-    setProfileForm((prev) => ({ ...prev, [field]: value }));
+    setProfileForm(prev => ({ ...prev, [field]: value }));
   };
 
   const handleEditClick = () => {
@@ -81,10 +71,8 @@ function GuestAccountContent() {
       setIsAuthOpen(true);
       return;
     }
-
     setProfileSaving(true);
     setProfileNotice('');
-
     try {
       await updateGuestProfile({
         firstName: profileForm.firstName.trim(),
@@ -106,125 +94,118 @@ function GuestAccountContent() {
       <div className="min-h-screen bg-[#F8FCFF] px-4 pb-20 pt-28 sm:px-6 sm:pt-32 lg:px-8">
         {profileNotice && (
           <div className="pointer-events-none fixed right-6 top-24 z-50 w-[calc(100%-1.5rem)] max-w-md sm:w-[360px]">
-            <div className="rounded-xl border-l-4 border-[#4D8CF5] bg-white px-4 py-3 text-sm font-semibold text-[#1E3A8A] shadow-lg">
+            <div className="flex items-center gap-3 rounded-xl border-l-4 border-[#4D8CF5] bg-white px-4 py-3 text-sm font-semibold text-[#1E3A8A] shadow-lg">
+              <i className="fas fa-check-circle text-emerald-500"></i>
               {profileNotice}
             </div>
           </div>
         )}
 
-<div className="mx-auto max-w-7xl">
-  <div className="grid gap-5 lg:grid-cols-[360px_minmax(0,1fr)]">
-    {/* Left Sidebar */}
-    <aside className="space-y-4">
-      <div className="relative overflow-hidden rounded-2xl border border-[#4D8CF5]/15 bg-white p-4 shadow-[0_8px_24px_rgba(77,140,245,0.08)] transition-all duration-300">
+        <div className="mx-auto max-w-7xl">
+          <div className="grid gap-5 lg:grid-cols-[360px_minmax(0,1fr)]">
+            {/* Left Sidebar */}
+            <aside className="space-y-4">
+              <div className="relative overflow-hidden rounded-2xl border border-[#4D8CF5]/15 bg-white p-4 shadow-[0_8px_24px_rgba(77,140,245,0.08)] transition-all duration-300">
+                <div className="absolute -right-8 -top-8 h-24 w-24 rounded-full bg-[#4D8CF5]/5 blur-2xl"></div>
+                <div className="absolute -bottom-10 -left-10 h-28 w-28 rounded-full bg-[#1E3A8A]/5 blur-3xl"></div>
 
-        {/* Soft Decorative Glow */}
-        <div className="absolute -right-8 -top-8 h-24 w-24 rounded-full bg-[#4D8CF5]/5 blur-2xl"></div>
-        <div className="absolute -bottom-10 -left-10 h-28 w-28 rounded-full bg-[#1E3A8A]/5 blur-3xl"></div>
+                <div className="relative flex items-center gap-3">
+                  {user?.photoURL ? (
+                    <Image
+                      src={user.photoURL}
+                      alt={displayName}
+                      width={48}
+                      height={48}
+                      className="h-12 w-12 rounded-2xl object-cover ring-2 ring-white shadow-md"
+                    />
+                  ) : (
+                    <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-gradient-to-br from-[#4D8CF5] to-[#1E3A8A] text-lg font-bold text-white shadow-md">
+                      {avatarLetter}
+                    </div>
+                  )}
 
-        <div className="relative flex items-center gap-3">
-          {user?.photoURL ? (
-            <Image
-              src={user.photoURL}
-              alt={displayName}
-              width={48}
-              height={48}
-              className="h-12 w-12 rounded-2xl object-cover ring-2 ring-white shadow-md"
-            />
-          ) : (
-            <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-gradient-to-br from-[#4D8CF5] to-[#1E3A8A] text-lg font-bold text-white shadow-md">
-              {avatarLetter}
-            </div>
-          )}
+                  <div className="min-w-0 flex-1">
+                    <h2 className="truncate text-[15px] font-semibold tracking-tight text-[#1E3A8A]">
+                      {user ? displayName : 'Guest Profile'}
+                    </h2>
+                    {email && (
+                      <p className="truncate text-xs text-[#5C7AA6]">{email}</p>
+                    )}
+                  </div>
+                </div>
 
-          <div className="min-w-0 flex-1">
-            <h2 className="truncate text-[15px] font-semibold tracking-tight text-[#1E3A8A]">
-              {user ? displayName : 'Guest Profile'}
-            </h2>
+                <div className="my-4 h-px bg-gradient-to-r from-transparent via-[#4D8CF5]/20 to-transparent"></div>
 
-            {email && (
-              <p className="truncate text-xs text-[#5C7AA6]">
-                {email}
-              </p>
-            )}
-          </div>
-        </div>
+                <div className="relative flex items-center gap-2">
+                  {user ? (
+                    <button
+                      type="button"
+                      onClick={handleSignOutClick}
+                      className="inline-flex items-center gap-2 rounded-xl border border-[#4D8CF5]/15 bg-white px-3 py-2 text-xs font-semibold text-[#1E3A8A] shadow-sm transition-all duration-200 hover:-translate-y-0.5 hover:bg-[#4D8CF5]/10 hover:shadow-md"
+                    >
+                      <i className="fas fa-right-from-bracket text-[11px]"></i>
+                      Sign Out
+                    </button>
+                  ) : (
+                    <button
+                      type="button"
+                      onClick={() => setIsAuthOpen(true)}
+                      className="inline-flex items-center gap-2 rounded-xl border border-[#4D8CF5]/15 bg-white px-3 py-2 text-xs font-semibold text-[#1E3A8A] shadow-sm transition-all duration-200 hover:-translate-y-0.5 hover:bg-[#4D8CF5]/10 hover:shadow-md"
+                    >
+                      <i className="fas fa-right-to-bracket text-[11px]"></i>
+                      Sign In
+                    </button>
+                  )}
+                </div>
+              </div>
 
-        {/* Divider */}
-        <div className="my-4 h-px bg-gradient-to-r from-transparent via-[#4D8CF5]/20 to-transparent"></div>
+              <div className="rounded-2xl border border-[#4D8CF5]/15 bg-white p-3 shadow-[0_6px_18px_rgba(77,140,245,0.08)]">
+                <div className="space-y-2">
+                  <Link
+                    href="/my-bookings"
+                    className="group flex w-full items-center justify-between rounded-xl border border-transparent bg-[#f8fbff] px-3 py-2.5 text-sm font-semibold text-[#1E3A8A] transition-all duration-200 hover:-translate-y-0.5 hover:border-[#4D8CF5]/15 hover:bg-[#EEF5FF] hover:shadow-sm"
+                  >
+                    <div className="flex items-center gap-2">
+                      <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-[#4D8CF5]/10 text-[#4D8CF5]">
+                        <i className="fas fa-calendar-check text-xs"></i>
+                      </div>
+                      <span>My Bookings</span>
+                    </div>
+                    <i className="fas fa-chevron-right text-[11px] text-[#4D8CF5] transition-transform duration-200 group-hover:translate-x-1"></i>
+                  </Link>
 
-        <div className="relative flex items-center gap-2">
-          {user ? (
-            <button
-              type="button"
-              onClick={handleSignOutClick} // Changed from onClick={logout}
-              className="inline-flex items-center gap-2 rounded-xl border border-[#4D8CF5]/15 bg-white px-3 py-2 text-xs font-semibold text-[#1E3A8A] shadow-sm transition-all duration-200 hover:-translate-y-0.5 hover:bg-[#4D8CF5]/10 hover:shadow-md"
-            >
-              <i className="fas fa-right-from-bracket text-[11px]"></i>
-              Sign Out
-            </button>
-          ) : (
-            <button
-              type="button"
-              onClick={() => setIsAuthOpen(true)}
-              className="inline-flex items-center gap-2 rounded-xl border border-[#4D8CF5]/15 bg-white px-3 py-2 text-xs font-semibold text-[#1E3A8A] shadow-sm transition-all duration-200 hover:-translate-y-0.5 hover:bg-[#4D8CF5]/10 hover:shadow-md"
-            >
-              <i className="fas fa-right-to-bracket text-[11px]"></i>
-              Sign In
-            </button>
-          )}
-        </div>
-      </div>
+                  <Link
+                    href="/feedback"
+                    className="group flex w-full items-center justify-between rounded-xl border border-transparent bg-[#f8fbff] px-3 py-2.5 text-sm font-semibold text-[#1E3A8A] transition-all duration-200 hover:-translate-y-0.5 hover:border-[#4D8CF5]/15 hover:bg-[#EEF5FF] hover:shadow-sm"
+                  >
+                    <div className="flex items-center gap-2">
+                      <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-[#4D8CF5]/10 text-[#4D8CF5]">
+                        <i className="fas fa-comment-dots text-xs"></i>
+                      </div>
+                      <span>Feedback</span>
+                    </div>
+                    <i className="fas fa-chevron-right text-[11px] text-[#4D8CF5] transition-transform duration-200 group-hover:translate-x-1"></i>
+                  </Link>
+                </div>
+              </div>
 
-
- <div className="rounded-2xl border border-[#4D8CF5]/15 bg-white p-3 shadow-[0_6px_18px_rgba(77,140,245,0.08)]">
-  <div className="space-y-2">
-    
-    <Link
-      href="/my-bookings"
-      className="group flex w-full items-center justify-between rounded-xl border border-transparent bg-[#f8fbff] px-3 py-2.5 text-sm font-semibold text-[#1E3A8A] transition-all duration-200 hover:-translate-y-0.5 hover:border-[#4D8CF5]/15 hover:bg-[#EEF5FF] hover:shadow-sm"
-    >
-      <div className="flex items-center gap-2">
-        <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-[#4D8CF5]/10 text-[#4D8CF5]">
-          <i className="fas fa-calendar-check text-xs"></i>
-        </div>
-
-        <span>My Bookings</span>
-      </div>
-
-      <i className="fas fa-chevron-right text-[11px] text-[#4D8CF5] transition-transform duration-200 group-hover:translate-x-1"></i>
-    </Link>
-
-    <Link
-      href="/feedback"
-      className="group flex w-full items-center justify-between rounded-xl border border-transparent bg-[#f8fbff] px-3 py-2.5 text-sm font-semibold text-[#1E3A8A] transition-all duration-200 hover:-translate-y-0.5 hover:border-[#4D8CF5]/15 hover:bg-[#EEF5FF] hover:shadow-sm"
-    >
-      <div className="flex items-center gap-2">
-        <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-[#4D8CF5]/10 text-[#4D8CF5]">
-          <i className="fas fa-comment-dots text-xs"></i>
-        </div>
-
-        <span>Feedback</span>
-      </div>
-
-      <i className="fas fa-chevron-right text-[11px] text-[#4D8CF5] transition-transform duration-200 group-hover:translate-x-1"></i>
-    </Link>
-
-  </div>
-</div>
-
-      <IdRequestNotifications />
+              <IdRequestNotifications />
             </aside>
 
             {/* Main Profile Details */}
             <section className="space-y-5">
               <div className="space-y-5">
-                <div id="profile-details" className="overflow-hidden rounded-2xl border border-[#4D8CF5]/20 bg-white shadow-md">
-                  <div className="flex flex-col gap-2 border-b border-[#4D8CF5]/10 px-6 py-5">
-                    <div className="flex items-center justify-between">
-                      <div>
-                        <h2 className="text-xl font-bold text-[#1E3A8A]">Profile Details</h2>
-                        <p className="text-sm text-[#4D6FA8]">Update your personal and contact information</p>
+                <div id="profile-details" className="overflow-hidden rounded-2xl border border-[#4D8CF5]/20 bg-white shadow-md transition-all duration-300">
+                  <div className="border-b border-[#4D8CF5]/10 bg-gradient-to-r from-[#4D8CF5]/5 to-white px-6 py-5">
+                    <div className="flex flex-wrap items-center justify-between gap-3">
+                      <div className="flex items-center gap-2">
+                        <div className="flex h-9 w-9 items-center justify-center rounded-full bg-[#4D8CF5]/10 text-[#4D8CF5]">
+                          <i className="fas fa-user-circle text-base"></i>
+                        </div>
+                        <div>
+                          <h2 className="text-xl font-bold text-[#1E3A8A]">Profile Details</h2>
+                          <p className="text-sm text-[#4D6FA8]">Update your personal and contact information</p>
+                        </div>
                       </div>
                       {user && !isEditing && (
                         <button
@@ -242,60 +223,82 @@ function GuestAccountContent() {
                   {user ? (
                     <div className="space-y-6 px-6 py-6">
                       <div className="grid gap-6 sm:grid-cols-2">
-                        <label className="text-sm font-semibold text-[#1E3A8A]">
-                          First Name
+                        {/* First Name */}
+                        <div className="space-y-1">
+                          <label className="flex items-center gap-2 text-sm font-semibold text-[#1E3A8A]">
+                            <i className="fas fa-user text-[#4D8CF5] text-xs"></i>
+                            First Name
+                          </label>
                           {isEditing ? (
                             <input
                               type="text"
                               value={profileForm.firstName}
-                              onChange={(event) => handleProfileChange('firstName', event.target.value)}
-                              className="mt-2 w-full rounded-xl border border-[#4D8CF5]/20 bg-white px-4 py-2.5 text-sm text-gray-900 outline-none transition-all focus:border-[#4D8CF5] focus:ring-2 focus:ring-[#4D8CF5]/20"
+                              onChange={(e) => handleProfileChange('firstName', e.target.value)}
+                              className="w-full rounded-xl border border-[#4D8CF5]/20 bg-white px-4 py-2.5 text-sm text-gray-900 transition-all focus:border-[#4D8CF5] focus:bg-white focus:outline-none focus:ring-2 focus:ring-[#4D8CF5]/20"
                             />
                           ) : (
-                            <div className="mt-2 w-full rounded-xl border border-[#4D8CF5]/20 bg-[#F9FCFF] px-4 py-2.5 text-sm text-gray-700">
+                            <div className="flex items-center gap-2 rounded-xl border border-[#4D8CF5]/20 bg-[#F9FCFF] px-4 py-2.5 text-sm text-gray-700">
+                              <i className="fas fa-user text-slate-400 text-xs"></i>
                               {profileForm.firstName || '—'}
                             </div>
                           )}
-                        </label>
-                        <label className="text-sm font-semibold text-[#1E3A8A]">
-                          Last Name
+                        </div>
+
+                        {/* Last Name */}
+                        <div className="space-y-1">
+                          <label className="flex items-center gap-2 text-sm font-semibold text-[#1E3A8A]">
+                            <i className="fas fa-user-tag text-[#4D8CF5] text-xs"></i>
+                            Last Name
+                          </label>
                           {isEditing ? (
                             <input
                               type="text"
                               value={profileForm.lastName}
-                              onChange={(event) => handleProfileChange('lastName', event.target.value)}
-                              className="mt-2 w-full rounded-xl border border-[#4D8CF5]/20 bg-white px-4 py-2.5 text-sm text-gray-900 outline-none transition-all focus:border-[#4D8CF5] focus:ring-2 focus:ring-[#4D8CF5]/20"
+                              onChange={(e) => handleProfileChange('lastName', e.target.value)}
+                              className="w-full rounded-xl border border-[#4D8CF5]/20 bg-white px-4 py-2.5 text-sm text-gray-900 transition-all focus:border-[#4D8CF5] focus:bg-white focus:outline-none focus:ring-2 focus:ring-[#4D8CF5]/20"
                             />
                           ) : (
-                            <div className="mt-2 w-full rounded-xl border border-[#4D8CF5]/20 bg-[#F9FCFF] px-4 py-2.5 text-sm text-gray-700">
+                            <div className="flex items-center gap-2 rounded-xl border border-[#4D8CF5]/20 bg-[#F9FCFF] px-4 py-2.5 text-sm text-gray-700">
+                              <i className="fas fa-user-tag text-slate-400 text-xs"></i>
                               {profileForm.lastName || '—'}
                             </div>
                           )}
-                        </label>
+                        </div>
                       </div>
 
                       <div className="grid gap-6 sm:grid-cols-2">
-                        <label className="text-sm font-semibold text-[#1E3A8A]">
-                          Mobile Number
+                        {/* Mobile Number */}
+                        <div className="space-y-1">
+                          <label className="flex items-center gap-2 text-sm font-semibold text-[#1E3A8A]">
+                            <i className="fas fa-phone-alt text-[#4D8CF5] text-xs"></i>
+                            Mobile Number
+                          </label>
                           {isEditing ? (
                             <input
                               type="tel"
                               value={profileForm.mobileNumber}
-                              onChange={(event) => handleProfileChange('mobileNumber', event.target.value)}
-                              className="mt-2 w-full rounded-xl border border-[#4D8CF5]/20 bg-white px-4 py-2.5 text-sm text-gray-900 outline-none transition-all focus:border-[#4D8CF5] focus:ring-2 focus:ring-[#4D8CF5]/20"
+                              onChange={(e) => handleProfileChange('mobileNumber', e.target.value)}
+                              className="w-full rounded-xl border border-[#4D8CF5]/20 bg-white px-4 py-2.5 text-sm text-gray-900 transition-all focus:border-[#4D8CF5] focus:bg-white focus:outline-none focus:ring-2 focus:ring-[#4D8CF5]/20"
                             />
                           ) : (
-                            <div className="mt-2 w-full rounded-xl border border-[#4D8CF5]/20 bg-[#F9FCFF] px-4 py-2.5 text-sm text-gray-700">
+                            <div className="flex items-center gap-2 rounded-xl border border-[#4D8CF5]/20 bg-[#F9FCFF] px-4 py-2.5 text-sm text-gray-700">
+                              <i className="fas fa-phone-alt text-slate-400 text-xs"></i>
                               {profileForm.mobileNumber || '—'}
                             </div>
                           )}
-                        </label>
-                        <label className="text-sm font-semibold text-[#1E3A8A]">
-                          Account Email
-                          <div className="mt-2 w-full rounded-xl border border-[#4D8CF5]/20 bg-gray-50 px-4 py-2.5 text-sm text-gray-600">
+                        </div>
+
+                        {/* Email (read-only) */}
+                        <div className="space-y-1">
+                          <label className="flex items-center gap-2 text-sm font-semibold text-[#1E3A8A]">
+                            <i className="fas fa-envelope text-[#4D8CF5] text-xs"></i>
+                            Account Email
+                          </label>
+                          <div className="flex items-center gap-2 rounded-xl border border-[#4D8CF5]/20 bg-gray-50 px-4 py-2.5 text-sm text-gray-600">
+                            <i className="fas fa-envelope text-slate-400 text-xs"></i>
                             {user.email || '—'}
                           </div>
-                        </label>
+                        </div>
                       </div>
 
                       {isEditing && (
@@ -303,15 +306,16 @@ function GuestAccountContent() {
                           <button
                             type="button"
                             onClick={handleCancelEdit}
-                            className="inline-flex items-center gap-2 rounded-xl border border-[#4D8CF5]/30 bg-white px-5 py-2.5 text-sm font-semibold text-[#1E3A8A] transition-all hover:bg-[#4D8CF5]/5"
+                            className="inline-flex items-center gap-2 rounded-xl border border-[#4D8CF5]/30 bg-white px-5 py-2.5 text-sm font-semibold text-[#1E3A8A] transition-all hover:bg-[#4D8CF5]/5 hover:shadow-sm"
                           >
+                            <i className="fas fa-times text-xs"></i>
                             Cancel
                           </button>
                           <button
                             type="button"
                             onClick={handleSaveProfile}
                             disabled={profileSaving}
-                            className="inline-flex items-center gap-2 rounded-xl bg-[#4D8CF5] px-5 py-2.5 text-sm font-semibold text-white shadow-md transition-all hover:bg-[#3B78E7] disabled:opacity-70"
+                            className="inline-flex items-center gap-2 rounded-xl bg-[#4D8CF5] px-5 py-2.5 text-sm font-semibold text-white shadow-md transition-all hover:bg-[#3B78E7] hover:shadow-lg disabled:opacity-70"
                           >
                             {profileSaving ? (
                               <><i className="fas fa-spinner fa-spin"></i> Saving...</>
@@ -323,9 +327,18 @@ function GuestAccountContent() {
                       )}
                     </div>
                   ) : (
-                    <div className="px-6 py-8 text-sm text-[#4D6FA8] text-center">
-                      <i className="fas fa-lock text-3xl mb-3 block text-[#4D8CF5]/50"></i>
-                      Sign in to edit your profile details.
+                    <div className="flex flex-col items-center justify-center px-6 py-12 text-center">
+                      <div className="mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-[#4D8CF5]/10 text-[#4D8CF5]">
+                        <i className="fas fa-lock text-2xl"></i>
+                      </div>
+                      <p className="text-sm text-[#4D6FA8]">Sign in to edit your profile details.</p>
+                      <button
+                        onClick={() => setIsAuthOpen(true)}
+                        className="mt-4 inline-flex items-center gap-2 rounded-xl bg-[#4D8CF5] px-4 py-2 text-sm font-semibold text-white shadow-sm transition-all hover:bg-[#3B78E7]"
+                      >
+                        <i className="fas fa-sign-in-alt text-xs"></i>
+                        Sign In
+                      </button>
                     </div>
                   )}
                 </div>
@@ -335,17 +348,13 @@ function GuestAccountContent() {
         </div>
       </div>
 
-      {/* Sign Out Confirmation Modal */}
       <SignOutConfirmationModal
         isOpen={showSignOutModal}
         onConfirm={handleConfirmSignOut}
         onCancel={handleCancelSignOut}
       />
 
-      <GuestAuthModal
-        isOpen={isAuthOpen}
-        onClose={() => setIsAuthOpen(false)}
-      />
+      <GuestAuthModal isOpen={isAuthOpen} onClose={() => setIsAuthOpen(false)} />
     </>
   );
 }

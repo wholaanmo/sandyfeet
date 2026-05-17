@@ -123,11 +123,10 @@ export default function BookingCard({ booking, onCancel, onEditSuccess }) {
   return (
     <>
       <div
-        className={`group overflow-hidden rounded-2xl border transition-all duration-300 bg-white ${
-          expanded
+        className={`group overflow-hidden rounded-2xl border transition-all duration-300 bg-white ${expanded
             ? 'border-blue-300 shadow-xl ring-1 ring-blue-100/50'
             : 'border-slate-200 shadow-sm hover:shadow-md hover:border-blue-200'
-        }`}
+          }`}
       >
         {/* Card Header (unchanged) */}
         <div
@@ -556,15 +555,14 @@ export default function BookingCard({ booking, onCancel, onEditSuccess }) {
                     Cancel Reservation
                   </button>
                 )}
-                {(booking.status === 'check-out' || booking.status === 'completed') && (
+                {(['check-in', 'check-out', 'completed'].includes(booking.status)) && (
                   <button
                     type="button"
                     onClick={(e) => {
                       e.stopPropagation();
                       window.location.href = `/feedback?bookingId=${booking.bookingId}`;
                     }}
-                    className="inline-flex items-center gap-2 rounded-lg bg-blue-600 px-4 py-2 text-sm font-semibold text-white shadow-sm transition-all hover:bg-blue-700 hover:shadow-md active:scale-[0.98]"
-                  >
+className="inline-flex items-center gap-2 rounded-lg border border-blue-200 bg-blue-50 px-4 py-2 text-sm font-semibold text-blue-600 shadow-sm transition-all hover:bg-blue-100 hover:border-blue-300 active:scale-[0.98]">
                     <i className="fas fa-star text-xs text-amber-300" />
                     Share Feedback
                   </button>

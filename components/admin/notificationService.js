@@ -2,6 +2,7 @@
 'use client';
 
 import { useState } from 'react';
+import { createPortal } from 'react-dom';
 import { db } from '../../lib/firebase';
 import { collection, query, orderBy, onSnapshot, updateDoc, writeBatch, getDocs, doc, where, setDoc, getDoc, deleteDoc } from 'firebase/firestore';
 
@@ -1191,20 +1192,19 @@ export function NotificationDeleteConfirmModal({
   onCancel,
   isDeleting,
 }) {
-  if (!isOpen) return null;
+  if (!isOpen || typeof document === 'undefined') return null;
 
-  return (
-    <div
-      className="fixed inset-0 z-[100] flex items-center justify-center p-4"
-      onClick={onCancel}
-    >
+  return createPortal(
+    <NotificationDeleteConfirmOverlay onClick={onCancel}>
       <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" />
       <div
         className="relative z-10 w-full max-w-sm overflow-hidden rounded-2xl bg-white shadow-2xl"
         onClick={(e) => e.stopPropagation()}
       >
         <div className="border-b border-[#4D8CF5]/10 bg-gradient-to-r from-[#4D8CF5]/5 to-white px-5 py-4">
-          <h3 className="text-base font-bold text-[#1E3A8A]">Delete Notification</h3>
+          <h3 id="notification-delete-title" className="text-base font-bold text-[#1E3A8A]">
+            Delete Notification
+          </h3>
           <p className="mt-1 text-sm text-[#5C7AA6]">
             Are you sure you want to delete this notification? This action cannot be undone.
           </p>
@@ -1228,6 +1228,19 @@ export function NotificationDeleteConfirmModal({
           </button>
         </div>
       </div>
+    </NotificationDeleteConfirmOverlay>,
+    document.body
+  );
+}
+
+function NotificationDeleteConfirmOverlay({ children, onClick }) {
+  return (
+    <div
+      className="fixed inset-0 z-[9999] flex min-h-[100dvh] items-center justify-center p-4"
+      onClick={onClick}
+      role="presentation"
+    >
+      {children}
     </div>
   );
 }

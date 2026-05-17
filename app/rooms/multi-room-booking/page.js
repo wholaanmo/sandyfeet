@@ -1326,13 +1326,12 @@ export default function MultiRoomBookingPage() {
                   </div>
                   <h2 className="text-2xl font-bold text-textPrimary mb-2">Booking Confirmed!</h2>
                   <p className="text-textSecondary mb-4">
-                    Thank you for your booking! A confirmation email will be sent to {userEmail}. You can also track and cancel your reservation anytime through the Reservation Tracker page.
+                    Thank you for your booking! A confirmation email will be sent to {userEmail}. You can track your reservation through your account.
                   </p>
                   
                   <div className="p-4 bg-ocean-ice rounded-lg mb-4">
-                    <p className="text-sm text-textPrimary">Copy your booking reference to track your reservation.</p>
                     <div className="flex items-center justify-center gap-2 mt-1">
-                      <strong className="text-lg font-mono">{generatedBookingId}</strong>
+                      <strong className="text-lg font-mono">Reference Number: {generatedBookingId}</strong>
                       <button
                         onClick={() => copyToClipboard(generatedBookingId)}
                         className="p-1.5 rounded-lg bg-white hover:bg-ocean-light/10 text-ocean-mid transition-all duration-200"
