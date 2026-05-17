@@ -162,8 +162,8 @@ export default function RequestChangesModal({ isOpen, booking, onClose, onReques
 
   const isDisabled = hasExistingRequest || loading;
   const disabledPlaceholder = requestProcessed
-    ? 'The resort has already responded to your change request.'
-    : 'You have already submitted a change request for this booking.';
+    ? 'You cannot submit a new request at this time. Only one reservation change request is allowed.'
+    : 'You cannot submit a new request at this time. Only one reservation change request is allowed.';
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
@@ -234,7 +234,7 @@ export default function RequestChangesModal({ isOpen, booking, onClose, onReques
                   rows={4}
                   value={requestText}
                   onChange={(e) => setRequestText(e.target.value)}
-                  placeholder={isDisabled ? disabledPlaceholder : "e.g., I would like to add 2 more nights from July 10–12, and one more Cottage room..."}
+                  placeholder={isDisabled ? disabledPlaceholder : "e.g., I would like to add 2 more nights from July 10–12, and one more Ground Floor room..."}
                   className={`w-full rounded-xl border border-slate-200 px-4 py-3 text-sm transition-all ${
                     isDisabled
                       ? 'bg-gray-100 text-gray-500 cursor-not-allowed border-gray-200'

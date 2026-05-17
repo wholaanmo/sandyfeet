@@ -2,24 +2,24 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { doc, updateDoc, getDoc } from 'firebase/firestore';
+import { doc, getDoc } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 
 export default function DayTourRequestChangesModal({ isOpen, booking, onClose, onRequestSubmitted }) {
   const [requestText, setRequestText] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [success, setSuccess] = useState(false);
-  const [hasExistingRequest, setHasExistingRequest] = useState(false);
+  const [existingRequestStatus, setExistingRequestStatus] = useState(null); // 'pending', 'approved', 'rejected', null
   const [loading, setLoading] = useState(false);
 
-  // Check Firestore for an existing pending request when modal opens
+  // Check Firestore for existing change request status when modal opens
   useEffect(() => {
     if (!isOpen || !booking) {
-      setHasExistingRequest(false);
+      setExistingRequestStatus(null);
       setRequestText('');
       return;
     }
-    
+
     const checkExistingRequest = async () => {
       setLoading(true);
       try {
@@ -27,40 +27,51 @@ export default function DayTourRequestChangesModal({ isOpen, booking, onClose, o
         const docSnap = await getDoc(bookingRef);
         if (docSnap.exists()) {
           const data = docSnap.data();
-          const existing = data.changeRequest && data.changeRequest.status === 'pending';
-          setHasExistingRequest(existing);
+          const changeReq = data.changeRequest;
+          if (changeReq) {
+            if (changeReq.status === 'pending') {
+              setExistingRequestStatus('pending');
+            } else if (changeReq.status === 'approved' || changeReq.status === 'rejected') {
+              setExistingRequestStatus(changeReq.status);
+            } else {
+              setExistingRequestStatus(null);
+            }
+          } else {
+            setExistingRequestStatus(null);
+          }
         } else {
-          setHasExistingRequest(false);
+          setExistingRequestStatus(null);
         }
       } catch (error) {
         console.error('Error checking existing request:', error);
-        setHasExistingRequest(false);
+        setExistingRequestStatus(null);
       } finally {
         setLoading(false);
       }
     };
-    
+
     checkExistingRequest();
   }, [isOpen, booking]);
 
   const handleSubmit = async () => {
-    if (!requestText.trim() || hasExistingRequest || loading) return;
-    
+    if (!requestText.trim() || isSubmitting || existingRequestStatus !== null) return;
+
     setIsSubmitting(true);
     try {
       const bookingRef = doc(db, 'dayTourBookings', booking.id);
-      
+
       // Double-check to prevent race conditions
       const docSnap = await getDoc(bookingRef);
       if (docSnap.exists()) {
         const data = docSnap.data();
-        if (data.changeRequest && data.changeRequest.status === 'pending') {
-          setHasExistingRequest(true);
+        if (data.changeRequest && data.changeRequest.status !== null) {
+          // Already has a request (pending or processed)
+          setExistingRequestStatus(data.changeRequest.status);
           setIsSubmitting(false);
           return;
         }
       }
-      
+
       await updateDoc(bookingRef, {
         changeRequest: {
           text: requestText.trim(),
@@ -68,14 +79,10 @@ export default function DayTourRequestChangesModal({ isOpen, booking, onClose, o
           status: 'pending'
         }
       });
-      
+
       setSuccess(true);
-      
-      // Notify parent component to refresh booking data
-      if (onRequestSubmitted) {
-        onRequestSubmitted();
-      }
-      
+      if (onRequestSubmitted) onRequestSubmitted();
+
       setTimeout(() => {
         onClose();
         setRequestText('');
@@ -91,8 +98,17 @@ export default function DayTourRequestChangesModal({ isOpen, booking, onClose, o
 
   if (!isOpen || !booking) return null;
 
-  // Determine if the submit button and textarea should be disabled
-  const isDisabled = hasExistingRequest || loading;
+  // Determine if the form should be disabled
+  const isDisabled = loading || existingRequestStatus !== null; // null means no request yet
+
+  let disabledMessage = '';
+  if (existingRequestStatus === 'pending') {
+    disabledMessage = 'You have already submitted a change request for this booking.';
+  } else if (existingRequestStatus === 'approved') {
+    disabledMessage = 'Your change request has been approved by the resort. No further changes are allowed.';
+  } else if (existingRequestStatus === 'rejected') {
+    disabledMessage = 'Your change request was declined by the resort. No further changes are allowed.';
+  }
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
@@ -138,6 +154,7 @@ export default function DayTourRequestChangesModal({ isOpen, booking, onClose, o
                   Please describe your request clearly below.
                 </span>
               </div>
+
               <div>
                 <label className="block text-sm font-semibold text-slate-700 mb-2">
                   Your Request <span className="text-red-500">*</span>
@@ -146,7 +163,7 @@ export default function DayTourRequestChangesModal({ isOpen, booking, onClose, o
                   rows={4}
                   value={requestText}
                   onChange={(e) => setRequestText(e.target.value)}
-                  placeholder={isDisabled ? "You have already submitted a change request for this booking." : "e.g., I would like to add 2 more adults and 1 kid to the tour."}
+                  placeholder={isDisabled ? "You cannot submit a new request at this time. Only one reservation change request is allowed." : "e.g., I would like to add 2 more adults and 1 kid to the tour."}
                   className={`w-full rounded-xl border border-slate-200 px-4 py-3 text-sm transition-all ${
                     isDisabled
                       ? 'bg-gray-100 text-gray-500 cursor-not-allowed border-gray-200'

@@ -492,7 +492,7 @@ export default function MyBookingsPage() {
                 </div>
                 <div className="px-6 py-5">
                   <p className="text-sm text-slate-600">
-                    This action cannot be undone. Your down payment may be subject to the resort's cancellation policy.
+                    This action cannot be undone. Your down payment will be forfeited and kept by the resort upon cancellation.
                   </p>
                   <div className="mt-4">
                     <label htmlFor="cancel-reason" className="block text-xs font-semibold text-slate-700">

@@ -67,33 +67,52 @@ export default function BookingCard({ booking, onCancel, onEditSuccess }) {
     }
   };
 
+  // Real-time listener for changeRequest
   useEffect(() => {
-    const docIds = booking.children?.length > 0
-      ? booking.children.map((c) => c.id).filter(Boolean)
-      : booking.id ? [booking.id] : [];
+    // Determine collection based on booking type
+    const collectionName = booking.type === 'daytour' ? 'dayTourBookings' : 'bookings';
 
-    if (!docIds.length) {
+    // For multi-room groups, listen to each child booking (always in 'bookings')
+    if (booking.children?.length > 0) {
+      const requestsByDoc = {};
+      const childDocIds = booking.children.map((c) => c.id).filter(Boolean);
+      const unsubs = childDocIds.map((id) =>
+        onSnapshot(
+          doc(db, 'bookings', id),
+          (snap) => {
+            requestsByDoc[id] = snap.exists() ? snap.data()?.changeRequest : null;
+            setChangeRequest(pickChangeRequest(Object.values(requestsByDoc)));
+          },
+          (err) => {
+            console.error('Error syncing change request for child:', err);
+            setChangeRequest(null);
+          }
+        )
+      );
+      return () => unsubs.forEach((u) => u());
+    }
+
+    // Single booking (room or day tour)
+    if (!booking.id) {
       setChangeRequest(null);
       return;
     }
 
-    const requestsByDoc = {};
-    const unsubs = docIds.map((id) =>
-      onSnapshot(
-        doc(db, 'bookings', id),
-        (snap) => {
-          requestsByDoc[id] = snap.exists() ? snap.data()?.changeRequest : null;
-          setChangeRequest(pickChangeRequest(Object.values(requestsByDoc)));
-        },
-        (err) => {
-          console.error('Error syncing change request:', err);
-          setChangeRequest(null);
-        }
-      )
+    const bookingRef = doc(db, collectionName, booking.id);
+    const unsubscribe = onSnapshot(
+      bookingRef,
+      (snap) => {
+        const data = snap.data();
+        setChangeRequest(data?.changeRequest || null);
+      },
+      (err) => {
+        console.error('Error syncing change request:', err);
+        setChangeRequest(null);
+      }
     );
 
-    return () => unsubs.forEach((u) => u());
-  }, [booking.id, booking.children]);
+    return () => unsubscribe();
+  }, [booking.id, booking.children, booking.type]);
 
   const resortResponseNote = changeRequest?.adminNote || changeRequest?.adminReason;
   const isProcessedChangeRequest =
@@ -103,15 +122,15 @@ export default function BookingCard({ booking, onCancel, onEditSuccess }) {
 
   return (
     <>
-      <div 
+      <div
         className={`group overflow-hidden rounded-2xl border transition-all duration-300 bg-white ${
-          expanded 
-            ? 'border-blue-300 shadow-xl ring-1 ring-blue-100/50' 
+          expanded
+            ? 'border-blue-300 shadow-xl ring-1 ring-blue-100/50'
             : 'border-slate-200 shadow-sm hover:shadow-md hover:border-blue-200'
         }`}
       >
         {/* Card Header (unchanged) */}
-        <div 
+        <div
           onClick={() => setExpanded(!expanded)}
           className="relative cursor-pointer select-none p-5 sm:p-6 transition-colors hover:bg-slate-50/40"
         >
@@ -240,10 +259,10 @@ export default function BookingCard({ booking, onCancel, onEditSuccess }) {
                           <div className="flex justify-between"><span>Adults</span><span className="font-medium">{booking.exclusiveAdults || 0}</span></div>
                           <div className="flex justify-between"><span>Kids</span><span className="font-medium">{booking.exclusiveKids || 0}</span></div>
                         </div>
-                            <div className="mt-2 pt-2 border-t border-slate-100 flex justify-between font-semibold text-slate-800">
-      <span>Total Guests</span>
-      <span>{(booking.exclusiveAdults || 0) + (booking.exclusiveKids || 0)}</span>
-    </div>
+                        <div className="mt-2 pt-2 border-t border-slate-100 flex justify-between font-semibold text-slate-800">
+                          <span>Total Guests</span>
+                          <span>{(booking.exclusiveAdults || 0) + (booking.exclusiveKids || 0)}</span>
+                        </div>
                       </>
                     ) : booking.children && booking.children.length > 0 ? (
                       <>
@@ -359,9 +378,39 @@ export default function BookingCard({ booking, onCancel, onEditSuccess }) {
                 </div>
               </div>
 
-              {/* Notes (unchanged) */}
+              {/* ---- Resort Response moved inside grid, after Payment Summary, before Notes ---- */}
+              {isProcessedChangeRequest && (
+                <div className="rounded-xl border border-blue-200 bg-blue-50/60 p-4 shadow-sm md:col-span-2">
+                  <h4 className="flex items-center gap-2 text-xs font-semibold uppercase tracking-wider text-blue-700">
+                    <span className="flex h-6 w-6 items-center justify-center rounded-full bg-blue-200 text-blue-700">
+                      <i className="fas fa-exchange-alt text-xs" />
+                    </span>
+                    Note from Resort
+                  </h4>
+                  <div className="mt-2 space-y-1">
+                    <div className="rounded-lg bg-white/80 p-3 border border-blue-100">
+                      <div className="flex items-start gap-2">
+                        <i className={`fas ${changeRequest.status === 'approved' ? 'fa-check-circle text-green-600' : 'fa-times-circle text-red-600'} text-sm mt-0.5`} />
+                        <div>
+                          <p className={`text-sm font-medium ${changeRequest.status === 'approved' ? 'text-green-700' : 'text-red-700'}`}>
+                            {changeRequest.status === 'approved' ? 'Request Approved' : 'Request Declined'}
+                          </p>
+                          <p className="text-sm text-slate-700 mt-1 whitespace-pre-wrap">{resortResponseNote}</p>
+                          {changeRequest.processedAt && (
+                            <p className="text-xs text-slate-400 mt-2">
+                              Processed on: {new Date(changeRequest.processedAt).toLocaleDateString()}
+                            </p>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {/* Notes (unchanged) – now appears after Resort Response */}
               {(booking.adminNote || booking.cancellationReason) && (
-                <div className="rounded-xl border border-slate-200 bg-white p-4 md:col-span-2 shadow-sm">
+                <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm md:col-span-2">
                   <h4 className="flex items-center gap-2 text-xs font-semibold uppercase tracking-wider text-slate-500">
                     <span className="flex h-6 w-6 items-center justify-center rounded-full bg-rose-100 text-rose-600">
                       <i className="fas fa-sticky-note text-xs" />
@@ -388,136 +437,107 @@ export default function BookingCard({ booking, onCancel, onEditSuccess }) {
               )}
             </div>
 
-            {isProcessedChangeRequest && (
-              <div className="mt-5 rounded-xl border border-blue-200 bg-blue-50/60 p-4 shadow-sm">
-    <h4 className="flex items-center gap-2 text-xs font-semibold uppercase tracking-wider text-blue-700">
-      <span className="flex h-6 w-6 items-center justify-center rounded-full bg-blue-200 text-blue-700">
-        <i className="fas fa-exchange-alt text-xs" />
-      </span>
-      Note from Resort
-    </h4>
-    <div className="mt-2 space-y-1">
-      <div className="rounded-lg bg-white/80 p-3 border border-blue-100">
-        <div className="flex items-start gap-2">
-          <i className={`fas ${changeRequest.status === 'approved' ? 'fa-check-circle text-green-600' : 'fa-times-circle text-red-600'} text-sm mt-0.5`} />
-          <div>
-            <p className={`text-sm font-medium ${changeRequest.status === 'approved' ? 'text-green-700' : 'text-red-700'}`}>
-              {changeRequest.status === 'approved' ? 'Request Approved' : 'Request Declined'}
-            </p>
-            <p className="text-sm text-slate-700 mt-1 whitespace-pre-wrap">{resortResponseNote}</p>
-            {changeRequest.processedAt && (
-              <p className="text-xs text-slate-400 mt-2">
-                Processed on: {new Date(changeRequest.processedAt).toLocaleDateString()}
-              </p>
-            )}
-          </div>
-        </div>
-      </div>
-    </div>
-              </div>
-            )}
-
             {/* Action Buttons (unchanged) */}
             <div className="mt-6 flex flex-wrap items-center justify-between gap-3 border-t border-slate-100 pt-5">
               <p className="text-xs text-slate-400">
                 Booked on {formatDateTime(booking.createdAt)}
               </p>
               <div className="flex gap-3">
-  {isPending && (isRoomBooking || isDayTour) && (
-    <button
-      type="button"
-      onClick={(e) => {
-        e.stopPropagation();
-        if (isRoomBooking) setShowEditModal(true);
-        else setShowDayTourEditModal(true);
-      }}
-      className="inline-flex items-center gap-2 rounded-lg border border-blue-200 bg-white px-4 py-2 text-sm font-semibold text-blue-600 transition-all hover:bg-blue-50 hover:border-blue-300 hover:shadow-sm"
-    >
-      <i className="fas fa-pen text-xs" />
-      Edit Reservation
-    </button>
-  )}
+                {isPending && (isRoomBooking || isDayTour) && (
+                  <button
+                    type="button"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      if (isRoomBooking) setShowEditModal(true);
+                      else setShowDayTourEditModal(true);
+                    }}
+                    className="inline-flex items-center gap-2 rounded-lg border border-blue-200 bg-white px-4 py-2 text-sm font-semibold text-blue-600 transition-all hover:bg-blue-50 hover:border-blue-300 hover:shadow-sm"
+                  >
+                    <i className="fas fa-pen text-xs" />
+                    Edit Reservation
+                  </button>
+                )}
 
-  {/* Request Changes button for room bookings with CONFIRMED status */}
-{isRoomBooking && booking.status === 'confirmed' && (
-  (booking.changeRequest && booking.changeRequest.status === 'pending') ? (
-    <button
-      type="button"
-      disabled
-      className="inline-flex items-center gap-2 rounded-lg border border-gray-200 bg-gray-100 px-4 py-2 text-sm font-semibold text-gray-400 cursor-not-allowed"
-      title="You have already submitted a change request"
-    >
-      <i className="fas fa-exchange-alt text-xs" />
-      Request Changes
-    </button>
-  ) : (
-    <button
-      type="button"
-      onClick={(e) => {
-        e.stopPropagation();
-        setShowRequestModal(true);
-      }}
-      className="inline-flex items-center gap-2 rounded-lg border border-amber-200 bg-white px-4 py-2 text-sm font-semibold text-amber-600 transition-all hover:bg-amber-50 hover:border-amber-300 hover:shadow-sm"
-    >
-      <i className="fas fa-exchange-alt text-xs" />
-      Request Changes
-    </button>
-  )
-)}
+                {/* Request Changes button for room bookings with CONFIRMED status */}
+                {isRoomBooking && booking.status === 'confirmed' && (
+                  (booking.changeRequest && booking.changeRequest.status === 'pending') ? (
+                    <button
+                      type="button"
+                      disabled
+                      className="inline-flex items-center gap-2 rounded-lg border border-gray-200 bg-gray-100 px-4 py-2 text-sm font-semibold text-gray-400 cursor-not-allowed"
+                      title="You have already submitted a change request"
+                    >
+                      <i className="fas fa-exchange-alt text-xs" />
+                      Request Changes
+                    </button>
+                  ) : (
+                    <button
+                      type="button"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setShowRequestModal(true);
+                      }}
+                      className="inline-flex items-center gap-2 rounded-lg border border-amber-200 bg-white px-4 py-2 text-sm font-semibold text-amber-600 transition-all hover:bg-amber-50 hover:border-amber-300 hover:shadow-sm"
+                    >
+                      <i className="fas fa-exchange-alt text-xs" />
+                      Request Changes
+                    </button>
+                  )
+                )}
 
-{/* Request Changes button for room bookings with PENDING status */}
-{isPending && isRoomBooking && (
-  (booking.changeRequest && booking.changeRequest.status === 'pending') ? (
-    <button
-      type="button"
-      disabled
-      className="inline-flex items-center gap-2 rounded-lg border border-gray-200 bg-gray-100 px-4 py-2 text-sm font-semibold text-gray-400 cursor-not-allowed"
-      title="You have already submitted a change request"
-    >
-      <i className="fas fa-exchange-alt text-xs" />
-      Request Changes
-    </button>
-  ) : (
-    <button
-      type="button"
-      onClick={(e) => {
-        e.stopPropagation();
-        setShowRequestModal(true);
-      }}
-      className="inline-flex items-center gap-2 rounded-lg border border-amber-200 bg-white px-4 py-2 text-sm font-semibold text-amber-600 transition-all hover:bg-amber-50 hover:border-amber-300 hover:shadow-sm"
-    >
-      <i className="fas fa-exchange-alt text-xs" />
-      Request Changes
-    </button>
-  )
-)}
+                {/* Request Changes button for room bookings with PENDING status */}
+                {isPending && isRoomBooking && (
+                  (booking.changeRequest && booking.changeRequest.status === 'pending') ? (
+                    <button
+                      type="button"
+                      disabled
+                      className="inline-flex items-center gap-2 rounded-lg border border-gray-200 bg-gray-100 px-4 py-2 text-sm font-semibold text-gray-400 cursor-not-allowed"
+                      title="You have already submitted a change request"
+                    >
+                      <i className="fas fa-exchange-alt text-xs" />
+                      Request Changes
+                    </button>
+                  ) : (
+                    <button
+                      type="button"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setShowRequestModal(true);
+                      }}
+                      className="inline-flex items-center gap-2 rounded-lg border border-amber-200 bg-white px-4 py-2 text-sm font-semibold text-amber-600 transition-all hover:bg-amber-50 hover:border-amber-300 hover:shadow-sm"
+                    >
+                      <i className="fas fa-exchange-alt text-xs" />
+                      Request Changes
+                    </button>
+                  )
+                )}
 
-  {/* Request Changes button for day tours with CONFIRMED status */}
-{!isPending && isDayTour && booking.status === 'confirmed' && (
-  (booking.changeRequest && booking.changeRequest.status === 'pending') ? (
-    <button
-      type="button"
-      disabled
-      className="inline-flex items-center gap-2 rounded-lg border border-gray-200 bg-gray-100 px-4 py-2 text-sm font-semibold text-gray-400 cursor-not-allowed"
-      title="You have already submitted a change request"
-    >
-      <i className="fas fa-exchange-alt text-xs" />
-      Request Changes
-    </button>
-  ) : (
-    <button
-      type="button"
-      onClick={(e) => {
-        e.stopPropagation();
-        setShowDayTourRequestModal(true);
-      }}
-      className="inline-flex items-center gap-2 rounded-lg border border-amber-200 bg-white px-4 py-2 text-sm font-semibold text-amber-600 transition-all hover:bg-amber-50 hover:border-amber-300 hover:shadow-sm"
-    >
-      <i className="fas fa-exchange-alt text-xs" />
-      Request Changes
-    </button>
-  )
-)}
+                {/* Request Changes button for day tours with CONFIRMED status */}
+                {!isPending && isDayTour && booking.status === 'confirmed' && (
+                  (booking.changeRequest && booking.changeRequest.status === 'pending') ? (
+                    <button
+                      type="button"
+                      disabled
+                      className="inline-flex items-center gap-2 rounded-lg border border-gray-200 bg-gray-100 px-4 py-2 text-sm font-semibold text-gray-400 cursor-not-allowed"
+                      title="You have already submitted a change request"
+                    >
+                      <i className="fas fa-exchange-alt text-xs" />
+                      Request Changes
+                    </button>
+                  ) : (
+                    <button
+                      type="button"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setShowDayTourRequestModal(true);
+                      }}
+                      className="inline-flex items-center gap-2 rounded-lg border border-amber-200 bg-white px-4 py-2 text-sm font-semibold text-amber-600 transition-all hover:bg-amber-50 hover:border-amber-300 hover:shadow-sm"
+                    >
+                      <i className="fas fa-exchange-alt text-xs" />
+                      Request Changes
+                    </button>
+                  )
+                )}
                 {showCancel && (
                   <button
                     type="button"
@@ -564,29 +584,23 @@ export default function BookingCard({ booking, onCancel, onEditSuccess }) {
         onSuccess={handleEditSuccess}
       />
 
-<RequestChangesModal
-  isOpen={showRequestModal}
-  booking={booking}
-  onClose={() => setShowRequestModal(false)}
-  onRequestSubmitted={() => {
-    // Refresh booking data or update the booking object
-    if (onEditSuccess) {
-      onEditSuccess();
-    }
-  }}
-/>
+      <RequestChangesModal
+        isOpen={showRequestModal}
+        booking={booking}
+        onClose={() => setShowRequestModal(false)}
+        onRequestSubmitted={() => {
+          if (onEditSuccess) onEditSuccess();
+        }}
+      />
 
-<DayTourRequestChangesModal
-  isOpen={showDayTourRequestModal}
-  booking={booking}
-  onClose={() => setShowDayTourRequestModal(false)}
-  onRequestSubmitted={() => {
-    // Refresh booking data or update the booking object
-    if (onEditSuccess) {
-      onEditSuccess();
-    }
-  }}
-/>
+      <DayTourRequestChangesModal
+        isOpen={showDayTourRequestModal}
+        booking={booking}
+        onClose={() => setShowDayTourRequestModal(false)}
+        onRequestSubmitted={() => {
+          if (onEditSuccess) onEditSuccess();
+        }}
+      />
     </>
   );
 }

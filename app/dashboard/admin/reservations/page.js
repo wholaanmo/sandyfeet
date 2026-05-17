@@ -9,6 +9,8 @@ import { sendConfirmationEmail, sendCancellationEmail } from '../../../../lib/em
 import { useSearchParams } from 'next/navigation';
 import AdminRequestChangesModal from './components/AdminRequestChangesModal';
 import AdminActionReasonModal from './components/AdminActionReasonModal';
+import AdminEditBookingModal, { canAdminEditBooking } from './components/AdminEditBookingModal';
+import AdminEditDayTourModal, { canAdminEditDayTour } from './components/AdminEditDayTourModal';
 
 export default function AdminReservations() {
     const searchParams = useSearchParams(); // <-- ADDED
@@ -31,6 +33,8 @@ export default function AdminReservations() {
   const sliderRef = useRef(null);
   const buttonRefs = useRef({});
   const [idRequestModal, setIdRequestModal] = useState({ show: false, booking: null, message: '', sending: false });
+  const [editBookingModal, setEditBookingModal] = useState({ show: false, booking: null });
+  const [editDayTourModal, setEditDayTourModal] = useState({ show: false, booking: null });
   const [showRequestDetailsModal, setShowRequestDetailsModal] = useState(false);
 const [selectedRequestBooking, setSelectedRequestBooking] = useState(null);
 const [requestAction, setRequestAction] = useState(null); // 'approve' or 'reject'
@@ -738,7 +742,8 @@ if (now > dayEnd) {
         const data = doc.data();
         dayToursList.push({
           id: doc.id,
-          ...data
+          ...data,
+          type: 'daytour',
         });
       });
       setDayTours(dayToursList);
@@ -1206,7 +1211,6 @@ if (now > dayEnd) {
       const bookingRef = doc(db, 'dayTourBookings', booking.id);
       await updateDoc(bookingRef, {
         status: 'confirmed',
-        adminNote: confirmModal.note || null,  // Save admin note
         updatedAt: new Date().toISOString()
       });
 
@@ -1308,7 +1312,6 @@ if (now > dayEnd) {
           const bookingRef = doc(db, 'bookings', childBooking.id);
           await updateDoc(bookingRef, {
             status: 'confirmed',
-            adminNote: confirmModal.note || null,  // Save admin note
             updatedAt: new Date().toISOString()
           });
         }
@@ -1316,7 +1319,6 @@ if (now > dayEnd) {
         const bookingRef = doc(db, 'bookings', booking.id);
         await updateDoc(bookingRef, {
           status: 'confirmed',
-          adminNote: confirmModal.note || null,  // Save admin note
           updatedAt: new Date().toISOString()
         });
       }
@@ -2450,6 +2452,22 @@ if (activeTab === 'daytour' && sidebarBooking.downPayment !== undefined) {
 
             {/* Fixed Footer with Confirm and Cancel buttons */}
             <div className="sticky bottom-0 bg-white/80 backdrop-blur-lg border-t border-[#4D8CF5]/10 px-5 py-2.5 flex gap-2 justify-end flex-shrink-0">
+              {activeTab === 'rooms' && canAdminEditBooking(sidebarBooking) && (
+                <button
+                  onClick={() => setEditBookingModal({ show: true, booking: sidebarBooking })}
+                  className="px-3.5 py-2.5 rounded-lg bg-[#4D8CF5]/10 text-[#1E3A8A] hover:bg-[#4D8CF5] hover:text-white transition-all duration-200 flex items-center gap-1.5 text-xs font-medium"
+                >
+                  <i className="fas fa-edit text-[10px]"></i> Edit
+                </button>
+              )}
+              {activeTab === 'daytour' && canAdminEditDayTour(sidebarBooking) && (
+                <button
+                  onClick={() => setEditDayTourModal({ show: true, booking: sidebarBooking })}
+                  className="px-3.5 py-2.5 rounded-lg bg-[#4D8CF5]/10 text-[#1E3A8A] hover:bg-[#4D8CF5] hover:text-white transition-all duration-200 flex items-center gap-1.5 text-xs font-medium"
+                >
+                  <i className="fas fa-edit text-[10px]"></i> Edit
+                </button>
+              )}
               {!['cancelled', 'cancelled-by-guest', 'confirmed', 'check-in', 'check-out', 'completed'].includes(sidebarBooking.status) && (
                 <button
                   onClick={() => setIdRequestModal({ show: true, booking: sidebarBooking, message: '', sending: false })}
@@ -3016,7 +3034,7 @@ if (activeTab === 'daytour' && sidebarBooking.downPayment !== undefined) {
               </div>
             </div>
 
-            <div className="flex gap-3 justify-center">
+            <div className="flex gap-3 justify-end items-end">
               <button
                 onClick={() => setShowReasonModal({ show: false, booking: null, reason: '', sending: false })}
                 className="px-4 py-2 border border-ocean-light/20 rounded-xl text-textSecondary text-sm font-medium hover:bg-ocean-ice transition-all duration-300"
@@ -3035,18 +3053,6 @@ if (activeTab === 'daytour' && sidebarBooking.downPayment !== undefined) {
               >
                 <i className="fas fa-dollar-sign mr-1"></i>
                 Notify Guest
-              </button>
-              <button
-                onClick={() => setMoveDateConfirmModal({ show: true, booking: showReasonModal.booking, message: '', sending: false })}
-                disabled={isNotificationDisabled(showReasonModal.booking)}
-                className={`px-4 py-2 rounded-xl text-white text-sm font-medium transition-all duration-300 flex items-center gap-2 ${isNotificationDisabled(showReasonModal.booking)
-                  ? 'bg-gray-400 cursor-not-allowed opacity-50'
-                  : 'bg-gradient-to-r from-blue-500 to-blue-600 hover:shadow-lg hover:-translate-y-0.5'
-                  }`}
-                title={isNotificationDisabled(showReasonModal.booking) ? "Notification already sent" : ""}
-              >
-                <i className="fas fa-calendar-alt mr-1"></i>
-                Move Date Notify
               </button>
             </div>
           </div>
@@ -3297,6 +3303,45 @@ if (activeTab === 'daytour' && sidebarBooking.downPayment !== undefined) {
       setRequestAction(null);
     }}
     onConfirm={(reason) => handleRequestDecision(requestAction, reason)}
+  />
+)}
+
+{editBookingModal.show && editBookingModal.booking && (
+  <AdminEditBookingModal
+    isOpen={editBookingModal.show}
+    booking={editBookingModal.booking}
+    onClose={() => setEditBookingModal({ show: false, booking: null })}
+    onSuccess={(updated) => {
+      const editedId = editBookingModal.booking?.id;
+      setSidebarBooking((prev) => {
+        if (!prev || prev.id !== editedId) return prev;
+        return {
+          ...prev,
+          ...updated,
+          childBookings: updated.childBookings ?? prev.childBookings,
+          originalChildBookings: updated.originalChildBookings ?? prev.originalChildBookings,
+        };
+      });
+      showNotification('Booking updated successfully.', 'success');
+      setEditBookingModal({ show: false, booking: null });
+    }}
+  />
+)}
+
+{editDayTourModal.show && editDayTourModal.booking && (
+  <AdminEditDayTourModal
+    isOpen={editDayTourModal.show}
+    booking={editDayTourModal.booking}
+    onClose={() => setEditDayTourModal({ show: false, booking: null })}
+    onSuccess={(updated) => {
+      const editedId = editDayTourModal.booking?.id;
+      setSidebarBooking((prev) => {
+        if (!prev || prev.id !== editedId) return prev;
+        return { ...prev, ...updated, type: 'daytour' };
+      });
+      showNotification('Day tour booking updated successfully.', 'success');
+      setEditDayTourModal({ show: false, booking: null });
+    }}
   />
 )}
     </div>
