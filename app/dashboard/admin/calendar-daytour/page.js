@@ -613,20 +613,20 @@ export default function AdminDayTourCalendar() {
   <>
     {/* Backdrop overlay */}
     <div
-      className="fixed inset-0 bg-black/50 z-50 transition-opacity duration-300"
+      className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 transition-opacity duration-300"
       onClick={() => setIsSidebarOpen(false)}
     />
 
     {/* Sidebar */}
     <div
       className={`fixed right-0 top-0 h-full w-full max-w-md 
-      bg-white/50 backdrop-blur-xl border-l border-white/30
-      shadow-2xl z-50 transform transition-transform duration-300 ease-out flex flex-col
+      bg-slate-50/95 backdrop-blur-2xl border-l border-slate-200/80
+      shadow-[0_0_50px_0_rgba(15,23,42,0.15)] z-50 transform transition-transform duration-300 ease-out flex flex-col
       ${isSidebarOpen ? 'translate-x-0' : 'translate-x-full'}`}
     >
 
       {/* Header */}
-      <div className="sticky top-0 bg-white/80 backdrop-blur-lg border-b border-[#4D8CF5]/10 px-6 py-4 flex justify-between items-center z-10 flex-shrink-0 shadow-sm">
+      <div className="sticky top-0 bg-[#F8FAFC]/90 backdrop-blur-lg border-b border-slate-200/80 px-6 py-4 flex justify-between items-center z-10 flex-shrink-0 shadow-sm">
         <div>
           <h2 className="text-lg font-bold text-[#1E3A8A] leading-tight flex flex-col items-start gap-1">
             Dates with Guest Limits
@@ -642,12 +642,12 @@ export default function AdminDayTourCalendar() {
           <i className="fas fa-times"></i>
         </button>
       </div>
- 
+  
       {/* Content */}
       <div className="flex-1 overflow-y-auto p-5 space-y-4">
         {unavailableDatesList.length === 0 ? (
           <div className="flex items-center justify-center min-h-[300px] w-full">
-            <div className="text-center bg-white/50 backdrop-blur-sm p-8 rounded-2xl border border-[#4D8CF5]/10 shadow-sm">
+            <div className="text-center bg-white border border-slate-200/60 p-8 rounded-2xl shadow-[0_2px_8px_-1px_rgba(15,23,42,0.03)]">
               <div className="w-16 h-16 bg-green-50 rounded-full flex items-center justify-center mx-auto mb-4">
                 <i className="fas fa-check-circle text-2xl text-green-500"></i>
               </div>
@@ -660,9 +660,9 @@ export default function AdminDayTourCalendar() {
             {unavailableDatesList.map((item) => (
               <div
                 key={item.id}
-                className="bg-white/70 backdrop-blur-md border border-[#4D8CF5]/10 rounded-xl p-4 shadow-sm group hover:border-[#4D8CF5]/30 transition-all duration-300"
+                className="bg-white border-l-4 border-l-[#4D8CF5] border-y border-r border-slate-200/60 rounded-xl p-4 shadow-[0_2px_8px_-1px_rgba(15,23,42,0.03)] group hover:shadow-md hover:border-slate-300 hover:border-l-[#4D8CF5] transition-all duration-300"
               >
-                <div className="flex justify-between items-center mb-4 pb-2 border-b border-[#4D8CF5]/10">
+                <div className="flex justify-between items-center mb-4 pb-2 border-b border-slate-100">
                   <h3 className="text-xs font-bold text-[#1E3A8A] uppercase tracking-wider flex items-center gap-2">
                     <i className="fas fa-calendar-day text-[#4D8CF5]"></i>
                     {formatDateDisplay(item.date)}

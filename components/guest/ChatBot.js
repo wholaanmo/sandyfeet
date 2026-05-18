@@ -1,3 +1,4 @@
+// components/guest/ChatBot.js
 'use client';
 
 import { useState, useRef, useEffect, useCallback } from 'react';
@@ -19,13 +20,6 @@ function formatTime(date) {
   });
 }
 
-/**
- * Renders bot message text with basic formatting:
- * - Line breaks become <br />
- * - **bold** becomes <strong>
- * - Lines starting with - or • become list items
- * - Numbered lines (1. 2. etc.) get formatted
- */
 function renderBotMessage(text) {
   if (!text) return null;
 
@@ -47,7 +41,6 @@ function renderBotMessage(text) {
   };
 
   const formatInline = (str) => {
-    // Handle **bold** markers
     const parts = str.split(/(\*\*[^*]+\*\*)/);
     return parts.map((part, i) => {
       if (part.startsWith('**') && part.endsWith('**')) {
@@ -62,20 +55,17 @@ function renderBotMessage(text) {
 
     if (!line) {
       flushList();
-      // Add spacing between paragraphs
       if (elements.length > 0) {
         elements.push(<br key={`br-${i}`} />);
       }
       continue;
     }
 
-    // Bullet list items
     if (line.startsWith('- ') || line.startsWith('• ')) {
       listBuffer.push(line.substring(2));
       continue;
     }
 
-    // Numbered list items
     const numberedMatch = line.match(/^(\d+)\.\s+(.+)/);
     if (numberedMatch) {
       flushList();
@@ -87,7 +77,6 @@ function renderBotMessage(text) {
       continue;
     }
 
-    // Regular text
     flushList();
     elements.push(
       <span key={`text-${i}`}>
@@ -111,7 +100,6 @@ export default function ChatBot() {
   const messagesEndRef = useRef(null);
   const inputRef = useRef(null);
 
-  // Auto-scroll to bottom when messages change
   const scrollToBottom = useCallback(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, []);
@@ -120,7 +108,6 @@ export default function ChatBot() {
     scrollToBottom();
   }, [messages, isLoading, scrollToBottom]);
 
-  // Focus input when chat opens
   useEffect(() => {
     if (isOpen && inputRef.current) {
       const timeout = setTimeout(() => inputRef.current?.focus(), 350);
@@ -147,6 +134,11 @@ export default function ChatBot() {
     }
   };
 
+  const handleReset = () => {
+    setMessages([]);
+    if (inputRef.current) inputRef.current.focus();
+  };
+
   const sendMessage = async (text) => {
     const trimmed = text.trim();
     if (!trimmed || isLoading) return;
@@ -162,7 +154,6 @@ export default function ChatBot() {
     setIsLoading(true);
 
     try {
-      // Build history for API (exclude the message we just added — it goes as `message`)
       const historyForApi = messages.map((m) => ({
         role: m.role === 'user' ? 'user' : 'bot',
         content: m.content,
@@ -220,7 +211,6 @@ export default function ChatBot() {
       {/* Chat Window */}
       {isOpen && (
         <div className={styles.chatWindow} id="chatbot-window">
-          {/* Header */}
           <div className={styles.chatHeader}>
             <Image
               src="/assets/sandyfeet.png"
@@ -236,12 +226,29 @@ export default function ChatBot() {
                 <span className={styles.statusText}>Sandyfeet Resort Assistant</span>
               </div>
             </div>
-
+            <div className={styles.chatHeaderActions}>
+              <button
+                type="button"
+                className={styles.chatHeaderBtn}
+                onClick={handleReset}
+                aria-label="Reset conversation"
+                title="Reset conversation"
+              >
+                <i className="fas fa-sync-alt" />
+              </button>
+              <button
+                type="button"
+                className={styles.chatHeaderBtn}
+                onClick={handleClose}
+                aria-label="Close chat"
+                title="Close chat"
+              >
+                ✕
+              </button>
+            </div>
           </div>
 
-          {/* Messages */}
           <div className={styles.chatMessages}>
-            {/* Welcome card (always visible at top) */}
             <div className={styles.welcomeCard}>
               <div className={styles.welcomeEmoji}>🏖️</div>
               <div className={styles.welcomeTitle}>Welcome to Sandyfeet!</div>
@@ -264,7 +271,6 @@ export default function ChatBot() {
               )}
             </div>
 
-            {/* Message list */}
             {messages.map((msg, index) => (
               <div key={index}>
                 <div
@@ -303,7 +309,6 @@ export default function ChatBot() {
               </div>
             ))}
 
-            {/* Typing indicator */}
             {isLoading && (
               <div className={styles.typingRow}>
                 <Image
@@ -324,7 +329,6 @@ export default function ChatBot() {
             <div ref={messagesEndRef} />
           </div>
 
-          {/* Input */}
           <form className={styles.chatInputArea} onSubmit={handleSubmit}>
             <input
               ref={inputRef}
@@ -348,14 +352,13 @@ export default function ChatBot() {
             </button>
           </form>
 
-          {/* Footer */}
           <div className={styles.poweredBy}>
             Powered by Sandyfeet AI ✨
           </div>
         </div>
       )}
 
-      {/* Floating Bubble */}
+      {/* Floating Bubble - ALWAYS shows the logo, never changes to X */}
       <button
         type="button"
         className={styles.chatBubble}
@@ -363,16 +366,12 @@ export default function ChatBot() {
         aria-label={isOpen ? 'Close chat' : 'Open chat'}
         id="chatbot-bubble"
       >
-        {isOpen ? (
-          <span className={styles.chatBubbleClose}>✕</span>
-        ) : (
-          <Image
-            src="/assets/sandyfeet.png"
-            alt="Chat with Sandy"
-            width={38}
-            height={38}
-          />
-        )}
+        <Image
+          src="/assets/sandyfeet.png"
+          alt="Chat with Sandy"
+          width={38}
+          height={38}
+        />
       </button>
     </>
   );

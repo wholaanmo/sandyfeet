@@ -1,4 +1,4 @@
-/* ===== ChatBot Widget — Sandyfeet Resort ===== */
+/* components/guest/ChatBot.module.css */
 
 @import url('https://fonts.googleapis.com/css2?family=Fraunces:wght@600;700&family=Karla:wght@400;600;700&display=swap');
 
@@ -16,6 +16,40 @@
   --chat-ink-700: #334155;
   --chat-ink-500: #64748b;
   --chat-white: #ffffff;
+}
+
+.chatHeaderActions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-left: auto;
+  flex-shrink: 0;
+}
+
+.chatHeaderBtn {
+  background: rgba(255, 255, 255, 0.18);
+  border: none;
+  color: #fff;
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 14px;
+  line-height: 1;
+  transition: background 0.2s, transform 0.1s;
+  flex-shrink: 0;
+}
+
+.chatHeaderBtn:hover {
+  background: rgba(255, 255, 255, 0.32);
+  transform: scale(1.05);
+}
+
+.chatHeaderBtn:active {
+  transform: scale(0.95);
 }
 
 /* ---------- FLOATING BUBBLE ---------- */

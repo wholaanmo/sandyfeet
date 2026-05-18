@@ -17,7 +17,7 @@ export default function AdminReservations() {
   const router = useRouter();
   const searchParams = useSearchParams(); // <-- ADDED
   const checkinToken = searchParams.get('checkinToken');
-  const restoreGuestProfile = searchParams.get('restoreGuestProfile'); 
+  const restoreGuestProfile = searchParams.get('restoreGuestProfile');
   const [activeTab, setActiveTab] = useState('rooms');
   const [statusFilter, setStatusFilter] = useState('all');
   const [bookings, setBookings] = useState([]);
@@ -39,14 +39,14 @@ export default function AdminReservations() {
   const [editBookingModal, setEditBookingModal] = useState({ show: false, booking: null });
   const [editDayTourModal, setEditDayTourModal] = useState({ show: false, booking: null });
   const [showRequestDetailsModal, setShowRequestDetailsModal] = useState(false);
-const [selectedRequestBooking, setSelectedRequestBooking] = useState(null);
-const [requestAction, setRequestAction] = useState(null); // 'approve' or 'reject'
-const [showRequestReasonModal, setShowRequestReasonModal] = useState(false);
-const [requestReasonLoading, setRequestReasonLoading] = useState(false);
+  const [selectedRequestBooking, setSelectedRequestBooking] = useState(null);
+  const [requestAction, setRequestAction] = useState(null); // 'approve' or 'reject'
+  const [showRequestReasonModal, setShowRequestReasonModal] = useState(false);
+  const [requestReasonLoading, setRequestReasonLoading] = useState(false);
 
   const [editingNote, setEditingNote] = useState(false);
-const [tempNoteForEdit, setTempNoteForEdit] = useState('');
-const [savingNote, setSavingNote] = useState(false);
+  const [tempNoteForEdit, setTempNoteForEdit] = useState('');
+  const [savingNote, setSavingNote] = useState(false);
 
   // New state for confirmation modals
   const [confirmModal, setConfirmModal] = useState({ show: false, booking: null, type: '', note: '', loading: false });
@@ -113,74 +113,74 @@ const [savingNote, setSavingNote] = useState(false);
     'cancelled-by-guest': 6
   };
 
-useEffect(() => {
-  const openSidebarFromToken = async () => {
-    if (!checkinToken) return;
-    try {
-      const tokenRef = doc(db, 'checkinTokens', checkinToken);
-      const tokenDoc = await getDoc(tokenRef);
-      if (!tokenDoc.exists()) return;
+  useEffect(() => {
+    const openSidebarFromToken = async () => {
+      if (!checkinToken) return;
+      try {
+        const tokenRef = doc(db, 'checkinTokens', checkinToken);
+        const tokenDoc = await getDoc(tokenRef);
+        if (!tokenDoc.exists()) return;
 
-      const tokenData = tokenDoc.data();
-      const bookingId = tokenData.bookingId;
+        const tokenData = tokenDoc.data();
+        const bookingId = tokenData.bookingId;
 
-      // 1. Try day tour collection first (unchanged – already working)
-      const dayTourQuery = query(collection(db, 'dayTourBookings'), where('bookingId', '==', bookingId));
-      const dayTourSnapshot = await getDocs(dayTourQuery);
-      if (!dayTourSnapshot.empty) {
-        const tourDoc = dayTourSnapshot.docs[0];
-        const tourData = tourDoc.data();
-        const dayTourBooking = {
-          id: tourDoc.id,
-          ...tourData,
-          type: 'daytour',
-          bookingId: tourData.bookingId,
-          guestInfo: tourData.guestInfo,
-          selectedDate: tourData.selectedDate,
-          adults: tourData.adults,
-          kids: tourData.kids,
-          seniors: tourData.seniors || 0,
-          totalPrice: tourData.totalPrice,
-          status: tourData.status,
-          paymentProof: tourData.paymentProof,
-          validIdImage: tourData.validIdImage,
-          validIdType: tourData.validIdType,
-          specialRequest: tourData.specialRequest,
-          createdAt: tourData.createdAt
-        };
-        setActiveTab('daytour');
-        openSidebar(dayTourBooking);
-        return;
+        // 1. Try day tour collection first (unchanged – already working)
+        const dayTourQuery = query(collection(db, 'dayTourBookings'), where('bookingId', '==', bookingId));
+        const dayTourSnapshot = await getDocs(dayTourQuery);
+        if (!dayTourSnapshot.empty) {
+          const tourDoc = dayTourSnapshot.docs[0];
+          const tourData = tourDoc.data();
+          const dayTourBooking = {
+            id: tourDoc.id,
+            ...tourData,
+            type: 'daytour',
+            bookingId: tourData.bookingId,
+            guestInfo: tourData.guestInfo,
+            selectedDate: tourData.selectedDate,
+            adults: tourData.adults,
+            kids: tourData.kids,
+            seniors: tourData.seniors || 0,
+            totalPrice: tourData.totalPrice,
+            status: tourData.status,
+            paymentProof: tourData.paymentProof,
+            validIdImage: tourData.validIdImage,
+            validIdType: tourData.validIdType,
+            specialRequest: tourData.specialRequest,
+            createdAt: tourData.createdAt
+          };
+          setActiveTab('daytour');
+          openSidebar(dayTourBooking);
+          return;
+        }
+
+        // 2. Room booking – use the existing grouping function to handle all cases
+        const roomQuery1 = query(collection(db, 'bookings'), where('bookingId', '==', bookingId));
+        const roomQuery2 = query(collection(db, 'bookings'), where('parentBookingId', '==', bookingId));
+        const [snap1, snap2] = await Promise.all([getDocs(roomQuery1), getDocs(roomQuery2)]);
+        const matchedDocs = [...snap1.docs, ...snap2.docs];
+        if (matchedDocs.length === 0) {
+          console.warn('No room booking found for token', bookingId);
+          return;
+        }
+
+        // Convert to plain objects and group them (works for single and multi‑room)
+        const roomBookingsList = matchedDocs.map(doc => ({ id: doc.id, ...doc.data() }));
+        const groupedRooms = groupMultiRoomBookings(roomBookingsList);
+        if (groupedRooms.length > 0) {
+          setActiveTab('rooms');
+          openSidebar(groupedRooms[0]); // The first (and only) grouped object is the correct booking
+        } else {
+          console.warn('No room booking to display for token', bookingId);
+        }
+      } catch (error) {
+        console.error('Error retrieving booking from token:', error);
       }
+    };
 
-      // 2. Room booking – use the existing grouping function to handle all cases
-      const roomQuery1 = query(collection(db, 'bookings'), where('bookingId', '==', bookingId));
-      const roomQuery2 = query(collection(db, 'bookings'), where('parentBookingId', '==', bookingId));
-      const [snap1, snap2] = await Promise.all([getDocs(roomQuery1), getDocs(roomQuery2)]);
-      const matchedDocs = [...snap1.docs, ...snap2.docs];
-      if (matchedDocs.length === 0) {
-        console.warn('No room booking found for token', bookingId);
-        return;
-      }
-
-      // Convert to plain objects and group them (works for single and multi‑room)
-      const roomBookingsList = matchedDocs.map(doc => ({ id: doc.id, ...doc.data() }));
-      const groupedRooms = groupMultiRoomBookings(roomBookingsList);
-      if (groupedRooms.length > 0) {
-        setActiveTab('rooms');
-        openSidebar(groupedRooms[0]); // The first (and only) grouped object is the correct booking
-      } else {
-        console.warn('No room booking to display for token', bookingId);
-      }
-    } catch (error) {
-      console.error('Error retrieving booking from token:', error);
+    if (checkinToken) {
+      openSidebarFromToken();
     }
-  };
-
-  if (checkinToken) {
-    openSidebarFromToken();
-  }
-}, [checkinToken]);
+  }, [checkinToken]);
 
   useEffect(() => {
     const allowed = activeTab === 'rooms' ? roomStatuses : dayTourStatuses;
@@ -227,236 +227,249 @@ useEffect(() => {
   };
 
   // Function to group multi-room bookings by parentBookingId
- const groupMultiRoomBookings = (bookingsList) => {
-  const singleBookings = [];
-  const multiRoomGroups = new Map();
+  const groupMultiRoomBookings = (bookingsList) => {
+    const singleBookings = [];
+    const multiRoomGroups = new Map();
 
-  for (const booking of bookingsList) {
-    if (booking.isMultiRoomBooking && booking.parentBookingId) {
-      // This is a multi-room booking child
-      if (!multiRoomGroups.has(booking.parentBookingId)) {
-        multiRoomGroups.set(booking.parentBookingId, {
-          parentBookingId: booking.parentBookingId,
-          bookings: [],
-          guestInfo: booking.guestInfo,
-          checkIn: booking.checkIn,
-          checkOut: booking.checkOut,
-          status: booking.status,
-          paymentMethod: booking.paymentMethod,
-          paymentProofUrl: booking.paymentProofUrl,
-          validIdType: booking.validIdType,
-          validIdUrl: booking.validIdUrl,
-          specialRequest: booking.specialRequest,
-          manualDownPayment: booking.manualDownPayment,
-          createdAt: booking.createdAt,
-          type: 'room',
-          isMultiRoomGroup: true,
-          roomTypes: [],
-          tentCount: booking.tentCount || 0,
-          exclusiveAdults: booking.exclusiveAdults || 0,
-          exclusiveKids: booking.exclusiveKids || 0,
-          manualBalance: booking.manualBalance,
-          adminNote: booking.adminNote,
-          manualTotalPrice: booking.manualTotalPrice
-        });
+    for (const booking of bookingsList) {
+      if (booking.isMultiRoomBooking && booking.parentBookingId) {
+        // This is a multi-room booking child
+        if (!multiRoomGroups.has(booking.parentBookingId)) {
+          multiRoomGroups.set(booking.parentBookingId, {
+            parentBookingId: booking.parentBookingId,
+            bookings: [],
+            guestInfo: booking.guestInfo,
+            checkIn: booking.checkIn,
+            checkOut: booking.checkOut,
+            status: booking.status,
+            paymentMethod: booking.paymentMethod,
+            paymentProofUrl: booking.paymentProofUrl,
+            validIdType: booking.validIdType,
+            validIdUrl: booking.validIdUrl,
+            specialRequest: booking.specialRequest,
+            manualDownPayment: booking.manualDownPayment,
+            createdAt: booking.createdAt,
+            type: 'room',
+            isMultiRoomGroup: true,
+            roomTypes: [],
+            tentCount: booking.tentCount || 0,
+            exclusiveAdults: booking.exclusiveAdults || 0,
+            exclusiveKids: booking.exclusiveKids || 0,
+            manualBalance: booking.manualBalance,
+            adminNote: booking.adminNote,
+            manualTotalPrice: booking.manualTotalPrice
+          });
+        }
+        multiRoomGroups.get(booking.parentBookingId).bookings.push(booking);
+      } else if (!booking.isMultiRoomBooking) {
+        // Single room booking
+        singleBookings.push(booking);
       }
-      multiRoomGroups.get(booking.parentBookingId).bookings.push(booking);
-    } else if (!booking.isMultiRoomBooking) {
-      // Single room booking
-      singleBookings.push(booking);
-    }
-  }
-
-  // Process multi-room groups to create consolidated display
-  const consolidatedGroups = [];
-  for (const [parentId, group] of multiRoomGroups) {
-    // If only one child in group, treat as single booking with "Single Room Type" label
-    if (group.bookings.length === 1) {
-      const singleBooking = group.bookings[0];
-      singleBookings.push({
-        ...singleBooking,
-        bookingIdDisplay: 'Single Room Type'
-      });
-      continue;
     }
 
-    // Aggregate flags from all child bookings
-    let hasRefundNotification = false;
-    let hasMoveDateNotification = false;
-    for (const child of group.bookings) {
-      if (child.refundNotificationSent) hasRefundNotification = true;
-      if (child.moveDateNotificationSent) hasMoveDateNotification = true;
-    }
-
-    // Get unique room types and aggregate quantities
-    const roomTypeMap = new Map();
-    let totalRooms = 0;
-    let totalPrice = 0;
-    let totalGuests = 0;
-    let tentCount = group.tentCount || 0;
-    let exclusiveAdults = group.exclusiveAdults || 0;
-    let exclusiveKids = group.exclusiveKids || 0;
-    let childBookingsWithGuests = [];
-
-    for (const booking of group.bookings) {
-      totalRooms++;
-      totalPrice += booking.totalPrice || 0;
-      totalGuests += booking.guests || 1;
-
-      if (booking.isExclusiveResortBooking) {
-        tentCount = booking.tentCount || 0;
-        exclusiveAdults = booking.exclusiveAdults || 0;
-        exclusiveKids = booking.exclusiveKids || 0;
+    // Process multi-room groups to create consolidated display
+    const consolidatedGroups = [];
+    for (const [parentId, group] of multiRoomGroups) {
+      // If only one child in group, treat as single booking with "Single Room Type" label
+      if (group.bookings.length === 1) {
+        const singleBooking = group.bookings[0];
+        singleBookings.push({
+          ...singleBooking,
+          bookingIdDisplay: 'Single Room Type'
+        });
+        continue;
       }
 
-      childBookingsWithGuests.push({
-        roomType: booking.roomType,
-        guests: booking.guests || 1,
-        adults: booking.adults || booking.guests || 1,
-        kids: booking.kids || 0,
-        price: booking.price
-      });
+      // Aggregate flags from all child bookings
+      let hasRefundNotification = false;
+      let hasMoveDateNotification = false;
+      for (const child of group.bookings) {
+        if (child.refundNotificationSent) hasRefundNotification = true;
+        if (child.moveDateNotificationSent) hasMoveDateNotification = true;
+      }
 
-      if (!roomTypeMap.has(booking.roomType)) {
-        roomTypeMap.set(booking.roomType, {
-          count: 1,
-          price: booking.price,
-          guests: booking.guests || 1
+      // Get unique room types and aggregate quantities
+      const roomTypeMap = new Map();
+      let totalRooms = 0;
+      let totalPrice = 0;
+      let totalGuests = 0;
+      let tentCount = group.tentCount || 0;
+      let exclusiveAdults = group.exclusiveAdults || 0;
+      let exclusiveKids = group.exclusiveKids || 0;
+      let childBookingsWithGuests = [];
+
+      for (const booking of group.bookings) {
+        totalRooms++;
+        totalPrice += booking.totalPrice || 0;
+        totalGuests += booking.guests || 1;
+
+        if (booking.isExclusiveResortBooking) {
+          tentCount = booking.tentCount || 0;
+          exclusiveAdults = booking.exclusiveAdults || 0;
+          exclusiveKids = booking.exclusiveKids || 0;
+        }
+
+        childBookingsWithGuests.push({
+          roomType: booking.roomType,
+          guests: booking.guests || 1,
+          adults: booking.adults || booking.guests || 1,
+          kids: booking.kids || 0,
+          price: booking.price
         });
+
+        if (!roomTypeMap.has(booking.roomType)) {
+          roomTypeMap.set(booking.roomType, {
+            count: 1,
+            price: booking.price,
+            guests: booking.guests || 1
+          });
+        } else {
+          const existing = roomTypeMap.get(booking.roomType);
+          existing.count++;
+        }
+      }
+
+      const roomTypesArray = Array.from(roomTypeMap.entries()).map(([type, data]) => ({
+        type: type,
+        quantity: data.count,
+        guestsPerRoom: data.guests
+      }));
+
+      const exclusiveChildBooking = group.bookings.find(b => b.isExclusiveResortBooking);
+      const isExclusiveResortBooking = Boolean(exclusiveChildBooking);
+      const exclusivePackagePrice = Number(exclusiveChildBooking?.exclusivePackagePrice || 0);
+
+      if (isExclusiveResortBooking && tentCount > 0) {
+        const tentIndex = roomTypesArray.findIndex(item => item.type === 'Tent');
+        if (tentIndex !== -1) {
+          roomTypesArray[tentIndex].type = 'Tent(s)';
+        } else {
+          roomTypesArray.push({ type: 'Tent(s)', quantity: tentCount, guestsPerRoom: 0 });
+        }
+      }
+
+      // Total rooms count (including tents)
+      let totalRoomsCount = totalRooms;
+      if (isExclusiveResortBooking) {
+        let exclusiveRoomCount = 0;
+        for (const [type, data] of roomTypeMap) {
+          if (type !== 'Tent') exclusiveRoomCount += data.count;
+        }
+        totalRoomsCount = exclusiveRoomCount + (tentCount || 0);
+      }
+
+      let roomTypesDisplay = '';
+      if (isExclusiveResortBooking) {
+        roomTypesDisplay = tentCount > 0
+          ? `Entire Resort Package + ${tentCount} Tent(s)`
+          : 'Entire Resort Package';
+      } else if (roomTypesArray.length > 1) {
+        roomTypesDisplay = roomTypesArray.map(item => `${item.quantity} × ${item.type}`).join(', ');
       } else {
-        const existing = roomTypeMap.get(booking.roomType);
-        existing.count++;
+        roomTypesDisplay = roomTypesArray.map(item => `${item.quantity} × ${item.type}`).join(', ');
       }
+
+      const displayTotalPrice = isExclusiveResortBooking && exclusivePackagePrice > 0
+        ? exclusivePackagePrice
+        : totalPrice;
+      const displayDownPayment = displayTotalPrice * 0.5;
+      const displayRemainingBalance = displayTotalPrice - displayDownPayment;
+
+      let bookingIdDisplay = '';
+      if (isExclusiveResortBooking) {
+        bookingIdDisplay = 'Entire Resort';
+      } else if (roomTypesArray.length > 1) {
+        bookingIdDisplay = 'Multi-Room Types';
+      } else {
+        bookingIdDisplay = 'Single Room Type';
+      }
+
+      let hasPendingChangeRequest = false;
+      for (const child of group.bookings) {
+        if (child.changeRequest?.status === 'pending') {
+          hasPendingChangeRequest = true;
+          break;
+        }
+      }
+
+      consolidatedGroups.push({
+        id: parentId,
+        bookingId: parentId,
+        bookingIdDisplay: bookingIdDisplay,
+        guestInfo: group.guestInfo,
+        checkIn: group.checkIn,
+        checkOut: group.checkOut,
+        status: group.status,
+        paymentMethod: group.paymentMethod,
+        paymentProofUrl: group.paymentProofUrl,
+        validIdType: group.validIdType,
+        validIdUrl: group.validIdUrl,
+        specialRequest: group.specialRequest,
+        manualDownPayment: group.manualDownPayment,
+        createdAt: group.createdAt,
+        type: 'room',
+        isMultiRoomGroup: true,
+        isExclusiveResortBooking,
+        exclusivePackagePrice: isExclusiveResortBooking ? exclusivePackagePrice : null,
+        roomTypesDisplay,
+        roomTypesArray,
+        totalRooms: totalRoomsCount,
+        totalPrice: displayTotalPrice,
+        downPayment: displayDownPayment,
+        remainingBalance: displayRemainingBalance,
+        totalGuests,
+        childBookings: childBookingsWithGuests,
+        originalChildBookings: group.bookings,
+        hasPendingChangeRequest,
+        tentCount: tentCount,
+        exclusiveAdults: exclusiveAdults,
+        exclusiveKids: exclusiveKids,
+        exclusiveTotalGuests: exclusiveAdults + exclusiveKids,
+        // Preserve edited payment fields
+        manualBalance: group.manualBalance,
+        adminNote: group.adminNote,
+        manualTotalPrice: group.manualTotalPrice,
+        // NEW: aggregated notification flags
+        refundNotificationSent: hasRefundNotification,
+        moveDateNotificationSent: hasMoveDateNotification,
+        manualDownPayment: group.manualDownPayment
+      });
     }
 
-    const roomTypesArray = Array.from(roomTypeMap.entries()).map(([type, data]) => ({
-      type: type,
-      quantity: data.count,
-      guestsPerRoom: data.guests
+    // Enhanced single bookings (non‑multi-room)
+    const enhancedSingleBookings = singleBookings.map(booking => ({
+      ...booking,
+      bookingIdDisplay: booking.bookingIdDisplay || 'Single Room Type'
     }));
 
-    const exclusiveChildBooking = group.bookings.find(b => b.isExclusiveResortBooking);
-    const isExclusiveResortBooking = Boolean(exclusiveChildBooking);
-    const exclusivePackagePrice = Number(exclusiveChildBooking?.exclusivePackagePrice || 0);
+    return [...enhancedSingleBookings, ...consolidatedGroups];
+  };
 
-    if (isExclusiveResortBooking && tentCount > 0) {
-      const tentIndex = roomTypesArray.findIndex(item => item.type === 'Tent');
-      if (tentIndex !== -1) {
-        roomTypesArray[tentIndex].type = 'Tent(s)';
+  const handleRequestDecision = async (decision, reason) => {
+    if (!selectedRequestBooking) return;
+    setRequestReasonLoading(true);
+    try {
+      const isRoom = selectedRequestBooking.type === 'room';
+
+      // Handle multi-room groups - update all child bookings
+      if (selectedRequestBooking.originalChildBookings && selectedRequestBooking.originalChildBookings.length > 0) {
+        // This is a multi-room group - update each child booking individually
+        for (const childBooking of selectedRequestBooking.originalChildBookings) {
+          const childBookingRef = doc(db, 'bookings', childBooking.id);
+          await updateDoc(childBookingRef, {
+            'changeRequest.status': decision === 'approve' ? 'approved' : 'rejected',
+            'changeRequest.adminReason': reason,
+            'changeRequest.adminNote': reason,
+            'changeRequest.processedAt': new Date().toISOString(),
+            updatedAt: new Date().toISOString()
+          });
+        }
       } else {
-        roomTypesArray.push({ type: 'Tent(s)', quantity: tentCount, guestsPerRoom: 0 });
-      }
-    }
-
-    // Total rooms count (including tents)
-    let totalRoomsCount = totalRooms;
-    if (isExclusiveResortBooking) {
-      let exclusiveRoomCount = 0;
-      for (const [type, data] of roomTypeMap) {
-        if (type !== 'Tent') exclusiveRoomCount += data.count;
-      }
-      totalRoomsCount = exclusiveRoomCount + (tentCount || 0);
-    }
-
-    let roomTypesDisplay = '';
-    if (isExclusiveResortBooking) {
-      roomTypesDisplay = tentCount > 0
-        ? `Entire Resort Package + ${tentCount} Tent(s)`
-        : 'Entire Resort Package';
-    } else if (roomTypesArray.length > 1) {
-      roomTypesDisplay = roomTypesArray.map(item => `${item.quantity} × ${item.type}`).join(', ');
-    } else {
-      roomTypesDisplay = roomTypesArray.map(item => `${item.quantity} × ${item.type}`).join(', ');
-    }
-
-    const displayTotalPrice = isExclusiveResortBooking && exclusivePackagePrice > 0
-      ? exclusivePackagePrice
-      : totalPrice;
-    const displayDownPayment = displayTotalPrice * 0.5;
-    const displayRemainingBalance = displayTotalPrice - displayDownPayment;
-
-    let bookingIdDisplay = '';
-    if (isExclusiveResortBooking) {
-      bookingIdDisplay = 'Entire Resort';
-    } else if (roomTypesArray.length > 1) {
-      bookingIdDisplay = 'Multi-Room Types';
-    } else {
-      bookingIdDisplay = 'Single Room Type';
-    }
-
-            let hasPendingChangeRequest = false;
-for (const child of group.bookings) {
-  if (child.changeRequest?.status === 'pending') {
-    hasPendingChangeRequest = true;
-    break;
-  }
-}
-
-    consolidatedGroups.push({
-      id: parentId,
-      bookingId: parentId,
-      bookingIdDisplay: bookingIdDisplay,
-      guestInfo: group.guestInfo,
-      checkIn: group.checkIn,
-      checkOut: group.checkOut,
-      status: group.status,
-      paymentMethod: group.paymentMethod,
-      paymentProofUrl: group.paymentProofUrl,
-      validIdType: group.validIdType,
-      validIdUrl: group.validIdUrl,
-      specialRequest: group.specialRequest,
-      manualDownPayment: group.manualDownPayment,
-      createdAt: group.createdAt,
-      type: 'room',
-      isMultiRoomGroup: true,
-      isExclusiveResortBooking,
-      exclusivePackagePrice: isExclusiveResortBooking ? exclusivePackagePrice : null,
-      roomTypesDisplay,
-      roomTypesArray,
-      totalRooms: totalRoomsCount,
-      totalPrice: displayTotalPrice,
-      downPayment: displayDownPayment,
-      remainingBalance: displayRemainingBalance,
-      totalGuests,
-      childBookings: childBookingsWithGuests,
-      originalChildBookings: group.bookings,
-      hasPendingChangeRequest,
-      tentCount: tentCount,
-      exclusiveAdults: exclusiveAdults,
-      exclusiveKids: exclusiveKids,
-      exclusiveTotalGuests: exclusiveAdults + exclusiveKids,
-      // Preserve edited payment fields
-      manualBalance: group.manualBalance,
-      adminNote: group.adminNote,
-      manualTotalPrice: group.manualTotalPrice,
-      // NEW: aggregated notification flags
-      refundNotificationSent: hasRefundNotification,
-      moveDateNotificationSent: hasMoveDateNotification,
-      manualDownPayment: group.manualDownPayment
-    });
-  }
-
-  // Enhanced single bookings (non‑multi-room)
-  const enhancedSingleBookings = singleBookings.map(booking => ({
-    ...booking,
-    bookingIdDisplay: booking.bookingIdDisplay || 'Single Room Type'
-  }));
-
-  return [...enhancedSingleBookings, ...consolidatedGroups];
-};
-
-const handleRequestDecision = async (decision, reason) => {
-  if (!selectedRequestBooking) return;
-  setRequestReasonLoading(true);
-  try {
-    const isRoom = selectedRequestBooking.type === 'room';
-    
-    // Handle multi-room groups - update all child bookings
-    if (selectedRequestBooking.originalChildBookings && selectedRequestBooking.originalChildBookings.length > 0) {
-      // This is a multi-room group - update each child booking individually
-      for (const childBooking of selectedRequestBooking.originalChildBookings) {
-        const childBookingRef = doc(db, 'bookings', childBooking.id);
-        await updateDoc(childBookingRef, {
+        // Single booking (room or day tour)
+        const collectionName = isRoom ? 'bookings' : 'dayTourBookings';
+        const docId = selectedRequestBooking.id;
+        const bookingRef = doc(db, collectionName, docId);
+        await updateDoc(bookingRef, {
           'changeRequest.status': decision === 'approve' ? 'approved' : 'rejected',
           'changeRequest.adminReason': reason,
           'changeRequest.adminNote': reason,
@@ -464,82 +477,69 @@ const handleRequestDecision = async (decision, reason) => {
           updatedAt: new Date().toISOString()
         });
       }
-    } else {
-      // Single booking (room or day tour)
-      const collectionName = isRoom ? 'bookings' : 'dayTourBookings';
-      const docId = selectedRequestBooking.id;
-      const bookingRef = doc(db, collectionName, docId);
-      await updateDoc(bookingRef, {
-        'changeRequest.status': decision === 'approve' ? 'approved' : 'rejected',
-        'changeRequest.adminReason': reason,
-        'changeRequest.adminNote': reason,
-        'changeRequest.processedAt': new Date().toISOString(),
-        updatedAt: new Date().toISOString()
+
+      // Optional: send email notification to guest
+      try {
+        await fetch('/api/admin/send-change-request-response', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            bookingId: selectedRequestBooking.bookingId,
+            type: isRoom ? 'room' : 'daytour',
+            decision,
+            reason,
+            requestedChanges: selectedRequestBooking.changeRequest?.text
+          })
+        });
+      } catch (emailErr) {
+        console.error('Failed to send email:', emailErr);
+      }
+
+      await logAdminAction({
+        action: decision === 'approve' ? 'Change Request Approved' : 'Change Request Rejected',
+        module: 'Reservations',
+        details: `${decision === 'approve' ? 'Approved' : 'Rejected'} change request for booking ${selectedRequestBooking.bookingId}. Reason: ${reason}`
+      });
+
+      showNotification(`Change request ${decision === 'approve' ? 'approved' : 'rejected'} and guest notified.`, 'success');
+      setShowRequestReasonModal(false);
+      setShowRequestDetailsModal(false);
+      setSelectedRequestBooking(null);
+    } catch (error) {
+      console.error('Error processing request:', error);
+      showNotification('Failed to process request. Please try again.', 'error');
+    } finally {
+      setRequestReasonLoading(false);
+    }
+  };
+
+  const hasChangeRequest = (booking) => {
+    if (booking.isMultiRoomGroup && booking.originalChildBookings) {
+      return booking.originalChildBookings.some((child) => {
+        const cr = child.changeRequest;
+        return cr?.status === 'pending' ||
+          (cr && (cr.status === 'approved' || cr.status === 'rejected'));
       });
     }
+    const cr = booking.changeRequest;
+    return cr?.status === 'pending' ||
+      (cr && (cr.status === 'approved' || cr.status === 'rejected'));
+  };
 
-    // Optional: send email notification to guest
-    try {
-      await fetch('/api/admin/send-change-request-response', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          bookingId: selectedRequestBooking.bookingId,
-          type: isRoom ? 'room' : 'daytour',
-          decision,
-          reason,
-          requestedChanges: selectedRequestBooking.changeRequest?.text
-        })
-      });
-    } catch (emailErr) {
-      console.error('Failed to send email:', emailErr);
+  const shouldShowRequestButton = (booking) => {
+    if (activeTab === 'rooms') {
+      const typeOk = booking.bookingIdDisplay === 'Single Room Type' ||
+        booking.bookingIdDisplay === 'Multi-Room Types' ||
+        booking.isExclusiveResortBooking;
+      return typeOk && hasChangeRequest(booking);
     }
+    if (activeTab === 'daytour') {
+      return hasChangeRequest(booking);
+    }
+    return false;
+  };
 
-    await logAdminAction({
-      action: decision === 'approve' ? 'Change Request Approved' : 'Change Request Rejected',
-      module: 'Reservations',
-      details: `${decision === 'approve' ? 'Approved' : 'Rejected'} change request for booking ${selectedRequestBooking.bookingId}. Reason: ${reason}`
-    });
-
-    showNotification(`Change request ${decision === 'approve' ? 'approved' : 'rejected'} and guest notified.`, 'success');
-    setShowRequestReasonModal(false);
-    setShowRequestDetailsModal(false);
-    setSelectedRequestBooking(null);
-  } catch (error) {
-    console.error('Error processing request:', error);
-    showNotification('Failed to process request. Please try again.', 'error');
-  } finally {
-    setRequestReasonLoading(false);
-  }
-};
-
-const hasChangeRequest = (booking) => {
-  if (booking.isMultiRoomGroup && booking.originalChildBookings) {
-    return booking.originalChildBookings.some((child) => {
-      const cr = child.changeRequest;
-      return cr?.status === 'pending' ||
-        (cr && (cr.status === 'approved' || cr.status === 'rejected'));
-    });
-  }
-  const cr = booking.changeRequest;
-  return cr?.status === 'pending' ||
-    (cr && (cr.status === 'approved' || cr.status === 'rejected'));
-};
-
-const shouldShowRequestButton = (booking) => {
-  if (activeTab === 'rooms') {
-    const typeOk = booking.bookingIdDisplay === 'Single Room Type' ||
-                   booking.bookingIdDisplay === 'Multi-Room Types' ||
-                   booking.isExclusiveResortBooking;
-    return typeOk && hasChangeRequest(booking);
-  }
-  if (activeTab === 'daytour') {
-    return hasChangeRequest(booking);
-  }
-  return false;
-};
-
- const handleConfirmCheckIn = async () => {
+  const handleConfirmCheckIn = async () => {
     const booking = checkInConfirmModal.booking || sidebarBooking;
     if (!booking) return;
     if (booking.status !== 'confirmed') {
@@ -547,7 +547,7 @@ const shouldShowRequestButton = (booking) => {
       setCheckInConfirmModal({ show: false, booking: null, loading: false });
       return;
     }
-    
+
     setCheckInConfirmModal(prev => ({ ...prev, loading: true }));
     setActionLoading((prev) => ({ ...prev, [booking.id]: true }));
     try {
@@ -615,72 +615,72 @@ const shouldShowRequestButton = (booking) => {
     return () => unsubscribe();
   }, []);
 
- useEffect(() => {
-  if (!groupedBookings.length) return;
-  let isProcessing = false;
-  const tick = async () => {
-    if (isProcessing) return;
-    isProcessing = true;
-    try {
-      const now = new Date();
-      for (const booking of groupedBookings) {
-        if (!booking?.id || !booking?.status) continue;
-        if (['pending', 'cancelled', 'cancelled-by-guest', 'completed'].includes(booking.status)) continue;
+  useEffect(() => {
+    if (!groupedBookings.length) return;
+    let isProcessing = false;
+    const tick = async () => {
+      if (isProcessing) return;
+      isProcessing = true;
+      try {
+        const now = new Date();
+        for (const booking of groupedBookings) {
+          if (!booking?.id || !booking?.status) continue;
+          if (['pending', 'cancelled', 'cancelled-by-guest', 'completed'].includes(booking.status)) continue;
 
-        let checkInRaw, checkOutRaw;
+          let checkInRaw, checkOutRaw;
 
-        if (booking.isMultiRoomGroup && booking.originalChildBookings) {
-          const firstChild = booking.originalChildBookings[0];
-          checkInRaw = firstChild.checkIn?.toDate ? firstChild.checkIn.toDate() : new Date(firstChild.checkIn);
-          checkOutRaw = firstChild.checkOut?.toDate ? firstChild.checkOut.toDate() : new Date(firstChild.checkOut);
-        } else {
-          checkInRaw = booking.checkIn?.toDate ? booking.checkIn.toDate() : new Date(booking.checkIn);
-          checkOutRaw = booking.checkOut?.toDate ? booking.checkOut.toDate() : new Date(booking.checkOut);
-        }
-
-        if (isNaN(checkInRaw?.getTime?.()) || isNaN(checkOutRaw?.getTime?.())) continue;
-
-        const checkOutDateObj = new Date(checkOutRaw);
-        const checkOutDay = new Date(checkOutDateObj.getFullYear(), checkOutDateObj.getMonth(), checkOutDateObj.getDate());
-        const checkOutTime = new Date(checkOutDay);
-        checkOutTime.setHours(12, 0, 0, 0);
-        const completedTime = new Date(checkOutDay);
-        completedTime.setHours(13, 0, 0, 0);
-
-        let targetStatus = null;
-        if (now >= completedTime) {
-          targetStatus = 'completed';
-        } else if (now >= checkOutTime && now < completedTime) {
-          targetStatus = 'check-out';
-        }
-        // No automatic 'check-in' transition
-
-        if (targetStatus && booking.status !== targetStatus) {
           if (booking.isMultiRoomGroup && booking.originalChildBookings) {
-            for (const childBooking of booking.originalChildBookings) {
-              await updateDoc(doc(db, 'bookings', childBooking.id), {
+            const firstChild = booking.originalChildBookings[0];
+            checkInRaw = firstChild.checkIn?.toDate ? firstChild.checkIn.toDate() : new Date(firstChild.checkIn);
+            checkOutRaw = firstChild.checkOut?.toDate ? firstChild.checkOut.toDate() : new Date(firstChild.checkOut);
+          } else {
+            checkInRaw = booking.checkIn?.toDate ? booking.checkIn.toDate() : new Date(booking.checkIn);
+            checkOutRaw = booking.checkOut?.toDate ? booking.checkOut.toDate() : new Date(booking.checkOut);
+          }
+
+          if (isNaN(checkInRaw?.getTime?.()) || isNaN(checkOutRaw?.getTime?.())) continue;
+
+          const checkOutDateObj = new Date(checkOutRaw);
+          const checkOutDay = new Date(checkOutDateObj.getFullYear(), checkOutDateObj.getMonth(), checkOutDateObj.getDate());
+          const checkOutTime = new Date(checkOutDay);
+          checkOutTime.setHours(12, 0, 0, 0);
+          const completedTime = new Date(checkOutDay);
+          completedTime.setHours(13, 0, 0, 0);
+
+          let targetStatus = null;
+          if (now >= completedTime) {
+            targetStatus = 'completed';
+          } else if (now >= checkOutTime && now < completedTime) {
+            targetStatus = 'check-out';
+          }
+          // No automatic 'check-in' transition
+
+          if (targetStatus && booking.status !== targetStatus) {
+            if (booking.isMultiRoomGroup && booking.originalChildBookings) {
+              for (const childBooking of booking.originalChildBookings) {
+                await updateDoc(doc(db, 'bookings', childBooking.id), {
+                  status: targetStatus,
+                  updatedAt: new Date().toISOString(),
+                });
+              }
+            } else {
+              await updateDoc(doc(db, 'bookings', booking.id), {
                 status: targetStatus,
                 updatedAt: new Date().toISOString(),
               });
             }
-          } else {
-            await updateDoc(doc(db, 'bookings', booking.id), {
-              status: targetStatus,
-              updatedAt: new Date().toISOString(),
-            });
           }
         }
+      } catch (error) {
+        console.error('Error auto-updating room reservation statuses:', error);
+      } finally {
+        isProcessing = false;
       }
-    } catch (error) {
-      console.error('Error auto-updating room reservation statuses:', error);
-    } finally {
-      isProcessing = false;
-    }
-  };
-  tick();
-  const id = setInterval(tick, 1000);
-  return () => clearInterval(id);
-}, [groupedBookings]);
+    };
+    tick();
+    const id = setInterval(tick, 1000);
+    return () => clearInterval(id);
+  }, [groupedBookings]);
 
   // Automatic day-tour status transitions:
   // confirmed -> check-in when selected day starts
@@ -702,10 +702,10 @@ const shouldShowRequestButton = (booking) => {
           const [y, m, d] = dateKey.split('-').map(Number);
           const dayStart = new Date(y, m - 1, d, 0, 0, 0, 0);
           const dayEnd = new Date(y, m - 1, d, 23, 59, 59, 999);
-let targetStatus = null;
-if (now > dayEnd) {
-  targetStatus = 'completed';
-}
+          let targetStatus = null;
+          if (now > dayEnd) {
+            targetStatus = 'completed';
+          }
           if (targetStatus && tour.status !== targetStatus) {
             await updateDoc(doc(db, 'dayTourBookings', tour.id), {
               status: targetStatus,
@@ -895,7 +895,7 @@ if (now > dayEnd) {
             await updateDoc(bookingRef, {
               moveDateNotificationSent: true,
               moveDateNotificationSentAt: new Date().toISOString(),
-              balance: 0, 
+              balance: 0,
               updatedAt: new Date().toISOString()
             });
           }
@@ -905,7 +905,7 @@ if (now > dayEnd) {
           await updateDoc(bookingRef, {
             moveDateNotificationSent: true,
             moveDateNotificationSentAt: new Date().toISOString(),
-            balance: 0,    
+            balance: 0,
             updatedAt: new Date().toISOString()
           });
         }
@@ -1043,43 +1043,43 @@ if (now > dayEnd) {
   };
 
   const handleSaveNote = async () => {
-  if (!sidebarBooking) return;
-  setSavingNote(true);
-  try {
-    const updateData = {
-      adminNote: tempNoteForEdit.trim() || null,
-      updatedAt: new Date().toISOString()
-    };
+    if (!sidebarBooking) return;
+    setSavingNote(true);
+    try {
+      const updateData = {
+        adminNote: tempNoteForEdit.trim() || null,
+        updatedAt: new Date().toISOString()
+      };
 
-    // Handle multi‑room groups
-    if (sidebarBooking.isMultiRoomGroup && sidebarBooking.originalChildBookings) {
-      for (const child of sidebarBooking.originalChildBookings) {
-        const bookingRef = doc(db, 'bookings', child.id);
+      // Handle multi‑room groups
+      if (sidebarBooking.isMultiRoomGroup && sidebarBooking.originalChildBookings) {
+        for (const child of sidebarBooking.originalChildBookings) {
+          const bookingRef = doc(db, 'bookings', child.id);
+          await updateDoc(bookingRef, updateData);
+        }
+        setSidebarBooking(prev => ({ ...prev, adminNote: tempNoteForEdit.trim() || null }));
+      } else {
+        const collectionName = sidebarBooking.type === 'room' ? 'bookings' : 'dayTourBookings';
+        const bookingRef = doc(db, collectionName, sidebarBooking.id);
         await updateDoc(bookingRef, updateData);
+        setSidebarBooking(prev => ({ ...prev, adminNote: tempNoteForEdit.trim() || null }));
       }
-      setSidebarBooking(prev => ({ ...prev, adminNote: tempNoteForEdit.trim() || null }));
-    } else {
-      const collectionName = sidebarBooking.type === 'room' ? 'bookings' : 'dayTourBookings';
-      const bookingRef = doc(db, collectionName, sidebarBooking.id);
-      await updateDoc(bookingRef, updateData);
-      setSidebarBooking(prev => ({ ...prev, adminNote: tempNoteForEdit.trim() || null }));
+
+      await logAdminAction({
+        action: 'Updated Note for Cancelled Booking',
+        module: 'Reservations',
+        details: `Updated note for ${sidebarBooking.isMultiRoomGroup ? 'multi-room' : ''} booking ${sidebarBooking.bookingId}: ${tempNoteForEdit || 'No note'}`
+      });
+
+      showNotification('Note updated successfully.', 'success');
+      setEditingNote(false);
+    } catch (error) {
+      console.error('Error saving note:', error);
+      showNotification('Failed to update note.', 'error');
+    } finally {
+      setSavingNote(false);
     }
-
-    await logAdminAction({
-      action: 'Updated Note for Cancelled Booking',
-      module: 'Reservations',
-      details: `Updated note for ${sidebarBooking.isMultiRoomGroup ? 'multi-room' : ''} booking ${sidebarBooking.bookingId}: ${tempNoteForEdit || 'No note'}`
-    });
-
-    showNotification('Note updated successfully.', 'success');
-    setEditingNote(false);
-  } catch (error) {
-    console.error('Error saving note:', error);
-    showNotification('Failed to update note.', 'error');
-  } finally {
-    setSavingNote(false);
-  }
-};
+  };
 
   const formatDateTime = (timestamp) => {
     if (!timestamp) return 'N/A';
@@ -1483,13 +1483,13 @@ if (now > dayEnd) {
     return 'Not Confirmed';
   };
 
-const isNotificationDisabled = (booking) => {
-  // For multi‑room groups, check the aggregated flags
-  if (booking.refundNotificationSent || booking.moveDateNotificationSent) {
-    return true;
-  }
-  return false;
-};
+  const isNotificationDisabled = (booking) => {
+    // For multi‑room groups, check the aggregated flags
+    if (booking.refundNotificationSent || booking.moveDateNotificationSent) {
+      return true;
+    }
+    return false;
+  };
 
   const getTotalGuests = (booking) => {
     if (booking.isMultiRoomGroup) {
@@ -1758,7 +1758,7 @@ const isNotificationDisabled = (booking) => {
       <div className="flex flex-wrap gap-2 mb-6 justify-center">
         {(activeTab === 'rooms' ? roomStatuses : dayTourStatuses).map((status) => {
           const isActive = statusFilter === status;
-          
+
           // Icon and Color mapping
           const statusConfig = {
             all: { icon: 'fa-layer-group', active: 'bg-[#4D8CF5] shadow-blue-200', text: 'All' },
@@ -1777,11 +1777,10 @@ const isNotificationDisabled = (booking) => {
             <button
               key={status}
               onClick={() => setStatusFilter(status)}
-              className={`group flex items-center gap-2.5 ${activeTab === 'daytour' ? 'px-4 sm:px-6' : 'px-3 sm:px-4'} py-2 sm:py-2.5 rounded-xl text-xs sm:text-sm font-bold transition-all duration-300 whitespace-nowrap active:scale-95 ${
-                isActive
+              className={`group flex items-center gap-2.5 ${activeTab === 'daytour' ? 'px-4 sm:px-6' : 'px-3 sm:px-4'} py-2 sm:py-2.5 rounded-xl text-xs sm:text-sm font-bold transition-all duration-300 whitespace-nowrap active:scale-95 ${isActive
                   ? `${config.active} text-white shadow-md`
                   : 'bg-white border border-[#4D8CF5]/10 text-[#4D6FA8] hover:bg-[#4D8CF5]/5 hover:border-[#4D8CF5]/30 hover:text-[#3B78E7]'
-              }`}
+                }`}
             >
               <i className={`fas ${config.icon} ${isActive ? 'text-white' : 'text-[#4D8CF5] opacity-70 group-hover:opacity-100'} transition-all duration-300 text-xs sm:text-sm`}></i>
               {config.text}
@@ -1873,17 +1872,17 @@ const isNotificationDisabled = (booking) => {
                                 <i className="fas fa-eye text-sm"></i>
                               </button>
                               {shouldShowRequestButton(booking) && (
-  <button
-    onClick={() => {
-      setSelectedRequestBooking(booking);
-      setShowRequestDetailsModal(true);
-    }}
-    className="w-8 h-8 rounded-lg bg-amber-100 text-amber-700 hover:bg-amber-500 hover:text-white transition-all duration-200 flex items-center justify-center"
-    title="Review Change Request"
-  >
-    <i className="fas fa-exchange-alt text-sm"></i>
-  </button>
-)}
+                                <button
+                                  onClick={() => {
+                                    setSelectedRequestBooking(booking);
+                                    setShowRequestDetailsModal(true);
+                                  }}
+                                  className="w-8 h-8 rounded-lg bg-amber-100 text-amber-700 hover:bg-amber-500 hover:text-white transition-all duration-200 flex items-center justify-center"
+                                  title="Review Change Request"
+                                >
+                                  <i className="fas fa-exchange-alt text-sm"></i>
+                                </button>
+                              )}
                               {booking.status === 'cancelled-by-guest' && (
                                 <button
                                   onClick={() => {
@@ -1989,18 +1988,18 @@ const isNotificationDisabled = (booking) => {
                               >
                                 <i className="fas fa-eye text-sm"></i>
                               </button>
-    {shouldShowRequestButton(tour) && (
-      <button
-        onClick={() => {
-          setSelectedRequestBooking(tour);
-          setShowRequestDetailsModal(true);
-        }}
-        className="w-8 h-8 rounded-lg bg-amber-100 text-amber-700 hover:bg-amber-500 hover:text-white transition-all duration-200 flex items-center justify-center"
-        title="Review Change Request"
-      >
-        <i className="fas fa-exchange-alt text-sm"></i>
-      </button>
-    )}
+                              {shouldShowRequestButton(tour) && (
+                                <button
+                                  onClick={() => {
+                                    setSelectedRequestBooking(tour);
+                                    setShowRequestDetailsModal(true);
+                                  }}
+                                  className="w-8 h-8 rounded-lg bg-amber-100 text-amber-700 hover:bg-amber-500 hover:text-white transition-all duration-200 flex items-center justify-center"
+                                  title="Review Change Request"
+                                >
+                                  <i className="fas fa-exchange-alt text-sm"></i>
+                                </button>
+                              )}
 
                               {tour.status === 'cancelled-by-guest' && (
                                 <button
@@ -2037,20 +2036,20 @@ const isNotificationDisabled = (booking) => {
         <>
           {/* Backdrop overlay */}
           <div
-            className="fixed inset-0 bg-black/50 z-50 transition-opacity duration-300"
+            className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 transition-opacity duration-300"
             onClick={closeSidebar}
           />
 
           {/* Sidebar that slides in from right */}
-          <div className={`fixed right-0 top-0 h-full w-full max-w-md bg-white/50 backdrop-blur-xl border-l border-white/30 shadow-2xl z-50 transform transition-transform duration-300 ease-out flex flex-col ${isSidebarOpen ? 'translate-x-0' : 'translate-x-full'}`}>
+          <div className={`fixed right-0 top-0 h-full w-full max-w-md bg-slate-50/95 backdrop-blur-2xl border-l border-slate-200/80 shadow-[0_0_50px_0_rgba(15,23,42,0.15)] z-50 transform transition-transform duration-300 ease-out flex flex-col ${isSidebarOpen ? 'translate-x-0' : 'translate-x-full'}`}>
 
             {/* Sidebar Header */}
-            <div className="sticky top-0 bg-white/80 backdrop-blur-lg border-b border-[#4D8CF5]/10 px-6 py-4 flex justify-between items-center z-10 flex-shrink-0 shadow-sm">
+            <div className="sticky top-0 bg-[#F8FAFC]/90 backdrop-blur-lg border-b border-slate-200/80 px-6 py-4 flex justify-between items-center z-10 flex-shrink-0 shadow-sm">
               <div>
-<h2 className="text-lg font-bold text-[#1E3A8A] leading-tight flex flex-col items-start gap-1">
-  Booking Details 
-  <span className="text-sm font-semibold text-[#4D8CF5]">{sidebarBooking.bookingId}</span>
-</h2>
+                <h2 className="text-lg font-bold text-[#1E3A8A] leading-tight flex flex-col items-start gap-1">
+                  Booking Details
+                  <span className="text-sm font-semibold text-[#4D8CF5]">{sidebarBooking.bookingId}</span>
+                </h2>
                 {activeTab === 'rooms' && (
                   <p className="text-[#1E3A8A]/70 text-xs mt-1 font-medium">
                     {sidebarBooking.bookingIdDisplay || 'Single Room Type'}
@@ -2068,415 +2067,435 @@ const isNotificationDisabled = (booking) => {
             {/* Scrollable Content */}
             <div className="flex-1 overflow-y-auto p-5 space-y-4">
               {/* Guest Information */}
-              <div className="bg-white/70 backdrop-blur-md border border-[#4D8CF5]/10 rounded-xl p-4 shadow-sm">
-                <div className="mb-3 flex items-center justify-between gap-2 border-b border-[#4D8CF5]/10 pb-2">
-                  <h3 className="text-xs font-semibold text-[#1E3A8A] uppercase tracking-wide flex items-center gap-2">
-                    <i className="fas fa-user text-[#4D8CF5]"></i>
+              <div className="bg-white border border-slate-200/60 rounded-xl shadow-[0_2px_8px_-1px_rgba(15,23,42,0.03)] hover:shadow-md transition-all duration-300 overflow-hidden">
+                <div className="bg-slate-50 px-4 py-3 border-b border-slate-200/60 flex items-center justify-between gap-2">
+                  <h3 className="text-[11px] font-bold text-[#1E3A8A] uppercase tracking-widest flex items-center gap-2">
+                    <i className="fas fa-user text-[#4D8CF5] text-sm"></i>
                     Guest Information
                   </h3>
                   <button
                     type="button"
                     onClick={handleViewGuestProfile}
-                    className="inline-flex items-center gap-1.5 rounded-lg border border-[#4D8CF5]/25 bg-white px-2.5 py-1 text-[10px] font-semibold text-[#4D8CF5] transition hover:bg-[#4D8CF5]/10"
+                    className="inline-flex items-center gap-1.5 rounded-lg border border-[#4D8CF5]/25 bg-white px-2.5 py-1 text-[11px] font-bold text-[#4D8CF5] transition hover:bg-[#4D8CF5] hover:text-white shadow-sm active:scale-95"
                   >
-                    <i className="fas fa-eye text-[9px]" />
+                    <i className="fas fa-eye text-[10px]" />
                     View
                   </button>
                 </div>
-                <p className="text-sm font-medium text-[#1E3A8A]">
-                  {sidebarGuestInfo?.firstName} {sidebarGuestInfo?.lastName}
-                </p>
-                <p className="text-xs text-[#1E3A8A]/70">{sidebarGuestInfo?.email}</p>
-                <p className="text-xs text-[#1E3A8A]/70">{sidebarGuestInfo?.mobile}</p>
+                <div className="p-4">
+                  <p className="text-sm font-semibold text-[#1E3A8A]">
+                    {sidebarGuestInfo?.firstName} {sidebarGuestInfo?.lastName}
+                  </p>
+                  <p className="text-xs text-[#1E3A8A]/70 mt-0.5">{sidebarGuestInfo?.email}</p>
+                  <p className="text-xs text-[#1E3A8A]/70 mt-0.5">{sidebarGuestInfo?.mobile}</p>
+                </div>
               </div>
 
               {/* Room/Tour Details */}
               {activeTab === 'rooms' ? (
                 <>
-                  <div className="bg-white/70 backdrop-blur-md border border-[#4D8CF5]/10 rounded-xl p-4 shadow-sm">
-                    <h3 className="text-xs font-semibold text-[#1E3A8A] uppercase tracking-wide mb-3 flex items-center gap-2 border-b border-[#4D8CF5]/10 pb-2">
-                      <i className="fas fa-bed text-[#4D8CF5]"></i>
-                      Room Details
-                    </h3>
-                    {sidebarBooking.isExclusiveResortBooking && (
-                      <p className="text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded-lg px-2 py-1 mb-2 font-semibold">
-                        Entire Resort Package: all room types are booked for this schedule.
+                  <div className="bg-white border border-slate-200/60 rounded-xl shadow-[0_2px_8px_-1px_rgba(15,23,42,0.03)] hover:shadow-md transition-all duration-300 overflow-hidden">
+                    <div className="bg-slate-50 px-4 py-3 border-b border-slate-200/60 flex items-center justify-between gap-2">
+                      <h3 className="text-[11px] font-bold text-[#1E3A8A] uppercase tracking-widest flex items-center gap-2">
+                        <i className="fas fa-bed text-[#4D8CF5] text-sm"></i>
+                        Room Details
+                      </h3>
+                    </div>
+                    <div className="p-4">
+                      {sidebarBooking.isExclusiveResortBooking && (
+                        <p className="text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded-lg px-2 py-1 mb-3 font-semibold">
+                          Entire Resort Package: all room types are booked for this schedule.
+                        </p>
+                      )}
+                      {/* Multi-Room Detailed Display - without guest counts */}
+                      {sidebarBooking.isMultiRoomGroup && sidebarBooking.roomTypesArray && sidebarBooking.roomTypesArray.length > 0 ? (
+                        <div className="grid gap-2 sm:grid-cols-2">
+                          {sidebarBooking.roomTypesArray.map((room, idx) => (
+                            <div key={idx} className="flex items-center justify-between rounded-lg bg-[#f8fbff] p-2 border border-[#4D8CF5]/5">
+                              <span className="text-xs font-semibold text-[#1E3A8A]">{room.type}</span>
+                              <span className="rounded bg-[#4D8CF5]/10 px-2 py-0.5 text-[10px] font-bold text-[#4D8CF5]">× {room.quantity}</span>
+                            </div>
+                          ))}
+                        </div>
+                      ) : (
+                        <div className="space-y-1.5">
+                          <p className="text-sm flex justify-between items-center border-b border-slate-50 pb-1.5">
+                            <span className="text-[#1E3A8A]/70 text-xs">Room Type:</span>{' '}
+                            <span className="font-semibold text-[#1E3A8A]">{sidebarBooking.roomType}</span>
+                          </p>
+                          <p className="text-sm flex justify-between items-center border-b border-slate-50 pb-1.5">
+                            <span className="text-[#1E3A8A]/70 text-xs">Number of Rooms:</span>{' '}
+                            <span className="font-semibold text-[#1E3A8A]">{sidebarBooking.numberOfRooms || 1}</span>
+                          </p>
+                        </div>
+                      )}
+                      {/* Added Total Rooms field */}
+                      <p className="text-sm flex justify-between items-center mt-3 pt-2 border-t border-slate-100">
+                        <span className="text-[#1E3A8A]/70 text-xs font-medium">Total Rooms:</span>{' '}
+                        <span className="font-bold text-[#1E3A8A]">{sidebarBooking.totalRooms || sidebarBooking.numberOfRooms || 1}</span>
                       </p>
-                    )}
-                    {/* Multi-Room Detailed Display - without guest counts */}
-                    {sidebarBooking.isMultiRoomGroup && sidebarBooking.roomTypesArray && sidebarBooking.roomTypesArray.length > 0 ? (
-                      <div className="space-y-1">
-                        {sidebarBooking.roomTypesArray.map((room, idx) => (
-                          <div key={idx} className="flex items-center text-sm">
-                            <span className="text-[#1E3A8A]/70">{room.quantity} × {room.type}</span>
-                          </div>
-                        ))}
-                      </div>
-                    ) : (
-                      <>
-                        <p className="text-sm">
-                          <span className="text-[#1E3A8A]/70">Room Type:</span>{' '}
-                          <span className="font-medium text-[#1E3A8A]">{sidebarBooking.roomType}</span>
-                        </p>
-                        <p className="text-sm mt-1">
-                          <span className="text-[#1E3A8A]/70">Number of Rooms:</span>{' '}
-                          <span className="font-medium text-[#1E3A8A]">{sidebarBooking.numberOfRooms || 1}</span>
-                        </p>
-                      </>
-                    )}
-                    {/* Added Total Rooms field */}
-                    <p className="text-sm mt-2 pt-1 border-t border-[#4D8CF5]/20">
-                      <span className="text-[#1E3A8A]/70">Total Rooms:</span>{' '}
-                      <span className="font-medium text-[#1E3A8A]">{sidebarBooking.totalRooms || sidebarBooking.numberOfRooms || 1}</span>
-                    </p>
+                    </div>
                   </div>
 
-                  <div className="bg-white/70 backdrop-blur-md border border-[#4D8CF5]/10 rounded-xl p-4 shadow-sm">
-                    <h3 className="text-xs font-semibold text-[#1E3A8A] uppercase tracking-wide mb-3 flex items-center gap-2 border-b border-[#4D8CF5]/10 pb-2">
-                      <i className="fas fa-calendar-alt text-[#4D8CF5]"></i>
-                      Schedule
-                    </h3>
-                    <p className="text-sm">
-                      <span className="text-[#1E3A8A]/70">Check-in:</span>{' '}
-                      <span className="font-medium text-[#1E3A8A]">{formatDateWithTime(sidebarBooking.checkIn, 'check-in')}</span>
-                    </p>
-                    <p className="text-sm mt-1">
-                      <span className="text-[#1E3A8A]/70">Check-out:</span>{' '}
-                      <span className="font-medium text-[#1E3A8A]">{formatDateWithTime(sidebarBooking.checkOut, 'check-out')}</span>
-                    </p>
+                  <div className="bg-white border border-slate-200/60 rounded-xl shadow-[0_2px_8px_-1px_rgba(15,23,42,0.03)] hover:shadow-md transition-all duration-300 overflow-hidden">
+                    <div className="bg-slate-50 px-4 py-3 border-b border-slate-200/60 flex items-center justify-between gap-2">
+                      <h3 className="text-[11px] font-bold text-[#1E3A8A] uppercase tracking-widest flex items-center gap-2">
+                        <i className="fas fa-calendar-alt text-[#4D8CF5] text-sm"></i>
+                        Schedule
+                      </h3>
+                    </div>
+                    <div className="p-4 space-y-2">
+                      <p className="text-sm flex justify-between items-center border-b border-slate-50 pb-1.5">
+                        <span className="text-[#1E3A8A]/70 text-xs">Check-in:</span>{' '}
+                        <span className="font-semibold text-[#1E3A8A]">{formatDateWithTime(sidebarBooking.checkIn, 'check-in')}</span>
+                      </p>
+                      <p className="text-sm flex justify-between items-center">
+                        <span className="text-[#1E3A8A]/70 text-xs">Check-out:</span>{' '}
+                        <span className="font-semibold text-[#1E3A8A]">{formatDateWithTime(sidebarBooking.checkOut, 'check-out')}</span>
+                      </p>
+                    </div>
                   </div>
 
                   {/* Guest Count Container for ALL room bookings */}
-                  <div className="bg-white/70 backdrop-blur-md border border-[#4D8CF5]/10 rounded-xl p-4 shadow-sm">
-                    <h3 className="text-xs font-semibold text-[#1E3A8A] uppercase tracking-wide mb-3 flex items-center gap-2 border-b border-[#4D8CF5]/10 pb-2">
-                      <i className="fas fa-users text-[#4D8CF5]"></i>
-                      Guest Count
-                    </h3>
-
-                    {sidebarBooking.isExclusiveResortBooking ? (
-                      // Exclusive booking guest display
-                      <>
-                        <p className="text-sm">
-                          <span className="text-[#1E3A8A]/70">Adults:</span>{' '}
-                          <span className="font-medium text-[#1E3A8A]">{sidebarBooking.exclusiveAdults || 0}</span>
-                        </p>
-                        <p className="text-sm mt-1">
-                          <span className="text-[#1E3A8A]/70">Kids:</span>{' '}
-                          <span className="font-medium text-[#1E3A8A]">{sidebarBooking.exclusiveKids || 0}</span>
-                        </p>
-                        <p className="text-sm mt-1 pt-2 border-t border-[#4D8CF5]/20">
-                          <span className="font-semibold text-[#1E3A8A]">Total Guests:</span>{' '}
-                          <span className="font-bold text-[#1E3A8A]">{sidebarBooking.exclusiveTotalGuests || (sidebarBooking.exclusiveAdults + sidebarBooking.exclusiveKids)}</span>
-                        </p>
-                      </>
-                    ) : sidebarBooking.isMultiRoomGroup && sidebarBooking.childBookings && sidebarBooking.childBookings.length > 0 ? (
-                      // Multi-room booking - display each room type with Adults | Kids format (without quantity prefix)
-                      <div className="space-y-2">
-                        {sidebarBooking.childBookings.map((child, idx) => {
-                          // Find the matching room type in roomTypesArray to get quantity
-                          const roomTypeInfo = sidebarBooking.roomTypesArray?.find(r => r.type === child.roomType);
-                          const quantity = roomTypeInfo?.quantity || 1;
-                          return (
-                            <div key={idx} className="border-b border-[#4D8CF5]/10 last:border-b-0 pb-2 last:pb-0">
-                              <p className="text-xs font-medium text-[#1E3A8A]">{child.roomType} — Adults: {child.adults || child.guests || 1} | Kids: {child.kids || 0}</p>
-                            </div>
-                          );
-                        })}
-                        <div className="pt-2 mt-1 border-t border-[#4D8CF5]/20">
-                          <p className="text-sm">
-                            <span className="font-semibold text-[#1E3A8A]">Total Guests:</span>{' '}
-                            <span className="font-bold text-[#1E3A8A]">{sidebarBooking.totalGuests || 0}</span>
+                  <div className="bg-white border border-slate-200/60 rounded-xl shadow-[0_2px_8px_-1px_rgba(15,23,42,0.03)] hover:shadow-md transition-all duration-300 overflow-hidden">
+                    <div className="bg-slate-50 px-4 py-3 border-b border-slate-200/60 flex items-center justify-between gap-2">
+                      <h3 className="text-[11px] font-bold text-[#1E3A8A] uppercase tracking-widest flex items-center gap-2">
+                        <i className="fas fa-users text-[#4D8CF5] text-sm"></i>
+                        Guest Count
+                      </h3>
+                    </div>
+                    <div className="p-4">
+                      {sidebarBooking.isExclusiveResortBooking ? (
+                        // Exclusive booking guest display
+                        <div className="space-y-1.5">
+                          <p className="text-sm flex justify-between items-center border-b border-slate-50 pb-1.5">
+                            <span className="text-[#1E3A8A]/70 text-xs">Adults:</span>{' '}
+                            <span className="font-semibold text-[#1E3A8A]">{sidebarBooking.exclusiveAdults || 0}</span>
+                          </p>
+                          <p className="text-sm flex justify-between items-center border-b border-slate-50 pb-1.5">
+                            <span className="text-[#1E3A8A]/70 text-xs">Kids:</span>{' '}
+                            <span className="font-semibold text-[#1E3A8A]">{sidebarBooking.exclusiveKids || 0}</span>
+                          </p>
+                          <p className="text-sm flex justify-between items-center mt-3 pt-2 border-t border-slate-100">
+                            <span className="text-[#1E3A8A]/70 text-xs font-semibold">Total Guests:</span>{' '}
+                            <span className="font-bold text-[#1E3A8A]">{sidebarBooking.exclusiveTotalGuests || (sidebarBooking.exclusiveAdults + sidebarBooking.exclusiveKids)}</span>
                           </p>
                         </div>
-                      </div>
-                    ) : (
-                      // Single room booking - display adults and kids from the booking
-                      <div>
-                        <p className="text-sm">
-                          <span className="text-[#1E3A8A]/70">Adults:</span>{' '}
-                          <span className="font-medium text-[#1E3A8A]">{sidebarBooking.adults || sidebarBooking.guests || 1}</span>
-                        </p>
-                        <p className="text-sm mt-1">
-                          <span className="text-[#1E3A8A]/70">Kids:</span>{' '}
-                          <span className="font-medium text-[#1E3A8A]">{sidebarBooking.kids || 0}</span>
-                        </p>
-                        <p className="text-sm mt-1 pt-2 border-t border-[#4D8CF5]/20">
-                          <span className="font-semibold text-[#1E3A8A]">Total Guests:</span>{' '}
-                          <span className="font-bold text-[#1E3A8A]">{sidebarBooking.guests || (sidebarBooking.adults + sidebarBooking.kids) || 1}</span>
-                        </p>
-                      </div>
-                    )}
+                      ) : sidebarBooking.isMultiRoomGroup && sidebarBooking.childBookings && sidebarBooking.childBookings.length > 0 ? (
+                        // Multi-room booking - display each room type with Adults | Kids format (without quantity prefix)
+                        <div className="space-y-2">
+                          <div className="flex flex-col gap-2">
+                            {sidebarBooking.childBookings.map((child, idx) => (
+                              <div key={idx} className="flex flex-col rounded-lg bg-[#f8fbff] p-2 border border-[#4D8CF5]/5">
+                                <span className="text-xs font-bold text-[#1E3A8A] mb-1">{child.roomType}</span>
+                                <span className="text-[11px] font-medium text-[#5C7AA6]">Adults: {child.adults || child.guests || 1} • Kids: {child.kids || 0}</span>
+                              </div>
+                            ))}
+                          </div>
+                          <div className="pt-2 mt-3 border-t border-slate-100 flex justify-between items-center">
+                            <span className="text-[#1E3A8A]/70 text-xs font-semibold">Total Guests:</span>{' '}
+                            <span className="font-bold text-[#1E3A8A]">{sidebarBooking.totalGuests || 0}</span>
+                          </div>
+                        </div>
+                      ) : (
+                        // Single room booking - display adults and kids from the booking
+                        <div className="space-y-1.5">
+                          <p className="text-sm flex justify-between items-center border-b border-slate-50 pb-1.5">
+                            <span className="text-[#1E3A8A]/70 text-xs">Adults:</span>{' '}
+                            <span className="font-semibold text-[#1E3A8A]">{sidebarBooking.adults || sidebarBooking.guests || 1}</span>
+                          </p>
+                          <p className="text-sm flex justify-between items-center border-b border-slate-50 pb-1.5">
+                            <span className="text-[#1E3A8A]/70 text-xs">Kids:</span>{' '}
+                            <span className="font-semibold text-[#1E3A8A]">{sidebarBooking.kids || 0}</span>
+                          </p>
+                          <p className="text-sm flex justify-between items-center mt-3 pt-2 border-t border-slate-100">
+                            <span className="text-[#1E3A8A]/70 text-xs font-semibold">Total Guests:</span>{' '}
+                            <span className="font-bold text-[#1E3A8A]">{sidebarBooking.guests || (sidebarBooking.adults + sidebarBooking.kids) || 1}</span>
+                          </p>
+                        </div>
+                      )}
+                    </div>
                   </div>
                 </>
               ) : (
                 // Day tour booking - guest count already displayed in Tour Details section
                 <>
-                  <div className="bg-white/70 backdrop-blur-md border border-[#4D8CF5]/10 rounded-xl p-4 shadow-sm">
-                    <h3 className="text-xs font-semibold text-[#1E3A8A] uppercase tracking-wide mb-3 flex items-center gap-2 border-b border-[#4D8CF5]/10 pb-2">
-                      <i className="fas fa-sun text-[#4D8CF5]"></i>
-                      Tour Details
-                    </h3>
-                    <p className="text-sm">
-                      <span className="text-[#1E3A8A]/70">Tour Date:</span>{' '}
-                      <span className="font-medium text-[#1E3A8A]">{formatDateOnly(sidebarBooking.selectedDate)}</span>
-                    </p>
-                    <p className="text-sm mt-1">
-                      <span className="text-[#1E3A8A]/70">Guest Breakdown:</span>{' '}
-                      <span className="font-medium text-[#1E3A8A]"> Adult: {sidebarBooking.adults || 0} | Kid: {sidebarBooking.kids || 0} </span>
-                    </p>
-                    <p className="text-sm mt-1">
-                      <span className="text-[#1E3A8A]/70">Total Guests:</span>{' '}
-                      <span className="font-medium text-[#1E3A8A]">{getTotalGuests(sidebarBooking)}</span>
-                    </p>
+                  <div className="bg-white border border-slate-200/60 rounded-xl shadow-[0_2px_8px_-1px_rgba(15,23,42,0.03)] hover:shadow-md transition-all duration-300 overflow-hidden">
+                    <div className="bg-slate-50 px-4 py-3 border-b border-slate-200/60 flex items-center justify-between gap-2">
+                      <h3 className="text-[11px] font-bold text-[#1E3A8A] uppercase tracking-widest flex items-center gap-2">
+                        <i className="fas fa-sun text-[#4D8CF5] text-sm"></i>
+                        Tour Details
+                      </h3>
+                    </div>
+                    <div className="p-4 space-y-1.5">
+                      <p className="text-sm flex justify-between items-center border-b border-slate-50 pb-1.5">
+                        <span className="text-[#1E3A8A]/70 text-xs">Tour Date:</span>{' '}
+                        <span className="font-semibold text-[#1E3A8A]">{formatDateOnly(sidebarBooking.selectedDate)}</span>
+                      </p>
+                      <p className="text-sm flex justify-between items-center border-b border-slate-50 pb-1.5">
+                        <span className="text-[#1E3A8A]/70 text-xs">Guest Breakdown:</span>{' '}
+                        <span className="font-semibold text-[#1E3A8A]"> Adult: {sidebarBooking.adults || 0} | Kid: {sidebarBooking.kids || 0} </span>
+                      </p>
+                      <p className="text-sm flex justify-between items-center mt-3 pt-2 border-t border-slate-100">
+                        <span className="text-[#1E3A8A]/70 text-xs font-semibold">Total Guests:</span>{' '}
+                        <span className="font-bold text-[#1E3A8A]">{getTotalGuests(sidebarBooking)}</span>
+                      </p>
+                    </div>
                   </div>
                 </>
               )}
 
               {/* Payment Information */}
- <div className="bg-white/70 backdrop-blur-md border border-[#4D8CF5]/10 rounded-xl p-4 shadow-sm">
-  <div className="flex justify-between items-center mb-3 pb-2 border-b border-[#4D8CF5]/10">
-    <h3 className="text-xs font-semibold text-[#1E3A8A] uppercase tracking-wide flex items-center gap-2">
-      <i className="fas fa-credit-card text-[#4D8CF5]"></i>
-      Payment Information
-    </h3>
-    {(() => {
-      const isCancelled = ['cancelled', 'cancelled-by-guest'].includes(sidebarBooking.status);
-      // Regular balance editing for check-in/completed (existing logic)
-      let balanceEditable = false;
-      if (activeTab === 'rooms') {
-        balanceEditable = ['check-in', 'check-out', 'completed'].includes(sidebarBooking.status);
-      } else {
-        balanceEditable = ['check-in', 'completed'].includes(sidebarBooking.status);
-      }
+              <div className="bg-white border border-slate-200/60 rounded-xl shadow-[0_2px_8px_-1px_rgba(15,23,42,0.03)] hover:shadow-md transition-all duration-300 overflow-hidden">
+                <div className="bg-slate-50 px-4 py-3 border-b border-slate-200/60 flex items-center justify-between gap-2">
+                  <h3 className="text-[11px] font-bold text-[#1E3A8A] uppercase tracking-widest flex items-center gap-2">
+                    <i className="fas fa-credit-card text-[#4D8CF5] text-sm"></i>
+                    Payment Information
+                  </h3>
+                  {(() => {
+                    const isCancelled = ['cancelled', 'cancelled-by-guest'].includes(sidebarBooking.status);
+                    // Regular balance editing for check-in/completed (existing logic)
+                    let balanceEditable = false;
+                    if (activeTab === 'rooms') {
+                      balanceEditable = ['check-in', 'check-out', 'completed'].includes(sidebarBooking.status);
+                    } else {
+                      balanceEditable = ['check-in', 'completed'].includes(sidebarBooking.status);
+                    }
 
-      if (isCancelled && !editingNote && !editingPayment) {
-        return (
-          <button
-            onClick={() => {
-              setTempNoteForEdit(sidebarBooking.adminNote || '');
-              setEditingNote(true);
-            }}
-            className="flex items-center gap-1.5 px-3 py-1 rounded-md bg-[#4D8CF5]/10 text-[#4D8CF5] hover:bg-[#4D8CF5] hover:text-white transition-all duration-200 text-[10px] font-bold uppercase tracking-wider shadow-sm active:scale-95"
-          >
-            <i className="fas fa-edit"></i> Add Note
-          </button>
-        );
-      }
-      if (balanceEditable && !editingPayment) {
-        return (
-          <button
-            onClick={() => {
-              const currentBalance = sidebarBooking.manualBalance ?? (() => {
-                const total = Number(sidebarBooking.totalPrice) || 0;
-                const down = total * 0.5;
-                if (sidebarBooking.status === 'cancelled' || sidebarBooking.status === 'check-out' || sidebarBooking.status === 'completed') return 0;
-                if (sidebarBooking.status === 'cancelled-by-guest' && (sidebarBooking.refundNotificationSent || sidebarBooking.moveDateNotificationSent)) return 0;
-                return down;
-              })();
-              setTempBalance(currentBalance.toString());
-              setTempNote(sidebarBooking.adminNote || '');
-              setEditingPayment(true);
-            }}
-            className="flex items-center gap-1.5 px-3 py-1 rounded-md bg-[#4D8CF5]/10 text-[#4D8CF5] hover:bg-[#4D8CF5] hover:text-white transition-all duration-200 text-[10px] font-bold uppercase tracking-wider shadow-sm active:scale-95"
-          >
-            <i className="fas fa-edit"></i> Edit Balance
-          </button>
-        );
-      }
-      return null;
-    })()}
-  </div>
+                    if (isCancelled && !editingNote && !editingPayment) {
+                      return (
+                        <button
+                          onClick={() => {
+                            setTempNoteForEdit(sidebarBooking.adminNote || '');
+                            setEditingNote(true);
+                          }}
+                          className="flex items-center gap-1.5 px-3 py-1 rounded-md bg-[#4D8CF5]/10 text-[#4D8CF5] hover:bg-[#4D8CF5] hover:text-white transition-all duration-200 text-[10px] font-bold uppercase tracking-wider shadow-sm active:scale-95"
+                        >
+                          <i className="fas fa-edit"></i> Add Note
+                        </button>
+                      );
+                    }
+                    if (balanceEditable && !editingPayment) {
+                      return (
+                        <button
+                          onClick={() => {
+                            const currentBalance = sidebarBooking.manualBalance ?? (() => {
+                              const total = Number(sidebarBooking.totalPrice) || 0;
+                              const down = total * 0.5;
+                              if (sidebarBooking.status === 'cancelled' || sidebarBooking.status === 'check-out' || sidebarBooking.status === 'completed') return 0;
+                              if (sidebarBooking.status === 'cancelled-by-guest' && (sidebarBooking.refundNotificationSent || sidebarBooking.moveDateNotificationSent)) return 0;
+                              return down;
+                            })();
+                            setTempBalance(currentBalance.toString());
+                            setTempNote(sidebarBooking.adminNote || '');
+                            setEditingPayment(true);
+                          }}
+                          className="flex items-center gap-1.5 px-3 py-1 rounded-md bg-[#4D8CF5]/10 text-[#4D8CF5] hover:bg-[#4D8CF5] hover:text-white transition-all duration-200 text-[10px] font-bold uppercase tracking-wider shadow-sm active:scale-95"
+                        >
+                          <i className="fas fa-edit"></i> Edit Balance
+                        </button>
+                      );
+                    }
+                    return null;
+                  })()}
+                </div>
+                <div className="p-4">
 
-  {/* Edit Note Mode (for cancelled bookings) */}
-  {editingNote && (
-    <div className="space-y-3">
-      <div>
-        <label className="block text-xs font-medium text-[#1E3A8A]/70 mb-1">Note:</label>
-        <textarea
-          value={tempNoteForEdit}
-          onChange={(e) => setTempNoteForEdit(e.target.value)}
-          rows={3}
-          placeholder="Add internal note about this booking..."
-          className="w-full px-2 py-1.5 text-sm border border-[#4D8CF5]/30 rounded-lg focus:outline-none focus:border-ocean-mid resize-none"
-        />
-      </div>
-      <div className="flex gap-2 justify-end">
-        <button
-          onClick={() => setEditingNote(false)}
-          className="px-3 py-1.5 text-xs rounded-lg border border-gray-300 text-gray-700 hover:bg-gray-100"
-        >
-          Cancel
-        </button>
-        <button
-          onClick={handleSaveNote}
-          disabled={savingNote}
-          className="px-3 py-1.5 text-xs rounded-lg bg-ocean-mid text-white hover:bg-ocean-dark disabled:opacity-50"
-        >
-          {savingNote ? 'Saving...' : 'Save Note'}
-        </button>
-      </div>
-    </div>
-  )}
+                {/* Edit Note Mode (for cancelled bookings) */}
+                {editingNote && (
+                  <div className="space-y-3">
+                    <div>
+                      <label className="block text-xs font-medium text-[#1E3A8A]/70 mb-1">Note:</label>
+                      <textarea
+                        value={tempNoteForEdit}
+                        onChange={(e) => setTempNoteForEdit(e.target.value)}
+                        rows={3}
+                        placeholder="Add internal note about this booking..."
+                        className="w-full px-2 py-1.5 text-sm border border-[#4D8CF5]/30 rounded-lg focus:outline-none focus:border-ocean-mid resize-none"
+                      />
+                    </div>
+                    <div className="flex gap-2 justify-end">
+                      <button
+                        onClick={() => setEditingNote(false)}
+                        className="px-3 py-1.5 text-xs rounded-lg border border-gray-300 text-gray-700 hover:bg-gray-100"
+                      >
+                        Cancel
+                      </button>
+                      <button
+                        onClick={handleSaveNote}
+                        disabled={savingNote}
+                        className="px-3 py-1.5 text-xs rounded-lg bg-ocean-mid text-white hover:bg-ocean-dark disabled:opacity-50"
+                      >
+                        {savingNote ? 'Saving...' : 'Save Note'}
+                      </button>
+                    </div>
+                  </div>
+                )}
 
-  {/* Existing Balance Edit Mode (unchanged) */}
-  {!editingNote && editingPayment && (
-    <div className="space-y-3">
-      <div>
-        <label className="block text-xs font-medium text-[#1E3A8A]/70 mb-1">Balance (₱)</label>
-        <input
-          type="number"
-          min="0"
-          step="0.01"
-          value={tempBalance}
-          onChange={(e) => setTempBalance(e.target.value)}
-          className="w-full px-2 py-1.5 text-sm border border-[#4D8CF5]/30 rounded-lg focus:outline-none focus:border-ocean-mid"
-        />
-      </div>
-      <div>
-        <label className="block text-xs font-medium text-[#1E3A8A]/70 mb-1">Admin Note</label>
-        <textarea
-          value={tempNote}
-          onChange={(e) => setTempNote(e.target.value)}
-          rows={2}
-          placeholder="Add internal note about payment adjustments..."
-          className="w-full px-2 py-1.5 text-sm border border-[#4D8CF5]/30 rounded-lg focus:outline-none focus:border-ocean-mid resize-none"
-        />
-      </div>
-      <div className="flex gap-2 justify-end">
-        <button onClick={() => setEditingPayment(false)} className="px-3 py-1.5 text-xs rounded-lg border border-gray-300 text-gray-700 hover:bg-gray-100">Cancel</button>
-        <button onClick={handleSavePaymentInfo} disabled={savingPayment} className="px-3 py-1.5 text-xs rounded-lg bg-ocean-mid text-white hover:bg-ocean-dark disabled:opacity-50">
-          {savingPayment ? 'Saving...' : 'Save Changes'}
-        </button>
-      </div>
-    </div>
-  )}
+                {/* Existing Balance Edit Mode (unchanged) */}
+                {!editingNote && editingPayment && (
+                  <div className="space-y-3">
+                    <div>
+                      <label className="block text-xs font-medium text-[#1E3A8A]/70 mb-1">Balance (₱)</label>
+                      <input
+                        type="number"
+                        min="0"
+                        step="0.01"
+                        value={tempBalance}
+                        onChange={(e) => setTempBalance(e.target.value)}
+                        className="w-full px-2 py-1.5 text-sm border border-[#4D8CF5]/30 rounded-lg focus:outline-none focus:border-ocean-mid"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-xs font-medium text-[#1E3A8A]/70 mb-1">Admin Note</label>
+                      <textarea
+                        value={tempNote}
+                        onChange={(e) => setTempNote(e.target.value)}
+                        rows={2}
+                        placeholder="Add internal note about payment adjustments..."
+                        className="w-full px-2 py-1.5 text-sm border border-[#4D8CF5]/30 rounded-lg focus:outline-none focus:border-ocean-mid resize-none"
+                      />
+                    </div>
+                    <div className="flex gap-2 justify-end">
+                      <button onClick={() => setEditingPayment(false)} className="px-3 py-1.5 text-xs rounded-lg border border-gray-300 text-gray-700 hover:bg-gray-100">Cancel</button>
+                      <button onClick={handleSavePaymentInfo} disabled={savingPayment} className="px-3 py-1.5 text-xs rounded-lg bg-ocean-mid text-white hover:bg-ocean-dark disabled:opacity-50">
+                        {savingPayment ? 'Saving...' : 'Save Changes'}
+                      </button>
+                    </div>
+                  </div>
+                )}
 
 
 
-  {/* Display Mode */}
-  {!editingNote && !editingPayment && (
-    <div className="space-y-3">
-      {(() => {
-   const isCancelled = ['cancelled', 'cancelled-by-guest'].includes(sidebarBooking.status);
-let downPayment, totalAmount, balance;
+                {/* Display Mode */}
+                {!editingNote && !editingPayment && (
+                  <div className="space-y-3">
+                    {(() => {
+                      const isCancelled = ['cancelled', 'cancelled-by-guest'].includes(sidebarBooking.status);
+                      let downPayment, totalAmount, balance;
 
-if (activeTab === 'daytour' && sidebarBooking.downPayment !== undefined) {
-  // --- Day tour with stored down payment and remaining balance ---
-  totalAmount = sidebarBooking.manualTotalPrice ?? sidebarBooking.totalPrice;
-  downPayment = sidebarBooking.downPayment; // original down payment (fixed)
+                      if (activeTab === 'daytour' && sidebarBooking.downPayment !== undefined) {
+                        // --- Day tour with stored down payment and remaining balance ---
+                        totalAmount = sidebarBooking.manualTotalPrice ?? sidebarBooking.totalPrice;
+                        downPayment = sidebarBooking.downPayment; // original down payment (fixed)
 
-  if (isCancelled) {
-    balance = 0;
-    totalAmount = downPayment; // for cancelled, total shown = down payment
-  } else {
-    // Use manualBalance if set, otherwise stored remainingBalance, otherwise compute
-    balance = sidebarBooking.manualBalance !== undefined
-      ? sidebarBooking.manualBalance
-      : (sidebarBooking.remainingBalance !== undefined
-          ? sidebarBooking.remainingBalance
-          : totalAmount - downPayment);
-  }
-} else {
-  // --- Original logic for room bookings (or day tours without downPayment) ---
-  if (isCancelled) {
-    if (sidebarBooking.manualDownPayment !== undefined && sidebarBooking.manualDownPayment !== null) {
-      downPayment = sidebarBooking.manualDownPayment;
-    } else {
-      const originalTotal = Number(sidebarBooking.totalPrice) || 0;
-      downPayment = originalTotal * 0.5;
-    }
-    totalAmount = downPayment;
-    balance = 0;
-  } else {
-    if (sidebarBooking.manualTotalPrice !== undefined && sidebarBooking.manualTotalPrice !== null) {
-      totalAmount = sidebarBooking.manualTotalPrice;
-      downPayment = totalAmount * 0.5;
-    } else {
-      const originalTotal = Number(sidebarBooking.totalPrice) || 0;
-      totalAmount = originalTotal;
-      downPayment = originalTotal * 0.5;
-    }
-    balance = sidebarBooking.manualBalance !== undefined ? sidebarBooking.manualBalance : downPayment;
-  }
-}
+                        if (isCancelled) {
+                          balance = 0;
+                          totalAmount = downPayment; // for cancelled, total shown = down payment
+                        } else {
+                          // Use manualBalance if set, otherwise stored remainingBalance, otherwise compute
+                          balance = sidebarBooking.manualBalance !== undefined
+                            ? sidebarBooking.manualBalance
+                            : (sidebarBooking.remainingBalance !== undefined
+                              ? sidebarBooking.remainingBalance
+                              : totalAmount - downPayment);
+                        }
+                      } else {
+                        // --- Original logic for room bookings (or day tours without downPayment) ---
+                        if (isCancelled) {
+                          if (sidebarBooking.manualDownPayment !== undefined && sidebarBooking.manualDownPayment !== null) {
+                            downPayment = sidebarBooking.manualDownPayment;
+                          } else {
+                            const originalTotal = Number(sidebarBooking.totalPrice) || 0;
+                            downPayment = originalTotal * 0.5;
+                          }
+                          totalAmount = downPayment;
+                          balance = 0;
+                        } else {
+                          if (sidebarBooking.manualTotalPrice !== undefined && sidebarBooking.manualTotalPrice !== null) {
+                            totalAmount = sidebarBooking.manualTotalPrice;
+                            downPayment = totalAmount * 0.5;
+                          } else {
+                            const originalTotal = Number(sidebarBooking.totalPrice) || 0;
+                            totalAmount = originalTotal;
+                            downPayment = originalTotal * 0.5;
+                          }
+                          balance = sidebarBooking.manualBalance !== undefined ? sidebarBooking.manualBalance : downPayment;
+                        }
+                      }
 
-        return (
-          <div className="grid grid-cols-2 gap-4">
-            <div className="bg-blue-50/50 p-3 rounded-lg border border-blue-100/50">
-              <p className="text-xs text-[#1E3A8A]/70 mb-1">Total Amount</p>
-              <p className="font-bold text-[#1E3A8A] text-lg">₱{totalAmount.toLocaleString()}</p>
-            </div>
-            <div className="bg-blue-50/50 p-3 rounded-lg border border-blue-100/50">
-              <p className="text-xs text-[#1E3A8A]/70 mb-1">Balance</p>
-              <p className="font-bold text-[#1E3A8A] text-lg">₱{balance.toLocaleString()}</p>
-            </div>
-            <div className="col-span-2 flex justify-between items-center bg-gray-50/80 p-3 rounded-lg border border-gray-100">
-              <p className="text-sm">
-                <span className="text-[#1E3A8A]/70">50% Down:</span>{' '}
-                <span className="font-bold text-amber-600">₱{downPayment.toLocaleString()}</span>
-              </p>
-              <p className="text-sm flex items-center">
-                <span className="text-[#1E3A8A]/70 mr-2">Status:</span>
-                <span className={`px-2 py-0.5 rounded-full text-[10px] font-medium ${getStatusColor(sidebarBooking.status)}`}>
-                  {sidebarBooking.status?.charAt(0).toUpperCase() + sidebarBooking.status?.slice(1)}
-                </span>
-              </p>
-            </div>
-            {sidebarBooking.adminNote && (
-              <div className="col-span-2 mt-1">
-                <p className="text-xs p-2 rounded-lg bg-gray-50 border border-gray-100 text-gray-600">
-                  <span className="font-medium">Note:</span> {sidebarBooking.adminNote}
-                </p>
+                      return (
+                        <div className="grid grid-cols-2 gap-4">
+                          <div className="bg-slate-50/80 p-3 rounded-lg border border-slate-100">
+                            <p className="text-xs text-[#1E3A8A]/70 mb-1">Total Amount</p>
+                            <p className="font-bold text-[#1E3A8A] text-lg">₱{totalAmount.toLocaleString()}</p>
+                          </div>
+                          <div className={`p-3 rounded-lg border transition-all ${balance > 0 ? 'bg-amber-50/30 border-amber-200' : 'bg-emerald-50/30 border-emerald-200'}`}>
+                            <p className={`text-xs mb-1 ${balance > 0 ? 'text-amber-700/70' : 'text-emerald-700/70'}`}>Balance</p>
+                            <p className={`font-bold text-lg ${balance > 0 ? 'text-amber-700' : 'text-emerald-700'}`}>₱{balance.toLocaleString()}</p>
+                          </div>
+                          <div className="col-span-2 flex justify-between items-center bg-white border border-slate-200/60 p-3 rounded-lg shadow-sm">
+                            <p className="text-sm">
+                              <span className="text-[#1E3A8A]/70">50% Down:</span>{' '}
+                              <span className="font-bold text-amber-600">₱{downPayment.toLocaleString()}</span>
+                            </p>
+                            <p className="text-sm flex items-center">
+                              <span className="text-[#1E3A8A]/70 mr-2">Status:</span>
+                              <span className={`px-2 py-0.5 rounded-full text-[10px] font-medium ${getStatusColor(sidebarBooking.status)}`}>
+                                {sidebarBooking.status?.charAt(0).toUpperCase() + sidebarBooking.status?.slice(1)}
+                              </span>
+                            </p>
+                          </div>
+                          {sidebarBooking.adminNote && (
+                            <div className="col-span-2 mt-1">
+                              <p className="text-xs p-2 rounded-lg bg-slate-50/80 border border-slate-100 text-gray-600">
+                                <span className="font-medium">Note:</span> {sidebarBooking.adminNote}
+                              </p>
+                            </div>
+                          )}
+                        </div>
+                      );
+                    })()}
+
+                    {/* Confirm Check-In Button - Relocated to bottom right */}
+                    {sidebarBooking.status === 'confirmed' && (
+                      <div className="flex justify-end mt-2">
+                        <button
+                          onClick={() => setCheckInConfirmModal({ show: true, booking: sidebarBooking, loading: false })}
+                          disabled={actionLoading[sidebarBooking.id]}
+                          className="px-4 py-1.5 rounded-lg border border-[#7AAAF8]/20 bg-[#7AAAF8]/10 text-[#1E3A8A] text-xs hover:bg-[#4D8CF5]/80 hover:text-white transition-all duration-200 shadow-sm flex items-center justify-center gap-2 font-semibold disabled:opacity-50 disabled:bg-gray-400">
+                          {actionLoading[sidebarBooking.id] ? (
+                            <><i className="fas fa-spinner fa-spin text-xs"></i> Processing...</>
+                          ) : (
+                            <><i className="fas fa-door-open text-xs"></i> Confirm Check-In</>
+                          )}
+                        </button>
+                      </div>
+                    )}
+
+
+                  </div>
+                )}
+                </div>
               </div>
-            )}
-          </div>
-        );
-      })()}
-      
-      {/* Confirm Check-In Button - Relocated to bottom right */}
-      {sidebarBooking.status === 'confirmed' && (
-        <div className="flex justify-end mt-2">
-          <button
-            onClick={() => setCheckInConfirmModal({ show: true, booking: sidebarBooking, loading: false })}
-            disabled={actionLoading[sidebarBooking.id]}
-            className="px-4 py-1.5 rounded-lg border border-[#7AAAF8]/20 bg-[#7AAAF8]/10 text-[#1E3A8A] text-xs hover:bg-[#4D8CF5]/80 hover:text-white transition-all duration-200 shadow-sm flex items-center justify-center gap-2 font-semibold disabled:opacity-50 disabled:bg-gray-400">
-            {actionLoading[sidebarBooking.id] ? (
-              <><i className="fas fa-spinner fa-spin text-xs"></i> Processing...</>
-            ) : (
-              <><i className="fas fa-door-open text-xs"></i> Confirm Check-In</>
-            )}
-          </button>
-        </div>
-      )}
-
-
-    </div>
-  )}
-</div>
 
               {/* Payment Proof Image - Clickable */}
               {(sidebarBooking.paymentProof || sidebarBooking.paymentProofUrl) && (
-                <div className="bg-white/70 backdrop-blur-md border border-[#4D8CF5]/10 rounded-xl p-4 shadow-sm">
-                  <h3 className="text-xs font-semibold text-[#1E3A8A] uppercase tracking-wide mb-3 flex items-center gap-2 border-b border-[#4D8CF5]/10 pb-2">
-                    <i className="fas fa-receipt text-[#4D8CF5]"></i>
-                    Payment Proof
-                  </h3>
-                  <div
-                    className="relative bg-gray-50 rounded-xl border border-gray-100 overflow-hidden cursor-pointer group transition-all duration-300 hover:shadow-md"
-                    onClick={() => setImageZoomModal({ show: true, imageUrl: sidebarBooking.paymentProof || sidebarBooking.paymentProofUrl, title: 'Payment Proof' })}
-                  >
-                    <img
-                      src={sidebarBooking.paymentProof || sidebarBooking.paymentProofUrl}
-                      alt="Payment Proof"
-                      className="w-full h-48 object-cover group-hover:scale-105 transition-transform duration-500"
-                      onError={(e) => {
-                        console.error('Error loading image:', e);
-                        e.target.style.display = 'none';
-                        e.target.parentElement.innerHTML = '<div class="p-6 text-center"><i class="fas fa-image text-3xl text-gray-400 mb-2 block"></i><p class="text-sm text-gray-500">Error loading payment proof image</p></div>';
-                      }}
-                    />
-                    <div className="absolute inset-0 bg-[#1E3A8A]/0 group-hover:bg-[#1E3A8A]/20 transition-all duration-300 flex items-center justify-center">
-                      <i className="fas fa-search-plus text-white text-2xl opacity-0 group-hover:opacity-100 transition-opacity duration-300 transform scale-50 group-hover:scale-100"></i>
+                <div className="bg-white border border-slate-200/60 rounded-xl shadow-[0_2px_8px_-1px_rgba(15,23,42,0.03)] hover:shadow-md transition-all duration-300 overflow-hidden">
+                  <div className="bg-slate-50 px-4 py-3 border-b border-slate-200/60 flex items-center justify-between gap-2">
+                    <h3 className="text-[11px] font-bold text-[#1E3A8A] uppercase tracking-widest flex items-center gap-2">
+                      <i className="fas fa-receipt text-[#4D8CF5] text-sm"></i>
+                      Payment Proof
+                    </h3>
+                  </div>
+                  <div className="p-4">
+                    <div
+                      className="relative bg-gray-50 rounded-xl border border-gray-100 overflow-hidden cursor-pointer group transition-all duration-300 hover:shadow-md"
+                      onClick={() => setImageZoomModal({ show: true, imageUrl: sidebarBooking.paymentProof || sidebarBooking.paymentProofUrl, title: 'Payment Proof' })}
+                    >
+                      <img
+                        src={sidebarBooking.paymentProof || sidebarBooking.paymentProofUrl}
+                        alt="Payment Proof"
+                        className="w-full h-48 object-cover group-hover:scale-105 transition-transform duration-500"
+                        onError={(e) => {
+                          console.error('Error loading image:', e);
+                          e.target.style.display = 'none';
+                          e.target.parentElement.innerHTML = '<div class="p-6 text-center"><i class="fas fa-image text-3xl text-gray-400 mb-2 block"></i><p class="text-sm text-gray-500">Error loading payment proof image</p></div>';
+                        }}
+                      />
+                      <div className="absolute inset-0 bg-[#1E3A8A]/0 group-hover:bg-[#1E3A8A]/20 transition-all duration-300 flex items-center justify-center">
+                        <i className="fas fa-search-plus text-white text-2xl opacity-0 group-hover:opacity-100 transition-opacity duration-300 transform scale-50 group-hover:scale-100"></i>
+                      </div>
                     </div>
                   </div>
                 </div>
@@ -2484,55 +2503,61 @@ if (activeTab === 'daytour' && sidebarBooking.downPayment !== undefined) {
 
               {/* Valid ID - Clickable */}
               {(sidebarBooking.validIdImage || sidebarBooking.validIdUrl) && (
-                <div className="bg-white/70 backdrop-blur-md border border-[#4D8CF5]/10 rounded-xl p-4 shadow-sm">
-                  <div className="flex justify-between items-center mb-3 pb-2 border-b border-[#4D8CF5]/10">
-                    <h3 className="text-xs font-semibold text-[#1E3A8A] uppercase tracking-wide flex items-center gap-2">
-                      <i className="fas fa-id-card text-[#4D8CF5]"></i>
+                <div className="bg-white border border-slate-200/60 rounded-xl shadow-[0_2px_8px_-1px_rgba(15,23,42,0.03)] hover:shadow-md transition-all duration-300 overflow-hidden">
+                  <div className="bg-slate-50 px-4 py-3 border-b border-slate-200/60 flex items-center justify-between gap-2">
+                    <h3 className="text-[11px] font-bold text-[#1E3A8A] uppercase tracking-widest flex items-center gap-2">
+                      <i className="fas fa-id-card text-[#4D8CF5] text-sm"></i>
                       Valid ID
                     </h3>
                     {sidebarBooking.validIdType && (
-                      <span className="text-[10px] font-semibold bg-[#4D8CF5]/10 text-[#1E3A8A] px-2 py-1 rounded-md">
+                      <span className="text-[10px] font-bold bg-[#4D8CF5]/10 text-[#1E3A8A] px-2.5 py-1 rounded-md border border-[#4D8CF5]/10 shadow-sm">
                         {sidebarBooking.validIdType}
                       </span>
                     )}
                   </div>
-                  <div
-                    className="relative bg-gray-50 rounded-xl border border-gray-100 overflow-hidden cursor-pointer group transition-all duration-300 hover:shadow-md"
-                    onClick={() => setImageZoomModal({ show: true, imageUrl: sidebarBooking.validIdImage || sidebarBooking.validIdUrl, title: `Valid ID - ${sidebarBooking.validIdType || 'ID'}` })}
-                  >
-                    <img
-                      src={sidebarBooking.validIdImage || sidebarBooking.validIdUrl}
-                      alt="Valid ID"
-                      className="w-full h-40 object-cover group-hover:scale-105 transition-transform duration-500"
-                      onError={(e) => {
-                        console.error('Error loading valid ID image:', e);
-                        e.target.style.display = 'none';
-                        e.target.parentElement.innerHTML = '<div class="p-6 text-center"><i class="fas fa-id-card text-3xl text-gray-400 mb-2 block"></i><p class="text-sm text-gray-500">Error loading valid ID image</p></div>';
-                      }}
-                    />
-                    <div className="absolute inset-0 bg-[#1E3A8A]/0 group-hover:bg-[#1E3A8A]/20 transition-all duration-300 flex items-center justify-center">
-                      <i className="fas fa-search-plus text-white text-2xl opacity-0 group-hover:opacity-100 transition-opacity duration-300 transform scale-50 group-hover:scale-100"></i>
+                  <div className="p-4">
+                    <div
+                      className="relative bg-gray-50 rounded-xl border border-gray-100 overflow-hidden cursor-pointer group transition-all duration-300 hover:shadow-md"
+                      onClick={() => setImageZoomModal({ show: true, imageUrl: sidebarBooking.validIdImage || sidebarBooking.validIdUrl, title: `Valid ID - ${sidebarBooking.validIdType || 'ID'}` })}
+                    >
+                      <img
+                        src={sidebarBooking.validIdImage || sidebarBooking.validIdUrl}
+                        alt="Valid ID"
+                        className="w-full h-40 object-cover group-hover:scale-105 transition-transform duration-500"
+                        onError={(e) => {
+                          console.error('Error loading valid ID image:', e);
+                          e.target.style.display = 'none';
+                          e.target.parentElement.innerHTML = '<div class="p-6 text-center"><i class="fas fa-id-card text-3xl text-gray-400 mb-2 block"></i><p class="text-sm text-gray-500">Error loading valid ID image</p></div>';
+                        }}
+                      />
+                      <div className="absolute inset-0 bg-[#1E3A8A]/0 group-hover:bg-[#1E3A8A]/20 transition-all duration-300 flex items-center justify-center">
+                        <i className="fas fa-search-plus text-white text-2xl opacity-0 group-hover:opacity-100 transition-opacity duration-300 transform scale-50 group-hover:scale-100"></i>
+                      </div>
                     </div>
                   </div>
                 </div>
               )}
 
               {/* Special Request */}
-              <div className="bg-amber-50/70 backdrop-blur-md border border-amber-200 rounded-xl p-4 shadow-sm">
-                <h3 className="text-xs font-semibold text-amber-700 uppercase tracking-wide mb-3 flex items-center gap-2 border-b border-amber-200/50 pb-2">
-                  <i className="fas fa-comment-alt text-amber-600"></i>
-                  Special Request
-                </h3>
-                {sidebarBooking.specialRequest ? (
-                  <p className="text-sm text-amber-800">{sidebarBooking.specialRequest}</p>
-                ) : (
-                  <p className="text-sm text-amber-600 italic">No special requests from guest</p>
-                )}
+              <div className="bg-amber-50/10 border border-amber-200/60 rounded-xl shadow-[0_2px_8px_-1px_rgba(15,23,42,0.03)] overflow-hidden">
+                <div className="bg-amber-50/60 px-4 py-3 border-b border-amber-200/20 flex items-center justify-between gap-2">
+                  <h3 className="text-[11px] font-bold text-amber-700 uppercase tracking-widest flex items-center gap-2">
+                    <i className="fas fa-comment-alt text-amber-600 text-sm"></i>
+                    Special Request
+                  </h3>
+                </div>
+                <div className="p-4">
+                  {sidebarBooking.specialRequest ? (
+                    <p className="text-sm font-medium text-amber-800">{sidebarBooking.specialRequest}</p>
+                  ) : (
+                    <p className="text-sm text-amber-600/70 italic">No special requests from guest</p>
+                  )}
+                </div>
               </div>
             </div>
 
             {/* Fixed Footer with Confirm and Cancel buttons */}
-            <div className="sticky bottom-0 bg-white/80 backdrop-blur-lg border-t border-[#4D8CF5]/10 px-5 py-2.5 flex gap-2 justify-end flex-shrink-0">
+            <div className="sticky bottom-0 bg-[#F8FAFC]/90 backdrop-blur-lg border-t border-slate-200/80 px-5 py-2.5 flex gap-2 justify-end flex-shrink-0">
               {activeTab === 'rooms' && canAdminEditBooking(sidebarBooking) && (
                 <button
                   onClick={() => setEditBookingModal({ show: true, booking: sidebarBooking })}
@@ -2750,7 +2775,7 @@ if (activeTab === 'daytour' && sidebarBooking.downPayment !== undefined) {
                     <p className="text-sm mt-1">
                       <span className="text-textSecondary">Guest Breakdown:</span>{' '}
                       <span className="font-medium text-textPrimary">
-                         Adult: {selectedBooking.adults || 0} | Kid: {selectedBooking.kids || 0}
+                        Adult: {selectedBooking.adults || 0} | Kid: {selectedBooking.kids || 0}
                       </span>
                     </p>
                     <p className="text-sm mt-1">
@@ -2786,7 +2811,7 @@ if (activeTab === 'daytour' && sidebarBooking.downPayment !== undefined) {
                 </p>
               </div>
 
-              
+
 
               {/* Payment Proof Image - Clickable */}
               {selectedBooking.paymentProofUrl && (
@@ -3358,73 +3383,73 @@ if (activeTab === 'daytour' && sidebarBooking.downPayment !== undefined) {
         }
       `}</style>
 
- {showRequestDetailsModal && selectedRequestBooking && (
-  <AdminRequestChangesModal
-    isOpen={showRequestDetailsModal}
-    booking={selectedRequestBooking}
-    onClose={() => {
-      setShowRequestDetailsModal(false);
-      setSelectedRequestBooking(null);
-    }}
-    onConfirm={(action) => {
-      setRequestAction(action);
-      setShowRequestDetailsModal(false);
-      setShowRequestReasonModal(true);
-    }}
-  />
-)}
+      {showRequestDetailsModal && selectedRequestBooking && (
+        <AdminRequestChangesModal
+          isOpen={showRequestDetailsModal}
+          booking={selectedRequestBooking}
+          onClose={() => {
+            setShowRequestDetailsModal(false);
+            setSelectedRequestBooking(null);
+          }}
+          onConfirm={(action) => {
+            setRequestAction(action);
+            setShowRequestDetailsModal(false);
+            setShowRequestReasonModal(true);
+          }}
+        />
+      )}
 
-{showRequestReasonModal && (
-  <AdminActionReasonModal
-    isOpen={showRequestReasonModal}
-    action={requestAction}
-    booking={selectedRequestBooking}
-    onClose={() => {
-      setShowRequestReasonModal(false);
-      setRequestAction(null);
-    }}
-    onConfirm={(reason) => handleRequestDecision(requestAction, reason)}
-  />
-)}
+      {showRequestReasonModal && (
+        <AdminActionReasonModal
+          isOpen={showRequestReasonModal}
+          action={requestAction}
+          booking={selectedRequestBooking}
+          onClose={() => {
+            setShowRequestReasonModal(false);
+            setRequestAction(null);
+          }}
+          onConfirm={(reason) => handleRequestDecision(requestAction, reason)}
+        />
+      )}
 
-{editBookingModal.show && editBookingModal.booking && (
-  <AdminEditBookingModal
-    isOpen={editBookingModal.show}
-    booking={editBookingModal.booking}
-    onClose={() => setEditBookingModal({ show: false, booking: null })}
-    onSuccess={(updated) => {
-      const editedId = editBookingModal.booking?.id;
-      setSidebarBooking((prev) => {
-        if (!prev || prev.id !== editedId) return prev;
-        return {
-          ...prev,
-          ...updated,
-          childBookings: updated.childBookings ?? prev.childBookings,
-          originalChildBookings: updated.originalChildBookings ?? prev.originalChildBookings,
-        };
-      });
-      showNotification('Booking updated successfully.', 'success');
-      setEditBookingModal({ show: false, booking: null });
-    }}
-  />
-)}
+      {editBookingModal.show && editBookingModal.booking && (
+        <AdminEditBookingModal
+          isOpen={editBookingModal.show}
+          booking={editBookingModal.booking}
+          onClose={() => setEditBookingModal({ show: false, booking: null })}
+          onSuccess={(updated) => {
+            const editedId = editBookingModal.booking?.id;
+            setSidebarBooking((prev) => {
+              if (!prev || prev.id !== editedId) return prev;
+              return {
+                ...prev,
+                ...updated,
+                childBookings: updated.childBookings ?? prev.childBookings,
+                originalChildBookings: updated.originalChildBookings ?? prev.originalChildBookings,
+              };
+            });
+            showNotification('Booking updated successfully.', 'success');
+            setEditBookingModal({ show: false, booking: null });
+          }}
+        />
+      )}
 
-{editDayTourModal.show && editDayTourModal.booking && (
-  <AdminEditDayTourModal
-    isOpen={editDayTourModal.show}
-    booking={editDayTourModal.booking}
-    onClose={() => setEditDayTourModal({ show: false, booking: null })}
-    onSuccess={(updated) => {
-      const editedId = editDayTourModal.booking?.id;
-      setSidebarBooking((prev) => {
-        if (!prev || prev.id !== editedId) return prev;
-        return { ...prev, ...updated, type: 'daytour' };
-      });
-      showNotification('Day tour booking updated successfully.', 'success');
-      setEditDayTourModal({ show: false, booking: null });
-    }}
-  />
-)}
+      {editDayTourModal.show && editDayTourModal.booking && (
+        <AdminEditDayTourModal
+          isOpen={editDayTourModal.show}
+          booking={editDayTourModal.booking}
+          onClose={() => setEditDayTourModal({ show: false, booking: null })}
+          onSuccess={(updated) => {
+            const editedId = editDayTourModal.booking?.id;
+            setSidebarBooking((prev) => {
+              if (!prev || prev.id !== editedId) return prev;
+              return { ...prev, ...updated, type: 'daytour' };
+            });
+            showNotification('Day tour booking updated successfully.', 'success');
+            setEditDayTourModal({ show: false, booking: null });
+          }}
+        />
+      )}
     </div>
   );
 }
