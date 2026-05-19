@@ -2,6 +2,7 @@
 
 import { Suspense, useEffect } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
+import { getReservationsPathForCheckin } from '@/lib/checkinNavigation';
 
 function CheckInMessage({ title, message }) {
   return (
@@ -27,7 +28,8 @@ function CheckInRedirectContent() {
 
     const userType = typeof window !== 'undefined' ? localStorage.getItem('userType') : null;
     if (userType === 'staff' || userType === 'admin') {
-      router.replace(`/dashboard/staff/reservations?checkinToken=${encodeURIComponent(token)}`);
+      const path = getReservationsPathForCheckin();
+      router.replace(`${path}?checkinToken=${encodeURIComponent(token)}`);
     }
   }, [token, router]);
 

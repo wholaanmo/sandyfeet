@@ -1,7 +1,7 @@
 // app/dashboard/admin/reservations/page.js
 'use client';
 
-import { useState, useEffect, useRef, useCallback, useMemo } from 'react';
+import { useState, useEffect, useRef, useCallback, useMemo, Suspense } from 'react';
 import { db } from '../../../../lib/firebase';
 import { collection, query, orderBy, onSnapshot, updateDoc, doc, getDoc, getDocs, where } from 'firebase/firestore';
 import { logAdminAction } from '../../../../lib/auditLogger';
@@ -12,11 +12,11 @@ import AdminRequestChangesModal from './components/AdminRequestChangesModal';
 import AdminActionReasonModal from './components/AdminActionReasonModal';
 import AdminEditBookingModal, { canAdminEditBooking } from './components/AdminEditBookingModal';
 import AdminEditDayTourModal, { canAdminEditDayTour } from './components/AdminEditDayTourModal';
+import CheckinTokenHandler from '@/components/reservations/CheckinTokenHandler';
 
-export default function AdminReservations() {
+function AdminReservationsPage() {
   const router = useRouter();
-  const searchParams = useSearchParams(); // <-- ADDED
-  const checkinToken = searchParams.get('checkinToken');
+  const searchParams = useSearchParams();
   const restoreGuestProfile = searchParams.get('restoreGuestProfile');
   const [activeTab, setActiveTab] = useState('rooms');
   const [statusFilter, setStatusFilter] = useState('all');
@@ -1535,72 +1535,6 @@ export default function AdminReservations() {
     setShowPaymentModal(false);
   };
 
-  useEffect(() => {
-    const openSidebarFromToken = async () => {
-      if (!checkinToken) return;
-      try {
-        const tokenRef = doc(db, 'checkinTokens', checkinToken);
-        const tokenDoc = await getDoc(tokenRef);
-        if (!tokenDoc.exists()) return;
-
-        const tokenData = tokenDoc.data();
-        const bookingId = tokenData.bookingId;
-
-        const dayTourQuery = query(collection(db, 'dayTourBookings'), where('bookingId', '==', bookingId));
-        const dayTourSnapshot = await getDocs(dayTourQuery);
-        if (!dayTourSnapshot.empty) {
-          const tourDoc = dayTourSnapshot.docs[0];
-          const tourData = tourDoc.data();
-          const dayTourBooking = {
-            id: tourDoc.id,
-            ...tourData,
-            type: 'daytour',
-            bookingId: tourData.bookingId,
-            guestInfo: tourData.guestInfo,
-            selectedDate: tourData.selectedDate,
-            adults: tourData.adults,
-            kids: tourData.kids,
-            seniors: tourData.seniors || 0,
-            totalPrice: tourData.totalPrice,
-            status: tourData.status,
-            paymentProof: tourData.paymentProof,
-            validIdImage: tourData.validIdImage,
-            validIdType: tourData.validIdType,
-            specialRequest: tourData.specialRequest,
-            createdAt: tourData.createdAt
-          };
-          setActiveTab('daytour');
-          openSidebar(dayTourBooking);
-          return;
-        }
-
-        const roomQuery1 = query(collection(db, 'bookings'), where('bookingId', '==', bookingId));
-        const roomQuery2 = query(collection(db, 'bookings'), where('parentBookingId', '==', bookingId));
-        const [snap1, snap2] = await Promise.all([getDocs(roomQuery1), getDocs(roomQuery2)]);
-        const matchedDocs = [...snap1.docs, ...snap2.docs];
-        if (matchedDocs.length === 0) {
-          console.warn('No room booking found for token', bookingId);
-          return;
-        }
-
-        const roomBookingsList = matchedDocs.map((bookingDoc) => ({ id: bookingDoc.id, ...bookingDoc.data() }));
-        const groupedRooms = groupMultiRoomBookings(roomBookingsList);
-        if (groupedRooms.length > 0) {
-          setActiveTab('rooms');
-          openSidebar(groupedRooms[0]);
-        } else {
-          console.warn('No room booking to display for token', bookingId);
-        }
-      } catch (error) {
-        console.error('Error retrieving booking from token:', error);
-      }
-    };
-
-    if (checkinToken) {
-      openSidebarFromToken();
-    }
-  }, [checkinToken]);
-
   // Function to close sidebar
   const closeSidebar = () => {
     setIsSidebarOpen(false);
@@ -1687,6 +1621,13 @@ export default function AdminReservations() {
 
   return (
     <div className="px-4 sm:px-9 py-1 min-h-screen" style={{ backgroundColor: 'var(--color-blue-whites)' }}>
+      <Suspense fallback={null}>
+        <CheckinTokenHandler
+          groupMultiRoomBookings={groupMultiRoomBookings}
+          openSidebar={openSidebar}
+          setActiveTab={setActiveTab}
+        />
+      </Suspense>
       {/* Header */}
       <div className="mb-6 rounded-xl border border-[#7AAAF8]/20 bg-[#7AAAF8]/5 px-4 sm:px-5 py-4 shadow-sm flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
@@ -3467,5 +3408,21 @@ export default function AdminReservations() {
         />
       )}
     </div>
+  );
+}
+
+function ReservationsPageFallback() {
+  return (
+    <div className="px-4 sm:px-9 py-1 min-h-screen flex items-center justify-center" style={{ backgroundColor: 'var(--color-blue-whites)' }}>
+      <div className="w-8 h-8 border-2 border-[#4D8CF5] border-t-transparent rounded-full animate-spin" />
+    </div>
+  );
+}
+
+export default function AdminReservations() {
+  return (
+    <Suspense fallback={<ReservationsPageFallback />}>
+      <AdminReservationsPage />
+    </Suspense>
   );
 }

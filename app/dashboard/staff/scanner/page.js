@@ -1,9 +1,14 @@
 // app/dashboard/staff/scanner/page.js
 'use client';
 
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import { Html5Qrcode } from 'html5-qrcode';
+import {
+  extractCheckinTokenFromScan,
+  getReservationsPathForCheckin,
+  PENDING_CHECKIN_TOKEN_KEY,
+} from '@/lib/checkinNavigation';
 
 export default function StaffScannerPage() {
   const router = useRouter();
@@ -16,6 +21,7 @@ export default function StaffScannerPage() {
   const containerIdRef = useRef('qr-reader');
   const containerRef = useRef(null);
   const stopInProgressRef = useRef(false);
+  const scanHandledRef = useRef(false);
 
   const stopScanner = async () => {
     if (!scannerRef.current || stopInProgressRef.current) return;
@@ -49,6 +55,33 @@ export default function StaffScannerPage() {
     };
     fetchCameras();
   }, []);
+
+  const handleScanSuccess = useCallback(async (decodedText) => {
+    if (scanHandledRef.current) return;
+    scanHandledRef.current = true;
+
+    await stopScanner();
+
+    const token = extractCheckinTokenFromScan(decodedText);
+    if (!token) {
+      scanHandledRef.current = false;
+      setScanResult({ success: false, error: 'Invalid QR code format' });
+      return;
+    }
+
+    setScanResult({ success: true, token });
+
+    if (typeof window !== 'undefined') {
+      sessionStorage.setItem(PENDING_CHECKIN_TOKEN_KEY, token);
+    }
+
+    const reservationsPath = getReservationsPathForCheckin();
+    const targetUrl = `${reservationsPath}?checkinToken=${encodeURIComponent(token)}`;
+
+    setTimeout(() => {
+      router.replace(targetUrl);
+    }, 800);
+  }, [router]);
 
   // Start scanner when camera ID is available and no scan result
   useEffect(() => {
@@ -117,73 +150,13 @@ export default function StaffScannerPage() {
       isMounted = false;
       stopScanner();
     };
-  }, [currentCameraId, scanResult]);
-
-  const extractCheckinToken = (decodedText) => {
-    const text = (decodedText || '').trim();
-    if (!text) return null;
-
-    try {
-      const url = new URL(text, window.location.origin);
-      const fromQuery = url.searchParams.get('token');
-      if (fromQuery) return fromQuery;
-    } catch {
-      // Not a full URL – try regex fallback below
-    }
-
-    const match = text.match(/[?&]token=([^&\s#]+)/i);
-    if (match?.[1]) return decodeURIComponent(match[1]);
-
-    if (/^[a-f0-9]{32,64}$/i.test(text)) return text;
-
-    return null;
-  };
-
-  const handleScanSuccess = async (decodedText) => {
-    await stopScanner();
-
-    const token = extractCheckinToken(decodedText);
-    if (!token) {
-      setScanResult({ success: false, error: 'Invalid QR code format' });
-      return;
-    }
-
-    try {
-      const response = await fetch(`/api/checkin/resolve-token?token=${encodeURIComponent(token)}`);
-      const contentType = response.headers.get('content-type') || '';
-
-      if (!contentType.includes('application/json')) {
-        throw new Error('Server returned a non-JSON response');
-      }
-
-      const data = await response.json();
-
-      if (!response.ok || !data.valid) {
-        setScanResult({
-          success: false,
-          error: data.error || 'Invalid or expired check-in token',
-        });
-        return;
-      }
-
-      setScanResult({ success: true, token });
-      setTimeout(() => {
-        router.push(`/dashboard/staff/reservations?checkinToken=${encodeURIComponent(token)}`);
-      }, 1500);
-    } catch (error) {
-      console.error('QR validation error:', error);
-      setScanResult({
-        success: false,
-        error: 'Could not validate QR code. Please try again or use manual check-in.',
-      });
-    }
-  };
+  }, [currentCameraId, scanResult, handleScanSuccess]);
 
   const resetScanner = () => {
+    scanHandledRef.current = false;
     setScanResult(null);
     setCameraError(null);
     setIsScanning(false);
-    // The effect will restart with currentCameraId
   };
 
   const switchCamera = async () => {
@@ -194,7 +167,7 @@ export default function StaffScannerPage() {
     setCurrentCameraId(cameras[nextIndex].id);
   };
 
-  const handleManualCheckIn = () => router.push('/dashboard/staff/reservations');
+  const handleManualCheckIn = () => router.push(getReservationsPathForCheckin());
 
   return (
     <div className="px-4 sm:px-9 py-1 min-h-screen" style={{ backgroundColor: 'var(--color-blue-whites)' }}>
