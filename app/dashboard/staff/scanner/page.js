@@ -119,23 +119,63 @@ export default function StaffScannerPage() {
     };
   }, [currentCameraId, scanResult]);
 
-  const handleScanSuccess = async (decodedText) => {
-    // Stop scanner immediately
-    await stopScanner();
+  const extractCheckinToken = (decodedText) => {
+    const text = (decodedText || '').trim();
+    if (!text) return null;
 
     try {
-      const url = new URL(decodedText);
-      const token = url.searchParams.get('token');
-      if (token) {
-        setScanResult({ success: true, token });
-        setTimeout(() => {
-          router.push(`/dashboard/staff/reservations?checkinToken=${token}`);
-        }, 1500);
-      } else {
-        setScanResult({ success: false, error: 'No check-in token found' });
-      }
+      const url = new URL(text, window.location.origin);
+      const fromQuery = url.searchParams.get('token');
+      if (fromQuery) return fromQuery;
     } catch {
+      // Not a full URL – try regex fallback below
+    }
+
+    const match = text.match(/[?&]token=([^&\s#]+)/i);
+    if (match?.[1]) return decodeURIComponent(match[1]);
+
+    if (/^[a-f0-9]{32,64}$/i.test(text)) return text;
+
+    return null;
+  };
+
+  const handleScanSuccess = async (decodedText) => {
+    await stopScanner();
+
+    const token = extractCheckinToken(decodedText);
+    if (!token) {
       setScanResult({ success: false, error: 'Invalid QR code format' });
+      return;
+    }
+
+    try {
+      const response = await fetch(`/api/checkin/resolve-token?token=${encodeURIComponent(token)}`);
+      const contentType = response.headers.get('content-type') || '';
+
+      if (!contentType.includes('application/json')) {
+        throw new Error('Server returned a non-JSON response');
+      }
+
+      const data = await response.json();
+
+      if (!response.ok || !data.valid) {
+        setScanResult({
+          success: false,
+          error: data.error || 'Invalid or expired check-in token',
+        });
+        return;
+      }
+
+      setScanResult({ success: true, token });
+      setTimeout(() => {
+        router.push(`/dashboard/staff/reservations?checkinToken=${encodeURIComponent(token)}`);
+      }, 1500);
+    } catch (error) {
+      console.error('QR validation error:', error);
+      setScanResult({
+        success: false,
+        error: 'Could not validate QR code. Please try again or use manual check-in.',
+      });
     }
   };
 

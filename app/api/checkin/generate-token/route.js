@@ -1,27 +1,29 @@
 // app/api/checkin/generate-token/route.js
-import { db } from '@/lib/firebase';
-import { collection, query, where, getDocs, updateDoc, doc, setDoc, serverTimestamp } from 'firebase/firestore';
+import { firestore } from '@/lib/firebaseAdmin';
 import { NextResponse } from 'next/server';
 import crypto from 'crypto';
+import { FieldValue } from 'firebase-admin/firestore';
 
 export async function POST(request) {
   try {
+    if (!firestore) {
+      return NextResponse.json({ error: 'Server configuration error' }, { status: 500 });
+    }
+
     const { bookingId } = await request.json();
     if (!bookingId) {
       return NextResponse.json({ error: 'Booking ID required' }, { status: 400 });
     }
 
-    // 1. Search in room bookings (collection 'bookings')
-    const bookingsRef = collection(db, 'bookings');
-    const q1 = query(bookingsRef, where('bookingId', '==', bookingId));
-    const q2 = query(bookingsRef, where('parentBookingId', '==', bookingId));
-    const [snapshot1, snapshot2] = await Promise.all([getDocs(q1), getDocs(q2)]);
+    const bookingsRef = firestore.collection('bookings');
+    const [snapshot1, snapshot2] = await Promise.all([
+      bookingsRef.where('bookingId', '==', bookingId).get(),
+      bookingsRef.where('parentBookingId', '==', bookingId).get(),
+    ]);
     const matchedRoomDocs = [...snapshot1.docs, ...snapshot2.docs];
 
-    // 2. Search in day tour bookings (collection 'dayTourBookings')
-    const dayTourRef = collection(db, 'dayTourBookings');
-    const dayTourQuery = query(dayTourRef, where('bookingId', '==', bookingId));
-    const dayTourSnapshot = await getDocs(dayTourQuery);
+    const dayTourRef = firestore.collection('dayTourBookings');
+    const dayTourSnapshot = await dayTourRef.where('bookingId', '==', bookingId).get();
     const matchedDayTourDocs = dayTourSnapshot.docs;
 
     const matchedDocs = [...matchedRoomDocs, ...matchedDayTourDocs];
@@ -29,34 +31,32 @@ export async function POST(request) {
       return NextResponse.json({ error: 'No booking found with the given ID' }, { status: 404 });
     }
 
-    // 3. Generate unique token
     const token = crypto.randomBytes(32).toString('hex');
 
-    // 4. Store token document in checkinTokens collection (common for both types)
-    const tokenRef = doc(db, 'checkinTokens', token);
-    await setDoc(tokenRef, {
-      bookingId: bookingId,
-      createdAt: serverTimestamp(),
+    await firestore.collection('checkinTokens').doc(token).set({
+      bookingId,
+      createdAt: FieldValue.serverTimestamp(),
       used: false,
       usedAt: null,
-      valid: true
+      valid: true,
     });
 
-    // 5. Update each matched booking document with the token
+    const batch = firestore.batch();
     for (const docSnap of matchedDocs) {
-      const bookingDocRef = doc(db, docSnap.ref.parent.path, docSnap.id);
-      await updateDoc(bookingDocRef, {
+      batch.update(docSnap.ref, {
         checkinToken: token,
-        checkinTokenCreatedAt: serverTimestamp()
+        checkinTokenCreatedAt: FieldValue.serverTimestamp(),
       });
     }
+    await batch.commit();
+
+    const baseUrl = process.env.NEXTAUTH_URL || process.env.NEXT_PUBLIC_BASE_URL || 'http://localhost:3000';
 
     return NextResponse.json({
       success: true,
-      token: token,
-      checkinUrl: `${process.env.NEXTAUTH_URL}/check-in?token=${token}`
+      token,
+      checkinUrl: `${baseUrl}/check-in?token=${token}`,
     });
-
   } catch (error) {
     console.error('Error generating token:', error);
     return NextResponse.json({ error: 'Failed to generate token' }, { status: 500 });

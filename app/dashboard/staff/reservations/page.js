@@ -114,75 +114,6 @@ export default function AdminReservations() {
   };
 
   useEffect(() => {
-    const openSidebarFromToken = async () => {
-      if (!checkinToken) return;
-      try {
-        const tokenRef = doc(db, 'checkinTokens', checkinToken);
-        const tokenDoc = await getDoc(tokenRef);
-        if (!tokenDoc.exists()) return;
-
-        const tokenData = tokenDoc.data();
-        const bookingId = tokenData.bookingId;
-
-        // 1. Try day tour collection first (unchanged – already working)
-        const dayTourQuery = query(collection(db, 'dayTourBookings'), where('bookingId', '==', bookingId));
-        const dayTourSnapshot = await getDocs(dayTourQuery);
-        if (!dayTourSnapshot.empty) {
-          const tourDoc = dayTourSnapshot.docs[0];
-          const tourData = tourDoc.data();
-          const dayTourBooking = {
-            id: tourDoc.id,
-            ...tourData,
-            type: 'daytour',
-            bookingId: tourData.bookingId,
-            guestInfo: tourData.guestInfo,
-            selectedDate: tourData.selectedDate,
-            adults: tourData.adults,
-            kids: tourData.kids,
-            seniors: tourData.seniors || 0,
-            totalPrice: tourData.totalPrice,
-            status: tourData.status,
-            paymentProof: tourData.paymentProof,
-            validIdImage: tourData.validIdImage,
-            validIdType: tourData.validIdType,
-            specialRequest: tourData.specialRequest,
-            createdAt: tourData.createdAt
-          };
-          setActiveTab('daytour');
-          openSidebar(dayTourBooking);
-          return;
-        }
-
-        // 2. Room booking – use the existing grouping function to handle all cases
-        const roomQuery1 = query(collection(db, 'bookings'), where('bookingId', '==', bookingId));
-        const roomQuery2 = query(collection(db, 'bookings'), where('parentBookingId', '==', bookingId));
-        const [snap1, snap2] = await Promise.all([getDocs(roomQuery1), getDocs(roomQuery2)]);
-        const matchedDocs = [...snap1.docs, ...snap2.docs];
-        if (matchedDocs.length === 0) {
-          console.warn('No room booking found for token', bookingId);
-          return;
-        }
-
-        // Convert to plain objects and group them (works for single and multi‑room)
-        const roomBookingsList = matchedDocs.map(doc => ({ id: doc.id, ...doc.data() }));
-        const groupedRooms = groupMultiRoomBookings(roomBookingsList);
-        if (groupedRooms.length > 0) {
-          setActiveTab('rooms');
-          openSidebar(groupedRooms[0]); // The first (and only) grouped object is the correct booking
-        } else {
-          console.warn('No room booking to display for token', bookingId);
-        }
-      } catch (error) {
-        console.error('Error retrieving booking from token:', error);
-      }
-    };
-
-    if (checkinToken) {
-      openSidebarFromToken();
-    }
-  }, [checkinToken]);
-
-  useEffect(() => {
     const allowed = activeTab === 'rooms' ? roomStatuses : dayTourStatuses;
     if (!allowed.includes(statusFilter)) {
       setStatusFilter('all');
@@ -1603,6 +1534,72 @@ export default function AdminReservations() {
     setIsSidebarOpen(true);
     setShowPaymentModal(false);
   };
+
+  useEffect(() => {
+    const openSidebarFromToken = async () => {
+      if (!checkinToken) return;
+      try {
+        const tokenRef = doc(db, 'checkinTokens', checkinToken);
+        const tokenDoc = await getDoc(tokenRef);
+        if (!tokenDoc.exists()) return;
+
+        const tokenData = tokenDoc.data();
+        const bookingId = tokenData.bookingId;
+
+        const dayTourQuery = query(collection(db, 'dayTourBookings'), where('bookingId', '==', bookingId));
+        const dayTourSnapshot = await getDocs(dayTourQuery);
+        if (!dayTourSnapshot.empty) {
+          const tourDoc = dayTourSnapshot.docs[0];
+          const tourData = tourDoc.data();
+          const dayTourBooking = {
+            id: tourDoc.id,
+            ...tourData,
+            type: 'daytour',
+            bookingId: tourData.bookingId,
+            guestInfo: tourData.guestInfo,
+            selectedDate: tourData.selectedDate,
+            adults: tourData.adults,
+            kids: tourData.kids,
+            seniors: tourData.seniors || 0,
+            totalPrice: tourData.totalPrice,
+            status: tourData.status,
+            paymentProof: tourData.paymentProof,
+            validIdImage: tourData.validIdImage,
+            validIdType: tourData.validIdType,
+            specialRequest: tourData.specialRequest,
+            createdAt: tourData.createdAt
+          };
+          setActiveTab('daytour');
+          openSidebar(dayTourBooking);
+          return;
+        }
+
+        const roomQuery1 = query(collection(db, 'bookings'), where('bookingId', '==', bookingId));
+        const roomQuery2 = query(collection(db, 'bookings'), where('parentBookingId', '==', bookingId));
+        const [snap1, snap2] = await Promise.all([getDocs(roomQuery1), getDocs(roomQuery2)]);
+        const matchedDocs = [...snap1.docs, ...snap2.docs];
+        if (matchedDocs.length === 0) {
+          console.warn('No room booking found for token', bookingId);
+          return;
+        }
+
+        const roomBookingsList = matchedDocs.map((bookingDoc) => ({ id: bookingDoc.id, ...bookingDoc.data() }));
+        const groupedRooms = groupMultiRoomBookings(roomBookingsList);
+        if (groupedRooms.length > 0) {
+          setActiveTab('rooms');
+          openSidebar(groupedRooms[0]);
+        } else {
+          console.warn('No room booking to display for token', bookingId);
+        }
+      } catch (error) {
+        console.error('Error retrieving booking from token:', error);
+      }
+    };
+
+    if (checkinToken) {
+      openSidebarFromToken();
+    }
+  }, [checkinToken]);
 
   // Function to close sidebar
   const closeSidebar = () => {
