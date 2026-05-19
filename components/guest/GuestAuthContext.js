@@ -11,6 +11,18 @@ import {
   updateProfile
 } from 'firebase/auth';
 import { doc, getDoc, serverTimestamp, setDoc, updateDoc, deleteDoc } from 'firebase/firestore';
+
+/** Routes where staff/admin auth runs — never sync guestProfiles here */
+function isStaffOrAdminAppRoute() {
+  if (typeof window === 'undefined') return false;
+  const path = window.location.pathname;
+  return (
+    path === '/login' ||
+    path === '/verify-staff' ||
+    path === '/reset-password' ||
+    path.startsWith('/dashboard/')
+  );
+}
 import { auth, db } from '@/lib/firebase';
 
 const GuestAuthContext = createContext(null);
@@ -51,6 +63,23 @@ async function isAdminOrStaffUser(uid) {
   } catch (err) {
     console.error('Error checking user role:', err);
     return false;
+  }
+}
+
+/** Remove guestProfiles doc when uid belongs to admin/staff in users collection */
+async function removeGuestProfileForStaffUser(uid) {
+  if (!uid) return;
+  try {
+    const isAdminStaff = await isAdminOrStaffUser(uid);
+    if (!isAdminStaff) return;
+
+    const profileRef = doc(db, 'guestProfiles', uid);
+    const profileSnap = await getDoc(profileRef);
+    if (profileSnap.exists()) {
+      await deleteDoc(profileRef);
+    }
+  } catch (err) {
+    console.error('Error removing guest profile for staff user:', err);
   }
 }
 
@@ -126,6 +155,8 @@ async function upsertGuestProfile(firebaseUser, additionalData = {}) {
 
 async function syncEmailVerificationStatus(firebaseUser) {
   if (!firebaseUser || !isEmailUser(firebaseUser)) return;
+  if (isStaffOrAdminAppRoute()) return;
+  if (await isAdminOrStaffUser(firebaseUser.uid)) return;
 
   const profileRef = doc(db, 'guestProfiles', firebaseUser.uid);
   const profileSnap = await getDoc(profileRef);
@@ -156,13 +187,13 @@ export function GuestAuthProvider({ children }) {
         return;
       }
 
-      // CRITICAL FIX: Check if this is an admin/staff user
       const isAdminStaff = await isAdminOrStaffUser(firebaseUser.uid);
-      
-      if (isAdminStaff) {
-        // Admin/Staff users should NOT be managed by GuestAuthContext
-        // They use separate session management via app/login
-        console.log('Admin/Staff user detected - skipping guest profile handling');
+
+      // Staff login & dashboard: never create or sync guestProfiles
+      if (isStaffOrAdminAppRoute() || isAdminStaff) {
+        if (isAdminStaff) {
+          await removeGuestProfileForStaffUser(firebaseUser.uid);
+        }
         setUser(null);
         setProfile(null);
         setLoading(false);

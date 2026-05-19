@@ -485,25 +485,35 @@ export default function HomePage() {
               <p className="mb-10 max-w-xl pr-0 text-base leading-relaxed text-[#4A6762] sm:text-lg xl:max-w-md xl:pr-8">
                 Reserve rooms and day tours in minutes. Enjoy a quick and smooth booking flow from search to confirmation.
               </p>
-              <div className="flex flex-col items-stretch gap-3 sm:flex-row sm:items-center sm:gap-4">
-                <Link
-                  href="/rooms"
-                  className="rounded-full bg-[#3B82F6] px-8 py-3.5 text-center text-base font-semibold text-white shadow-xl shadow-blue-500/20 transition-all hover:-translate-y-0.5 hover:bg-[#2563EB]"
-                >
-                  Explore Rooms
-                </Link>
-                <Link
-                  href="/day-tour"
-                  className="rounded-full border border-gray-200 bg-white px-8 py-3.5 text-center text-base font-semibold text-gray-800 shadow-sm transition-all hover:-translate-y-0.5 hover:bg-gray-50"
-                >
-                  Book a Day Tour
-                </Link>
-                <button
-  onClick={() => setShowAIRecommendation(true)}
-  className="rounded-full bg-gradient-to-r from-indigo-500 to-purple-500 px-8 py-3.5 text-center text-base font-semibold text-white shadow-xl shadow-indigo-500/20 transition-all hover:-translate-y-0.5 hover:shadow-2xl"
->
-  ✨ AI Room Recommendation
-</button>
+              <div className="flex flex-col gap-3 max-w-md sm:max-w-none">
+                {/* Explore & Book Row */}
+                <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3 sm:gap-3.5">
+                  <Link
+                    href="/rooms"
+                    className="inline-flex items-center justify-center gap-2 rounded-full bg-blue-600 px-6 py-2.5 text-sm font-semibold text-white shadow-sm hover:shadow-md hover:bg-blue-700 hover:-translate-y-0.5 transition-all duration-300 ease-out"
+                  >
+                    <i className="fas fa-search text-xs"></i>
+                    Explore Rooms
+                  </Link>
+                  <Link
+                    href="/day-tour"
+                    className="inline-flex items-center justify-center gap-2 rounded-full border border-gray-200/80 bg-white/95 px-6 py-2.5 text-sm font-semibold text-gray-800 shadow-xs hover:bg-gray-50 hover:border-gray-300 hover:shadow-sm hover:-translate-y-0.5 transition-all duration-300 ease-out"
+                  >
+                    <i className="fas fa-umbrella-beach text-xs text-blue-500"></i>
+                    Book a Day Tour
+                  </Link>
+                </div>
+
+                {/* AI Recommendation Row */}
+                <div className="flex flex-col sm:flex-row">
+                  <button
+                    onClick={() => setShowAIRecommendation(true)}
+                    className="inline-flex items-center justify-center gap-2 rounded-full bg-indigo-600 px-6 py-2.5 text-sm font-semibold text-white shadow-sm hover:shadow-md hover:bg-indigo-700 hover:-translate-y-0.5 transition-all duration-300 ease-out group"
+                  >
+                    <span className="inline-block animate-pulse group-hover:scale-110 transition-transform duration-300">✨</span>
+                    <span>AI Room Recommendation</span>
+                  </button>
+                </div>
               </div>
             </div>
 

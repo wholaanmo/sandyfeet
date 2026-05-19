@@ -4,6 +4,7 @@
 import { useState, useEffect } from 'react';
 import Image from 'next/image';
 import Link from 'next/link';
+import { useRouter } from 'next/navigation';
 import { db } from '@/lib/firebase';
 import { collection, getDocs, query, where } from 'firebase/firestore';
 import { XMarkIcon, ChevronLeftIcon } from '@heroicons/react/24/outline';
@@ -43,6 +44,7 @@ const priorityOptions = [
 ];
 
 export default function AIRoomRecommendationModal({ isOpen, onClose }) {
+  const router = useRouter();
   const [step, setStep] = useState(1);
   const [answers, setAnswers] = useState({
     guest: null,
@@ -98,8 +100,23 @@ export default function AIRoomRecommendationModal({ isOpen, onClose }) {
   };
 
   const computeRecommendations = (finalAnswers) => {
-    if (!rooms.length) return;
+    if (!rooms.length && finalAnswers.guest !== 'exclusive') return;
 
+    // 🔹 EXCLUSIVE STAY HANDLING
+    if (finalAnswers.guest === 'exclusive') {
+      const exclusiveReason = 'Perfect for guests who want the entire resort experience with maximum privacy and exclusivity.';
+      setRecommendations([
+        {
+          exclusive: true,
+          score: 100,
+          reasons: [exclusiveReason],
+        },
+      ]);
+      setStep(3);
+      return;
+    }
+
+    // Normal room scoring for other guest types
     const guestData = guestOptions.find(g => g.id === finalAnswers.guest);
     const guestMin = guestData?.min || 1;
     const guestMax = guestData?.max || 1;
@@ -110,7 +127,7 @@ export default function AIRoomRecommendationModal({ isOpen, onClose }) {
       let score = 0;
       const reasons = [];
 
-      // ----- Capacity match -----
+      // Capacity match
       const capacityMin = room.capacityMin || 1;
       const capacityMax = room.capacityMax || capacityMin;
       if (capacityMax >= guestMin && capacityMin <= guestMax) {
@@ -123,73 +140,63 @@ export default function AIRoomRecommendationModal({ isOpen, onClose }) {
         score -= 20;
       }
 
-      // ----- Experience preferences -----
+      // Experience preferences
       const roomType = (room.type || '').toLowerCase();
       const inclusions = (room.inclusions || []).map(i => i.toLowerCase());
 
-      // Nature / Camping → prefer Tent
       if (experience === 'nature' && roomType.includes('tent')) {
         score += 35;
         reasons.push('perfect for a camping vibe');
       }
-      // Romantic Getaway → prefer Couple Room
       if (experience === 'romantic' && roomType.includes('couple')) {
         score += 35;
         reasons.push('ideal for a romantic escape');
       }
-      // Barkada Bonding → prefer Group Room
       if (experience === 'barkada' && roomType.includes('group')) {
         score += 35;
         reasons.push('great for barkada bonding');
       }
-      // Relaxing Stay → prefer Ground Floor or AC
       if (experience === 'relaxing') {
         if (roomType.includes('ground')) score += 20;
         if (inclusions.some(i => i.includes('air-conditioned'))) score += 15;
         if (score > 0) reasons.push('designed for relaxation');
       }
-      // Private Exclusive Vacation → prefer Group Room or highest capacity
       if (experience === 'privateExclusive') {
         if (roomType.includes('group')) score += 30;
         else if (capacityMax >= 10) score += 20;
         reasons.push('exclusive feel');
       }
 
-      // ----- Priority preferences -----
-      // Budget‑Friendly: lower price → higher score
+      // Priority preferences
       if (priority === 'budget') {
         const maxPrice = Math.max(...rooms.map(r => r.price), 1);
         const priceScore = (1 - room.price / maxPrice) * 20;
         score += priceScore;
         reasons.push('budget‑friendly option');
       }
-      // Comfort: AC or fan + good amenities
       if (priority === 'comfort') {
         if (inclusions.some(i => i.includes('air-conditioned') || i.includes('fan'))) score += 20;
         if (inclusions.length > 3) score += 10;
         if (score > 0) reasons.push('comfortable stay');
       }
-      // Spacious Area: higher capacity
       if (priority === 'spacious') {
         const maxCap = Math.max(...rooms.map(r => r.capacityMax || 1));
         const spaceScore = ((capacityMax - 1) / (maxCap - 1)) * 20;
         score += spaceScore;
         if (spaceScore > 10) reasons.push('spacious and roomy');
       }
-      // Privacy: Couple Room or small capacity
       if (priority === 'privacy') {
         if (roomType.includes('couple') || capacityMax <= 2) score += 25;
         else if (capacityMax <= 4) score += 10;
         reasons.push('good privacy');
       }
-      // Unique Experience: Tent or special room type
       if (priority === 'unique') {
         if (roomType.includes('tent')) score += 25;
         else if (roomType.includes('couple')) score += 10;
         reasons.push('unique experience');
       }
 
-      // ----- Combined rule: Small Group + Budget‑Friendly -----
+      // Combined rule
       if (finalAnswers.guest === 'smallGroup' && priority === 'budget') {
         if (roomType.includes('tent') || roomType.includes('ground')) {
           score += 20;
@@ -211,120 +218,158 @@ export default function AIRoomRecommendationModal({ isOpen, onClose }) {
     setRecommendations([]);
   };
 
+  // Clamp match percentage between 0 and 100
+  const getMatchPercent = (score) => {
+    let percent = Math.floor(score / 1.5);
+    if (percent < 0) percent = 0;
+    if (percent > 100) percent = 100;
+    return percent;
+  };
+
   if (!isOpen) return null;
 
-  // Progress indicator
   const progressPercent = ((step - 1) / 2) * 100;
 
-  // Render question step
   const renderQuestion = () => {
     if (step === 1) {
       return (
-        <>
-          <h3 className="text-2xl font-playfair text-[#0f2824] mb-2">How many guests are staying?</h3>
-          <p className="text-gray-500 text-sm mb-6">Select the option that matches your group size.</p>
+        <div className="animate-fadeIn">
+          <h3 className="text-xl font-bold text-gray-900 mb-1.5">How many guests are staying?</h3>
+          <p className="text-gray-500 text-xs mb-6">Select the option that matches your group size.</p>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             {guestOptions.map(opt => (
               <button
                 key={opt.id}
                 onClick={() => handleAnswer('guest', opt.id)}
-                className="group p-4 rounded-2xl border border-gray-200 bg-white/80 backdrop-blur-sm text-left transition-all hover:shadow-lg hover:-translate-y-1 hover:border-blue-200 focus:outline-none focus:ring-2 focus:ring-blue-300"
+                className="group relative p-4 rounded-2xl border border-slate-100 bg-white shadow-xs text-left transition-all duration-300 hover:shadow-md hover:-translate-y-0.5 hover:border-blue-500/30 hover:bg-blue-50/10 focus:outline-none"
               >
-                <div className="font-semibold text-gray-800">{opt.label}</div>
-                <div className="text-xs text-gray-400 mt-1">Select</div>
+                <div className="flex items-center justify-between gap-3">
+                  <div>
+                    <div className="font-bold text-gray-800 group-hover:text-blue-900 transition-colors">{opt.label}</div>
+                    <div className="text-[10px] text-gray-400 mt-1 uppercase tracking-wider font-semibold">Select Option</div>
+                  </div>
+                  <div className="flex h-7 w-7 items-center justify-center rounded-full bg-slate-50 text-slate-400 group-hover:bg-blue-100 group-hover:text-blue-600 transition-all duration-300">
+                    <i className="fas fa-chevron-right text-[10px]"></i>
+                  </div>
+                </div>
               </button>
             ))}
           </div>
-        </>
+        </div>
       );
     }
 
     if (step === 2) {
       return (
-        <>
-          <h3 className="text-2xl font-playfair text-[#0f2824] mb-2">What kind of experience are you looking for?</h3>
-          <p className="text-gray-500 text-sm mb-6">Tell us your vibe.</p>
+        <div className="animate-fadeIn">
+          <h3 className="text-xl font-bold text-gray-900 mb-1.5">What kind of experience are you looking for?</h3>
+          <p className="text-gray-500 text-xs mb-6">Tell us your perfect resort vibe.</p>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             {experienceOptions.map(opt => (
               <button
                 key={opt.id}
                 onClick={() => handleAnswer('experience', opt.id)}
-                className="group p-4 rounded-2xl border border-gray-200 bg-white/80 backdrop-blur-sm text-left transition-all hover:shadow-lg hover:-translate-y-1 hover:border-blue-200"
+                className="group relative p-4 rounded-2xl border border-slate-100 bg-white shadow-xs text-left transition-all duration-300 hover:shadow-md hover:-translate-y-0.5 hover:border-blue-500/30 hover:bg-blue-50/10 focus:outline-none"
               >
-                <div className="font-semibold text-gray-800">{opt.label}</div>
+                <div className="flex items-center justify-between gap-3">
+                  <div>
+                    <div className="font-bold text-gray-800 group-hover:text-blue-900 transition-colors">{opt.label}</div>
+                    <div className="text-[10px] text-gray-400 mt-1 uppercase tracking-wider font-semibold">Choose Vibe</div>
+                  </div>
+                  <div className="flex h-7 w-7 items-center justify-center rounded-full bg-slate-50 text-slate-400 group-hover:bg-blue-100 group-hover:text-blue-600 transition-all duration-300">
+                    <i className="fas fa-chevron-right text-[10px]"></i>
+                  </div>
+                </div>
               </button>
             ))}
           </div>
-        </>
+        </div>
       );
     }
 
     if (step === 3 && recommendations.length === 0) {
       return (
-        <>
-          <h3 className="text-2xl font-playfair text-[#0f2824] mb-2">What matters most to you?</h3>
-          <p className="text-gray-500 text-sm mb-6">Choose your top priority.</p>
+        <div className="animate-fadeIn">
+          <h3 className="text-xl font-bold text-gray-900 mb-1.5">What matters most to you?</h3>
+          <p className="text-gray-500 text-xs mb-6">Choose your absolute top priority.</p>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             {priorityOptions.map(opt => (
               <button
                 key={opt.id}
                 onClick={() => handleAnswer('priority', opt.id)}
-                className="group p-4 rounded-2xl border border-gray-200 bg-white/80 backdrop-blur-sm text-left transition-all hover:shadow-lg hover:-translate-y-1 hover:border-blue-200"
+                className="group relative p-4 rounded-2xl border border-slate-100 bg-white shadow-xs text-left transition-all duration-300 hover:shadow-md hover:-translate-y-0.5 hover:border-blue-500/30 hover:bg-blue-50/10 focus:outline-none"
               >
-                <div className="font-semibold text-gray-800">{opt.label}</div>
+                <div className="flex items-center justify-between gap-3">
+                  <div>
+                    <div className="font-bold text-gray-800 group-hover:text-blue-900 transition-colors">{opt.label}</div>
+                    <div className="text-[10px] text-gray-400 mt-1 uppercase tracking-wider font-semibold">Select Priority</div>
+                  </div>
+                  <div className="flex h-7 w-7 items-center justify-center rounded-full bg-slate-50 text-slate-400 group-hover:bg-blue-100 group-hover:text-blue-600 transition-all duration-300">
+                    <i className="fas fa-chevron-right text-[10px]"></i>
+                  </div>
+                </div>
               </button>
             ))}
           </div>
-        </>
+        </div>
       );
     }
 
     // Results step (step === 3 and recommendations exist)
     if (step === 3 && recommendations.length > 0) {
       return (
-        <div className="animate-fadeIn">
-          <div className="flex items-center justify-between mb-6">
-            <h3 className="text-2xl font-playfair text-[#0f2824]">Your perfect stay</h3>
+        <div className="animate-fadeIn space-y-6">
+          <div className="flex items-center justify-between gap-4 border-b border-gray-100 pb-3">
+            <div>
+              <h3 className="text-xl font-bold text-gray-900">Your Recommended Stays</h3>
+              <p className="text-xs text-gray-500">Curated automatically based on your preferences</p>
+            </div>
             <button
               onClick={resetModal}
-              className="text-sm text-blue-500 hover:text-blue-700 flex items-center gap-1"
+              className="text-xs font-semibold text-blue-600 hover:text-blue-700 flex items-center gap-1 bg-blue-50 px-2.5 py-1.5 rounded-lg border border-blue-100/50 transition-all"
             >
-              <ChevronLeftIcon className="w-4 h-4" /> Start over
+              <ChevronLeftIcon className="w-3.5 h-3.5" /> Start Over
             </button>
           </div>
 
-          {/* Top recommendation */}
-          {recommendations[0] && (
-            <div className="mb-10">
-              <div className="text-xs font-semibold text-blue-500 mb-2">✨ TOP PICK</div>
-              <RoomCard
-                room={recommendations[0].room}
-                reason={recommendations[0].reasons.join(', ')}
-                matchPercent={Math.min(95, Math.floor(recommendations[0].score / 1.5))}
-              />
-            </div>
-          )}
-
-          {/* Alternative recommendations */}
-          {recommendations.length > 1 && (
+          {/* Check for Exclusive Stay recommendation */}
+          {recommendations[0]?.exclusive ? (
+            <ExclusiveStayCard reason={recommendations[0].reasons.join(', ')} />
+          ) : (
             <>
-              <h4 className="text-lg font-semibold text-gray-700 mb-4">Other great options</h4>
-              <div className="space-y-4">
-                {recommendations.slice(1, 4).map((item, idx) => (
-                  <RoomCard
-                    key={item.room.id}
-                    room={item.room}
-                    reason={item.reasons.join(', ')}
-                    matchPercent={Math.min(85, Math.floor(item.score / 1.5))}
-                    compact
-                  />
-                ))}
-              </div>
+              {/* Top recommendation */}
+              {recommendations[0] && (
+                <RoomCard
+                  room={recommendations[0].room}
+                  reason={recommendations[0].reasons.join(', ')}
+                  matchPercent={getMatchPercent(recommendations[0].score)}
+                />
+              )}
+
+              {/* Alternative recommendations */}
+              {recommendations.length > 1 && (
+                <div className="pt-2">
+                  <h4 className="text-sm font-bold text-gray-700 mb-3 flex items-center gap-1">
+                    <i className="fas fa-list text-blue-500 text-xs"></i> Other Great Options
+                  </h4>
+                  <div className="grid gap-3">
+                    {recommendations.slice(1, 4).map((item) => (
+                      <RoomCard
+                        key={item.room.id}
+                        room={item.room}
+                        reason={item.reasons.join(', ')}
+                        matchPercent={getMatchPercent(item.score)}
+                        compact
+                      />
+                    ))}
+                  </div>
+                </div>
+              )}
             </>
           )}
 
           {recommendations.length === 0 && (
-            <div className="text-center py-8 text-gray-500">
+            <div className="text-center py-10 text-sm text-gray-500">
               No rooms match your preferences right now. Please adjust your choices or check back later.
             </div>
           )}
@@ -335,61 +380,146 @@ export default function AIRoomRecommendationModal({ isOpen, onClose }) {
     return null;
   };
 
+  // Exclusive Stay Card Component
+  const ExclusiveStayCard = ({ reason }) => {
+    const matchPercent = 98; // High match for exclusive intent
+    return (
+      <div className="rounded-3xl border-2 border-amber-200 bg-gradient-to-br from-amber-50 via-white to-amber-50 shadow-lg overflow-hidden transition-all duration-300 hover:shadow-xl">
+        <div className="relative h-56 w-full">
+          {/* Resort representative image – replace with your own image */}
+          <div className="absolute inset-0 bg-gradient-to-r from-amber-900/60 to-blue-900/40 z-0" />
+          <div className="absolute inset-0 flex items-center justify-center z-10">
+            <i className="fas fa-crown text-7xl text-amber-300 drop-shadow-lg"></i>
+          </div>
+          <div className="absolute inset-0 bg-[url('/SandyFeet_logo2.png')] bg-cover bg-center opacity-30 mix-blend-overlay" />
+          <div className="absolute inset-0 bg-gradient-to-t from-black/50 via-transparent to-transparent" />
+          <div className="absolute top-4 right-4 bg-amber-600 text-white rounded-full px-3 py-1.5 text-xs font-bold shadow-md">
+            🎯 {matchPercent}% Match
+          </div>
+          <div className="absolute bottom-4 left-4 text-white">
+            <span className="text-[10px] uppercase font-bold tracking-widest bg-amber-600/90 backdrop-blur-xs px-2 py-0.5 rounded-md">Exclusive Recommendation</span>
+          </div>
+        </div>
+        <div className="p-6">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 mb-2">
+            <h3 className="text-xl font-bold text-gray-900">✨ Exclusive Resort Stay</h3>
+            <span className="text-lg font-bold text-amber-700 sm:text-right shrink-0">
+              Custom Quote
+            </span>
+          </div>
+          <p className="text-xs text-gray-500 mb-3 flex items-center gap-1.5">
+            <i className="fas fa-building text-amber-500 text-[10px]"></i> Entire resort (excluding tents) reserved just for you
+          </p>
+          <p className="text-gray-600 text-sm leading-relaxed mb-4">
+            Enjoy complete privacy, all resort amenities, and personalized service. Perfect for large groups, weddings, or corporate retreats.
+          </p>
+          {reason && (
+            <div className="p-3 bg-amber-50/60 rounded-2xl border border-amber-200 mb-5 flex items-start gap-2">
+              <span className="text-amber-600 mt-0.5">✨</span>
+              <p className="text-xs text-amber-900 leading-relaxed font-semibold">
+                Why we recommend this: <span className="font-medium text-amber-800">{reason}</span>
+              </p>
+            </div>
+          )}
+          <div>
+            <button
+              onClick={() => {
+                onClose(); // Close modal
+                router.push('/rooms');
+              }}
+              className="inline-flex items-center justify-center w-full rounded-xl bg-amber-600 px-5 py-3 text-sm font-semibold text-white shadow-sm hover:bg-amber-700 hover:shadow-md transition-all duration-300"
+            >
+              Book & View Details <i className="fas fa-arrow-right ml-2 text-xs"></i>
+            </button>
+          </div>
+        </div>
+      </div>
+    );
+  };
+
   const RoomCard = ({ room, reason, matchPercent, compact = false }) => {
     const imageUrl = room.images?.[0] || '/assets/placeholder-room.jpg';
     const slug = toRoomSlug(room.type);
-    const capacityText = `👥 ${room.capacityMin}–${room.capacityMax} guests`;
+    const capacityText = `${room.capacityMin}–${room.capacityMax} guests`;
 
     if (compact) {
       return (
-        <div className="flex gap-4 p-4 rounded-xl border border-gray-100 bg-white shadow-sm hover:shadow-md transition">
-          <div className="relative w-24 h-24 rounded-lg overflow-hidden flex-shrink-0">
+        <div className="flex gap-4 p-4 rounded-2xl border border-slate-100 bg-white shadow-xs hover:shadow-sm hover:border-blue-100 transition-all duration-300">
+          <div className="relative w-24 h-24 rounded-xl overflow-hidden flex-shrink-0">
             <Image src={imageUrl} alt={room.type} fill className="object-cover" />
           </div>
-          <div className="flex-1">
-            <div className="flex justify-between items-start">
+          <div className="flex-grow min-w-0">
+            <div className="flex justify-between items-start gap-2">
               <div>
-                <h4 className="font-bold text-gray-800">{room.type}</h4>
-                <p className="text-xs text-gray-500 mt-1">{capacityText}</p>
+                <h4 className="font-bold text-gray-900 truncate">{room.type}</h4>
+                <p className="text-xs text-gray-500 mt-0.5">👥 {capacityText}</p>
               </div>
-              <span className="text-sm font-bold text-blue-600">₱{room.price.toLocaleString()}<span className="text-xs font-normal">/night</span></span>
+              <span className="text-xs font-bold text-blue-600 text-right shrink-0">
+                ₱{room.price.toLocaleString()}<span className="text-[10px] text-gray-400 font-normal">/n</span>
+              </span>
             </div>
-            {reason && <p className="text-xs text-gray-600 mt-2 italic">✨ {reason}</p>}
-            <Link
-              href={`/rooms/${encodeURIComponent(slug)}`}
-              className="inline-block mt-2 text-xs font-medium text-blue-500 hover:text-blue-700"
-            >
-              View details →
-            </Link>
+            {reason && (
+              <p className="text-[11px] text-blue-900 mt-2 line-clamp-1 bg-blue-50/30 px-2 py-0.5 rounded border border-blue-100/30">
+                ✨ {reason}
+              </p>
+            )}
+            <div className="mt-2.5 flex items-center justify-between">
+              <Link
+                href={`/rooms/${encodeURIComponent(slug)}`}
+                className="text-xs font-semibold text-blue-600 hover:text-blue-700 flex items-center gap-1"
+              >
+                View details <i className="fas fa-arrow-right text-[8px]"></i>
+              </Link>
+              {matchPercent !== undefined && (
+                <span className="text-[10px] font-bold text-indigo-600 bg-indigo-50 px-1.5 py-0.5 rounded">
+                  {matchPercent}% match
+                </span>
+              )}
+            </div>
           </div>
         </div>
       );
     }
 
     return (
-      <div className="rounded-2xl border border-gray-100 bg-white shadow-lg overflow-hidden transition-all hover:shadow-xl">
+      <div className="rounded-3xl border border-slate-100 bg-white shadow-md overflow-hidden transition-all duration-300 hover:shadow-lg">
         <div className="relative h-56 w-full">
           <Image src={imageUrl} alt={room.type} fill className="object-cover" />
-          {matchPercent && (
-            <div className="absolute top-3 right-3 bg-white/90 backdrop-blur-sm rounded-full px-2 py-1 text-xs font-bold text-blue-600 shadow">
-              {matchPercent}% match
+          <div className="absolute inset-0 bg-gradient-to-t from-black/40 via-transparent to-transparent" />
+          {matchPercent !== undefined && (
+            <div className="absolute top-4 right-4 bg-blue-600 text-white rounded-full px-3 py-1.5 text-xs font-bold shadow-md">
+              🎯 {matchPercent}% Match
             </div>
           )}
-        </div>
-        <div className="p-5">
-          <h3 className="text-xl font-playfair font-bold text-[#0f2824]">{room.type}</h3>
-          <div className="flex justify-between items-center mt-1">
-            <span className="text-sm text-gray-500">{capacityText}</span>
-            <span className="text-xl font-bold text-blue-600">₱{room.price.toLocaleString()}<span className="text-sm font-normal">/night</span></span>
+          <div className="absolute bottom-4 left-4 text-white">
+            <span className="text-[10px] uppercase font-bold tracking-widest bg-blue-600/90 backdrop-blur-xs px-2 py-0.5 rounded-md">Best Recommendation</span>
           </div>
-          <p className="text-gray-600 text-sm mt-3 line-clamp-2">{room.description}</p>
-          {reason && <p className="text-sm text-gray-700 mt-2 bg-blue-50 p-2 rounded-lg">✨ {reason}</p>}
-          <div className="mt-5">
+        </div>
+        <div className="p-6">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 mb-2">
+            <h3 className="text-xl font-bold text-gray-900">{room.type}</h3>
+            <span className="text-lg font-bold text-blue-600 sm:text-right shrink-0">
+              ₱{room.price.toLocaleString()} <span className="text-xs text-gray-500 font-normal">/ night</span>
+            </span>
+          </div>
+          <p className="text-xs text-gray-500 mb-3 flex items-center gap-1.5">
+            <i className="fas fa-users text-blue-500 text-[10px]"></i> Max capacity: {capacityText}
+          </p>
+          <p className="text-gray-600 text-sm leading-relaxed mb-4 line-clamp-2">{room.description}</p>
+          {reason && (
+            <div className="p-3 bg-blue-50/40 rounded-2xl border border-blue-100/50 mb-5 flex items-start gap-2">
+              <span className="text-blue-600 mt-0.5">✨</span>
+              <p className="text-xs text-blue-900 leading-relaxed font-semibold">
+                Why we recommend this: <span className="font-medium text-blue-800">{reason}</span>
+              </p>
+            </div>
+          )}
+          <div>
             <Link
               href={`/rooms/${encodeURIComponent(slug)}`}
-              className="inline-flex items-center justify-center w-full rounded-full bg-blue-500 px-4 py-2 text-sm font-semibold text-white shadow-sm transition hover:bg-blue-600"
+              className="inline-flex items-center justify-center w-full rounded-xl bg-blue-600 px-5 py-3 text-sm font-semibold text-white shadow-sm hover:bg-blue-700 hover:shadow-md transition-all duration-300"
             >
-              View Details
+              Book & View Details <i className="fas fa-arrow-right ml-2 text-xs"></i>
             </Link>
           </div>
         </div>
@@ -398,33 +528,38 @@ export default function AIRoomRecommendationModal({ isOpen, onClose }) {
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm" onClick={onClose}>
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-xs" onClick={onClose}>
       <div
-        className="relative w-full max-w-2xl max-h-[90vh] bg-gradient-to-br from-white to-gray-50 rounded-3xl shadow-2xl overflow-y-auto"
+        className="relative w-full max-w-2xl max-h-[90vh] bg-white rounded-3xl shadow-2xl flex flex-col overflow-hidden animate-fadeIn"
         onClick={(e) => e.stopPropagation()}
       >
         {/* Header */}
-        <div className="sticky top-0 bg-white/80 backdrop-blur-md border-b border-gray-100 px-6 py-4 flex justify-between items-center">
-          <div>
-            <h2 className="text-xl font-playfair font-bold text-[#0f2824]">AI Room Assistant</h2>
+        <div className="sticky top-0 bg-white/95 backdrop-blur-md border-b border-gray-100 px-6 py-4 flex justify-between items-center z-10">
+          <div className="flex-1">
+            <div className="flex items-center gap-2">
+              <span className="text-base">🤖</span>
+              <h2 className="text-lg font-bold text-gray-900">AI Room Assistant</h2>
+            </div>
             {step !== 3 && (
-              <div className="mt-1 w-full bg-gray-100 rounded-full h-1.5">
-                <div className="bg-blue-500 h-1.5 rounded-full transition-all duration-300" style={{ width: `${progressPercent}%` }} />
+              <div className="mt-2.5 flex items-center gap-3">
+                <div className="flex-1 bg-slate-100 rounded-full h-1.5 overflow-hidden">
+                  <div className="bg-blue-500 h-1.5 rounded-full transition-all duration-500 ease-out" style={{ width: `${progressPercent}%` }} />
+                </div>
+                <span className="text-[10px] font-bold text-slate-400 shrink-0 uppercase tracking-wider">Step {step} of 3</span>
               </div>
             )}
-            {step !== 3 && <p className="text-xs text-gray-400 mt-1">Step {step} of 3</p>}
           </div>
-          <button onClick={onClose} className="p-1 rounded-full hover:bg-gray-100">
-            <XMarkIcon className="w-6 h-6 text-gray-500" />
+          <button onClick={onClose} className="p-1.5 rounded-full hover:bg-slate-50 transition-colors ml-4 shrink-0">
+            <XMarkIcon className="w-5 h-5 text-gray-400 hover:text-gray-600" />
           </button>
         </div>
 
         {/* Body */}
-        <div className="p-6">
+        <div className="p-6 overflow-y-auto flex-1">
           {loading && step !== 3 ? (
-            <div className="flex flex-col items-center justify-center py-12">
-              <div className="w-12 h-12 border-4 border-blue-200 border-t-blue-500 rounded-full animate-spin" />
-              <p className="mt-4 text-gray-500">Loading available rooms...</p>
+            <div className="flex flex-col items-center justify-center py-16">
+              <div className="w-10 h-10 border-3 border-blue-100 border-t-blue-500 rounded-full animate-spin" />
+              <p className="mt-4 text-xs font-medium text-gray-500">Loading available resort rooms...</p>
             </div>
           ) : (
             renderQuestion()
