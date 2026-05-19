@@ -9,6 +9,9 @@ import GuestAuthModal from '@/components/guest/GuestAuthModal';
 import { useGuestAuth } from '@/components/guest/GuestAuthContext';
 import SignOutConfirmationModal from '@/components/SignOutConfirmationModal';
 import IdRequestNotifications from '@/components/guest/IdRequestNotifications';
+import { uploadImage } from '@/lib/cloudinary';
+import { compressImage } from '@/lib/imageUtils';
+import { VALID_ID_OPTIONS, getDisplayValidIdType } from '@/lib/guestValidId';
 
 function GuestAccountContent() {
   const { user, profile, loading, logout, updateGuestProfile } = useGuestAuth();
@@ -25,6 +28,15 @@ function GuestAccountContent() {
   });
   const [profileSaving, setProfileSaving] = useState(false);
   const [profileNotice, setProfileNotice] = useState('');
+
+  const [isEditingValidId, setIsEditingValidId] = useState(false);
+  const [validIdForm, setValidIdForm] = useState({
+    validIdType: 'Passport',
+    validIdOther: '',
+    validIdUrl: '',
+  });
+  const [validIdUploading, setValidIdUploading] = useState(false);
+  const [validIdSaving, setValidIdSaving] = useState(false);
 
   const handleSignOutClick = () => setShowSignOutModal(true);
   const handleConfirmSignOut = () => {
@@ -46,6 +58,11 @@ function GuestAccountContent() {
       lastName: profile?.lastName || '',
       mobileNumber: profile?.mobileNumber || '',
     });
+    setValidIdForm({
+      validIdType: profile?.validIdType || 'Passport',
+      validIdOther: profile?.validIdOther || '',
+      validIdUrl: profile?.validIdUrl || '',
+    });
   }, [profile, user]);
 
   const displayName = profile?.displayName || user?.displayName || 'Guest';
@@ -64,6 +81,89 @@ function GuestAccountContent() {
   const handleCancelEdit = () => {
     setProfileForm(originalProfile);
     setIsEditing(false);
+  };
+
+  const handleValidIdFileChange = async (e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    if (file.size > 10 * 1024 * 1024) {
+      setProfileNotice('File size exceeds 10MB. Please choose a smaller file.');
+      return;
+    }
+
+    setValidIdUploading(true);
+    try {
+      const compressedFile = await compressImage(file, {
+        maxSizeMB: 0.05,
+        maxDimension: 900,
+      });
+      const imageUrl = await uploadImage(compressedFile);
+      setValidIdForm((prev) => ({ ...prev, validIdUrl: imageUrl }));
+    } catch (err) {
+      console.error('Failed to upload valid ID:', err);
+      setProfileNotice('Unable to upload valid ID right now.');
+    } finally {
+      setValidIdUploading(false);
+    }
+  };
+
+  const handleStartValidIdUpload = () => {
+    setIsEditingValidId(true);
+  };
+
+  const handleEditValidId = () => {
+    setValidIdForm({
+      validIdType: profile?.validIdType || 'Passport',
+      validIdOther: profile?.validIdOther || '',
+      validIdUrl: profile?.validIdUrl || '',
+    });
+    setIsEditingValidId(true);
+  };
+
+  const handleCancelValidIdEdit = () => {
+    setValidIdForm({
+      validIdType: profile?.validIdType || 'Passport',
+      validIdOther: profile?.validIdOther || '',
+      validIdUrl: profile?.validIdUrl || '',
+    });
+    setIsEditingValidId(false);
+  };
+
+  const handleSaveValidId = async () => {
+    if (!user) {
+      setIsAuthOpen(true);
+      return;
+    }
+    if (!validIdForm.validIdUrl) {
+      setProfileNotice('Please upload a valid ID photo.');
+      return;
+    }
+    if (!validIdForm.validIdType) {
+      setProfileNotice('Please select a valid ID type.');
+      return;
+    }
+    if (validIdForm.validIdType === 'Other' && !validIdForm.validIdOther.trim()) {
+      setProfileNotice('Please specify your valid ID type.');
+      return;
+    }
+
+    setValidIdSaving(true);
+    setProfileNotice('');
+    try {
+      await updateGuestProfile({
+        validIdUrl: validIdForm.validIdUrl,
+        validIdType: validIdForm.validIdType,
+        validIdOther: validIdForm.validIdType === 'Other' ? validIdForm.validIdOther.trim() : '',
+      });
+      setProfileNotice('Valid ID saved.');
+      setIsEditingValidId(false);
+    } catch (err) {
+      console.error('Failed to save valid ID:', err);
+      setProfileNotice('Unable to save valid ID right now.');
+    } finally {
+      setValidIdSaving(false);
+    }
   };
 
   const handleSaveProfile = async () => {
@@ -338,6 +438,144 @@ function GuestAccountContent() {
                       >
                         <i className="fas fa-sign-in-alt text-xs"></i>
                         Sign In
+                      </button>
+                    </div>
+                  )}
+                </div>
+
+                <div id="photo-details" className="overflow-hidden rounded-2xl border border-[#4D8CF5]/20 bg-white shadow-md transition-all duration-300">
+                  <div className="border-b border-[#4D8CF5]/10 bg-gradient-to-r from-[#4D8CF5]/5 to-white px-6 py-5">
+                    <div className="flex flex-wrap items-center justify-between gap-3">
+                      <div className="flex items-center gap-2">
+                        <div className="flex h-9 w-9 items-center justify-center rounded-full bg-[#4D8CF5]/10 text-[#4D8CF5]">
+                          <i className="fas fa-id-card text-base"></i>
+                        </div>
+                        <div>
+                          <h2 className="text-xl font-bold text-[#1E3A8A]">Photo Details</h2>
+                          <p className="text-sm text-[#4D6FA8]">Manage your valid ID for reservations</p>
+                        </div>
+                      </div>
+                      {user && !isEditingValidId && profile?.validIdUrl && (
+                        <button
+                          type="button"
+                          onClick={handleEditValidId}
+                          className="inline-flex items-center gap-2 rounded-xl border border-[#4D8CF5]/30 bg-white px-4 py-2 text-sm font-semibold text-[#1E3A8A] shadow-sm transition-all hover:bg-[#4D8CF5]/5 hover:shadow-md"
+                        >
+                          <i className="fas fa-pen text-xs"></i>
+                          Edit
+                        </button>
+                      )}
+                    </div>
+                  </div>
+
+                  {user ? (
+                    <div className="space-y-6 px-6 py-6">
+                      {!isEditingValidId && profile?.validIdUrl ? (
+                        <div className="space-y-4">
+                          <div className="flex items-center gap-2 rounded-xl border border-[#4D8CF5]/20 bg-[#F9FCFF] px-4 py-2.5 text-sm text-gray-700">
+                            <i className="fas fa-id-badge text-slate-400 text-xs"></i>
+                            <span className="text-[#1E3A8A]/70">ID Type:</span>
+                            <span className="font-semibold text-[#1E3A8A]">{getDisplayValidIdType(profile)}</span>
+                          </div>
+                          <div className="overflow-hidden rounded-xl border border-[#4D8CF5]/20 bg-[#F9FCFF]">
+                            <img src={profile.validIdUrl} alt="Valid ID" className="max-h-64 w-full object-contain bg-white" />
+                          </div>
+                        </div>
+                      ) : !isEditingValidId ? (
+                        <div className="flex flex-col items-start gap-4">
+                          <p className="text-sm text-[#4D6FA8]">Upload a valid ID to use for room and day tour reservations.</p>
+                          <button
+                            type="button"
+                            onClick={handleStartValidIdUpload}
+                            className="inline-flex items-center gap-2 rounded-xl bg-[#4D8CF5] px-5 py-2.5 text-sm font-semibold text-white shadow-md transition-all hover:bg-[#3B78E7] hover:shadow-lg"
+                          >
+                            <i className="fas fa-cloud-upload-alt"></i>
+                            Upload Photo
+                          </button>
+                        </div>
+                      ) : null}
+
+                      {isEditingValidId && (
+                        <div className="space-y-4">
+                          <div className="rounded-xl border border-blue-100 bg-blue-50/60 p-4 text-sm text-blue-800">
+                            <i className="fas fa-info-circle mr-2"></i>
+                            The uploaded valid ID will automatically be used for future room or day tour reservations.
+                          </div>
+                          <div className="space-y-1">
+                            <label className="flex items-center gap-2 text-sm font-semibold text-[#1E3A8A]">
+                              <i className="fas fa-list text-[#4D8CF5] text-xs"></i>
+                              Valid ID Type
+                            </label>
+                            <select
+                              value={validIdForm.validIdType}
+                              onChange={(e) => setValidIdForm((prev) => ({ ...prev, validIdType: e.target.value }))}
+                              className="w-full rounded-xl border border-[#4D8CF5]/20 bg-white px-4 py-2.5 text-sm text-gray-900 focus:border-[#4D8CF5] focus:outline-none focus:ring-2 focus:ring-[#4D8CF5]/20"
+                            >
+                              {VALID_ID_OPTIONS.map((option) => (
+                                <option key={option} value={option}>
+                                  {option === 'Other' ? 'Other valid IDs (specify)' : option}
+                                </option>
+                              ))}
+                            </select>
+                          </div>
+                          {validIdForm.validIdType === 'Other' && (
+                            <div className="space-y-1">
+                              <label className="text-sm font-semibold text-[#1E3A8A]">Specify ID Type</label>
+                              <input
+                                type="text"
+                                value={validIdForm.validIdOther}
+                                onChange={(e) => setValidIdForm((prev) => ({ ...prev, validIdOther: e.target.value }))}
+                                placeholder="Enter your valid ID type"
+                                className="w-full rounded-xl border border-[#4D8CF5]/20 bg-white px-4 py-2.5 text-sm text-gray-900 focus:border-[#4D8CF5] focus:outline-none focus:ring-2 focus:ring-[#4D8CF5]/20"
+                              />
+                            </div>
+                          )}
+                          <div className="space-y-2">
+                            <label className="text-sm font-semibold text-[#1E3A8A]">Valid ID Photo</label>
+                            <div className="relative">
+                              <input
+                                type="file"
+                                accept="image/*"
+                                onChange={handleValidIdFileChange}
+                                className="absolute inset-0 h-full w-full cursor-pointer opacity-0"
+                                disabled={validIdUploading}
+                              />
+                              <div className={`flex min-h-[11rem] items-center justify-center rounded-xl border-2 border-dashed border-[#4D8CF5]/30 bg-[#F9FCFF] p-4 ${validIdUploading ? 'opacity-60' : ''}`}>
+                                {validIdForm.validIdUrl ? (
+                                  <img src={validIdForm.validIdUrl} alt="Valid ID preview" className="max-h-52 w-full object-contain" />
+                                ) : (
+                                  <div className="text-center text-sm text-[#4D6FA8]">
+                                    <i className="fas fa-camera mb-2 block text-2xl text-[#4D8CF5]/50"></i>
+                                    {validIdUploading ? ' Uploading...' : ' Click to select a photo'}
+                                  </div>
+                                )}
+                              </div>
+                            </div>
+                          </div>
+                          <div className="flex justify-end gap-3 border-t border-[#4D8CF5]/10 pt-4">
+                            <button type="button" onClick={handleCancelValidIdEdit} className="inline-flex items-center gap-2 rounded-xl border border-[#4D8CF5]/30 bg-white px-5 py-2.5 text-sm font-semibold text-[#1E3A8A] hover:bg-[#4D8CF5]/5">
+                              <i className="fas fa-times text-xs"></i> Cancel
+                            </button>
+                            <button
+                              type="button"
+                              onClick={handleSaveValidId}
+                              disabled={validIdSaving || validIdUploading || !validIdForm.validIdUrl}
+                              className="inline-flex items-center gap-2 rounded-xl bg-[#4D8CF5] px-5 py-2.5 text-sm font-semibold text-white shadow-md hover:bg-[#3B78E7] disabled:opacity-70"
+                            >
+                              {validIdSaving ? <><i className="fas fa-spinner fa-spin"></i> Saving...</> : <><i className="fas fa-save"></i> Save Valid ID</>}
+                            </button>
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  ) : (
+                    <div className="flex flex-col items-center justify-center px-6 py-12 text-center">
+                      <div className="mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-[#4D8CF5]/10 text-[#4D8CF5]">
+                        <i className="fas fa-lock text-2xl"></i>
+                      </div>
+                      <p className="text-sm text-[#4D6FA8]">Sign in to upload and manage your valid ID.</p>
+                      <button onClick={() => setIsAuthOpen(true)} className="mt-4 inline-flex items-center gap-2 rounded-xl bg-[#4D8CF5] px-4 py-2 text-sm font-semibold text-white shadow-sm hover:bg-[#3B78E7]">
+                        <i className="fas fa-sign-in-alt text-xs"></i> Sign In
                       </button>
                     </div>
                   )}

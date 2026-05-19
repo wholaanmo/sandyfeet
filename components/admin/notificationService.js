@@ -117,6 +117,21 @@ const normalizeStatus = (status) => {
   return String(status).trim().toLowerCase().replace(/[_\s]+/g, '-');
 };
 
+const isCancelledBookingStatus = (status) => {
+  const normalized = normalizeStatus(status);
+  return normalized === 'cancelled' || normalized === 'cancelled-by-guest';
+};
+
+const clearRoomStatusNotificationsForBooking = (bookingKey) => {
+  generatedRoomCheckIns.delete(bookingKey);
+  generatedRoomCheckOuts.delete(bookingKey);
+  currentBookings.delete(bookingKey);
+};
+
+const clearDayTourStatusNotificationsForBooking = (bookingKey) => {
+  generatedDayTourCheckIns.delete(bookingKey);
+};
+
 const getRoomStatusBookingKey = (docId, data) => {
   return data.parentBookingId || data.bookingId || docId;
 };
@@ -307,13 +322,7 @@ const loadExistingNotifications = async (onUpdate) => {
       }
     }
     
-    // Emit existing notifications to the UI
-    if (existingCheckIns.length > 0 && onUpdate) {
-      onUpdate(existingCheckIns, 'check_in');
-    }
-    if (existingCheckOuts.length > 0 && onUpdate) {
-      onUpdate(existingCheckOuts, 'check_out');
-    }
+    // Check-in/out are emitted after the first booking snapshot syncs statuses (see emitStatusUpdates)
   } catch (error) {
     console.error('Error loading existing notifications:', error);
   }
@@ -333,6 +342,8 @@ const startRealTimeCheckInChecker = (onUpdate) => {
     let newNotifications = [];
     
     for (const [bookingKey, data] of currentBookings.entries()) {
+      if (isCancelledBookingStatus(data.status)) continue;
+
       // Skip if check-in notification already generated for this booking
       if (generatedRoomCheckIns.has(bookingKey)) continue;
       
@@ -452,7 +463,12 @@ export const setupRoomStatusListener = (onUpdate) => {
 
       const status = normalizeStatus(data.status);
       const bookingKey = getRoomStatusBookingKey(docSnap.id, data);
-      
+
+      if (isCancelledBookingStatus(status)) {
+        clearRoomStatusNotificationsForBooking(bookingKey);
+        continue;
+      }
+
       // Store booking data for real-time checking
       currentBookings.set(bookingKey, data);
       
@@ -504,7 +520,12 @@ export const setupRoomStatusListener = (onUpdate) => {
       const data = docSnap.data();
       const status = normalizeStatus(data.status);
       const bookingKey = data.bookingId || docSnap.id;
-      
+
+      if (isCancelledBookingStatus(status)) {
+        clearDayTourStatusNotificationsForBooking(bookingKey);
+        continue;
+      }
+
       if (status === 'check-in' && !generatedDayTourCheckIns.has(bookingKey)) {
         const guestName = `${data.guestInfo?.firstName || ''} ${data.guestInfo?.lastName || ''}`.trim() || 'Guest';
         const guestCount = getDayTourGuestCount(data);

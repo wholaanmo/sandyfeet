@@ -1,4 +1,4 @@
-// app/page.js
+// app/home/page.js
 'use client';
 
 import { useEffect, useState } from 'react';
@@ -8,6 +8,12 @@ import Link from 'next/link';
 import { db } from '@/lib/firebase';
 import { addDoc, collection, getDocs, limit, onSnapshot, query, serverTimestamp, where } from 'firebase/firestore';
 import ChatBot from '@/components/guest/ChatBot';
+import dynamic from 'next/dynamic';
+
+const AIRoomRecommendationModal = dynamic(
+  () => import('@/components/AIRoomRecommendationModal'),
+  { ssr: false }
+);
 
 const galleryImages = [
   { src: '/assets/View/Front view.jpg', alt: 'Sandyfeet front view' },
@@ -17,6 +23,8 @@ const galleryImages = [
   { src: '/assets/Tent/Tents.jpg', alt: 'Camping tents' },
   { src: '/assets/Facilities/Bonfire.jpg', alt: 'Bonfire night setup' },
 ];
+
+
 
 const toRoomSlug = (value) => {
   return String(value || '')
@@ -94,6 +102,7 @@ export default function HomePage() {
   const [verifyingBooking, setVerifyingBooking] = useState(false);
   const [submittingFeedback, setSubmittingFeedback] = useState(false);
   const [publishedFeedbacks, setPublishedFeedbacks] = useState([]);
+  const [showAIRecommendation, setShowAIRecommendation] = useState(false); 
 
   // Fetch published feedbacks for testimonials with real-time updates
   useEffect(() => {
@@ -489,6 +498,12 @@ export default function HomePage() {
                 >
                   Book a Day Tour
                 </Link>
+                <button
+  onClick={() => setShowAIRecommendation(true)}
+  className="rounded-full bg-gradient-to-r from-indigo-500 to-purple-500 px-8 py-3.5 text-center text-base font-semibold text-white shadow-xl shadow-indigo-500/20 transition-all hover:-translate-y-0.5 hover:shadow-2xl"
+>
+  ✨ AI Room Recommendation
+</button>
               </div>
             </div>
 
@@ -1172,6 +1187,10 @@ export default function HomePage() {
 
       </div>
       <ChatBot />
+      <AIRoomRecommendationModal
+  isOpen={showAIRecommendation}
+  onClose={() => setShowAIRecommendation(false)}
+/>
     </GuestLayout>
   );
 }

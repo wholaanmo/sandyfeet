@@ -860,20 +860,86 @@ export default function AdminReports() {
     return total;
   };
 
-  const countRoomUnits = (booking) => {
-    let roomCount = 0;
+  const normalizeRoomType = (roomType) => {
+    if (!roomType) return null;
+    if (roomType.toLowerCase().includes('tent')) return 'Tent';
+    if (roomType === 'Ground Floor Rooms') return 'Ground Floor Room';
+    return roomType;
+  };
+
+  const extractRoomTypesFromBooking = (booking) => {
+    const roomTypes = [];
+    const isExclusive = Boolean(
+      booking.isExclusiveResortBooking ||
+      (booking.isGrouped && booking.childBookings?.some(cb => cb.isExclusiveResortBooking))
+    );
+
     if (booking.isGrouped && booking.childBookings) {
-      booking.childBookings.forEach(child => {
-        roomCount += (child.numberOfRooms || 1);
-      });
-    } else if (booking.roomTypes && Array.isArray(booking.roomTypes)) {
+      if (isExclusive) {
+        const tentCount = booking.tentCount ||
+          Math.max(0, ...booking.childBookings.map(cb => cb.tentCount || 0));
+        for (let i = 0; i < tentCount; i++) roomTypes.push('Tent');
+        booking.childBookings.forEach(cb => {
+          if (cb.roomType && !cb.roomType.toLowerCase().includes('tent')) {
+            for (let i = 0; i < (cb.numberOfRooms || 1); i++) {
+              roomTypes.push(cb.roomType);
+            }
+          }
+        });
+      } else {
+        booking.childBookings.forEach(cb => {
+          for (let i = 0; i < (cb.numberOfRooms || 1); i++) {
+            roomTypes.push(cb.roomType);
+          }
+        });
+      }
+    } else if (booking.roomTypes && Array.isArray(booking.roomTypes) && booking.roomTypes.length > 0) {
       booking.roomTypes.forEach(rt => {
-        roomCount += (rt.quantity || 1);
+        for (let i = 0; i < (rt.quantity || 1); i++) {
+          roomTypes.push(rt.type);
+        }
       });
     } else if (booking.roomType) {
-      roomCount += (booking.numberOfRooms || 1);
+      if (isExclusive && (booking.tentCount || 0) > 0) {
+        for (let i = 0; i < booking.tentCount; i++) roomTypes.push('Tent');
+        if (!booking.roomType.toLowerCase().includes('tent')) {
+          for (let i = 0; i < (booking.numberOfRooms || 1); i++) {
+            roomTypes.push(booking.roomType);
+          }
+        }
+      } else {
+        for (let i = 0; i < (booking.numberOfRooms || 1); i++) {
+          roomTypes.push(booking.roomType);
+        }
+      }
+    } else if (isExclusive && (booking.tentCount || 0) > 0) {
+      for (let i = 0; i < booking.tentCount; i++) roomTypes.push('Tent');
     }
-    return roomCount;
+
+    return roomTypes.map(normalizeRoomType).filter(Boolean);
+  };
+
+  const countRoomUnitsFromBooking = (booking) => {
+    const types = extractRoomTypesFromBooking(booking);
+    return types.length > 0 ? types.length : 1;
+  };
+
+  const getGroupRevenue = (group) => {
+    const children = group.bookings;
+    const withManual = children.find(
+      (b) => b.manualTotalPrice !== undefined && b.manualTotalPrice !== null
+    );
+    if (withManual) {
+      return Number(withManual.manualTotalPrice);
+    }
+    if (group.isExclusiveResortBooking) {
+      const child = children[0];
+      if (child.exclusivePackagePrice) {
+        return Number(child.exclusivePackagePrice);
+      }
+      return child.totalPrice || 0;
+    }
+    return children.reduce((sum, b) => sum + (b.totalPrice || 0), 0);
   };
 
   // ==================== FIXED REVENUE COMPUTATION ====================
@@ -920,48 +986,43 @@ const processData = (bookings, dayTours) => {
         // Each child booking contributes its numberOfRooms (normally 1 per room)
         group.numberOfRooms += (booking.numberOfRooms || 1);
 
-        if (group.isExclusiveResortBooking) {
-          if (group.totalPrice === 0) {
-            group.totalPrice = getEffectiveTotal(booking);
-          }
-          // Tent count from the first child (should be same for all)
-          if (booking.tentCount > 0 && group.tentCount === 0) {
-            group.tentCount = booking.tentCount;
-          }
-        } else {
-          group.totalPrice += getEffectiveTotal(booking);
+        if (booking.tentCount > 0 && group.tentCount === 0) {
+          group.tentCount = booking.tentCount;
+        }
+        if (booking.manualTotalPrice != null && group.manualTotalPrice == null) {
+          group.manualTotalPrice = booking.manualTotalPrice;
         }
       } else if (!booking.isMultiRoomBooking) {
         // Single room booking
         const effectiveTotal = getEffectiveTotal(booking);
         totalRoomRevenue += effectiveTotal;
-        totalRoomUnits += (booking.numberOfRooms || 1);
+        totalRoomUnits += countRoomUnitsFromBooking(booking);
         processedBookings.push(booking);
       }
     }
   });
 
-  // Second pass: add grouped bookings (including tents to totalRoomUnits)
+  // Second pass: add grouped bookings
   multiRoomGroups.forEach((group, parentId) => {
-    let roomUnits = group.numberOfRooms;
-    // Add tents to room unit count for exclusive resort bookings
-    if (group.isExclusiveResortBooking && group.tentCount > 0) {
-      roomUnits += group.tentCount;
-    }
-    totalRoomUnits += roomUnits;
-    totalRoomRevenue += group.totalPrice;
-    processedBookings.push({
+    const groupRevenue = getGroupRevenue(group);
+    const groupedBooking = {
       ...group.bookings[0],
       id: parentId,
-      totalPrice: group.totalPrice,
+      totalPrice: groupRevenue,
       manualTotalPrice: group.manualTotalPrice,
       exclusivePackagePrice: group.exclusivePackagePrice,
       isGrouped: true,
       childBookings: group.bookings,
-      numberOfRooms: roomUnits,          // store the actual unit count including tents
       isExclusiveResortBooking: group.isExclusiveResortBooking,
       tentCount: group.tentCount,
       roomType: group.roomType
+    };
+    const roomUnits = countRoomUnitsFromBooking(groupedBooking);
+    totalRoomUnits += roomUnits;
+    totalRoomRevenue += groupRevenue;
+    processedBookings.push({
+      ...groupedBooking,
+      numberOfRooms: roomUnits
     });
   });
 
@@ -1044,47 +1105,7 @@ const processData = (bookings, dayTours) => {
     }
     monthlySplitData[year][month][bookingType]++;
 
-    // ==================== Count room units for room type breakdown ====================
-    let roomTypes = [];
-
-    // 1. Exclusive resort booking: add tents explicitly
-    if (booking.isExclusiveResortBooking && booking.tentCount > 0) {
-      for (let i = 0; i < booking.tentCount; i++) {
-        roomTypes.push('Tent');
-      }
-    }
-
-    // 2. Grouped (multi-room) bookings
-    if (booking.isGrouped && booking.childBookings) {
-      booking.childBookings.forEach(cb => {
-        const roomCount = cb.numberOfRooms || 1;
-        for (let i = 0; i < roomCount; i++) {
-          roomTypes.push(cb.roomType);
-        }
-      });
-    }
-    // 3. Bookings with roomTypes array (original multi-room booking data)
-    else if (booking.roomTypes && Array.isArray(booking.roomTypes)) {
-      booking.roomTypes.forEach(rt => {
-        for (let i = 0; i < (rt.quantity || 1); i++) {
-          roomTypes.push(rt.type);
-        }
-      });
-    }
-    // 4. Single room booking
-    else if (booking.roomType) {
-      const roomCount = booking.numberOfRooms || 1;
-      for (let i = 0; i < roomCount; i++) {
-        roomTypes.push(booking.roomType);
-      }
-    }
-
-    // Normalize room type names
-    roomTypes = roomTypes.map(rt => {
-      if (rt && rt.toLowerCase().includes('tent')) return 'Tent';
-      if (rt === 'Ground Floor Rooms') return 'Ground Floor Room';
-      return rt;
-    });
+    const roomTypes = extractRoomTypesFromBooking(booking);
 
     roomTypes.forEach(roomType => {
       if (roomType === 'Tent') yearlyMonthlyRoom[year].Tent[month]++;
@@ -1093,14 +1114,11 @@ const processData = (bookings, dayTours) => {
       else if (roomType === 'Couple Room') yearlyMonthlyRoom[year]['Couple Room'][month]++;
     });
 
-    // Revenue (unchanged)
-    const totalPrice = booking.totalPrice || 0;
-    yearlyMonthlyRevenue[year].roomRevenue[month] += totalPrice;
-    yearlyMonthlyRevenue[year].total[month] += totalPrice;
+    const effectiveTotal = getEffectiveTotal(booking);
+    yearlyMonthlyRevenue[year].roomRevenue[month] += effectiveTotal;
+    yearlyMonthlyRevenue[year].total[month] += effectiveTotal;
 
-    // ✅ TREND: room bookings count = number of room units (including tents)
-    // For exclusive resort bookings, booking.numberOfRooms already includes tents (we set it above)
-    const roomUnitCount = booking.numberOfRooms || 1;
+    const roomUnitCount = countRoomUnitsFromBooking(booking);
     yearlyMonthlyTrend[year].roomBookings[month] += roomUnitCount;
   });
 

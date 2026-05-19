@@ -1,4 +1,3 @@
-// components/guest/GuestAuthContext.js
 'use client';
 
 import { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react';
@@ -11,7 +10,7 @@ import {
   signInWithEmailAndPassword,
   updateProfile
 } from 'firebase/auth';
-import { doc, getDoc, serverTimestamp, setDoc, updateDoc } from 'firebase/firestore';
+import { doc, getDoc, serverTimestamp, setDoc, updateDoc, deleteDoc } from 'firebase/firestore';
 import { auth, db } from '@/lib/firebase';
 
 const GuestAuthContext = createContext(null);
@@ -32,15 +31,54 @@ const splitDisplayName = (displayName = '') => {
   };
 };
 
-// Generate a secure random token (browser-compatible)
 function generateVerificationToken() {
   const array = new Uint8Array(32);
   crypto.getRandomValues(array);
   return Array.from(array, byte => byte.toString(16).padStart(2, '0')).join('');
 }
 
+// Helper function to check if a user is admin or staff
+async function isAdminOrStaffUser(uid) {
+  if (!uid) return false;
+  try {
+    const userDocRef = doc(db, 'users', uid);
+    const userDocSnap = await getDoc(userDocRef);
+    if (userDocSnap.exists()) {
+      const role = userDocSnap.data().role;
+      return role === 'admin' || role === 'staff';
+    }
+    return false;
+  } catch (err) {
+    console.error('Error checking user role:', err);
+    return false;
+  }
+}
+
+// Clean up any accidental user document for a guest (unless admin/staff)
+async function deleteUserDocumentIfNotAdminStaff(uid) {
+  try {
+    const userDocRef = doc(db, 'users', uid);
+    const userDocSnap = await getDoc(userDocRef);
+    if (userDocSnap.exists()) {
+      const role = userDocSnap.data().role;
+      if (role !== 'admin' && role !== 'staff') {
+        await deleteDoc(userDocRef);
+      }
+    }
+  } catch (err) {
+    console.error('Error cleaning up users collection for guest:', err);
+  }
+}
+
 async function upsertGuestProfile(firebaseUser, additionalData = {}) {
   if (!firebaseUser) return null;
+
+  // CRITICAL FIX: Never create guest profile for admin/staff users
+  const isAdminStaff = await isAdminOrStaffUser(firebaseUser.uid);
+  if (isAdminStaff) {
+    console.warn('Attempted to create guest profile for admin/staff user - blocked');
+    return null;
+  }
 
   const profileRef = doc(db, 'guestProfiles', firebaseUser.uid);
   const profileSnap = await getDoc(profileRef);
@@ -79,6 +117,10 @@ async function upsertGuestProfile(firebaseUser, additionalData = {}) {
   }
 
   await setDoc(profileRef, profileData, { merge: true });
+
+  // Ensure no leftover user document for this guest
+  await deleteUserDocumentIfNotAdminStaff(firebaseUser.uid);
+
   return { id: firebaseUser.uid, ...profileSnap.data(), ...profileData };
 }
 
@@ -114,6 +156,20 @@ export function GuestAuthProvider({ children }) {
         return;
       }
 
+      // CRITICAL FIX: Check if this is an admin/staff user
+      const isAdminStaff = await isAdminOrStaffUser(firebaseUser.uid);
+      
+      if (isAdminStaff) {
+        // Admin/Staff users should NOT be managed by GuestAuthContext
+        // They use separate session management via app/login
+        console.log('Admin/Staff user detected - skipping guest profile handling');
+        setUser(null);
+        setProfile(null);
+        setLoading(false);
+        return;
+      }
+
+      // Only proceed for guest users
       setUser(firebaseUser);
 
       try {
@@ -152,6 +208,15 @@ export function GuestAuthProvider({ children }) {
       const provider = new GoogleAuthProvider();
       provider.setCustomParameters({ prompt: 'select_account' });
       const result = await signInWithPopup(auth, provider);
+      
+      // Check if this is an admin/staff user before creating guest profile
+      const isAdminStaff = await isAdminOrStaffUser(result.user.uid);
+      if (isAdminStaff) {
+        await signOut(auth);
+        setError('Admin/Staff accounts cannot sign in as guests. Please use the staff login page.');
+        throw new Error('Admin/Staff cannot use guest sign-in');
+      }
+      
       const guestProfile = await upsertGuestProfile(result.user);
       setUser(result.user);
       setProfile(guestProfile);
@@ -160,7 +225,7 @@ export function GuestAuthProvider({ children }) {
       console.error('Google guest sign-in failed:', err);
       const message = err?.code === 'auth/popup-closed-by-user'
         ? 'Google sign-in was closed before it finished.'
-        : 'Google sign-in failed. Please try again.';
+        : err.message || 'Google sign-in failed. Please try again.';
       setError(message);
       throw new Error(message);
     } finally {
@@ -252,6 +317,14 @@ export function GuestAuthProvider({ children }) {
     try {
       const userCredential = await signInWithEmailAndPassword(auth, email, password);
       const signedInUser = userCredential.user;
+
+      // CRITICAL FIX: Check if this is an admin/staff user before allowing guest sign-in
+      const isAdminStaff = await isAdminOrStaffUser(signedInUser.uid);
+      if (isAdminStaff) {
+        await signOut(auth);
+        setError('Admin/Staff accounts cannot sign in as guests. Please use the staff login page.');
+        throw new Error('Admin/Staff cannot use guest sign-in');
+      }
 
       const profileRef = doc(db, 'guestProfiles', signedInUser.uid);
       const profileSnap = await getDoc(profileRef);

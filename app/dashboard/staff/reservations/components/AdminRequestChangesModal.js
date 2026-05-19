@@ -1,24 +1,21 @@
 // app/dashboard/admin/reservations/components/AdminRequestChangesModal.js
 'use client';
 
-export default function AdminRequestChangesModal({ isOpen, booking, onClose, onConfirm }) {
-  if (!isOpen || !booking) return null;
+export function resolveChangeRequestFromBooking(booking) {
+  if (!booking) return null;
 
-  // Try to get change request from direct field
   let request = booking.changeRequest;
 
-  // If not found and it's a multi‑room group, look in child bookings
-  if ((!request || request.status !== 'pending') && booking.originalChildBookings && booking.originalChildBookings.length > 0) {
+  if ((!request || request.status !== 'pending') && booking.originalChildBookings?.length > 0) {
     for (const child of booking.originalChildBookings) {
-      if (child.changeRequest && child.changeRequest.status === 'pending') {
+      if (child.changeRequest?.status === 'pending') {
         request = child.changeRequest;
         break;
       }
     }
   }
-  
-  // Also check for approved/rejected requests in child bookings
-  if (!request && booking.originalChildBookings && booking.originalChildBookings.length > 0) {
+
+  if (!request && booking.originalChildBookings?.length > 0) {
     for (const child of booking.originalChildBookings) {
       if (child.changeRequest && (child.changeRequest.status === 'approved' || child.changeRequest.status === 'rejected')) {
         request = child.changeRequest;
@@ -27,15 +24,31 @@ export default function AdminRequestChangesModal({ isOpen, booking, onClose, onC
     }
   }
 
+  return request;
+}
+
+export function resolveBookingTypeLabel(booking) {
+  if (!booking) return 'Reservation';
+  if (booking.bookingIdDisplay) return booking.bookingIdDisplay;
+  if (booking.type === 'daytour') return 'Day Tour';
+  if (booking.isExclusiveResortBooking) return 'Entire Resort';
+  if (booking.isMultiRoomGroup || (booking.roomTypesArray && booking.roomTypesArray.length > 1)) {
+    return 'Multi-Room';
+  }
+  return 'Single Room Type';
+}
+
+export default function AdminRequestChangesModal({ isOpen, booking, onClose, onConfirm }) {
+  if (!isOpen || !booking) return null;
+
+  const request = resolveChangeRequestFromBooking(booking);
   const requestText = request?.text || 'No request text found.';
   const submittedAt = request?.submittedAt ? new Date(request.submittedAt).toLocaleString() : 'Unknown';
-  
-  // Check if request has already been processed
+
   const isProcessed = request?.status === 'approved' || request?.status === 'rejected';
   const processedStatus = request?.status === 'approved' ? 'Approved' : 'Rejected';
   const adminNote = request?.adminNote || request?.adminReason;
 
-  // Title based on request status
   let title = 'Guest Change Request';
   if (isProcessed) {
     title = `Change Request - ${processedStatus}`;
@@ -67,18 +80,24 @@ export default function AdminRequestChangesModal({ isOpen, booking, onClose, onC
 
         <div className="px-6 py-5 space-y-4">
           <div className={`rounded-lg p-4 text-sm ${isProcessed ? 'bg-gray-50 text-gray-700' : 'bg-amber-50 text-amber-800'}`}>
-            <p className="font-semibold mb-2">Guest's requested changes:</p>
+            <p className="font-semibold mb-2">Guest&apos;s requested changes:</p>
             <p className="whitespace-pre-wrap">{requestText}</p>
             <p className="text-xs mt-2 text-gray-500">
               Submitted on: {submittedAt}
             </p>
           </div>
-          
+
           {isProcessed && adminNote && (
             <div className="rounded-lg bg-blue-50 p-4 text-sm text-blue-800">
-              <p className="font-semibold mb-2">Resort's response ({processedStatus}):</p>
+              <p className="font-semibold mb-2">Resort&apos;s response ({processedStatus}):</p>
               <p className="whitespace-pre-wrap">{adminNote}</p>
             </div>
+          )}
+
+          {!isProcessed && (
+            <p className="text-xs text-gray-500">
+              After you confirm or cancel, you will be asked for a reason. An email will be sent to the guest with your note.
+            </p>
           )}
         </div>
 
@@ -97,7 +116,7 @@ export default function AdminRequestChangesModal({ isOpen, booking, onClose, onC
                 onClick={() => onConfirm('reject')}
                 className="rounded-xl bg-red-600 px-5 py-2.5 text-sm font-semibold text-white shadow-sm hover:bg-red-700"
               >
-                Cancel Request
+                Cancel Request Changes
               </button>
               <button
                 type="button"

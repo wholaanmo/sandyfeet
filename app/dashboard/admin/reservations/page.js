@@ -372,7 +372,10 @@ export default function AdminReservations() {
       const displayTotalPrice = isExclusiveResortBooking && exclusivePackagePrice > 0
         ? exclusivePackagePrice
         : totalPrice;
-      const displayDownPayment = displayTotalPrice * 0.5;
+      const storedParentDownPayment = exclusiveChildBooking?.parentDownPayment;
+      const displayDownPayment = storedParentDownPayment != null
+        ? Number(storedParentDownPayment)
+        : displayTotalPrice * 0.5;
       const displayRemainingBalance = displayTotalPrice - displayDownPayment;
 
       let bookingIdDisplay = '';
@@ -992,7 +995,7 @@ export default function AdminReservations() {
         return;
       }
 
-      const downPayment = calculateDownPayment(sidebarBooking.totalPrice);
+      const downPayment = getFixedDownPayment(sidebarBooking);
       const newTotalAmount = newBalance + downPayment;
       const updateData = {
         manualBalance: newBalance,
@@ -1454,6 +1457,26 @@ export default function AdminReservations() {
     if (!totalPrice) return 0;
     const total = typeof totalPrice === 'number' ? totalPrice : Number(totalPrice) || 0;
     return total * 0.5;
+  };
+
+  const getFixedDownPayment = (booking) => {
+    if (booking.downPayment !== undefined && booking.downPayment !== null) {
+      return Number(booking.downPayment);
+    }
+    if (booking.isMultiRoomGroup && booking.originalChildBookings?.length) {
+      const exclusiveChild = booking.originalChildBookings.find(b => b.isExclusiveResortBooking);
+      if (exclusiveChild?.parentDownPayment != null) {
+        return Number(exclusiveChild.parentDownPayment);
+      }
+      const hasChildDownPayments = booking.originalChildBookings.some(b => b.downPayment != null);
+      if (hasChildDownPayments) {
+        return booking.originalChildBookings.reduce((sum, b) => sum + (Number(b.downPayment) || 0), 0);
+      }
+    }
+    if (booking.parentDownPayment != null) {
+      return Number(booking.parentDownPayment);
+    }
+    return calculateDownPayment(booking.totalPrice);
   };
 
   // Updated balance calculation logic
@@ -2280,11 +2303,13 @@ export default function AdminReservations() {
                         <button
                           onClick={() => {
                             const currentBalance = sidebarBooking.manualBalance ?? (() => {
-                              const total = Number(sidebarBooking.totalPrice) || 0;
-                              const down = total * 0.5;
+                              const down = getFixedDownPayment(sidebarBooking);
+                              const total =
+  sidebarBooking.manualTotalPrice ??
+  (Number(sidebarBooking.totalPrice) || 0);
                               if (sidebarBooking.status === 'cancelled' || sidebarBooking.status === 'check-out' || sidebarBooking.status === 'completed') return 0;
                               if (sidebarBooking.status === 'cancelled-by-guest' && (sidebarBooking.refundNotificationSent || sidebarBooking.moveDateNotificationSent)) return 0;
-                              return down;
+                              return Math.max(0, total - down);
                             })();
                             setTempBalance(currentBalance.toString());
                             setTempNote(sidebarBooking.adminNote || '');
@@ -2391,26 +2416,20 @@ export default function AdminReservations() {
                               : totalAmount - downPayment);
                         }
                       } else {
-                        // --- Original logic for room bookings (or day tours without downPayment) ---
+                        // --- Room bookings: fixed 50% down from original booking, balance edits update total only ---
+                        const originalDownPayment = getFixedDownPayment(sidebarBooking);
+                        const originalTotal = Number(sidebarBooking.totalPrice) || 0;
+
                         if (isCancelled) {
-                          if (sidebarBooking.manualDownPayment !== undefined && sidebarBooking.manualDownPayment !== null) {
-                            downPayment = sidebarBooking.manualDownPayment;
-                          } else {
-                            const originalTotal = Number(sidebarBooking.totalPrice) || 0;
-                            downPayment = originalTotal * 0.5;
-                          }
+                          downPayment = sidebarBooking.manualDownPayment ?? originalDownPayment;
                           totalAmount = downPayment;
                           balance = 0;
                         } else {
-                          if (sidebarBooking.manualTotalPrice !== undefined && sidebarBooking.manualTotalPrice !== null) {
-                            totalAmount = sidebarBooking.manualTotalPrice;
-                            downPayment = totalAmount * 0.5;
-                          } else {
-                            const originalTotal = Number(sidebarBooking.totalPrice) || 0;
-                            totalAmount = originalTotal;
-                            downPayment = originalTotal * 0.5;
-                          }
-                          balance = sidebarBooking.manualBalance !== undefined ? sidebarBooking.manualBalance : downPayment;
+                          downPayment = originalDownPayment;
+                          totalAmount = sidebarBooking.manualTotalPrice ?? originalTotal;
+                          balance = sidebarBooking.manualBalance !== undefined
+                            ? sidebarBooking.manualBalance
+                            : Math.max(0, totalAmount - downPayment);
                         }
                       }
 
