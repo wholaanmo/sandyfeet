@@ -12,6 +12,7 @@ import ChatBot from '@/components/guest/ChatBot';
 import { QRCodeSVG } from 'qrcode.react';
 import { useGuestAuth } from '@/components/guest/GuestAuthContext';
 import GuestAuthModal from '@/components/guest/GuestAuthModal';
+import { getDisplayValidIdType, hasAccountValidId, hasAccountMobileNumber } from '@/lib/guestValidId';
 
 // Storage key for persisting payment‑related data
 const STORAGE_KEY = 'daytour_booking_data';
@@ -63,30 +64,16 @@ function DayTourBookingContent() {
     adults: String(initialAdults),
     kids: String(initialKids),
     paymentProof: null,
-    validIdType: '',
-    validIdImage: null,
     specialRequest: ''
   });
   
   const [errors, setErrors] = useState({});
-  const [showValidIdModal, setShowValidIdModal] = useState(false);
-  const [tempValidIdType, setTempValidIdType] = useState('Passport');
-  const [tempValidIdImage, setTempValidIdImage] = useState(null);
-  const [validIdUploading, setValidIdUploading] = useState(false);
+  const [validIdError, setValidIdError] = useState('');
+  const [mobileNumberError, setMobileNumberError] = useState('');
 
-  const validIdOptions = [
-    'Passport',
-    "Driver's License",
-    'National ID',
-    'UMID',
-    'Postal ID',
-    "Voter's ID / Voter's Certificate",
-    'PhilHealth ID',
-    'Other Government IDs'
-  ];
-
-  // Check if user has a mobile number saved
-  const hasMobileNumber = user && profile?.mobileNumber && profile.mobileNumber.trim().length > 0;
+  const hasMobileNumber = hasAccountMobileNumber(profile);
+  const accountValidIdType = getDisplayValidIdType(profile);
+  const accountValidIdUrl = profile?.validIdUrl || '';
 
   // Load persisted payment data from localStorage on mount
   useEffect(() => {
@@ -105,8 +92,6 @@ function DayTourBookingContent() {
         setBookingData(prev => ({
           ...prev,
           paymentProof: parsed.paymentProof,
-          validIdType: parsed.validIdType,
-          validIdImage: parsed.validIdImage,
           specialRequest: parsed.specialRequest || ''
         }));
         if (parsed.paymentMethod) setPaymentMethod(parsed.paymentMethod);
@@ -126,8 +111,6 @@ function DayTourBookingContent() {
         adults: bookingData.adults,
         kids: bookingData.kids,
         paymentProof: bookingData.paymentProof,
-        validIdType: bookingData.validIdType,
-        validIdImage: bookingData.validIdImage,
         paymentMethod: paymentMethod,
         bankRequestSent: bankRequestSent,
         bankRequestId: bankRequestId,
@@ -370,11 +353,16 @@ function DayTourBookingContent() {
                      (kidsCount * (dayTour?.kidPrice || 0));
   const downPaymentAmount = totalPrice * 0.5;
   const remainingBalance = totalPrice - downPaymentAmount;
+  const userDisplayName = profile
+    ? `${profile.firstName || ''} ${profile.lastName || ''}`.trim()
+    : 'Guest';
+  const userEmail = profile?.email || user?.email || '';
+  const userMobileNumber = profile?.mobileNumber || '';
   const canSubmitPayment = Boolean(
     bookingData.paymentProof &&
-    bookingData.validIdImage &&
     !submitting &&
     hasMobileNumber &&
+    hasAccountValidId(profile) &&
     (paymentMethod !== 'bank_transfer' || bankDetailsProvided || visibleGuestQrBank)
   );
   const visibleGuestQrBank = paymentSettings.bankAccounts.find(
@@ -489,32 +477,6 @@ function DayTourBookingContent() {
     }
   };
 
-  const handleValidIdFileChange = async (e) => {
-    const file = e.target.files[0];
-    if (!file) return;
-
-    setValidIdUploading(true);
-    try {
-      const cloudinaryUrl = await uploadImage(file);
-      setTempValidIdImage(cloudinaryUrl);
-    } catch (error) {
-      console.error('Error uploading valid ID to Cloudinary:', error);
-      setModalNotification({ message: 'Failed to upload valid ID. Please try again.', type: 'error' });
-    } finally {
-      setValidIdUploading(false);
-    }
-  };
-
-  const handleSaveValidId = () => {
-    if (!tempValidIdImage || !tempValidIdType) return;
-    setBookingData(prev => ({
-      ...prev,
-      validIdType: tempValidIdType,
-      validIdImage: tempValidIdImage
-    }));
-    setShowValidIdModal(false);
-  };
-
   const handleNotifyResort = async () => {
     if (!selectedBankAccount) {
       setModalNotification({ message: 'Please select a bank account first', type: 'error' });
@@ -572,9 +534,17 @@ function DayTourBookingContent() {
       return;
     }
     if (!hasMobileNumber) {
+      setMobileNumberError('A mobile number is required to confirm your booking. Please update your account profile.');
       setModalNotification({ message: 'Please add a mobile number in your account settings before booking.', type: 'error' });
       return;
     }
+    setMobileNumberError('');
+    if (!hasAccountValidId(profile)) {
+      setValidIdError('Please upload a valid ID in your account profile before booking.');
+      setModalNotification({ message: 'A valid ID photo is required. Upload it in your account profile.', type: 'error' });
+      return;
+    }
+    setValidIdError('');
 
     setSubmitting(true);
     try {
@@ -637,8 +607,8 @@ function DayTourBookingContent() {
         status: 'pending',
         paymentMethod: paymentMethod,
         paymentProof: bookingData.paymentProof,
-        validIdType: bookingData.validIdType || null,
-        validIdImage: bookingData.validIdImage || null,
+        validIdType: accountValidIdType || null,
+        validIdImage: accountValidIdUrl || null,
         createdAt: serverTimestamp(),
         updatedAt: serverTimestamp(),
         type: 'daytour',
@@ -734,9 +704,11 @@ function DayTourBookingContent() {
     },
     {
       icon: 'fa-id-card',
-      label: 'Upload Valid ID',
-      description: bookingData.validIdImage ? `${bookingData.validIdType || 'Valid ID'} uploaded.` : 'Required before confirmation.',
-      complete: Boolean(bookingData.validIdImage)
+      label: 'Valid ID on File',
+      description: hasAccountValidId(profile)
+        ? `${accountValidIdType} from your account.`
+        : 'Upload your valid ID in Account settings.',
+      complete: hasAccountValidId(profile)
     },
     {
       icon: 'fa-receipt',
@@ -776,44 +748,61 @@ function DayTourBookingContent() {
     </div>
   );
 
-  const renderValidIdCard = () => (
-    <div className="rounded-2xl border border-ocean-light/20 bg-gradient-to-br from-white to-ocean-ice/40 p-5 shadow-sm">
-      <div className="flex items-start justify-between gap-3 mb-4">
-        <div>
-          <p className="text-sm font-semibold text-textPrimary">Valid ID</p>
-          <p className="text-xs text-textSecondary mt-1">Full name must match the booking details. Front image only.</p>
+  const renderAccountValidIdCard = () => {
+    const hasValidId = hasAccountValidId(profile);
+    return (
+      <div className="rounded-2xl border p-5 shadow-sm border-ocean-light/20 bg-white">
+        <div className="flex items-start justify-between gap-3 mb-4">
+          <div>
+            <p className="text-sm font-semibold text-textPrimary">Valid ID (from your account)</p>
+            <p className="text-xs text-textSecondary mt-1">
+              Used automatically for this reservation.
+            </p>
+          </div>
+          <div className={`flex h-10 w-10 items-center justify-center rounded-full ${hasValidId ? 'bg-green-100 text-green-600' : 'bg-ocean-ice text-ocean-mid'}`}>
+            <i className={`fas ${hasValidId ? 'fa-check' : 'fa-id-card'}`}></i>
+          </div>
         </div>
-        <div className={`flex h-10 w-10 items-center justify-center rounded-full ${bookingData.validIdImage ? 'bg-green-100 text-green-600' : 'bg-ocean-ice text-ocean-mid'}`}>
-          <i className={`fas ${bookingData.validIdImage ? 'fa-check' : 'fa-id-card'}`}></i>
+
+        <div className="relative">
+          {hasValidId ? (
+            <div>
+              <button
+                type="button"
+                onClick={() => router.push('/account#photo-details')}
+                className="inline-flex cursor-pointer items-center gap-2 rounded-xl px-4 py-2.5 text-sm font-medium transition-all duration-300 bg-gray-100 text-gray-700 hover:bg-gray-200 border border-gray-200/60 shadow-xs"
+              >
+                <i className="fas fa-id-card"></i> Manage Valid ID
+              </button>
+              <p className="mt-3 text-xs text-green-600 flex items-center gap-1.5">
+                <i className="fas fa-check-circle"></i>
+                On file — used for this reservation ({accountValidIdType})
+              </p>
+            </div>
+          ) : (
+            <div>
+              <button
+                type="button"
+                onClick={() => router.push('/account#photo-details')}
+                className="inline-flex cursor-pointer items-center gap-2 rounded-xl px-4 py-2.5 text-sm font-medium transition-all duration-300 bg-gradient-to-r from-ocean-mid to-ocean-light text-white hover:shadow-lg"
+              >
+                <i className="fas fa-upload"></i> Upload in Account
+              </button>
+              <p className="mt-3 text-xs text-amber-600 flex items-center gap-1.5">
+                <i className="fas fa-exclamation-circle"></i>
+                No valid ID on file. Required to confirm booking.
+              </p>
+            </div>
+          )}
+          {validIdError && (
+            <p className="mt-2 text-xs text-rose-600 flex items-center gap-1.5 font-medium">
+              <i className="fas fa-exclamation-triangle text-xs"></i> {validIdError}
+            </p>
+          )}
         </div>
       </div>
-
-      <button
-        type="button"
-        onClick={() => {
-          setTempValidIdType(bookingData.validIdType || 'Passport');
-          setTempValidIdImage(bookingData.validIdImage || null);
-          setShowValidIdModal(true);
-        }}
-        className="inline-flex items-center gap-2 rounded-xl border border-ocean-light/40 bg-white px-4 py-2.5 text-sm font-medium text-textPrimary transition-all duration-200 hover:border-ocean-mid/50 hover:bg-ocean-ice"
-      >
-        <i className="fas fa-cloud-upload-alt text-ocean-mid"></i>
-        {bookingData.validIdImage ? 'Update Valid ID' : 'Upload Valid ID'}
-      </button>
-
-      {bookingData.validIdType && (
-        <p className="mt-3 text-xs text-ocean-mid">
-          Selected ID: <span className="font-semibold">{bookingData.validIdType}</span>
-        </p>
-      )}
-      {bookingData.validIdImage && (
-        <p className="mt-1 text-xs text-green-600">
-          <i className="fas fa-check-circle mr-1"></i>
-          Valid ID uploaded
-        </p>
-      )}
-    </div>
-  );
+    );
+  };
 
   const renderPaymentProofCard = (inputId) => {
     return (
@@ -902,7 +891,7 @@ function DayTourBookingContent() {
       </div>
 
       <div className="grid gap-4 lg:grid-cols-2">
-        {renderValidIdCard()}
+        {renderAccountValidIdCard()}
         {renderPaymentProofCard('payment-proof-upload')}
       </div>
     </div>
@@ -1091,7 +1080,7 @@ function DayTourBookingContent() {
       </div>
 
       <div className="grid gap-4 lg:grid-cols-2">
-        {renderValidIdCard()}
+        {renderAccountValidIdCard()}
         {renderPaymentProofCard('payment-proof-upload-bank')}
       </div>
     </div>
@@ -1339,28 +1328,82 @@ function DayTourBookingContent() {
                     </div>
                   </div>
 
-                  {/* Mobile Number Validation Warning */}
-                  {!hasMobileNumber && (
-                    <div className="mt-6 p-4 bg-red-50 border border-red-200 rounded-xl">
-                      <div className="flex items-start gap-2">
-                        <i className="fas fa-exclamation-triangle text-red-500 mt-0.5"></i>
-                        <div>
-                          <p className="text-sm font-semibold text-red-800">Mobile number required</p>
-                          <p className="text-xs text-red-700 mt-1">
-                            You must add a mobile number to your account before you can complete a booking.
-                          </p>
-                          <button
-                            onClick={() => router.push('/account')}
-                            className="mt-2 inline-flex items-center gap-1 text-xs font-medium text-red-800 underline hover:text-red-900"
-                          >
-                            Update your account
-                            <i className="fas fa-arrow-right text-[10px]"></i>
-                          </button>
-                        </div>
+                  {/* Guest profile from account */}
+                  <div className="mt-6 mb-5 p-4 bg-blue-50/30 rounded-xl border border-blue-100/80 shadow-sm">
+                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pb-2.5 border-b border-blue-100/60 mb-3">
+                      <div className="flex items-center gap-2">
+                        <i className="fas fa-user-circle text-blue-600 text-lg"></i>
+                        <span className="text-sm font-semibold text-gray-800">
+                          Full Name: <span className="font-bold text-blue-900">{userDisplayName || '—'}</span>
+                        </span>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => router.push('/account')}
+                        className="text-xs text-blue-600 hover:text-blue-700 font-semibold flex items-center gap-1 self-start sm:self-auto"
+                      >
+                        <i className="fas fa-user-cog text-[10px]"></i>
+                        Update Profile
+                      </button>
+                    </div>
+
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-xs text-gray-600">
+                      <div className="flex items-center gap-2">
+                        <i className="fas fa-envelope text-blue-500/70 w-4 text-center"></i>
+                        <span className="font-medium text-gray-500">Email:</span>
+                        <span className="text-gray-800 break-all">{userEmail || '—'}</span>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <i className="fas fa-phone-alt text-blue-500/70 w-4 text-center"></i>
+                        <span className="font-medium text-gray-500">Mobile Number:</span>
+                        <span>
+                          {userMobileNumber ? (
+                            <span className="text-gray-800 font-mono font-medium">{userMobileNumber}</span>
+                          ) : (
+                            <span className="text-amber-600 inline-flex items-center gap-1 font-medium bg-amber-50 px-1.5 py-0.5 rounded border border-amber-200/50">
+                              <i className="fas fa-exclamation-triangle text-[10px]"></i> Contact number required to confirm.
+                            </span>
+                          )}
+                        </span>
                       </div>
                     </div>
-                  )}
-                  
+
+                    {(mobileNumberError || validIdError) && (
+                      <div className="mt-3 space-y-2">
+                        {mobileNumberError && (
+                          <div className="p-2.5 bg-amber-50 border border-amber-200/80 rounded-lg flex items-start gap-2 shadow-xs">
+                            <i className="fas fa-exclamation-circle text-amber-600 mt-0.5 text-sm"></i>
+                            <div className="flex-1">
+                              <p className="text-xs text-amber-800 leading-relaxed font-medium">{mobileNumberError}</p>
+                              <button
+                                type="button"
+                                onClick={() => router.push('/account')}
+                                className="mt-1 text-xs text-blue-600 font-semibold hover:underline flex items-center gap-1"
+                              >
+                                <i className="fas fa-arrow-right text-[9px]"></i> Update My Account
+                              </button>
+                            </div>
+                          </div>
+                        )}
+                        {validIdError && (
+                          <div className="p-2.5 bg-amber-50 border border-amber-200/80 rounded-lg flex items-start gap-2 shadow-xs">
+                            <i className="fas fa-exclamation-circle text-amber-600 mt-0.5 text-sm"></i>
+                            <div className="flex-1">
+                              <p className="text-xs text-amber-800 leading-relaxed font-medium">{validIdError}</p>
+                              <button
+                                type="button"
+                                onClick={() => router.push('/account#photo-details')}
+                                className="mt-1 text-xs text-blue-600 font-semibold hover:underline flex items-center gap-1"
+                              >
+                                <i className="fas fa-arrow-right text-[9px]"></i> Upload Valid ID in Account
+                              </button>
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    )}
+                  </div>
+
                   <div className="mt-6 mb-6">
                     <label className="mb-3 block text-xs font-bold uppercase tracking-[0.18em] text-textSecondary">Select Payment Method</label>
                     <div className="grid gap-4 md:grid-cols-2">
@@ -1477,7 +1520,7 @@ function DayTourBookingContent() {
                       </div>
                       <h2 className="text-2xl font-bold text-textPrimary mb-2">Reservation Received</h2>
                       <p className="text-textSecondary mb-6">
-                        Your day tour reservation is pending admin confirmation. We sent your tracker details to {user?.email}. Once the resort confirms your reservation, you will receive a separate confirmation email.
+                        Your day tour reservation is pending admin confirmation. We sent your booking details to {user?.email}. Once the resort confirms your reservation, you will receive a separate confirmation email. 
                       </p>
                     </div>
 
@@ -1522,7 +1565,7 @@ function DayTourBookingContent() {
                           <p className="text-base font-semibold text-textPrimary">{paymentMethod === 'gcash' ? 'GCash' : 'Bank Transfer'}</p>
                           <p className="text-sm text-textSecondary">Reservation Status: Pending admin confirmation</p>
                           <p className="text-sm text-textSecondary">Payment Status: Down payment received</p>
-                          <p className="text-sm text-textSecondary">Valid ID: {bookingData.validIdType || 'Submitted'}</p>
+                          <p className="text-sm text-textSecondary">Valid ID: {accountValidIdType || 'Submitted'}</p>
                         </div>
                       </div>
 
@@ -1555,7 +1598,7 @@ function DayTourBookingContent() {
 
                       <div className="rounded-xl bg-amber-50 px-4 py-3 text-sm text-amber-800">
                         <i className="fas fa-info-circle mr-2"></i>
-                        Use your reference number in the Reservation Tracker while this booking is pending. Remaining balance is payable at the resort. Cancellations will result in forfeiture of the down payment, unless the booking is rescheduled.
+                        You can track your reservation through your account. Remaining balance is payable at the resort. Cancellations will result in forfeiture of the down payment, unless the booking is rescheduled.
                       </div>
                       {qrToken && (
                         <div className="mt-6 mb-6 p-4 bg-white rounded-xl border-2 border-blue-200">
@@ -1607,108 +1650,6 @@ function DayTourBookingContent() {
           </div>
         </div>
       </div>
-
-      {/* Valid ID Modal */}
-      {showValidIdModal && (
-        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-2xl w-full max-w-[380px] p-5 shadow-2xl" onClick={(e) => e.stopPropagation()}>
-            <div className="flex justify-between items-center mb-3">
-              <h3 className="text-base font-bold text-textPrimary">Upload Valid ID</h3>
-              <button
-                onClick={() => setShowValidIdModal(false)}
-                className="w-7 h-7 rounded-md bg-ocean-ice text-neutral hover:bg-ocean-light/20 hover:text-textPrimary transition-all duration-200 flex items-center justify-center">
-                <i className="fas fa-times text-xs"></i>
-              </button>
-            </div>
- 
-            <div className="space-y-3">
-              <div>
-                <label className="block text-[11px] font-bold uppercase tracking-wider text-textSecondary mb-1.5">ID Type</label>
-                <select
-                  value={tempValidIdType}
-                  onChange={(e) => setTempValidIdType(e.target.value)}
-                  className="w-full px-3 py-2 border border-ocean-light/30 rounded-lg text-sm focus:outline-none focus:border-ocean-light focus:ring-2 focus:ring-ocean-light/20 bg-gray-50/50"
-                >
-                  {validIdOptions.map((option) => (
-                    <option key={option} value={option}>
-                      {option}
-                    </option>
-                  ))}
-                </select>
-              </div>
- 
-              <div className="bg-blue-50/50 p-2.5 rounded-lg border border-blue-100/50">
-                <p className="text-[11px] font-semibold text-blue-900 mb-1">Upload Requirements:</p>
-                <ul className="text-[11px] text-blue-800 space-y-0.5 list-disc pl-3">
-                  <li>Full name must match booking</li>
-                  <li>Front image only, must be clear</li>
-                  <li>No blurred or cut-off images</li>
-                </ul>
-              </div>
- 
-              <div className="pt-2 border-t border-ocean-light/10">
-                <div className="flex items-center justify-between mb-2">
-                  <label className="text-[13px] font-bold uppercase tracking-wider text-textSecondary">ID Photo (Front)</label>
-                  <div className="relative">
-                    <input
-                      type="file"
-                      accept="image/*"
-                      onChange={handleValidIdFileChange}
-                      className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
-                      id="valid-id-upload-daytour"
-                      disabled={validIdUploading}
-                    />
-                    <label
-                      htmlFor="valid-id-upload-daytour"
-                      className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-semibold transition-all duration-300 cursor-pointer ${
-                        validIdUploading
-                          ? 'bg-gray-200 text-gray-400 cursor-not-allowed'
-                          : 'bg-ocean-mid text-white hover:bg-ocean-mid/90 shadow-sm'
-                      }`}
-                    >
-                      <i className={`fas ${validIdUploading ? 'fa-spinner fa-spin' : 'fa-camera'}`}></i>
-                      {validIdUploading ? 'Uploading...' : tempValidIdImage ? 'Change Image' : 'Select Photo'}
-                    </label>
-                  </div>
-                </div>
- 
-                <div className="h-44 border-2 border-dashed border-ocean-light/20 rounded-xl overflow-hidden bg-ocean-ice/30 flex items-center justify-center">
-                  {tempValidIdImage ? (
-                    <img
-                      src={tempValidIdImage}
-                      alt="Valid ID Preview"
-                      className="w-full h-full object-contain bg-white"
-                    />
-                  ) : (
-                    <div className="text-center">
-                      <i className="fas fa-id-card text-2xl text-ocean-mid/30 mb-2 block"></i>
-                      <p className="text-[10px] text-textSecondary">Preview will appear here</p>
-                    </div>
-                  )}
-                </div>
-              </div>
-            </div>
- 
-            <div className="flex justify-end gap-2 mt-5 pt-3 border-t border-ocean-light/10">
-              <button
-                type="button"
-                onClick={() => setShowValidIdModal(false)}
-                className="px-4 py-2.5 rounded-lg text-xs font-semibold text-textSecondary hover:bg-ocean-ice transition-all duration-200"
-              >
-                Cancel
-              </button>
-              <button
-                type="button"
-                onClick={handleSaveValidId}
-                disabled={!tempValidIdImage || !tempValidIdType || validIdUploading}
-                className="px-5 py-2.5 bg-gradient-to-r from-ocean-mid to-ocean-light rounded-lg text-xs font-bold text-white shadow-md hover:shadow-lg transition-all duration-200 disabled:opacity-50 disabled:grayscale disabled:cursor-not-allowed"
-              >
-                Confirm ID
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
 
       {/* Guest Auth Modal */}
       <GuestAuthModal

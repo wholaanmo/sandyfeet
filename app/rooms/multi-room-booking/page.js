@@ -13,6 +13,7 @@ import { sendRoomPendingEmail } from '@/lib/emailService';
 import ChatBot from '@/components/guest/ChatBot';
 import { QRCodeSVG } from 'qrcode.react';
 import { useGuestAuth } from '@/components/guest/GuestAuthContext';
+import { getDisplayValidIdType, hasAccountValidId, hasAccountMobileNumber } from '@/lib/guestValidId';
 
 // Storage keys for persisting data
 const MULTI_ROOM_STORAGE_KEY = 'multi_room_booking_data';
@@ -44,30 +45,16 @@ export default function MultiRoomBookingPage() {
   const [bankRequestId, setBankRequestId] = useState(null);
   const [modalNotification, setModalNotification] = useState(null);
   const [copiedMessage, setCopiedMessage] = useState(false);
-  const [showValidIdModal, setShowValidIdModal] = useState(false);
-  const [tempValidIdType, setTempValidIdType] = useState('Passport');
-  const [tempValidIdFile, setTempValidIdFile] = useState(null);
-  const [validIdUploading, setValidIdUploading] = useState(false);
   const [isConfirmed, setIsConfirmed] = useState(false);
   const [qrToken, setQrToken] = useState('');
   const [qrLoading, setQrLoading] = useState(false);
   const [mobileNumberError, setMobileNumberError] = useState('');
+  const [validIdError, setValidIdError] = useState('');
 
   const FIXED_CHECK_IN_HOUR = 14;
   const FIXED_CHECK_OUT_HOUR = 12;
   const FIXED_CHECK_IN_DISPLAY = '02:00 PM';
   const FIXED_CHECK_OUT_DISPLAY = '12:00 PM';
-
-  const validIdOptions = [
-    'Passport',
-    "Driver's License",
-    'National ID',
-    'UMID',
-    'Postal ID',
-    "Voter's ID / Voter's Certificate",
-    'PhilHealth ID',
-    'Other Government IDs'
-  ];
 
   // Load booking data from session storage (room selection) AND localStorage (persisted form data)
   useEffect(() => {
@@ -78,7 +65,7 @@ export default function MultiRoomBookingPage() {
     }
 
     const data = JSON.parse(storedData);
-    
+
     // Try to load persisted form data from localStorage
     let persistedFormData = {};
     try {
@@ -90,7 +77,7 @@ export default function MultiRoomBookingPage() {
     } catch (error) {
       console.error('Error loading persisted booking data:', error);
     }
-    
+
     // Try to load persisted step
     try {
       const savedStep = localStorage.getItem(MULTI_ROOM_STEP_KEY);
@@ -103,12 +90,12 @@ export default function MultiRoomBookingPage() {
     } catch (error) {
       console.error('Error loading persisted step:', error);
     }
-    
+
     // Try to load persisted payment method
     if (persistedFormData.paymentMethod) {
       setPaymentMethod(persistedFormData.paymentMethod);
     }
-    
+
     // Try to load persisted bank request state
     if (persistedFormData.bankRequestSent) {
       setBankRequestSent(persistedFormData.bankRequestSent);
@@ -119,14 +106,12 @@ export default function MultiRoomBookingPage() {
     if (persistedFormData.bankDetailsProvided) {
       setBankDetailsProvided(persistedFormData.bankDetailsProvided);
     }
-    
+
     setBookingData({
       ...data,
       checkIn: new Date(data.checkInDate),
       checkOut: new Date(data.checkOutDate),
       paymentProofUrl: persistedFormData.paymentProofUrl || null,
-      validIdType: persistedFormData.validIdType || '',
-      validIdUrl: persistedFormData.validIdUrl || null,
       specialRequest: persistedFormData.specialRequest || '',
       nights: 1
     });
@@ -139,12 +124,10 @@ export default function MultiRoomBookingPage() {
   // Save booking data to localStorage whenever it changes
   useEffect(() => {
     if (!bookingData) return;
-    
+
     try {
       const dataToSave = {
         paymentProofUrl: bookingData.paymentProofUrl,
-        validIdType: bookingData.validIdType,
-        validIdUrl: bookingData.validIdUrl,
         specialRequest: bookingData.specialRequest,
         paymentMethod: paymentMethod,
         bankRequestSent: bankRequestSent,
@@ -266,9 +249,9 @@ export default function MultiRoomBookingPage() {
   // Real-time listener for bank request document
   useEffect(() => {
     if (!bankRequestId) return;
-    
+
     const bankRequestRef = doc(db, 'bank_requests', bankRequestId);
-    
+
     const unsubscribe = onSnapshot(bankRequestRef, (docSnapshot) => {
       if (docSnapshot.exists()) {
         const data = docSnapshot.data();
@@ -280,7 +263,7 @@ export default function MultiRoomBookingPage() {
     }, (error) => {
       console.error('Error listening for bank request:', error);
     });
-    
+
     return () => unsubscribe();
   }, [bankRequestId, bankDetailsProvided]);
 
@@ -337,12 +320,12 @@ export default function MultiRoomBookingPage() {
   const handlePaymentProofUpload = async (e) => {
     const file = e.target.files[0];
     if (!file) return;
-    
+
     if (file.size > 10 * 1024 * 1024) {
       setModalNotification({ message: 'File size exceeds 10MB. Please choose a smaller file.', type: 'error' });
       return;
     }
-    
+
     setUploading(true);
     try {
       const compressedFile = await compressImage(file, {
@@ -359,41 +342,6 @@ export default function MultiRoomBookingPage() {
     }
   };
 
-  const handleValidIdFileChange = async (e) => {
-    const file = e.target.files[0];
-    if (!file) return;
-
-    if (file.size > 10 * 1024 * 1024) {
-      setModalNotification({ message: 'File size exceeds 10MB. Please choose a smaller file.', type: 'error' });
-      return;
-    }
-
-    setValidIdUploading(true);
-    try {
-      const compressedFile = await compressImage(file, {
-        maxSizeMB: 0.05,
-        maxDimension: 900
-      });
-      const imageUrl = await uploadFileToCloudinary(compressedFile);
-      setTempValidIdFile(imageUrl);
-      setModalNotification({ message: 'Valid ID uploaded successfully!', type: 'success' });
-    } catch (error) {
-      setModalNotification({ message: error.message || 'Failed to upload valid ID. Please try again.', type: 'error' });
-    } finally {
-      setValidIdUploading(false);
-    }
-  };
-
-  const handleSaveValidId = () => {
-    if (!tempValidIdFile || !tempValidIdType) return;
-    setBookingData(prev => ({
-      ...prev,
-      validIdType: tempValidIdType,
-      validIdUrl: tempValidIdFile
-    }));
-    setShowValidIdModal(false);
-  };
-
   const handleNotifyResort = async () => {
     if (!selectedBankAccount) {
       setModalNotification({ message: 'Please select a bank account first', type: 'error' });
@@ -406,7 +354,7 @@ export default function MultiRoomBookingPage() {
     const exclusivePackagePrice = Number(bookingData.exclusivePackagePrice || totalPrice || 0);
     const fallbackRoomType = bookingData.roomTypes?.[0]?.type || 'Room';
     const fallbackRoomId = bookingData.roomTypes?.[0]?.roomIds?.[0] || bookingData.roomTypes?.[0]?.id || 'multiple';
-    
+
     setNotifyingResort(true);
     try {
       setRequestedBankInfo({
@@ -415,7 +363,7 @@ export default function MultiRoomBookingPage() {
         accountNumber: selectedBankAccount.accountNumber,
         requestedAt: new Date().toISOString()
       });
-      
+
       const bankRequestsRef = collection(db, 'bank_requests');
       const docRef = await addDoc(bankRequestsRef, {
         guestName: profile ? `${profile.firstName || ''} ${profile.lastName || ''}`.trim() : 'Guest',
@@ -424,8 +372,8 @@ export default function MultiRoomBookingPage() {
         roomType: isExclusiveResortBooking
           ? 'Entire Resort Package'
           : isMultiRoomRequest
-          ? (bookingData.roomTypes?.map(t => `${t.quantity} x ${t.type}`).join(', ') || 'Multiple Rooms')
-          : fallbackRoomType,
+            ? (bookingData.roomTypes?.map(t => `${t.quantity} x ${t.type}`).join(', ') || 'Multiple Rooms')
+            : fallbackRoomType,
         roomId: isMultiRoomRequest ? 'multiple' : fallbackRoomId,
         bookingId: generatedBookingId,
         checkIn: bookingData.checkIn,
@@ -448,7 +396,7 @@ export default function MultiRoomBookingPage() {
         isExclusiveResortBooking,
         exclusivePackagePrice: isExclusiveResortBooking ? exclusivePackagePrice : null
       });
-      
+
       setBankRequestId(docRef.id);
       setBankRequestSent(true);
       setModalNotification({ message: 'Request sent to resort! You will receive bank details shortly.', type: 'success' });
@@ -462,19 +410,28 @@ export default function MultiRoomBookingPage() {
     }
   };
 
-  const checkMobileNumber = () => {
-    const mobileNumber = profile?.mobileNumber;
-    if (!mobileNumber || mobileNumber.trim() === '') {
+  const checkBookingRequirements = () => {
+    let valid = true;
+    if (!hasAccountMobileNumber(profile)) {
       setMobileNumberError('A mobile number is required to confirm your booking. Please update your account profile.');
-      return false;
+      valid = false;
+    } else {
+      setMobileNumberError('');
     }
-    setMobileNumberError('');
-    return true;
+    if (!hasAccountValidId(profile)) {
+      setValidIdError('A valid ID photo is required. Please upload your valid ID in your account profile.');
+      valid = false;
+    } else {
+      setValidIdError('');
+    }
+    return valid;
   };
 
+  const accountValidIdType = getDisplayValidIdType(profile);
+  const accountValidIdUrl = profile?.validIdUrl || '';
+
   const handleSubmitBooking = async () => {
-    // Check if user has mobile number in their profile
-    if (!checkMobileNumber()) {
+    if (!checkBookingRequirements()) {
       return;
     }
 
@@ -486,13 +443,13 @@ export default function MultiRoomBookingPage() {
       const packageTotalPrice = isExclusiveResortBooking ? exclusivePackagePrice : Number(totalPrice || 0);
       const packageDownPayment = packageTotalPrice * 0.5;
       const packageRemainingBalance = packageTotalPrice - packageDownPayment;
-      
+
       // Get user info from profile
       const userFirstName = profile?.firstName || '';
       const userLastName = profile?.lastName || '';
       const userEmail = profile?.email || user?.email || '';
       const userPhone = profile?.mobileNumber || '';
-      
+
       // Create booking document for each room type
       const allRoomIds = [];
       for (const roomType of bookingData.roomTypes) {
@@ -547,8 +504,8 @@ export default function MultiRoomBookingPage() {
           status: 'pending',
           paymentMethod: paymentMethod,
           paymentProofUrl: bookingData.paymentProofUrl,
-          validIdType: bookingData.validIdType || null,
-          validIdUrl: bookingData.validIdUrl || null,
+          validIdType: accountValidIdType || null,
+          validIdUrl: accountValidIdUrl || null,
           createdAt: serverTimestamp(),
           updatedAt: serverTimestamp(),
           type: 'room',
@@ -617,8 +574,8 @@ export default function MultiRoomBookingPage() {
               status: 'pending',
               paymentMethod: paymentMethod,
               paymentProofUrl: bookingData.paymentProofUrl,
-              validIdType: bookingData.validIdType || null,
-              validIdUrl: bookingData.validIdUrl || null,
+              validIdType: accountValidIdType || null,
+              validIdUrl: accountValidIdUrl || null,
               createdAt: serverTimestamp(),
               updatedAt: serverTimestamp(),
               type: 'room',
@@ -648,19 +605,19 @@ export default function MultiRoomBookingPage() {
           }
         }
       }
-      
+
       sessionStorage.setItem('resetRoomsPage', 'true');
-      
+
       // Send email notification to guest
       try {
         // Prepare booking data for email
         const selectedRoomsList = Object.entries(bookingData.selectedRooms || {})
           .filter(([_, qty]) => qty > 0)
           .map(([type, qty]) => `${qty} × ${type}`);
-        
+
         const roomTypesDisplay = selectedRoomsList.join(', ') || 'Room';
         const totalRoomsCount = Object.values(bookingData.selectedRooms || {}).reduce((a, b) => a + b, 0);
-        
+
         const emailBookingData = {
           bookingId: generatedBookingId,
           guestInfo: {
@@ -680,7 +637,7 @@ export default function MultiRoomBookingPage() {
           tentCount: bookingData.tentCount || 0,
           specialRequest: bookingData.specialRequest || null
         };
-        
+
         await sendRoomPendingEmail(emailBookingData);
         console.log('Pending confirmation email sent to guest');
       } catch (emailError) {
@@ -689,7 +646,7 @@ export default function MultiRoomBookingPage() {
       }
 
       await generateQrToken(generatedBookingId);
-      
+
       // Mark as confirmed and go to confirmation step (step 3)
       setIsConfirmed(true);
       setStep(3);
@@ -724,9 +681,9 @@ export default function MultiRoomBookingPage() {
   const formatDateOnly = (date) => {
     if (!date) return '';
     const dateObj = date instanceof Date ? date : new Date(date);
-    return dateObj.toLocaleDateString('en-US', { 
-      year: 'numeric', 
-      month: 'long', 
+    return dateObj.toLocaleDateString('en-US', {
+      year: 'numeric',
+      month: 'long',
       day: 'numeric'
     });
   };
@@ -754,6 +711,14 @@ export default function MultiRoomBookingPage() {
         <div className="min-h-screen bg-[#F8FCFF] pt-32 pb-14 flex items-center justify-center">
           <i className="fas fa-spinner fa-spin text-3xl text-blue-500"></i>
         </div>
+        <style jsx>{`
+        @keyframes fadeIn {
+          from { opacity: 0; transform: translateY(-5px); }
+          to { opacity: 1; transform: translateY(0); }
+        }
+        .animate-fadeIn { animation: fadeIn 0.3s ease-out; }
+      `}</style>
+        <ChatBot />
       </GuestLayout>
     );
   }
@@ -839,19 +804,17 @@ export default function MultiRoomBookingPage() {
 
                     return (
                       <div key={item.id} className="flex flex-col items-center relative z-10 w-1/3">
-                        <div className={`w-10 h-10 rounded-full flex items-center justify-center text-sm font-bold border-2 transition-colors ${
-                          isActive
+                        <div className={`w-10 h-10 rounded-full flex items-center justify-center text-sm font-bold border-2 transition-colors ${isActive
                             ? 'bg-blue-600 border-blue-600 text-white shadow-md shadow-blue-200'
                             : showCheckIcon
                               ? 'bg-blue-500 border-blue-500 text-white'
                               : 'bg-white border-gray-300 text-gray-400'
-                        }`}>
+                          }`}>
                           {showCheckIcon ? <i className="fas fa-check text-xs"></i> : item.id}
                         </div>
 
-                        <div className={`text-center text-[10px] sm:text-[11px] mt-2 font-bold uppercase tracking-wider w-full ${
-                          isActive ? 'text-blue-700' : isUpcoming ? 'text-gray-400' : 'text-gray-600'
-                        }`}>
+                        <div className={`text-center text-[10px] sm:text-[11px] mt-2 font-bold uppercase tracking-wider w-full ${isActive ? 'text-blue-700' : isUpcoming ? 'text-gray-400' : 'text-gray-600'
+                          }`}>
                           {item.label}
                         </div>
                       </div>
@@ -864,34 +827,86 @@ export default function MultiRoomBookingPage() {
               {step === 2 && (
                 <div className="bg-white rounded-2xl border border-gray-200 shadow-[0_10px_30px_rgb(0,0,0,0.05)] p-5 sm:p-6">
                   <h2 className="text-xl md:text-2xl font-playfair font-bold text-gray-900 mb-4 sm:mb-6">Payment</h2>
-                  
+
                   {/* Account Information Summary */}
-                  <div className="mb-6 p-4 bg-blue-50/50 rounded-xl border border-blue-100">
-                    <h3 className="text-sm font-semibold text-blue-800 mb-2 flex items-center gap-2">
-                      <i className="fas fa-user-circle"></i>
-                      Booking For: {userDisplayName}
-                    </h3>
-                    <p className="text-sm text-gray-600">Email: {userEmail}</p>
-                    <p className="text-sm text-gray-600 flex items-center gap-2">
-                      Mobile: {userMobileNumber || <span className="text-amber-600 flex items-center gap-1"><i className="fas fa-exclamation-triangle"></i> Not provided - <button onClick={() => router.push('/account')} className="text-blue-600 underline">Update Profile</button></span>}
-                    </p>
-                    {mobileNumberError && (
-                      <div className="mt-3 p-3 bg-amber-50 border border-amber-200 rounded-lg">
-                        <p className="text-amber-800 text-sm flex items-start gap-2">
-                          <i className="fas fa-exclamation-circle mt-0.5"></i>
-                          {mobileNumberError}
-                        </p>
-                        <button
-                          onClick={() => router.push('/account')}
-                          className="mt-2 text-sm text-blue-600 font-semibold hover:underline flex items-center gap-1"
-                        >
-                          <i className="fas fa-arrow-right"></i>
-                          Update My Account
-                        </button>
+                  <div className="mb-5 p-4 bg-blue-50/30 rounded-xl border border-blue-100/80 shadow-sm">
+                    {/* Header */}
+                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pb-2.5 border-b border-blue-100/60 mb-3">
+                      <div className="flex items-center gap-2">
+                        <i className="fas fa-user-circle text-blue-600 text-lg"></i>
+                        <span className="text-sm font-semibold text-gray-800">
+                          Booking For: <span className="font-bold text-blue-900">{userDisplayName}</span>
+                        </span>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => router.push('/account')}
+                        className="text-xs text-blue-600 hover:text-blue-700 font-semibold flex items-center gap-1 self-start sm:self-auto"
+                      >
+                        <i className="fas fa-user-cog text-[10px]"></i>
+                        Update Profile
+                      </button>
+                    </div>
+
+                    {/* Metadata Grid */}
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-xs text-gray-600">
+                      <div className="flex items-center gap-2">
+                        <i className="fas fa-envelope text-blue-500/70 w-4 text-center"></i>
+                        <span className="font-medium text-gray-500">Email:</span>
+                        <span className="text-gray-800 break-all">{userEmail}</span>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <i className="fas fa-phone-alt text-blue-500/70 w-4 text-center"></i>
+                        <span className="font-medium text-gray-500">Mobile:</span>
+                        <span>
+                          {userMobileNumber ? (
+                            <span className="text-gray-800 font-mono font-medium">{userMobileNumber}</span>
+                          ) : (
+                            <span className="text-amber-600 inline-flex items-center gap-1 font-medium bg-amber-50 px-1.5 py-0.5 rounded border border-amber-200/50">
+                              <i className="fas fa-exclamation-triangle text-[10px]"></i> Contact number required to confirm.
+                            </span>
+                          )}
+                        </span>
+                      </div>
+                    </div>
+
+                    {/* Error Alerts */}
+                    {(mobileNumberError || validIdError) && (
+                      <div className="mt-3 space-y-2">
+                        {mobileNumberError && (
+                          <div className="p-2.5 bg-amber-50 border border-amber-200/80 rounded-lg flex items-start gap-2 shadow-xs">
+                            <i className="fas fa-exclamation-circle text-amber-600 mt-0.5 text-sm"></i>
+                            <div className="flex-1">
+                              <p className="text-xs text-amber-800 leading-relaxed font-medium">{mobileNumberError}</p>
+                              <button
+                                type="button"
+                                onClick={() => router.push('/account')}
+                                className="mt-1 text-xs text-blue-600 font-semibold hover:underline flex items-center gap-1"
+                              >
+                                <i className="fas fa-arrow-right text-[9px]"></i> Update My Account
+                              </button>
+                            </div>
+                          </div>
+                        )}
+                        {validIdError && (
+                          <div className="p-2.5 bg-amber-50 border border-amber-200/80 rounded-lg flex items-start gap-2 shadow-xs">
+                            <i className="fas fa-exclamation-circle text-amber-600 mt-0.5 text-sm"></i>
+                            <div className="flex-1">
+                              <p className="text-xs text-amber-800 leading-relaxed font-medium">{validIdError}</p>
+                              <button
+                                type="button"
+                                onClick={() => router.push('/account#photo-details')}
+                                className="mt-1 text-xs text-blue-600 font-semibold hover:underline flex items-center gap-1"
+                              >
+                                <i className="fas fa-arrow-right text-[9px]"></i> Upload Valid ID in Account
+                              </button>
+                            </div>
+                          </div>
+                        )}
                       </div>
                     )}
                   </div>
-                  
+
                   {/* Payment Method Selection */}
                   <div className="mb-5 sm:mb-6">
                     <label className="block text-sm font-semibold text-textPrimary mb-2 sm:mb-3">Select Payment Method</label>
@@ -899,11 +914,10 @@ export default function MultiRoomBookingPage() {
                       <button
                         type="button"
                         onClick={() => setPaymentMethod('gcash')}
-                        className={`p-3 sm:p-4 rounded-xl border transition-all duration-200 flex flex-row items-center justify-center gap-2 sm:gap-3 ${
-                          paymentMethod === 'gcash'
+                        className={`p-3 sm:p-4 rounded-xl border transition-all duration-200 flex flex-row items-center justify-center gap-2 sm:gap-3 ${paymentMethod === 'gcash'
                             ? 'border-blue-500 bg-blue-50/50 shadow-sm'
                             : 'border-gray-200 bg-white hover:border-blue-300'
-                        }`}
+                          }`}
                       >
                         <i className={`fas fa-wallet text-2xl sm:text-3xl ${paymentMethod === 'gcash' ? 'text-blue-600' : 'text-gray-400'}`}></i>
                         <span className={`text-sm font-medium ${paymentMethod === 'gcash' ? 'text-blue-600' : 'text-gray-500'}`}>GCash</span>
@@ -911,18 +925,17 @@ export default function MultiRoomBookingPage() {
                       <button
                         type="button"
                         onClick={() => setPaymentMethod('bank_transfer')}
-                        className={`p-3 sm:p-4 rounded-xl border transition-all duration-200 flex flex-row items-center justify-center gap-2 sm:gap-3 ${
-                          paymentMethod === 'bank_transfer'
+                        className={`p-3 sm:p-4 rounded-xl border transition-all duration-200 flex flex-row items-center justify-center gap-2 sm:gap-3 ${paymentMethod === 'bank_transfer'
                             ? 'border-blue-500 bg-blue-50/50 shadow-sm'
                             : 'border-gray-200 bg-white hover:border-blue-300'
-                        }`}
+                          }`}
                       >
                         <i className={`fas fa-credit-card text-xl sm:text-2xl ${paymentMethod === 'bank_transfer' ? 'text-blue-600' : 'text-gray-400'}`}></i>
                         <span className={`text-sm font-medium ${paymentMethod === 'bank_transfer' ? 'text-blue-600' : 'text-gray-500'}`}>Bank Transfer</span>
                       </button>
                     </div>
                   </div>
-                  
+
                   {/* GCash Payment Section */}
                   {paymentMethod === 'gcash' && (
                     <div className="space-y-4 sm:space-y-5">
@@ -966,40 +979,49 @@ export default function MultiRoomBookingPage() {
                         </ul>
                       </div>
 
-                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4 sm:gap-5">
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                        {/* Valid ID Container */}
                         <div className="bg-white rounded-xl border border-gray-200 p-4 sm:p-5 shadow-sm hover:border-blue-200 transition-colors">
                           <div className="flex items-center gap-2 mb-2">
                             <i className="fas fa-id-card text-blue-500 text-lg"></i>
-                            <label className="text-sm font-semibold text-gray-800">Valid ID</label>
+                            <label className="text-sm font-semibold text-gray-800">Valid ID (from your account)</label>
                           </div>
                           <p className="text-[11px] text-gray-500 mb-3 leading-tight">
-                            Clear front image only.
+                            Required for booking verification.
                           </p>
-                          <button
-                            type="button"
-                            onClick={() => {
-                              setTempValidIdType(bookingData.validIdType || 'Passport');
-                              setShowValidIdModal(true);
-                            }}
-                            className="w-full inline-flex justify-center items-center gap-2 px-4 py-2.5 rounded-lg border border-gray-200 text-sm font-medium text-gray-700 bg-gray-50 hover:bg-gray-100 hover:text-gray-900 transition-all duration-200"
-                          >
-                            <i className="fas fa-cloud-upload-alt text-gray-500"></i>
-                            {bookingData.validIdUrl ? 'Change ID' : 'Upload ID'}
-                          </button>
-                          {bookingData.validIdType && (
-                            <p className="mt-2.5 text-[11px] text-gray-600 flex items-center gap-1.5">
-                              <i className="fas fa-check-circle text-blue-500"></i>
-                              {bookingData.validIdType}
-                            </p>
-                          )}
-                          {bookingData.validIdUrl && (
-                            <p className="mt-1 text-[11px] text-emerald-600 flex items-center gap-1.5">
+                          <div className="relative">
+                            {hasAccountValidId(profile) ? (
+                              <button
+                                type="button"
+                                onClick={() => router.push('/account#photo-details')}
+                                className="w-full inline-flex justify-center items-center gap-2 px-4 py-2.5 rounded-lg text-sm font-medium bg-gray-100 text-gray-700 hover:bg-gray-200 border border-gray-200 transition-all duration-200 cursor-pointer"
+                              >
+                                <i className="fas fa-id-card"></i> Manage Valid ID
+                              </button>
+                            ) : (
+                              <button
+                                type="button"
+                                onClick={() => router.push('/account#photo-details')}
+                                className="w-full inline-flex justify-center items-center gap-2 px-4 py-2.5 rounded-lg text-sm font-medium bg-blue-600 text-white hover:bg-blue-700 shadow-sm shadow-blue-200/50 cursor-pointer transition-all duration-200"
+                              >
+                                <i className="fas fa-upload"></i> Upload in Account
+                              </button>
+                            )}
+                          </div>
+                          {hasAccountValidId(profile) ? (
+                            <p className="mt-2.5 text-[11px] text-emerald-600 flex items-center gap-1.5">
                               <i className="fas fa-check-circle text-emerald-500"></i>
-                              Valid ID uploaded
+                              On file — used for this reservation ({accountValidIdType})
+                            </p>
+                          ) : (
+                            <p className="mt-2.5 text-[11px] text-amber-600 flex items-center gap-1.5">
+                              <i className="fas fa-exclamation-circle text-amber-500"></i>
+                              No valid ID on file. Required to confirm booking.
                             </p>
                           )}
                         </div>
-                        
+
+                        {/* Receipt Container */}
                         <div className="bg-white rounded-xl border border-gray-200 p-4 sm:p-5 shadow-sm hover:border-blue-200 transition-colors">
                           <div className="flex items-center gap-2 mb-2">
                             <i className="fas fa-file-invoice-dollar text-blue-500 text-lg"></i>
@@ -1019,11 +1041,10 @@ export default function MultiRoomBookingPage() {
                             />
                             <label
                               htmlFor="payment-proof-upload"
-                              className={`w-full inline-flex justify-center items-center gap-2 px-4 py-2.5 rounded-lg text-sm font-medium transition-all duration-200 ${
-                                uploading
+                              className={`w-full inline-flex justify-center items-center gap-2 px-4 py-2.5 rounded-lg text-sm font-medium transition-all duration-200 ${uploading
                                   ? 'bg-gray-100 text-gray-400 cursor-wait border border-gray-200'
                                   : 'bg-blue-600 text-white hover:bg-blue-700 shadow-sm shadow-blue-200/50 cursor-pointer'
-                              }`}
+                                }`}
                             >
                               {uploading ? (
                                 <><i className="fas fa-spinner fa-spin"></i> Processing...</>
@@ -1042,7 +1063,7 @@ export default function MultiRoomBookingPage() {
                       </div>
                     </div>
                   )}
-                  
+
                   {/* Bank Transfer Section */}
                   {paymentMethod === 'bank_transfer' && (
                     <div className="space-y-4 sm:space-y-5">
@@ -1078,7 +1099,7 @@ export default function MultiRoomBookingPage() {
                               </div>
                             </div>
                           )}
-                          
+
                           {/* REQUESTED BANK DETAILS CONTAINER - Separate section for bank details */}
                           {bankDetailsProvided ? (
                             <div className="rounded-xl border border-green-200 bg-green-50/40 p-4">
@@ -1131,7 +1152,7 @@ export default function MultiRoomBookingPage() {
                                 <h3 className="text-sm font-semibold text-gray-800">Choose your other preferred bank:</h3>
                               </div>
                               {requestableBankAccounts.length > 0 ? (
-                                <select 
+                                <select
                                   className="w-full p-2.5 text-sm border border-gray-200 rounded-lg focus:outline-none focus:border-blue-400 focus:ring-2 focus:ring-blue-500/20 bg-white"
                                   onChange={(e) => {
                                     if (e.target.value !== '') {
@@ -1189,7 +1210,7 @@ export default function MultiRoomBookingPage() {
                           ))}
                         </div>
                       </div>
-                      
+
                       <div className="p-3 sm:p-4 bg-blue-50/50 rounded-xl border border-blue-100">
                         <p className="text-xs sm:text-sm text-blue-800 mb-1.5 font-medium flex items-center">
                           <i className="fas fa-info-circle mr-1.5"></i>
@@ -1202,47 +1223,56 @@ export default function MultiRoomBookingPage() {
                         </ul>
                       </div>
 
-                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4 sm:gap-5">
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                        {/* Valid ID Container */}
                         <div className="bg-white rounded-xl border border-gray-200 p-4 sm:p-5 shadow-sm hover:border-blue-200 transition-colors">
                           <div className="flex items-center gap-2 mb-2">
                             <i className="fas fa-id-card text-blue-500 text-lg"></i>
-                            <label className="text-sm font-semibold text-gray-800">Valid ID</label>
+                            <label className="text-sm font-semibold text-gray-800">Valid ID (from your account)</label>
                           </div>
                           <p className="text-[11px] text-gray-500 mb-3 leading-tight">
-                            Clear front image only. 
+                            Required for booking verification.
                           </p>
-                          <button
-                            type="button"
-                            onClick={() => {
-                              setTempValidIdType(bookingData.validIdType || 'Passport');
-                              setShowValidIdModal(true);
-                            }}
-                            className="w-full inline-flex justify-center items-center gap-2 px-4 py-2.5 rounded-lg border border-gray-200 text-sm font-medium text-gray-700 bg-gray-50 hover:bg-gray-100 hover:text-gray-900 transition-all duration-200"
-                          >
-                            <i className="fas fa-cloud-upload-alt text-gray-500"></i>
-                            {bookingData.validIdUrl ? 'Change ID' : 'Upload ID'}
-                          </button>
-                          {bookingData.validIdType && (
-                            <p className="mt-2.5 text-[11px] text-gray-600 flex items-center gap-1.5">
-                              <i className="fas fa-check-circle text-blue-500"></i>
-                              {bookingData.validIdType}
-                            </p>
-                          )}
-                          {bookingData.validIdUrl && (
-                            <p className="mt-1 text-[11px] text-emerald-600 flex items-center gap-1.5">
+                          <div className="relative">
+                            {hasAccountValidId(profile) ? (
+                              <button
+                                type="button"
+                                onClick={() => router.push('/account#photo-details')}
+                                className="w-full inline-flex justify-center items-center gap-2 px-4 py-2.5 rounded-lg text-sm font-medium bg-gray-100 text-gray-700 hover:bg-gray-200 border border-gray-200 transition-all duration-200 cursor-pointer"
+                              >
+                                <i className="fas fa-id-card"></i> Manage Valid ID
+                              </button>
+                            ) : (
+                              <button
+                                type="button"
+                                onClick={() => router.push('/account#photo-details')}
+                                className="w-full inline-flex justify-center items-center gap-2 px-4 py-2.5 rounded-lg text-sm font-medium bg-blue-600 text-white hover:bg-blue-700 shadow-sm shadow-blue-200/50 cursor-pointer transition-all duration-200"
+                              >
+                                <i className="fas fa-upload"></i> Upload in Account
+                              </button>
+                            )}
+                          </div>
+                          {hasAccountValidId(profile) ? (
+                            <p className="mt-2.5 text-[11px] text-emerald-600 flex items-center gap-1.5">
                               <i className="fas fa-check-circle text-emerald-500"></i>
-                              Valid ID uploaded
+                              On file — used for this reservation ({accountValidIdType})
+                            </p>
+                          ) : (
+                            <p className="mt-2.5 text-[11px] text-amber-600 flex items-center gap-1.5">
+                              <i className="fas fa-exclamation-circle text-amber-500"></i>
+                              Not uploaded. Required to confirm booking.
                             </p>
                           )}
                         </div>
-                        
+
+                        {/* Receipt Container */}
                         <div className={`bg-white rounded-xl border border-gray-200 p-4 sm:p-5 shadow-sm transition-colors ${(bankDetailsProvided || visibleGuestQrBank) ? 'hover:border-blue-200' : 'opacity-50'}`}>
                           <div className="flex items-center gap-2 mb-2">
                             <i className="fas fa-file-invoice-dollar text-blue-500 text-lg"></i>
                             <label className="text-sm font-semibold text-gray-800">Receipt</label>
                           </div>
                           <p className="text-[11px] text-gray-500 mb-3 leading-tight">
-                            Proof of down payment. 
+                            Proof of down payment.
                           </p>
                           <div className="relative">
                             <input
@@ -1255,11 +1285,10 @@ export default function MultiRoomBookingPage() {
                             />
                             <label
                               htmlFor="payment-proof-upload-bank"
-                              className={`w-full inline-flex justify-center items-center gap-2 px-4 py-2.5 rounded-lg text-sm font-medium transition-all duration-200 ${
-                                uploading || (!bankDetailsProvided && !visibleGuestQrBank)
+                              className={`w-full inline-flex justify-center items-center gap-2 px-4 py-2.5 rounded-lg text-sm font-medium transition-all duration-200 ${uploading || (!bankDetailsProvided && !visibleGuestQrBank)
                                   ? 'bg-gray-100 text-gray-400 cursor-not-allowed border border-gray-200'
                                   : 'bg-blue-600 text-white hover:bg-blue-700 shadow-sm shadow-blue-200/50 cursor-pointer'
-                              }`}
+                                }`}
                             >
                               {uploading ? (
                                 <><i className="fas fa-spinner fa-spin"></i> Processing...</>
@@ -1284,7 +1313,7 @@ export default function MultiRoomBookingPage() {
                       </div>
                     </div>
                   )}
-                  
+
                   <div className="flex flex-col-reverse sm:flex-row gap-3 mt-6">
                     <button
                       onClick={handlePreviousStep}
@@ -1297,20 +1326,19 @@ export default function MultiRoomBookingPage() {
                       onClick={handleSubmitBooking}
                       disabled={
                         !bookingData.paymentProofUrl ||
-                        !bookingData.validIdUrl ||
                         submitting ||
                         (paymentMethod === 'bank_transfer' && !bankDetailsProvided && !visibleGuestQrBank) ||
-                        !userMobileNumber
+                        !userMobileNumber ||
+                        !hasAccountValidId(profile)
                       }
-                      className={`flex-1 py-3 rounded-xl font-medium transition-all duration-300 ${
-                        bookingData.paymentProofUrl &&
-                        bookingData.validIdUrl &&
-                        !submitting &&
-                        (paymentMethod !== 'bank_transfer' || bankDetailsProvided || visibleGuestQrBank) &&
-                        userMobileNumber
+                      className={`flex-1 py-3 rounded-xl font-medium transition-all duration-300 ${bookingData.paymentProofUrl &&
+                          !submitting &&
+                          (paymentMethod !== 'bank_transfer' || bankDetailsProvided || visibleGuestQrBank) &&
+                          userMobileNumber &&
+                          hasAccountValidId(profile)
                           ? 'bg-gradient-to-r from-blue-500 to-blue-600 text-white hover:shadow-lg hover:shadow-blue-500/30'
                           : 'bg-gray-200 text-gray-500 cursor-not-allowed'
-                      }`}
+                        }`}
                     >
                       {submitting ? 'Submitting...' : 'Confirm Booking'}
                     </button>
@@ -1328,7 +1356,7 @@ export default function MultiRoomBookingPage() {
                   <p className="text-textSecondary mb-4">
                     Thank you for your booking! A confirmation email will be sent to {userEmail}. You can track your reservation through your account.
                   </p>
-                  
+
                   <div className="p-4 bg-ocean-ice rounded-lg mb-4">
                     <div className="flex items-center justify-center gap-2 mt-1">
                       <strong className="text-lg font-mono">Reference Number: {generatedBookingId}</strong>
@@ -1347,7 +1375,7 @@ export default function MultiRoomBookingPage() {
                       </p>
                     )}
                   </div>
-                  
+
                   <div className="p-4 bg-amber-50 rounded-lg mb-6">
                     <p className="text-sm text-amber-800">
                       <i className="fas fa-info-circle mr-2"></i>
@@ -1360,7 +1388,7 @@ export default function MultiRoomBookingPage() {
                     <div className="mt-6 mb-6 p-4 bg-white rounded-xl border-2 border-blue-200">
                       <h3 className="text-sm font-semibold text-gray-700 mb-2">Check-in QR Code</h3>
                       <div className="flex justify-center">
-                        <QRCodeSVG 
+                        <QRCodeSVG
                           value={`${window.location.origin}/check-in?token=${qrToken}`}
                           size={200}
                           bgColor="#ffffff"
@@ -1526,11 +1554,10 @@ export default function MultiRoomBookingPage() {
                       placeholder="e.g., Request early check-in, room preferences, special occasion, etc."
                       rows="3"
                       readOnly={step === 3}
-                      className={`w-full px-3 py-2 border rounded-xl text-sm focus:outline-none resize-none ${
-                        step === 3 
-                          ? 'bg-gray-50 border-gray-200 text-gray-500 cursor-not-allowed' 
+                      className={`w-full px-3 py-2 border rounded-xl text-sm focus:outline-none resize-none ${step === 3
+                          ? 'bg-gray-50 border-gray-200 text-gray-500 cursor-not-allowed'
                           : 'border-blue-200 focus:border-blue-400 bg-white'
-                      }`}
+                        }`}
                     />
                     <p className="text-xs text-blue-700/80 mt-1">
                       <i className="fas fa-clock mr-1"></i>
@@ -1544,124 +1571,6 @@ export default function MultiRoomBookingPage() {
         </div>
       </div>
 
-      {/* Valid ID Modal */}
-      {showValidIdModal && (
-        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-2xl w-full max-w-[380px] p-5 shadow-2xl" onClick={(e) => e.stopPropagation()}>
-            <div className="flex justify-between items-center mb-3">
-              <h3 className="text-base font-bold text-gray-900">Upload Valid ID</h3>
-              <button
-                onClick={() => setShowValidIdModal(false)}
-                className="w-7 h-7 rounded-md bg-ocean-ice text-neutral hover:bg-ocean-light/20 hover:text-textPrimary transition-all duration-200 flex items-center justify-center">
-                <i className="fas fa-times text-xs"></i>
-              </button>
-            </div>
-
-            <div className="space-y-3">
-              <div>
-                <label className="block text-[11px] font-bold uppercase tracking-wider text-gray-500 mb-1.5">ID Type</label>
-                <select
-                  value={tempValidIdType}
-                  onChange={(e) => setTempValidIdType(e.target.value)}
-                  className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:border-blue-300 focus:ring-2 focus:ring-blue-500/10 bg-gray-50/50 transition-all"
-                >
-                  {validIdOptions.map((option) => (
-                    <option key={option} value={option}>
-                      {option}
-                    </option>
-                  ))}
-                </select>
-              </div>
-
-              <div className="bg-blue-50/50 p-2.5 rounded-lg border border-blue-100/50">
-                <p className="text-[11px] font-semibold text-blue-900 mb-1">Upload Requirements:</p>
-                <ul className="text-[11px] text-blue-800 space-y-0.5 list-disc pl-3">
-                  <li>Full name must match booking</li>
-                  <li>Front image only, must be clear</li>
-                  <li>No blurred or cut-off images</li>
-                </ul>
-              </div>
-
-              <div className="pt-2 border-t border-gray-100">
-                <div className="flex items-center justify-between mb-2">
-                  <label className="text-[13px] font-bold uppercase tracking-wider text-gray-500">ID Photo (Front)</label>
-                  <div className="relative">
-                    <input
-                      type="file"
-                      accept="image/*"
-                      onChange={handleValidIdFileChange}
-                      className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
-                      id="valid-id-upload-multiroom"
-                      disabled={validIdUploading}
-                    />
-                    <label
-                      htmlFor="valid-id-upload-multiroom"
-                      className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition-all duration-300 cursor-pointer ${
-                        validIdUploading
-                          ? 'bg-gray-200 text-gray-400 cursor-not-allowed'
-                          : 'bg-blue-600 text-white hover:bg-blue-700 shadow-sm'
-                      }`}
-                    >
-                      <i className={`fas ${validIdUploading ? 'fa-spinner fa-spin' : 'fa-camera'}`}></i>
-                      {validIdUploading ? 'Uploading...' : tempValidIdFile ? 'Change Image' : 'Select Photo'}
-                    </label>
-                  </div>
-                </div>
-
-                <div className="h-44 border-2 border-dashed border-gray-200 rounded-xl overflow-hidden bg-gray-50 flex items-center justify-center">
-                  {tempValidIdFile ? (
-                    <img
-                      src={tempValidIdFile}
-                      alt="Valid ID Preview"
-                      className="w-full h-full object-contain bg-white"
-                    />
-                  ) : (
-                    <div className="text-center">
-                      <i className="fas fa-id-card text-2xl text-gray-300 mb-2 block"></i>
-                      <p className="text-[10px] text-gray-400">Preview will appear here</p>
-                    </div>
-                  )}
-                </div>
-              </div>
-            </div>
-
-            <div className="flex justify-end gap-2 mt-5 pt-3 border-t border-gray-100">
-              <button
-                type="button"
-                onClick={() => setShowValidIdModal(false)}
-                className="px-4 py-2.5 rounded-lg text-xs font-semibold text-gray-500 hover:bg-gray-50 transition-all duration-200"
-              >
-                Cancel
-              </button>
-              <button
-                type="button"
-                onClick={handleSaveValidId}
-                disabled={!tempValidIdFile || !tempValidIdType || validIdUploading}
-                className="px-5 py-2.5 bg-gradient-to-r from-blue-600 to-blue-500 rounded-lg text-xs font-bold text-white shadow-md hover:shadow-lg transition-all duration-200 disabled:opacity-50 disabled:grayscale disabled:cursor-not-allowed"
-              >
-                Confirm ID
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      <style jsx>{`
-        @keyframes fadeIn {
-          from {
-            opacity: 0;
-            transform: translateY(-5px);
-          }
-          to {
-            opacity: 1;
-            transform: translateY(0);
-          }
-        }
-        .animate-fadeIn {
-          animation: fadeIn 0.3s ease-out;
-        }
-      `}</style>
-      <ChatBot />
     </GuestLayout>
   );
-}
+}   

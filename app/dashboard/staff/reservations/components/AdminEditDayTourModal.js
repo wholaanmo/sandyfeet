@@ -414,5 +414,3 @@ export default function AdminEditDayTourModal({ isOpen, booking, onClose, onSucc
     </div>
   );
 }
-
-
