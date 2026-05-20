@@ -9,16 +9,16 @@ export default function StaffRoomStatus() {
   const [rooms, setRooms] = useState([]);
   const [loading, setLoading] = useState(true);
   const [roomDetails, setRoomDetails] = useState({});
-  const [bookedDates, setBookedDates] = useState({});
-  const [exclusiveResortDates, setExclusiveResortDates] = useState({});
+  const [bookedUnits, setBookedUnits] = useState({}); // Track booked units per room per date
+  const [exclusiveResortBookings, setExclusiveResortBookings] = useState({}); // Track exclusive resort dates
   const [blockedSlots, setBlockedSlots] = useState({});
   const [dayTourCapacity, setDayTourCapacity] = useState(null);
-  const [dayTourBookedDates, setDayTourBookedDates] = useState({});
+  const [dayTourBookedGuests, setDayTourBookedGuests] = useState({}); // Track total booked guests per date
   const [dayTourUnavailableDates, setDayTourUnavailableDates] = useState({});
   
   // Calendar state
   const [currentDate, setCurrentDate] = useState(new Date());
-  const [selectedTab, setSelectedTab] = useState('rooms'); // 'rooms' or 'daytour'
+  const [selectedTab, setSelectedTab] = useState('rooms');
   const [calendarViewDate, setCalendarViewDate] = useState(new Date());
 
   // Helper function to convert Date to YYYY-MM-DD local date string
@@ -32,7 +32,6 @@ export default function StaffRoomStatus() {
   // Get today date
   const today = new Date();
   today.setHours(0, 0, 0, 0);
-
   const todayKey = toLocalDateKey(today);
 
   // Fetch rooms list (only non-archived and available)
@@ -78,71 +77,103 @@ export default function StaffRoomStatus() {
     const maintenance = parseInt(details.maintenanceRooms) || 0;
     return Math.max(0, total - maintenance);
   };
+  
+  // Helper to get room type from room ID
+  const getRoomTypeFromId = (roomId) => {
+    const room = rooms.find(r => r.id === roomId);
+    return room?.type || '';
+  };
 
-  // Fetch bookings for all rooms - EXCLUDING Pending, Cancelled, and Cancelled-by-Guest
+  // Fetch ALL bookings for accurate availability counting
+  // We fetch all bookings and filter out cancelled ones in JavaScript
   useEffect(() => {
     if (rooms.length === 0) return;
     
     const roomIds = rooms.map(r => r.id);
     const bookingsRef = collection(db, 'bookings');
     
-    // Query for room bookings - only include confirmed, check-in, check-out, completed (active bookings)
+    // Use a single query without 'not-in' to avoid Firestore limitations
+    // We'll fetch all relevant bookings and filter in JavaScript
     const qRoom = query(
       bookingsRef,
-      where('roomId', 'in', roomIds),
-      where('status', 'in', ['confirmed', 'check-in', 'check-out', 'completed'])
+      where('roomId', 'in', roomIds)
     );
     
-    // Query for exclusive resort bookings - only include confirmed, check-in, check-out, completed
+    // Query for exclusive resort bookings separately
     const qExclusive = query(
       bookingsRef,
-      where('isExclusiveResortBooking', '==', true),
-      where('status', 'in', ['confirmed', 'check-in', 'check-out', 'completed'])
+      where('isExclusiveResortBooking', '==', true)
     );
     
     const unsubscribeRoom = onSnapshot(qRoom, (snapshot) => {
       const booked = {};
       snapshot.forEach((docSnap) => {
         const booking = docSnap.data();
+        
+        // Filter out cancelled statuses in JavaScript
+        const cancelledStatuses = ['cancelled', 'cancelled-by-guest'];
+        if (cancelledStatuses.includes(booking.status)) return;
+        
+        // Skip if no valid check-in/out
+        if (!booking.checkIn || !booking.checkOut) return;
+        
         const checkIn = booking.checkIn?.toDate ? booking.checkIn.toDate() : new Date(booking.checkIn);
         const checkOut = booking.checkOut?.toDate ? booking.checkOut.toDate() : new Date(booking.checkOut);
         const roomId = booking.roomId;
-        const numberOfRooms = booking.numberOfRooms || 1;
+        
+        // Get the number of rooms booked (default 1)
+        let numberOfRooms = booking.numberOfRooms || 1;
+        
+        // For multi-room bookings, the count is in the child booking
+        if (booking.parentBookingId && booking.numberOfRooms) {
+          numberOfRooms = booking.numberOfRooms;
+        }
         
         if (!checkIn || !checkOut || checkOut <= checkIn || !roomId) return;
         
+        // Iterate through each day in the booking period
         let current = new Date(checkIn);
         while (current < checkOut) {
-          const dateKey = current.toDateString();
-          if (!booked[dateKey]) booked[dateKey] = {};
-          if (!booked[dateKey][roomId]) booked[dateKey][roomId] = {};
+          const dateKey = toLocalDateKey(current);
           
-          const hour = current.getHours();
-          booked[dateKey][roomId][hour] = (booked[dateKey][roomId][hour] || 0) + numberOfRooms;
-          current.setHours(current.getHours() + 1, 0, 0, 0);
+          if (!booked[dateKey]) booked[dateKey] = {};
+          if (!booked[dateKey][roomId]) booked[dateKey][roomId] = 0;
+          
+          // Add the number of rooms to the count for this date
+          booked[dateKey][roomId] += numberOfRooms;
+          
+          // Move to next day
+          current.setDate(current.getDate() + 1);
         }
       });
-      setBookedDates(booked);
+      setBookedUnits(booked);
     });
     
     const unsubscribeExclusive = onSnapshot(qExclusive, (snapshot) => {
       const exclusive = {};
       snapshot.forEach((docSnap) => {
         const booking = docSnap.data();
+        
+        // Filter out cancelled statuses in JavaScript
+        const cancelledStatuses = ['cancelled', 'cancelled-by-guest'];
+        if (cancelledStatuses.includes(booking.status)) return;
+        
+        if (!booking.checkIn || !booking.checkOut) return;
+        
         const checkIn = booking.checkIn?.toDate ? booking.checkIn.toDate() : new Date(booking.checkIn);
         const checkOut = booking.checkOut?.toDate ? booking.checkOut.toDate() : new Date(booking.checkOut);
+        
         if (!checkIn || !checkOut || checkOut <= checkIn) return;
         
+        // Mark all dates in the range as exclusive resort booking
         let current = new Date(checkIn);
         while (current < checkOut) {
-          const hour = current.getHours();
-          if (hour >= 14) {
-            exclusive[toLocalDateKey(current)] = true;
-          }
-          current.setHours(current.getHours() + 1, 0, 0, 0);
+          const dateKey = toLocalDateKey(current);
+          exclusive[dateKey] = true;
+          current.setDate(current.getDate() + 1);
         }
       });
-      setExclusiveResortDates(exclusive);
+      setExclusiveResortBookings(exclusive);
     });
     
     return () => {
@@ -151,7 +182,7 @@ export default function StaffRoomStatus() {
     };
   }, [rooms]);
 
-  // Fetch blocked slots for all rooms (from app/dashboard/admin/calendar source)
+  // Fetch blocked slots for all rooms
   useEffect(() => {
     if (rooms.length === 0) return;
     
@@ -165,16 +196,12 @@ export default function StaffRoomStatus() {
         const data = docSnap.data();
         const dateKey = data.date;
         const roomId = data.roomId;
-        const startHour = data.startHour;
-        const endHour = data.endHour;
         const unitsBlocked = data.unitsBlocked || 1;
         
         if (!blocks[dateKey]) blocks[dateKey] = {};
-        if (!blocks[dateKey][roomId]) blocks[dateKey][roomId] = {};
+        if (!blocks[dateKey][roomId]) blocks[dateKey][roomId] = 0;
         
-        for (let hour = startHour; hour < endHour; hour++) {
-          blocks[dateKey][roomId][hour] = (blocks[dateKey][roomId][hour] || 0) + unitsBlocked;
-        }
+        blocks[dateKey][roomId] += unitsBlocked;
       });
       setBlockedSlots(blocks);
     });
@@ -182,7 +209,7 @@ export default function StaffRoomStatus() {
     return () => unsubscribe();
   }, [rooms]);
 
-  // Fetch day tour capacity and bookings - EXCLUDING Pending, Cancelled, and Cancelled-by-Guest
+  // Fetch day tour capacity and bookings - filter out cancelled in JavaScript
   useEffect(() => {
     // Fetch day tour configuration
     const fetchDayTourConfig = async () => {
@@ -202,17 +229,19 @@ export default function StaffRoomStatus() {
     
     fetchDayTourConfig();
     
-    // Fetch day tour bookings - only include confirmed, check-in, completed (active bookings)
+    // Fetch all day tour bookings and filter in JavaScript
     const bookingsRef = collection(db, 'dayTourBookings');
-    const q = query(
-      bookingsRef,
-      where('status', 'in', ['confirmed', 'check-in', 'completed'])
-    );
+    const q = query(bookingsRef);
     
     const unsubscribe = onSnapshot(q, (snapshot) => {
       const booked = {};
       snapshot.forEach((docSnap) => {
         const booking = docSnap.data();
+        
+        // Filter out cancelled statuses in JavaScript
+        const cancelledStatuses = ['cancelled', 'cancelled-by-guest'];
+        if (cancelledStatuses.includes(booking.status)) return;
+        
         const dateKey = booking.selectedDate;
         if (dateKey) {
           if (!booked[dateKey]) booked[dateKey] = 0;
@@ -220,7 +249,7 @@ export default function StaffRoomStatus() {
           booked[dateKey] += totalGuests;
         }
       });
-      setDayTourBookedDates(booked);
+      setDayTourBookedGuests(booked);
     });
     
     // Fetch day tour unavailable dates
@@ -246,76 +275,62 @@ export default function StaffRoomStatus() {
     const totalUnits = getTotalRoomUnits(roomId);
     if (totalUnits <= 0) return 0;
     
-    const dateKey = date.toDateString();
-    const dateKeyLocal = toLocalDateKey(date);
+    const dateKey = toLocalDateKey(date);
     
-    // Check if this date has an exclusive resort booking
-    const isExclusiveDate = exclusiveResortDates[dateKeyLocal];
-    
-    // For Tent rooms: even if there's an exclusive resort booking, available units should be based on room details only
-    // Don't block tent availability for exclusive resort bookings - show actual available count
+    // Check if this date has an exclusive resort booking - if yes, NON-TENT rooms should show 0 availability
+    const isExclusiveDate = exclusiveResortBookings[dateKey];
     const roomType = getRoomTypeFromId(roomId);
     const isTentRoom = roomType === 'Tent' || (roomType?.toLowerCase() === 'tent');
     
-    // Only block non-tent rooms if exclusive resort booking exists
-    if (!isTentRoom && isExclusiveDate) return 0;
+    // If exclusive resort booking exists and this is NOT a tent room, no availability
+    if (isExclusiveDate && !isTentRoom) return 0;
     
-    let maxUsed = 0;
-    for (let hour = 14; hour < 24; hour++) {
-      const bookedCount = bookedDates[dateKey]?.[roomId]?.[hour] || 0;
-      const blockedCount = blockedSlots[dateKeyLocal]?.[roomId]?.[hour] || 0;
-      maxUsed = Math.max(maxUsed, bookedCount + blockedCount);
-    }
+    // Get booked units for this room on this date
+    const bookedCount = bookedUnits[dateKey]?.[roomId] || 0;
+    const blockedCount = blockedSlots[dateKey]?.[roomId] || 0;
     
-    return Math.max(0, totalUnits - maxUsed);
+    const usedUnits = bookedCount + blockedCount;
+    
+    return Math.max(0, totalUnits - usedUnits);
   };
   
-  // Helper function to get room type from room ID
-  const getRoomTypeFromId = (roomId) => {
-    const room = rooms.find(r => r.id === roomId);
-    return room?.type || '';
-  };
-
-  // Check if a date is fully booked for a specific room type
-  const isRoomTypeFullyBookedOnDate = (roomId, date) => {
-    const totalUnits = getTotalRoomUnits(roomId);
-    if (totalUnits <= 0) return false;
-    const availableUnits = getAvailableUnitsForRoomOnDate(roomId, date);
-    return availableUnits === 0;
-  };
-
   // Check if a date is fully booked for ALL room types
   const isDateFullyBookedForAllRooms = (date) => {
     if (rooms.length === 0) return false;
     
-    const dateKeyLocal = toLocalDateKey(date);
-    const isExclusiveDate = exclusiveResortDates[dateKeyLocal];
+    const dateKey = toLocalDateKey(date);
+    const isExclusiveDate = exclusiveResortBookings[dateKey];
     
-    // If there's an exclusive resort booking, the date is fully booked regardless of tent availability
+    // If there's an exclusive resort booking, the entire resort is booked
     if (isExclusiveDate) return true;
     
     // Otherwise, check if every room type has 0 available units
-    return rooms.every(room => isRoomTypeFullyBookedOnDate(room.id, date));
+    return rooms.every(room => getAvailableUnitsForRoomOnDate(room.id, date) === 0);
   };
 
   // Calculate remaining guest capacity for day tour on a specific date
   const getRemainingDayTourCapacity = (date) => {
     if (!dayTourCapacity) return 0;
     const dateKey = toLocalDateKey(date);
-    const booked = dayTourBookedDates[dateKey] || 0;
+    const booked = dayTourBookedGuests[dateKey] || 0;
     const unavailable = dayTourUnavailableDates[dateKey] || 0;
     return Math.max(0, dayTourCapacity - booked - unavailable);
   };
 
   const getBookedGuestsCount = (date) => {
-    if (!dayTourCapacity) return 0;
     const dateKey = toLocalDateKey(date);
-    return dayTourBookedDates[dateKey] || 0;
+    return dayTourBookedGuests[dateKey] || 0;
   };
 
   const getUnavailableSlotsCount = (date) => {
     const dateKey = toLocalDateKey(date);
     return dayTourUnavailableDates[dateKey] || 0;
+  };
+
+  // Check if day tour is fully booked on a date
+  const isDayTourFullyBooked = (date) => {
+    if (!dayTourCapacity) return false;
+    return getRemainingDayTourCapacity(date) === 0;
   };
 
   // Calendar helper functions
@@ -383,7 +398,7 @@ export default function StaffRoomStatus() {
         </p>
       </div>
 
-      {/* Summary Cards - Top Section (Reduced Height) */}
+      {/* Summary Cards - Top Section */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-8">
         {/* Left Card: Room Availability - Today */}
         <div className="bg-gradient-to-r from-blue-50 to-white rounded-xl border border-blue-200 py-3 px-5 shadow-sm hover:shadow-md transition-shadow duration-300">
@@ -419,7 +434,7 @@ export default function StaffRoomStatus() {
           </div>
         </div>
 
-        {/* Right Card: Day Tour - Today (Reduced Height) */}
+        {/* Right Card: Day Tour - Today */}
         <div className="bg-gradient-to-r from-amber-50 to-white rounded-xl border border-amber-200 py-3 px-5 shadow-sm hover:shadow-md transition-shadow duration-300">
           <div className="flex items-center gap-3 mb-2">
             <div className="w-9 h-9 rounded-lg bg-amber-100 flex items-center justify-center">
@@ -439,7 +454,7 @@ export default function StaffRoomStatus() {
             <div className="space-y-1.5">
               <div className="flex justify-between items-center text-sm">
                 <span className="text-gray-700">Booked:</span>
-                <span className="text-amber-600 font-bold">{dayTourBookedDates[todayKey] || 0}</span>
+                <span className="text-amber-600 font-bold">{dayTourBookedGuests[todayKey] || 0}</span>
               </div>
               <div className="flex justify-between items-center text-sm">
                 <span className="text-gray-700">Unavailable:</span>
@@ -456,10 +471,9 @@ export default function StaffRoomStatus() {
         </div>
       </div>
 
-      {/* Tab Navigation - Sliding Design (copied from staff/calendars) */}
+      {/* Tab Navigation */}
       <div className="relative flex items-center mb-6 border-b border-[#4D8CF5]/20">
         <div className="relative flex w-full">
-          {/* Sliding background */}
           <div
             className="absolute top-1 bottom-1 w-1/2 rounded-lg bg-[#4D8CF5]/10 transition-all duration-300 ease-in-out shadow-sm"
             style={{
@@ -470,7 +484,6 @@ export default function StaffRoomStatus() {
             }}
           />
 
-          {/* Room Availability Tab */}
           <div className="flex-1 flex justify-center">
             <button
               onClick={() => setSelectedTab('rooms')}
@@ -485,7 +498,6 @@ export default function StaffRoomStatus() {
             </button>
           </div>
 
-          {/* Day Tour Guest Availability Tab */}
           <div className="flex-1 flex justify-center">
             <button
               onClick={() => setSelectedTab('daytour')}
@@ -502,8 +514,7 @@ export default function StaffRoomStatus() {
         </div>
       </div>
 
-      {/* Room Availability Tab - Enhanced Calendar UI with Red Highlight for Fully Booked Dates */}
-      {/* Room Availability Tab - Enhanced Calendar UI */}
+      {/* Room Availability Tab */}
       {selectedTab === 'rooms' && (
         <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
           <div className="px-4 sm:px-5 py-3 border-b border-gray-100 flex flex-col md:flex-row md:items-center justify-between gap-4 bg-blue-50">
@@ -539,7 +550,6 @@ export default function StaffRoomStatus() {
           </div>
           
           <div className="p-2 sm:p-4 bg-gray-50/30 overflow-x-auto">
-            {/* Weekday Headers */}
             <div className="grid grid-cols-7 gap-1 sm:gap-2 mb-2 min-w-[500px] sm:min-w-0">
               {['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].map(day => (
                 <div key={day} className="text-center font-semibold text-[#4D8CF5] text-[10px] sm:text-xs py-1.5 bg-[#4D8CF5]/5 rounded-lg">
@@ -548,7 +558,6 @@ export default function StaffRoomStatus() {
               ))}
             </div>
 
-            {/* Calendar Days Grid */}
             <div className="grid grid-cols-7 gap-1 sm:gap-2 min-w-[500px] sm:min-w-0">
               {days.map((day, idx) => {
                 if (!day) return <div key={idx} className="min-h-[80px] sm:min-h-[100px]"></div>;
@@ -600,7 +609,6 @@ export default function StaffRoomStatus() {
               })}
             </div>
 
-            {/* Legend */}
             <div className="mt-4 flex justify-center gap-8 text-xs font-medium">
               <div className="flex items-center gap-2.5">
                 <div className="w-3.5 h-3.5 bg-white border border-gray-200 rounded-md shadow-sm"></div>
@@ -655,7 +663,6 @@ export default function StaffRoomStatus() {
           </div>
           
           <div className="p-2 sm:p-4 bg-gray-50/30 overflow-x-auto">
-            {/* Weekday Headers */}
             <div className="grid grid-cols-7 gap-1 sm:gap-2 mb-2 min-w-[500px] sm:min-w-0">
               {['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].map(day => (
                 <div key={day} className="text-center font-semibold text-[#F59E0B] text-[10px] sm:text-xs py-1.5 bg-[#F59E0B]/5 rounded-lg">
@@ -664,7 +671,6 @@ export default function StaffRoomStatus() {
               ))}
             </div>
 
-            {/* Calendar Days Grid */}
             <div className="grid grid-cols-7 gap-1 sm:gap-2 min-w-[500px] sm:min-w-0">
               {days.map((day, idx) => {
                 if (!day) return <div key={idx} className="min-h-[80px] sm:min-h-[100px]"></div>;
@@ -716,7 +722,6 @@ export default function StaffRoomStatus() {
               })}
             </div>
 
-            {/* Legend */}
             <div className="mt-4 flex justify-center gap-8 text-xs font-medium">
               <div className="flex items-center gap-2.5">
                 <div className="w-3.5 h-3.5 bg-white border border-gray-200 rounded-md shadow-sm"></div>

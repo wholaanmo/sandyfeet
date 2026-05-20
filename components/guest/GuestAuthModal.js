@@ -224,24 +224,33 @@ export default function GuestAuthModal({ isOpen, onClose, prefillEmail = '' }) {
 
           {/* Body Section */}
           <div className="flex-1 overflow-y-auto px-6 py-5 scrollbar-thin scrollbar-thumb-slate-200">
-            <button
-              type="button"
-              onClick={handleGoogleContinue}
-              disabled={actionLoading}
-              className="flex h-11 w-full items-center justify-center gap-3 rounded-xl border border-slate-200 bg-white px-4 text-[14px] font-semibold text-slate-700 shadow-sm transition-all hover:bg-slate-50/80 hover:border-slate-300 hover:shadow active:scale-[0.99] disabled:opacity-50 disabled:cursor-not-allowed"
-            >
-              {actionLoading ? (
-                <>
-                  <i className="fas fa-spinner fa-spin text-sm"></i>
-                  Connecting...
-                </>
-              ) : (
-                <>
-                  <GoogleMark />
-                  Continue with Google
-                </>
-              )}
-            </button>
+<button
+  type="button"
+  onClick={handleGoogleContinue}
+  disabled={actionLoading}
+  className="group relative flex h-12 w-full items-center justify-center gap-3 overflow-hidden rounded-2xl border border-white/10 bg-gradient-to-br from-[#111111] via-[#1a1a1a] to-[#0d0d0d] px-4 text-[14px] font-semibold text-white shadow-[0_6px_20px_rgba(0,0,0,0.35)] transition-all duration-300 hover:-translate-y-[2px] hover:border-white/20 hover:shadow-[0_10px_30px_rgba(0,0,0,0.45)] active:scale-[0.985] disabled:cursor-not-allowed disabled:opacity-50"
+>
+  <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/5 to-transparent opacity-0 transition-opacity duration-300 group-hover:opacity-100" />
+
+  <div className="relative flex items-center gap-3">
+    {actionLoading ? (
+      <>
+        <i className="fas fa-spinner fa-spin text-sm text-gray-300"></i>
+        <span className="tracking-wide">Connecting...</span>
+      </>
+    ) : (
+      <>
+        <div className="flex h-8 w-8 items-center justify-center rounded-full bg-white shadow-md">
+          <GoogleMark />
+        </div>
+
+        <span className="tracking-wide">
+          Continue with Google
+        </span>
+      </>
+    )}
+  </div>
+</button>
 
             <div className="my-4.5 flex items-center gap-3">
               <div className="h-px flex-1 bg-slate-100" />

@@ -3,9 +3,10 @@
 
 import React, { useEffect, useMemo, useState } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
-import { collection, doc, onSnapshot, query, where, updateDoc } from 'firebase/firestore';
+import { collection, doc, onSnapshot, query, where, updateDoc, getDocs } from 'firebase/firestore';
 import { logAdminAction } from '@/lib/auditLogger';
 import { db } from '@/lib/firebase';
+
 import {
   normalizeBooking,
   buildMultiRoomGroup,
@@ -160,6 +161,7 @@ export default function AdminGuestProfilePage() {
   const searchParams = useSearchParams();
   const email = searchParams.get('email')?.toLowerCase().trim() || '';
   const guestUid = searchParams.get('guestUid') || '';
+  const [lookupGuestUid, setLookupGuestUid] = useState('');
 
   const [roomRaw, setRoomRaw] = useState([]);
   const [dayTourRaw, setDayTourRaw] = useState([]);
@@ -172,12 +174,45 @@ export default function AdminGuestProfilePage() {
   const [deactivationReason, setDeactivationReason] = useState('');
   const [accountActionLoading, setAccountActionLoading] = useState(false);
   const [accountActionMessage, setAccountActionMessage] = useState('');
+  const [notificationFade, setNotificationFade] = useState(false);
+  const [displayMessage, setDisplayMessage] = useState('');
+
+  useEffect(() => {
+    if (!accountActionMessage) {
+      setDisplayMessage('');
+      setNotificationFade(false);
+      return;
+    }
+
+    setDisplayMessage(accountActionMessage);
+    setNotificationFade(false);
+
+    // Only auto-fade success notifications
+    const isSuccess = !accountActionMessage.toLowerCase().includes('failed') &&
+                      !accountActionMessage.toLowerCase().includes('missing') &&
+                      !accountActionMessage.toLowerCase().includes('provide');
+
+    if (isSuccess) {
+      const fadeTimer = setTimeout(() => {
+        setNotificationFade(true);
+      }, 3000);
+
+      const clearTimer = setTimeout(() => {
+        setAccountActionMessage('');
+      }, 4000);
+
+      return () => {
+        clearTimeout(fadeTimer);
+        clearTimeout(clearTimer);
+      };
+    }
+  }, [accountActionMessage]);
 
   const resolvedGuestUid = useMemo(() => {
     if (guestUid) return guestUid;
-    const bookingWithUid = roomRaw.find((booking) => booking.guestUid) || dayTourRaw.find((booking) => booking.guestUid);
-    return bookingWithUid?.guestUid || '';
-  }, [guestUid, roomRaw, dayTourRaw]);
+    const bookingUid = roomRaw.find((b) => b.guestUid)?.guestUid || dayTourRaw.find((b) => b.guestUid)?.guestUid;
+    return bookingUid || lookupGuestUid;
+  }, [guestUid, roomRaw, dayTourRaw, lookupGuestUid]);
 
   useEffect(() => {
     if (!email && !resolvedGuestUid) {
@@ -277,6 +312,25 @@ export default function AdminGuestProfilePage() {
     setLoading(false);
     return () => unsubs.forEach((unsub) => unsub());
   }, [email, resolvedGuestUid]);
+
+  useEffect(() => {
+    if (!email || resolvedGuestUid || lookupGuestUid) return;
+
+    const fetchGuestUidByEmail = async () => {
+      try {
+        const q = query(collection(db, 'guestProfiles'), where('email', '==', email));
+        const snapshot = await getDocs(q);
+        if (!snapshot.empty) {
+          const docSnap = snapshot.docs[0];
+          setLookupGuestUid(docSnap.id);
+        }
+      } catch (err) {
+        console.error('Failed to fetch guest uid by email:', err);
+      }
+    };
+
+    fetchGuestUidByEmail();
+  }, [email, resolvedGuestUid, lookupGuestUid]);
 
   const normalizedRoomBookings = useMemo(() => {
     const rawById = new Map(roomRaw.map((b) => [b.id, b]));
@@ -506,23 +560,58 @@ export default function AdminGuestProfilePage() {
 
       {/* Personal Information - Redesigned */}
       <div className="bg-white rounded-xl border border-[#4D8CF5]/10 shadow-md overflow-hidden mb-6">
-        <div className="border-b border-[#4D8CF5]/10 bg-gradient-to-r from-[#4D8CF5]/5 to-white px-5 py-4">
+        <div className="border-b border-[#4D8CF5]/10 bg-gradient-to-r from-[#4D8CF5]/5 to-white px-5 py-4 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
           <div className="flex items-center gap-2">
             <div className="flex h-8 w-8 items-center justify-center rounded-full bg-[#4D8CF5]/10 text-[#4D8CF5]">
               <i className="fas fa-user text-sm"></i>
             </div>
             <h2 className="text-sm font-bold text-[#1E3A8A] uppercase tracking-wide">Personal Information</h2>
           </div>
+          {resolvedGuestUid && (
+            <div className="shrink-0">
+              {isGuestDeactivated ? (
+                <button
+                  type="button"
+                  onClick={handleReactivateAccount}
+                  disabled={accountActionLoading}
+                  className="inline-flex items-center gap-2 rounded-xl bg-emerald-600 px-4 py-2 text-xs sm:text-sm font-semibold text-white transition hover:bg-emerald-700 disabled:opacity-60 shadow-sm"
+                >
+                  <i className="fas fa-user-check text-xs" />
+                  {accountActionLoading ? 'Processing...' : 'Reactivate Account'}
+                </button>
+              ) : (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setDeactivationReason('');
+                    setAccountActionMessage('');
+                    setShowDeactivateModal(true);
+                  }}
+                  disabled={accountActionLoading}
+                  className="inline-flex items-center gap-2 rounded-xl bg-red-600 px-4 py-2 text-xs sm:text-sm font-semibold text-white transition hover:bg-red-700 disabled:opacity-60 shadow-sm"
+                >
+                  <i className="fas fa-user-slash text-xs" />
+                  Deactivate This Account
+                </button>
+              )}
+            </div>
+          )}
         </div>
         <div className="p-5 sm:p-6">
-          {accountActionMessage && (
-            <p className={`mb-4 rounded-xl px-4 py-3 text-sm font-medium ${
-              accountActionMessage.toLowerCase().includes('failed')
-                ? 'bg-red-50 text-red-700 border border-red-100'
-                : 'bg-emerald-50 text-emerald-700 border border-emerald-100'
-            }`}>
-              {accountActionMessage}
-            </p>
+          {displayMessage && (
+            <div
+              className={`mb-4 rounded-xl px-4 py-3 text-sm font-medium transition-all duration-1000 ease-in-out ${
+                notificationFade ? 'opacity-0 -translate-y-2' : 'opacity-100 translate-y-0'
+              } ${
+                displayMessage.toLowerCase().includes('failed') ||
+                displayMessage.toLowerCase().includes('missing') ||
+                displayMessage.toLowerCase().includes('provide')
+                  ? 'bg-red-50 text-red-700 border border-red-100'
+                  : 'bg-emerald-50 text-emerald-700 border border-emerald-100'
+              }`}
+            >
+              {displayMessage}
+            </div>
           )}
 
           {isGuestDeactivated && (
@@ -558,36 +647,6 @@ export default function AdminGuestProfilePage() {
               icon="fa-envelope"
             />
           </div>
-
-          {resolvedGuestUid && (
-            <div className="mt-6 flex flex-wrap items-center gap-3 border-t border-[#4D8CF5]/10 pt-5">
-              {isGuestDeactivated ? (
-                <button
-                  type="button"
-                  onClick={handleReactivateAccount}
-                  disabled={accountActionLoading}
-                  className="inline-flex items-center gap-2 rounded-xl bg-emerald-600 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-emerald-700 disabled:opacity-60"
-                >
-                  <i className="fas fa-user-check text-xs" />
-                  {accountActionLoading ? 'Processing...' : 'Reactivate Account'}
-                </button>
-              ) : (
-                <button
-                  type="button"
-                  onClick={() => {
-                    setDeactivationReason('');
-                    setAccountActionMessage('');
-                    setShowDeactivateModal(true);
-                  }}
-                  disabled={accountActionLoading}
-                  className="inline-flex items-center gap-2 rounded-xl bg-red-600 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-red-700 disabled:opacity-60"
-                >
-                  <i className="fas fa-user-slash text-xs" />
-                  Deactivate This Account
-                </button>
-              )}
-            </div>
-          )}
         </div>
       </div>
 
