@@ -6,7 +6,7 @@ import Image from 'next/image';
 import { useRouter } from 'next/navigation';
 import { auth, db } from '../../lib/firebase';
 import { signInWithEmailAndPassword, sendEmailVerification } from 'firebase/auth';
-import { doc, getDoc, updateDoc } from 'firebase/firestore';
+import { doc, getDoc, updateDoc, deleteDoc } from 'firebase/firestore';
 import { getDeviceId } from '../../lib/deviceFingerprint';
 
 export default function Login() {
@@ -143,6 +143,19 @@ const completeLogin = async (uid) => {
     const userData = userDoc.data();
     const role = userData.role;
     const status = userData.status;
+
+    // Staff/admin accounts belong only in users — remove any stray guestProfiles doc
+    if (role === 'admin' || role === 'staff') {
+        try {
+            const guestProfileRef = doc(db, 'guestProfiles', uid);
+            const guestProfileSnap = await getDoc(guestProfileRef);
+            if (guestProfileSnap.exists()) {
+                await deleteDoc(guestProfileRef);
+            }
+        } catch (cleanupError) {
+            console.warn('Could not remove stray guest profile for staff user:', cleanupError);
+        }
+    }
     
     const sessionToken = generateSessionToken();
 let sessionExpiry;
