@@ -7,7 +7,7 @@ import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { db } from '@/lib/firebase';
 import { collection, getDocs, query, where } from 'firebase/firestore';
-import { XMarkIcon, ChevronLeftIcon } from '@heroicons/react/24/outline';
+import { XMarkIcon, ChevronLeftIcon, CpuChipIcon, SparklesIcon, ArrowLeftIcon, ArrowRightIcon } from '@heroicons/react/24/outline';
 
 // Helper to generate room slug from room type
 const toRoomSlug = (value) => {
@@ -20,27 +20,27 @@ const toRoomSlug = (value) => {
 };
 
 const guestOptions = [
-  { id: 'solo', label: 'Solo', min: 1, max: 1 },
-  { id: 'couple', label: 'Couple', min: 1, max: 2 },
-  { id: 'smallGroup', label: 'Small Group (3–6)', min: 3, max: 6 },
-  { id: 'bigGroup', label: 'Big Group (7–14)', min: 7, max: 14 },
-  { id: 'exclusive', label: 'Exclusive Stay', min: 15, max: 99 },
+  { id: 'solo', label: 'Solo', subtitle: 'Just for you', min: 1, max: 1, iconClass: 'fas fa-user text-blue-500 bg-blue-50 border border-blue-100/50' },
+  { id: 'couple', label: 'Couple', subtitle: 'Cozy for two', min: 1, max: 2, iconClass: 'fas fa-user-friends text-teal-500 bg-teal-50 border border-teal-100/50' },
+  { id: 'smallGroup', label: 'Small Group', subtitle: '3–6 guests', min: 3, max: 6, iconClass: 'fas fa-users text-indigo-500 bg-indigo-50 border border-indigo-100/50' },
+  { id: 'bigGroup', label: 'Big Group', subtitle: '7–14 guests', min: 7, max: 14, iconClass: 'fa-solid fa-house text-purple-500 bg-purple-50 border border-purple-100/50' },
+  { id: 'exclusive', label: 'Exclusive Stay', subtitle: '15+ guests / Full Resort', min: 15, max: 99, iconClass: 'fas fa-crown text-amber-500 bg-amber-50 border border-amber-100/50' },
 ];
 
 const experienceOptions = [
-  { id: 'nature', label: '🌿 Nature / Camping' },
-  { id: 'relaxing', label: '🧘 Relaxing Stay' },
-  { id: 'barkada', label: '👥 Barkada Bonding' },
-  { id: 'romantic', label: '❤️ Romantic Getaway' },
-  { id: 'privateExclusive', label: '✨ Private Exclusive Vacation' },
+  { id: 'nature', label: 'Nature / Camping', subtitle: 'Under the stars', iconClass: 'fas fa-campground text-emerald-500 bg-emerald-50 border border-emerald-100/50' },
+  { id: 'relaxing', label: 'Relaxing Stay', subtitle: 'Peaceful & quiet', iconClass: 'fas fa-spa text-teal-500 bg-teal-50 border border-teal-100/50' },
+  { id: 'barkada', label: 'Barkada Bonding', subtitle: 'Memories with friends', iconClass: 'fas fa-users text-indigo-500 bg-indigo-50 border border-indigo-100/50' },
+  { id: 'romantic', label: 'Romantic Getaway', subtitle: 'Perfect for couples', iconClass: 'fas fa-heart text-rose-500 bg-rose-50 border border-rose-100/50' },
+  { id: 'privateExclusive', label: 'Private Exclusive Vacation', subtitle: 'Entire resort stay', iconClass: 'fas fa-star text-amber-500 bg-amber-50 border border-amber-100/50' },
 ];
 
 const priorityOptions = [
-  { id: 'budget', label: '💰 Budget‑Friendly' },
-  { id: 'comfort', label: '🛋️ Comfort' },
-  { id: 'spacious', label: '📏 Spacious Area' },
-  { id: 'privacy', label: '🔒 Privacy' },
-  { id: 'unique', label: '🌟 Unique Experience' },
+  { id: 'budget', label: 'Budget‑Friendly', subtitle: 'Best value stays', iconClass: 'fas fa-tags text-emerald-500 bg-emerald-50 border border-emerald-100/50' },
+  { id: 'comfort', label: 'Comfort', subtitle: 'Premium amenities', iconClass: 'fas fa-couch text-sky-500 bg-sky-50 border border-sky-100/50' },
+  { id: 'spacious', label: 'Spacious Area', subtitle: 'Room to breathe', iconClass: 'fas fa-expand-arrows-alt text-violet-500 bg-violet-50 border border-violet-100/50' },
+  { id: 'privacy', label: 'Privacy', subtitle: 'Secluded & peaceful', iconClass: 'fas fa-lock text-rose-500 bg-rose-50 border border-rose-100/50' },
+  { id: 'unique', label: 'Unique Experience', subtitle: 'Memorable stays', iconClass: 'fas fa-wand-magic-sparkles text-amber-500 bg-amber-50 border border-amber-100/50' },
 ];
 
 export default function AIRoomRecommendationModal({ isOpen, onClose }) {
@@ -275,23 +275,32 @@ export default function AIRoomRecommendationModal({ isOpen, onClose }) {
                 <button
                   key={opt.id}
                   onClick={() => handleAnswerClick('guest', opt.id)}
-                  className={`group relative p-4 rounded-xl border text-left transition-all duration-300 focus:outline-none ${
+                  className={`group relative p-4 rounded-2xl border text-left transition-all duration-300 focus:outline-none ${
                     isSelected 
-                      ? 'border-blue-500 bg-blue-50/30 shadow-sm ring-1 ring-blue-500/20' 
-                      : 'border-slate-200/80 bg-white hover:shadow-sm hover:border-slate-300'
+                      ? 'border-blue-500 bg-blue-50/40 shadow-sm ring-1 ring-blue-500/20' 
+                      : 'border-slate-200/80 bg-white hover:shadow-md hover:border-slate-300'
                   }`}
                 >
                   <div className="flex items-center justify-between gap-3">
-                    <div>
-                      <div className={`font-bold text-sm sm:text-base ${isSelected ? 'text-blue-900' : 'text-gray-800'}`}>{opt.label}</div>
-                      <div className="text-[10px] text-gray-400 mt-1 uppercase tracking-wider font-semibold">Select Option</div>
+                    <div className="flex items-center gap-3.5">
+                      <div className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-xl transition-all duration-300 ${
+                        isSelected 
+                          ? 'bg-blue-600 text-white shadow-md shadow-blue-500/20 scale-105' 
+                          : `${opt.iconClass.split(' ').slice(2).join(' ')} group-hover:scale-105`
+                      }`}>
+                        <i className={`${opt.iconClass.split(' ').slice(0, 2).join(' ')} text-base ${isSelected ? 'text-white' : ''}`}></i>
+                      </div>
+                      <div>
+                        <div className={`font-bold text-sm sm:text-base transition-colors duration-200 ${isSelected ? 'text-blue-900' : 'text-gray-800'}`}>{opt.label}</div>
+                        <div className="text-[10px] text-gray-400 mt-0.5 tracking-wide font-medium">{opt.subtitle}</div>
+                      </div>
                     </div>
                     {isSelected ? (
-                      <div className="flex h-7 w-7 items-center justify-center rounded-full bg-blue-600 text-white shadow-xs">
+                      <div className="flex h-7 w-7 items-center justify-center rounded-full bg-blue-600 text-white shadow-md shadow-blue-500/25">
                         <i className="fas fa-check text-[10px]"></i>
                       </div>
                     ) : (
-                      <div className="flex h-7 w-7 items-center justify-center rounded-full bg-slate-50 text-slate-400 group-hover:bg-blue-100 group-hover:text-blue-600 transition-all duration-300">
+                      <div className="flex h-7 w-7 items-center justify-center rounded-full bg-slate-50 text-slate-400 group-hover:bg-blue-100 group-hover:text-blue-600 group-hover:shadow-xs transition-all duration-300">
                         <i className="fas fa-chevron-right text-[10px]"></i>
                       </div>
                     )}
@@ -308,7 +317,7 @@ export default function AIRoomRecommendationModal({ isOpen, onClose }) {
               className="flex h-9 w-9 items-center justify-center rounded-full border border-slate-200 bg-white text-slate-300 disabled:opacity-40 disabled:cursor-not-allowed shadow-xs transition-all duration-200"
               aria-label="Previous"
             >
-              <i className="fas fa-arrow-left text-xs"></i>
+              <ArrowLeftIcon className="w-4 h-4" />
             </button>
             <button
               onClick={handleNext}
@@ -316,7 +325,7 @@ export default function AIRoomRecommendationModal({ isOpen, onClose }) {
               className="flex h-9 w-9 items-center justify-center rounded-full border border-slate-200 bg-white text-slate-600 hover:text-blue-600 hover:border-blue-500 hover:shadow-xs disabled:opacity-40 disabled:cursor-not-allowed shadow-xs transition-all duration-200"
               aria-label="Next"
             >
-              <i className="fas fa-arrow-right text-xs"></i>
+              <ArrowRightIcon className="w-4 h-4" />
             </button>
           </div>
         </div>
@@ -336,23 +345,32 @@ export default function AIRoomRecommendationModal({ isOpen, onClose }) {
                 <button
                   key={opt.id}
                   onClick={() => handleAnswerClick('experience', opt.id)}
-                  className={`group relative p-4 rounded-xl border text-left transition-all duration-300 focus:outline-none ${
+                  className={`group relative p-4 rounded-2xl border text-left transition-all duration-300 focus:outline-none ${
                     isSelected 
-                      ? 'border-blue-500 bg-blue-50/30 shadow-sm ring-1 ring-blue-500/20' 
-                      : 'border-slate-200/80 bg-white hover:shadow-sm hover:border-slate-300'
+                      ? 'border-blue-500 bg-blue-50/40 shadow-sm ring-1 ring-blue-500/20' 
+                      : 'border-slate-200/80 bg-white hover:shadow-md hover:border-slate-300'
                   }`}
                 >
                   <div className="flex items-center justify-between gap-3">
-                    <div>
-                      <div className={`font-bold text-sm sm:text-base ${isSelected ? 'text-blue-900' : 'text-gray-800'}`}>{opt.label}</div>
-                      <div className="text-[10px] text-gray-400 mt-1 uppercase tracking-wider font-semibold">Choose Vibe</div>
+                    <div className="flex items-center gap-3.5">
+                      <div className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-xl transition-all duration-300 ${
+                        isSelected 
+                          ? 'bg-blue-600 text-white shadow-md shadow-blue-500/20 scale-105' 
+                          : `${opt.iconClass.split(' ').slice(2).join(' ')} group-hover:scale-105`
+                      }`}>
+                        <i className={`${opt.iconClass.split(' ').slice(0, 2).join(' ')} text-base ${isSelected ? 'text-white' : ''}`}></i>
+                      </div>
+                      <div>
+                        <div className={`font-bold text-sm sm:text-base transition-colors duration-200 ${isSelected ? 'text-blue-900' : 'text-gray-800'}`}>{opt.label}</div>
+                        <div className="text-[10px] text-gray-400 mt-0.5 tracking-wide font-medium">{opt.subtitle}</div>
+                      </div>
                     </div>
                     {isSelected ? (
-                      <div className="flex h-7 w-7 items-center justify-center rounded-full bg-blue-600 text-white shadow-xs">
+                      <div className="flex h-7 w-7 items-center justify-center rounded-full bg-blue-600 text-white shadow-md shadow-blue-500/25">
                         <i className="fas fa-check text-[10px]"></i>
                       </div>
                     ) : (
-                      <div className="flex h-7 w-7 items-center justify-center rounded-full bg-slate-50 text-slate-400 group-hover:bg-blue-100 group-hover:text-blue-600 transition-all duration-300">
+                      <div className="flex h-7 w-7 items-center justify-center rounded-full bg-slate-50 text-slate-400 group-hover:bg-blue-100 group-hover:text-blue-600 group-hover:shadow-xs transition-all duration-300">
                         <i className="fas fa-chevron-right text-[10px]"></i>
                       </div>
                     )}
@@ -369,7 +387,7 @@ export default function AIRoomRecommendationModal({ isOpen, onClose }) {
               className="flex h-9 w-9 items-center justify-center rounded-full border border-slate-200 bg-white text-slate-600 hover:text-blue-600 hover:border-blue-500 hover:shadow-xs shadow-xs transition-all duration-200"
               aria-label="Previous"
             >
-              <i className="fas fa-arrow-left text-xs"></i>
+              <ArrowLeftIcon className="w-4 h-4" />
             </button>
             <button
               onClick={handleNext}
@@ -377,7 +395,7 @@ export default function AIRoomRecommendationModal({ isOpen, onClose }) {
               className="flex h-9 w-9 items-center justify-center rounded-full border border-slate-200 bg-white text-slate-600 hover:text-blue-600 hover:border-blue-500 hover:shadow-xs disabled:opacity-40 disabled:cursor-not-allowed shadow-xs transition-all duration-200"
               aria-label="Next"
             >
-              <i className="fas fa-arrow-right text-xs"></i>
+              <ArrowRightIcon className="w-4 h-4" />
             </button>
           </div>
         </div>
@@ -397,23 +415,32 @@ export default function AIRoomRecommendationModal({ isOpen, onClose }) {
                 <button
                   key={opt.id}
                   onClick={() => handleAnswerClick('priority', opt.id)}
-                  className={`group relative p-4 rounded-xl border text-left transition-all duration-300 focus:outline-none ${
+                  className={`group relative p-4 rounded-2xl border text-left transition-all duration-300 focus:outline-none ${
                     isSelected 
-                      ? 'border-blue-500 bg-blue-50/30 shadow-sm ring-1 ring-blue-500/20' 
-                      : 'border-slate-200/80 bg-white hover:shadow-sm hover:border-slate-300'
+                      ? 'border-blue-500 bg-blue-50/40 shadow-sm ring-1 ring-blue-500/20' 
+                      : 'border-slate-200/80 bg-white hover:shadow-md hover:border-slate-300'
                   }`}
                 >
                   <div className="flex items-center justify-between gap-3">
-                    <div>
-                      <div className={`font-bold text-sm sm:text-base ${isSelected ? 'text-blue-900' : 'text-gray-800'}`}>{opt.label}</div>
-                      <div className="text-[10px] text-gray-400 mt-1 uppercase tracking-wider font-semibold">Select Priority</div>
+                    <div className="flex items-center gap-3.5">
+                      <div className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-xl transition-all duration-300 ${
+                        isSelected 
+                          ? 'bg-blue-600 text-white shadow-md shadow-blue-500/20 scale-105' 
+                          : `${opt.iconClass.split(' ').slice(2).join(' ')} group-hover:scale-105`
+                      }`}>
+                        <i className={`${opt.iconClass.split(' ').slice(0, 2).join(' ')} text-base ${isSelected ? 'text-white' : ''}`}></i>
+                      </div>
+                      <div>
+                        <div className={`font-bold text-sm sm:text-base transition-colors duration-200 ${isSelected ? 'text-blue-900' : 'text-gray-800'}`}>{opt.label}</div>
+                        <div className="text-[10px] text-gray-400 mt-0.5 tracking-wide font-medium">{opt.subtitle}</div>
+                      </div>
                     </div>
                     {isSelected ? (
-                      <div className="flex h-7 w-7 items-center justify-center rounded-full bg-blue-600 text-white shadow-xs">
+                      <div className="flex h-7 w-7 items-center justify-center rounded-full bg-blue-600 text-white shadow-md shadow-blue-500/25">
                         <i className="fas fa-check text-[10px]"></i>
                       </div>
                     ) : (
-                      <div className="flex h-7 w-7 items-center justify-center rounded-full bg-slate-50 text-slate-400 group-hover:bg-blue-100 group-hover:text-blue-600 transition-all duration-300">
+                      <div className="flex h-7 w-7 items-center justify-center rounded-full bg-slate-50 text-slate-400 group-hover:bg-blue-100 group-hover:text-blue-600 group-hover:shadow-xs transition-all duration-300">
                         <i className="fas fa-chevron-right text-[10px]"></i>
                       </div>
                     )}
@@ -430,7 +457,7 @@ export default function AIRoomRecommendationModal({ isOpen, onClose }) {
               className="flex h-9 w-9 items-center justify-center rounded-full border border-slate-200 bg-white text-slate-600 hover:text-blue-600 hover:border-blue-500 hover:shadow-xs shadow-xs transition-all duration-200"
               aria-label="Previous"
             >
-              <i className="fas fa-arrow-left text-xs"></i>
+              <ArrowLeftIcon className="w-4 h-4" />
             </button>
             <button
               onClick={handleNext}
@@ -438,7 +465,7 @@ export default function AIRoomRecommendationModal({ isOpen, onClose }) {
               className="flex h-9 w-9 items-center justify-center rounded-full border border-slate-200 bg-white text-slate-600 hover:text-blue-600 hover:border-blue-500 hover:shadow-xs disabled:opacity-40 disabled:cursor-not-allowed shadow-xs transition-all duration-200"
               aria-label="Next"
             >
-              <i className="fas fa-arrow-right text-xs"></i>
+              <ArrowRightIcon className="w-4 h-4" />
             </button>
           </div>
         </div>
@@ -522,8 +549,8 @@ export default function AIRoomRecommendationModal({ isOpen, onClose }) {
           </div>
           <div className="absolute inset-0 bg-[url('/SandyFeet_logo2.png')] bg-cover bg-center opacity-30 mix-blend-overlay" />
           <div className="absolute inset-0 bg-gradient-to-t from-black/50 via-transparent to-transparent" />
-          <div className="absolute top-4 right-4 bg-amber-600 text-white rounded-full px-3 py-1.5 text-xs font-bold shadow-md">
-            🎯 {matchPercent}% Match
+          <div className="absolute top-4 right-4 bg-amber-600 text-white rounded-full px-3 py-1.5 text-xs font-bold shadow-md flex items-center gap-1.5">
+            <SparklesIcon className="w-3.5 h-3.5 text-amber-250" /> {matchPercent}% Match
           </div>
           <div className="absolute bottom-4 left-4 text-white">
             <span className="text-[10px] uppercase font-bold tracking-widest bg-amber-600/90 backdrop-blur-xs px-2 py-0.5 rounded-md">Exclusive Recommendation</span>
@@ -531,7 +558,9 @@ export default function AIRoomRecommendationModal({ isOpen, onClose }) {
         </div>
         <div className="p-6">
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 mb-2">
-            <h3 className="text-xl font-bold text-gray-900">✨ Exclusive Resort Stay</h3>
+            <h3 className="text-xl font-bold text-gray-900 flex items-center gap-1.5">
+              <i className="fas fa-crown text-amber-500"></i> Exclusive Resort Stay
+            </h3>
             <span className="text-lg font-bold text-amber-700 sm:text-right shrink-0">
               Custom Quote
             </span>
@@ -544,7 +573,7 @@ export default function AIRoomRecommendationModal({ isOpen, onClose }) {
           </p>
           {reason && (
             <div className="p-3 bg-white/80 rounded-xl border border-amber-200/60 mb-5 flex items-start gap-2">
-              <span className="text-amber-600 mt-0.5">✨</span>
+              <SparklesIcon className="w-4 h-4 text-amber-600 mt-0.5 shrink-0" />
               <p className="text-xs text-amber-900 leading-relaxed font-semibold">
                 Why we recommend this: <span className="font-medium text-amber-850">{reason}</span>
               </p>
@@ -581,15 +610,17 @@ export default function AIRoomRecommendationModal({ isOpen, onClose }) {
             <div className="flex justify-between items-start gap-2">
               <div>
                 <h4 className="font-bold text-gray-900 text-sm sm:text-base truncate">{room.type}</h4>
-                <p className="text-xs text-gray-500 mt-0.5">👥 {capacityText}</p>
+                <p className="text-xs text-gray-500 mt-0.5 flex items-center gap-1">
+                  <i className="fas fa-users text-gray-400 text-[10px]"></i> {capacityText}
+                </p>
               </div>
               <span className="text-xs sm:text-sm font-bold text-blue-600 text-right shrink-0">
                 ₱{room.price.toLocaleString()}<span className="text-[10px] text-gray-400 font-normal">/n</span>
               </span>
             </div>
             {reason && (
-              <p className="text-[11px] text-blue-900 mt-2 line-clamp-1 bg-white/80 px-2 py-0.5 rounded border border-blue-100/30">
-                ✨ {reason}
+              <p className="text-[11px] text-blue-900 mt-2 line-clamp-1 bg-white/80 px-2 py-0.5 rounded border border-blue-100/30 flex items-center gap-1">
+                <SparklesIcon className="w-3 h-3 text-blue-500 shrink-0" /> {reason}
               </p>
             )}
             <div className="mt-2.5 flex items-center justify-between">
@@ -600,8 +631,8 @@ export default function AIRoomRecommendationModal({ isOpen, onClose }) {
                 View details <i className="fas fa-arrow-right text-[8px]"></i>
               </Link>
               {matchPercent !== undefined && (
-                <span className="text-[10px] font-bold text-indigo-650 bg-indigo-50/80 px-1.5 py-0.5 rounded-lg border border-indigo-100/30">
-                  {matchPercent}% match
+                <span className="text-[10px] font-bold text-indigo-650 bg-indigo-50/80 px-1.5 py-0.5 rounded-lg border border-indigo-100/30 flex items-center gap-1">
+                  <SparklesIcon className="w-2.5 h-2.5 text-indigo-500" /> {matchPercent}% match
                 </span>
               )}
             </div>
@@ -616,8 +647,8 @@ export default function AIRoomRecommendationModal({ isOpen, onClose }) {
           <Image src={imageUrl} alt={room.type} fill className="object-cover" />
           <div className="absolute inset-0 bg-gradient-to-t from-black/40 via-transparent to-transparent" />
           {matchPercent !== undefined && (
-            <div className="absolute top-4 right-4 bg-blue-600 text-white rounded-full px-3 py-1.5 text-xs font-bold shadow-md">
-              🎯 {matchPercent}% Match
+            <div className="absolute top-4 right-4 bg-blue-600 text-white rounded-full px-3 py-1.5 text-xs font-bold shadow-md flex items-center gap-1.5">
+              <SparklesIcon className="w-3.5 h-3.5 text-blue-200" /> {matchPercent}% Match
             </div>
           )}
           <div className="absolute bottom-4 left-4 text-white">
@@ -637,7 +668,7 @@ export default function AIRoomRecommendationModal({ isOpen, onClose }) {
           <p className="text-gray-600 text-sm leading-relaxed mb-4 line-clamp-2">{room.description}</p>
           {reason && (
             <div className="p-3 bg-white/80 rounded-2xl border border-blue-100/60 mb-5 flex items-start gap-2">
-              <span className="text-blue-600 mt-0.5">✨</span>
+              <SparklesIcon className="w-4 h-4 text-blue-650 mt-0.5 shrink-0" />
               <p className="text-xs text-blue-900 leading-relaxed font-semibold">
                 Why we recommend this: <span className="font-medium text-blue-800">{reason}</span>
               </p>
@@ -666,10 +697,10 @@ export default function AIRoomRecommendationModal({ isOpen, onClose }) {
         <div className="sticky top-0 bg-white/95 backdrop-blur-md border-b border-gray-100 px-6 py-4 flex justify-between items-center z-10">
           <div className="flex-1">
             <div className="flex items-center gap-2">
-              <span className="text-base">🤖</span>
+              <CpuChipIcon className="w-5 h-5 text-blue-600 animate-pulse shrink-0" />
               <h2 className="text-lg font-bold text-gray-900">AI Room Assistant</h2>
             </div>
-            {step !== 3 && (
+            {recommendations.length === 0 && (
               <div className="mt-2.5 flex items-center gap-3">
                 <div className="flex-1 bg-slate-100 rounded-full h-1.5 overflow-hidden">
                   <div className="bg-blue-500 h-1.5 rounded-full transition-all duration-500 ease-out" style={{ width: `${progressPercent}%` }} />

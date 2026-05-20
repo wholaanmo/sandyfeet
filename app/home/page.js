@@ -10,6 +10,7 @@ import { db } from '@/lib/firebase';
 import { addDoc, collection, getDocs, limit, onSnapshot, query, serverTimestamp, where } from 'firebase/firestore';
 import ChatBot from '@/components/guest/ChatBot';
 import dynamic from 'next/dynamic';
+import { MagnifyingGlassIcon, SunIcon, CpuChipIcon } from '@heroicons/react/24/outline';
 
 const AIRoomRecommendationModal = dynamic(
   () => import('@/components/AIRoomRecommendationModal'),
@@ -491,17 +492,17 @@ function HomePageContent() {
                 <div className="grid grid-cols-2 gap-3.5 w-full">
                   <Link
                     href="/rooms"
-                    className="inline-flex items-center justify-center gap-2 rounded-full bg-blue-600 px-4 sm:px-5 py-2.5 text-xs sm:text-sm font-semibold text-white shadow-sm hover:shadow-md hover:bg-blue-700 hover:-translate-y-0.5 transition-all duration-300 ease-out"
+                    className="group inline-flex items-center justify-center gap-2 rounded-full bg-gradient-to-r from-blue-600 to-indigo-600 px-4 sm:px-5 py-2.5 text-xs sm:text-sm font-semibold text-white shadow-md shadow-blue-500/20 hover:shadow-lg hover:shadow-blue-500/35 hover:-translate-y-0.5 hover:scale-[1.02] active:scale-[0.98] transition-all duration-300 ease-out border border-blue-500/10"
                   >
-                    <i className="fas fa-search text-[10px]"></i>
-                    Explore Rooms
+                    <MagnifyingGlassIcon className="w-4 h-4 text-blue-100 group-hover:text-white transition-colors duration-300 shrink-0" />
+                    <span>Explore Rooms</span>
                   </Link>
                   <Link
                     href="/day-tour"
-                    className="inline-flex items-center justify-center gap-2 rounded-full border border-gray-200/80 bg-white/95 px-4 sm:px-5 py-2.5 text-xs sm:text-sm font-semibold text-gray-800 shadow-xs hover:bg-gray-50 hover:border-gray-300 hover:shadow-sm hover:-translate-y-0.5 transition-all duration-300 ease-out"
+                    className="group inline-flex items-center justify-center gap-2 rounded-full border border-slate-200/85 bg-white/95 px-4 sm:px-5 py-2.5 text-xs sm:text-sm font-semibold text-slate-800 shadow-xs hover:bg-slate-50/90 hover:border-blue-400 hover:text-blue-600 hover:shadow-md hover:shadow-blue-500/5 hover:-translate-y-0.5 hover:scale-[1.02] active:scale-[0.98] transition-all duration-300 ease-out"
                   >
-                    <i className="fas fa-umbrella-beach text-[10px] text-blue-500"></i>
-                    Book a Day Tour
+                    <SunIcon className="w-4 h-4 text-amber-500 group-hover:text-amber-600 group-hover:rotate-45 transition-transform duration-500 shrink-0" />
+                    <span>Book a Day Tour</span>
                   </Link>
                 </div>
 
