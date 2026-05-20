@@ -1,8 +1,8 @@
 // app/rooms/multi-room-booking/page.js
 'use client';
 
-import { Suspense, useState, useEffect } from 'react'; 
-import { useRouter } from 'next/navigation';
+import { Suspense, useState, useEffect } from 'react';
+import { useRouter, useSearchParams } from 'next/navigation';
 import GuestLayout from '@/app/guest/layout';
 import { db } from '@/lib/firebase';
 import { collection, addDoc, serverTimestamp, updateDoc, doc, getDoc, query, where, getDocs, onSnapshot } from 'firebase/firestore';
@@ -21,6 +21,7 @@ const MULTI_ROOM_STEP_KEY = 'multi_room_booking_step';
 
 function MultiRoomBookingPageContent() {
   const router = useRouter();
+  const searchParams = useSearchParams();
   const { user, profile, loading: authLoading } = useGuestAuth();
   const [bookingData, setBookingData] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -56,15 +57,45 @@ function MultiRoomBookingPageContent() {
   const FIXED_CHECK_IN_DISPLAY = '02:00 PM';
   const FIXED_CHECK_OUT_DISPLAY = '12:00 PM';
 
-  // Load booking data from session storage (room selection) AND localStorage (persisted form data)
+  // Load booking data from session storage, optional bank-request resume, and localStorage
   useEffect(() => {
-    const storedData = sessionStorage.getItem('multiRoomBooking');
-    if (!storedData) {
-      router.push('/rooms');
-      return;
-    }
+    let cancelled = false;
 
-    const data = JSON.parse(storedData);
+    const loadBookingPage = async () => {
+      const bankRequestIdParam = searchParams.get('bankRequestId');
+
+      if (bankRequestIdParam) {
+        try {
+          const bankSnap = await getDoc(doc(db, 'bank_requests', bankRequestIdParam));
+          if (bankSnap.exists() && !cancelled) {
+            const bankData = bankSnap.data();
+            if (bankData.bookingId) {
+              setGeneratedBookingId(bankData.bookingId);
+            }
+            setBankRequestId(bankRequestIdParam);
+            setBankRequestSent(true);
+            if (bankData.providedBankDetails) {
+              setBankDetailsProvided(bankData.providedBankDetails);
+            }
+            if (bankData.pendingBookingDraft) {
+              sessionStorage.setItem(
+                'multiRoomBooking',
+                JSON.stringify(bankData.pendingBookingDraft)
+              );
+            }
+          }
+        } catch (error) {
+          console.error('Error restoring bank request for booking:', error);
+        }
+      }
+
+      const storedData = sessionStorage.getItem('multiRoomBooking');
+      if (!storedData) {
+        router.push('/rooms');
+        return;
+      }
+
+      const data = JSON.parse(storedData);
 
     // Try to load persisted form data from localStorage
     let persistedFormData = {};
@@ -118,8 +149,15 @@ function MultiRoomBookingPageContent() {
     const initialTotalPrice = Number(data.exclusivePackagePrice || data.totalPrice || 0);
     setTotalPrice(initialTotalPrice);
     setDownPaymentAmount(initialTotalPrice * 0.5);
-    setLoading(false);
-  }, [router]);
+      setLoading(false);
+    };
+
+    loadBookingPage();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [router, searchParams]);
 
   // Save booking data to localStorage whenever it changes
   useEffect(() => {
@@ -169,9 +207,9 @@ function MultiRoomBookingPageContent() {
   };
 
   useEffect(() => {
-    const newBookingId = generateBookingReference();
-    setGeneratedBookingId(newBookingId);
-  }, []);
+    if (generatedBookingId) return;
+    setGeneratedBookingId(generateBookingReference());
+  }, [generatedBookingId]);
 
   // Copy to clipboard function
   const copyToClipboard = async (text) => {
@@ -364,6 +402,16 @@ function MultiRoomBookingPageContent() {
         requestedAt: new Date().toISOString()
       });
 
+      let pendingBookingDraft = null;
+      try {
+        const sessionDraft = sessionStorage.getItem('multiRoomBooking');
+        if (sessionDraft) {
+          pendingBookingDraft = JSON.parse(sessionDraft);
+        }
+      } catch (draftError) {
+        console.error('Error reading booking draft for bank request:', draftError);
+      }
+
       const bankRequestsRef = collection(db, 'bank_requests');
       const docRef = await addDoc(bankRequestsRef, {
         guestName: profile ? `${profile.firstName || ''} ${profile.lastName || ''}`.trim() : 'Guest',
@@ -394,7 +442,9 @@ function MultiRoomBookingPageContent() {
         read: false,
         isMultiRoom: isMultiRoomRequest,
         isExclusiveResortBooking,
-        exclusivePackagePrice: isExclusiveResortBooking ? exclusivePackagePrice : null
+        exclusivePackagePrice: isExclusiveResortBooking ? exclusivePackagePrice : null,
+        pendingBookingDraft,
+        draftSavedAt: new Date().toISOString(),
       });
 
       setBankRequestId(docRef.id);
@@ -432,6 +482,14 @@ function MultiRoomBookingPageContent() {
 
   const handleSubmitBooking = async () => {
     if (!checkBookingRequirements()) {
+      return;
+    }
+
+    if (!bookingData?.paymentProofUrl) {
+      setModalNotification({
+        message: 'Please upload your payment receipt or proof of payment before confirming your booking.',
+        type: 'error',
+      });
       return;
     }
 
@@ -760,6 +818,31 @@ function MultiRoomBookingPageContent() {
   const userDisplayName = profile ? `${profile.firstName || ''} ${profile.lastName || ''}`.trim() : 'Guest';
   const userEmail = profile?.email || user?.email || '';
   const userMobileNumber = profile?.mobileNumber || '';
+
+  const canConfirmBooking = Boolean(
+    bookingData.paymentProofUrl &&
+    !submitting &&
+    (paymentMethod !== 'bank_transfer' || bankDetailsProvided || visibleGuestQrBank) &&
+    userMobileNumber &&
+    hasAccountValidId(profile)
+  );
+
+  const confirmBookingBlockers = [];
+  if (!bookingData.paymentProofUrl) {
+    confirmBookingBlockers.push('Upload your payment receipt or proof of payment to enable confirmation.');
+  }
+  if (paymentMethod === 'bank_transfer' && !bankDetailsProvided && !visibleGuestQrBank) {
+    confirmBookingBlockers.push('Wait for the resort to provide bank transfer details (or use an available QR payment option).');
+  }
+  if (!userMobileNumber) {
+    confirmBookingBlockers.push('Add a mobile number in your account profile.');
+  }
+  if (!hasAccountValidId(profile)) {
+    confirmBookingBlockers.push('Upload a valid ID in your account profile.');
+  }
+  if (submitting) {
+    confirmBookingBlockers.push('Your booking is being submitted…');
+  }
 
   return (
     <GuestLayout>
@@ -1314,6 +1397,20 @@ function MultiRoomBookingPageContent() {
                     </div>
                   )}
 
+                  {!canConfirmBooking && confirmBookingBlockers.length > 0 && (
+                    <div className="mb-4 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3">
+                      <p className="text-sm font-semibold text-amber-900 flex items-center gap-2">
+                        <i className="fas fa-info-circle" />
+                        Complete the following to confirm your booking:
+                      </p>
+                      <ul className="mt-2 space-y-1 text-xs text-amber-800 list-disc pl-5">
+                        {confirmBookingBlockers.map((item) => (
+                          <li key={item}>{item}</li>
+                        ))}
+                      </ul>
+                    </div>
+                  )}
+
                   <div className="flex flex-col-reverse sm:flex-row gap-3 mt-6">
                     <button
                       onClick={handlePreviousStep}
@@ -1324,18 +1421,9 @@ function MultiRoomBookingPageContent() {
                     </button>
                     <button
                       onClick={handleSubmitBooking}
-                      disabled={
-                        !bookingData.paymentProofUrl ||
-                        submitting ||
-                        (paymentMethod === 'bank_transfer' && !bankDetailsProvided && !visibleGuestQrBank) ||
-                        !userMobileNumber ||
-                        !hasAccountValidId(profile)
-                      }
-                      className={`flex-1 py-3 rounded-xl font-medium transition-all duration-300 ${bookingData.paymentProofUrl &&
-                          !submitting &&
-                          (paymentMethod !== 'bank_transfer' || bankDetailsProvided || visibleGuestQrBank) &&
-                          userMobileNumber &&
-                          hasAccountValidId(profile)
+                      disabled={!canConfirmBooking}
+                      className={`flex-1 py-3 rounded-xl font-medium transition-all duration-300 ${
+                        canConfirmBooking
                           ? 'bg-gradient-to-r from-blue-500 to-blue-600 text-white hover:shadow-lg hover:shadow-blue-500/30'
                           : 'bg-gray-200 text-gray-500 cursor-not-allowed'
                         }`}

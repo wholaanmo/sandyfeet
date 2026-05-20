@@ -8,6 +8,7 @@ import { db } from '@/lib/firebase';
 import { useGuestAuth } from '@/components/guest/GuestAuthContext';
 import {
   getBookingResumePath,
+  getPendingPaymentTypeLabel,
   isPendingBankPaymentRequest,
 } from '@/lib/pendingBankPayments';
 import {
@@ -372,14 +373,7 @@ function useBankPaymentNotifications(collectionName, requestType, email, rawBook
           if (!isPendingBankPaymentRequest(request, rawBookings)) return null;
 
           const bank = data.providedBankDetails || {};
-          const typeLabel =
-            requestType === 'daytour'
-              ? 'Day Tour'
-              : data.isExclusiveResortBooking
-                ? 'Entire Resort'
-                : data.isMultiRoom
-                  ? 'Multi-Room Types'
-                  : data.roomType || 'Single Room Type';
+          const typeLabel = getPendingPaymentTypeLabel({ ...data, requestType });
 
           return {
             source: 'bank_payment',

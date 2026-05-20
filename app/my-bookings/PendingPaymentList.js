@@ -6,6 +6,8 @@ import { collection, onSnapshot, query, where } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 import {
   getBookingResumePath,
+  getPendingPaymentBookingDetails,
+  getPendingPaymentTypeLabel,
   isPendingBankPaymentRequest,
 } from '@/lib/pendingBankPayments';
 
@@ -129,14 +131,8 @@ export default function PendingPaymentList({ user, bookings }) {
       {pendingPayments.map((request) => {
         const bank = formatBankDetails(request.providedBankDetails);
         const resumePath = getBookingResumePath(request);
-        const isDayTour = request.requestType === 'daytour';
-        const typeLabel = isDayTour
-          ? 'Day Tour'
-          : request.isExclusiveResortBooking
-            ? 'Entire Resort'
-            : request.isMultiRoom
-              ? 'Multi-Room Types'
-              : request.roomType || 'Room';
+        const typeLabel = getPendingPaymentTypeLabel(request);
+        const bookingDetails = getPendingPaymentBookingDetails(request, rawBookings);
 
         return (
           <div
@@ -165,6 +161,22 @@ export default function PendingPaymentList({ user, bookings }) {
             </div>
 
             <div className="space-y-4 px-5 py-4">
+              <div className="rounded-xl border border-slate-200 bg-slate-50/80 p-4">
+                <p className="text-xs font-bold uppercase tracking-wide text-slate-600">
+                  Booking details
+                </p>
+                <div className="mt-3 grid gap-2 text-sm text-[#1E3A8A] sm:grid-cols-2">
+                  {bookingDetails.map((row) => (
+                    <p key={row.label}>
+                      <span className="text-[#5C7AA6]">{row.label}:</span> {row.value}
+                    </p>
+                  ))}
+                </div>
+                <p className="mt-3 text-xs leading-relaxed text-[#5C7AA6]">
+                  Upload your payment receipt on the booking page, then confirm your reservation to complete this payment.
+                </p>
+              </div>
+
               {bank && (
                 <div className="rounded-xl border border-[#4D8CF5]/15 bg-[#f8fbff] p-4">
                   <p className="text-xs font-bold uppercase tracking-wide text-[#4D8CF5]">

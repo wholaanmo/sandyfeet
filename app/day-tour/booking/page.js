@@ -28,6 +28,8 @@ function DayTourBookingContent() {
   const dateParam = searchParams.get('date');
   const adultsParam = searchParams.get('adults');
   const kidsParam = searchParams.get('kids');
+  const bankRequestIdParam = searchParams.get('bankRequestId');
+  const bookingIdParam = searchParams.get('bookingId');
   
   const [loading, setLoading] = useState(true);
   const [dayTour, setDayTour] = useState(null);
@@ -74,6 +76,52 @@ function DayTourBookingContent() {
   const hasMobileNumber = hasAccountMobileNumber(profile);
   const accountValidIdType = getDisplayValidIdType(profile);
   const accountValidIdUrl = profile?.validIdUrl || '';
+
+  // Restore bank transfer request when returning from Pending Payment
+  useEffect(() => {
+    if (!bankRequestIdParam) return undefined;
+
+    let cancelled = false;
+
+    const restoreBankRequest = async () => {
+      try {
+        const bankSnap = await getDoc(doc(db, 'daytour_bank_requests', bankRequestIdParam));
+        if (!bankSnap.exists() || cancelled) return;
+
+        const bankData = bankSnap.data();
+        if (bankData.bookingId) {
+          setGeneratedBookingId(bankData.bookingId);
+        } else if (bookingIdParam) {
+          setGeneratedBookingId(bookingIdParam);
+        }
+        setBankRequestId(bankRequestIdParam);
+        setBankRequestSent(true);
+        if (bankData.providedBankDetails) {
+          setBankDetailsProvided(bankData.providedBankDetails);
+        }
+        if (bankData.pendingBookingDraft) {
+          setBookingData((prev) => ({
+            ...prev,
+            adults: String(bankData.pendingBookingDraft.adults ?? prev.adults),
+            kids: String(bankData.pendingBookingDraft.kids ?? prev.kids),
+            specialRequest: bankData.pendingBookingDraft.specialRequest || prev.specialRequest,
+            paymentProof: bankData.pendingBookingDraft.paymentProof || prev.paymentProof,
+          }));
+          if (bankData.pendingBookingDraft.paymentMethod) {
+            setPaymentMethod(bankData.pendingBookingDraft.paymentMethod);
+          }
+        }
+      } catch (error) {
+        console.error('Error restoring day tour bank request:', error);
+      }
+    };
+
+    restoreBankRequest();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [bankRequestIdParam, bookingIdParam]);
 
   // Load persisted payment data from localStorage on mount
   useEffect(() => {
@@ -511,7 +559,15 @@ function DayTourBookingContent() {
         },
         status: 'pending',
         createdAt: new Date().toISOString(),
-        read: false
+        read: false,
+        pendingBookingDraft: {
+          adults: bookingData.adults,
+          kids: bookingData.kids,
+          specialRequest: bookingData.specialRequest,
+          paymentProof: bookingData.paymentProof,
+          paymentMethod,
+        },
+        draftSavedAt: new Date().toISOString(),
       });
       
       setBankRequestId(docRef.id);
