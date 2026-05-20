@@ -1827,11 +1827,10 @@ export default function BookingPage() {
   return (
     <Suspense
       fallback={
-        <GuestLayout>
-          <div className="min-h-screen bg-gradient-to-br from-ocean-ice to-blue-white flex items-center justify-center">
-            <i className="fas fa-spinner fa-spin text-3xl text-ocean-light"></i>
-          </div>
-        </GuestLayout>
+        // ✅ Remove GuestLayout and keep only a plain loading spinner.
+        <div className="min-h-screen bg-gradient-to-br from-ocean-ice to-blue-white flex items-center justify-center">
+          <i className="fas fa-spinner fa-spin text-3xl text-ocean-light"></i>
+        </div>
       }
     >
       <BookingPageContent />
