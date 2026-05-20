@@ -420,31 +420,9 @@ export default function GuestAuthModal({ isOpen, onClose, prefillEmail = '' }) {
                     </button>
                   </div>
                   {password && (
-                    <div className="mt-1.5 rounded-lg bg-slate-50 p-2 border border-slate-100/80">
-                      <div className="flex justify-between items-center mb-1 text-[10px] font-bold uppercase tracking-wider text-slate-400">
-                        <span>Password Strength</span>
-                        <span className={passwordStrength.color}>{passwordStrength.message}</span>
-                      </div>
-                      <div className="grid grid-cols-4 gap-1 h-1">
-                        <div className={`h-full rounded-full transition-all duration-300 ${
-                          ['too-weak', 'weak', 'good', 'strong', 'very-strong'].includes(passwordStrength.level) 
-                            ? (passwordStrength.level === 'too-weak' || passwordStrength.level === 'weak' ? 'bg-red-500' : passwordStrength.level === 'good' ? 'bg-teal-500' : passwordStrength.level === 'strong' ? 'bg-blue-500' : 'bg-emerald-500') 
-                            : 'bg-slate-200'
-                        }`} />
-                        <div className={`h-full rounded-full transition-all duration-300 ${
-                          ['good', 'strong', 'very-strong'].includes(passwordStrength.level) 
-                            ? (passwordStrength.level === 'good' ? 'bg-teal-500' : passwordStrength.level === 'strong' ? 'bg-blue-500' : 'bg-emerald-500') 
-                            : 'bg-slate-200'
-                        }`} />
-                        <div className={`h-full rounded-full transition-all duration-300 ${
-                          ['strong', 'very-strong'].includes(passwordStrength.level) 
-                            ? (passwordStrength.level === 'strong' ? 'bg-blue-500' : 'bg-emerald-500') 
-                            : 'bg-slate-200'
-                        }`} />
-                        <div className={`h-full rounded-full transition-all duration-300 ${
-                          passwordStrength.level === 'very-strong' ? 'bg-emerald-500' : 'bg-slate-200'
-                        }`} />
-                      </div>
+                    <div className="mt-1 flex justify-between items-center text-[10.5px] font-bold uppercase tracking-wider select-none">
+                      <span className="text-slate-400">Password Strength</span>
+                      <span className={`${passwordStrength.color} transition-colors duration-200`}>{passwordStrength.message}</span>
                     </div>
                   )}
                 </div>

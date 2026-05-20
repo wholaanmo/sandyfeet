@@ -89,13 +89,20 @@ export default function AIRoomRecommendationModal({ isOpen, onClose }) {
     }
   };
 
-  const handleAnswer = (question, value) => {
+  const handleAnswerSelect = (question, value) => {
     setAnswers(prev => ({ ...prev, [question]: value }));
+  };
+
+  const handleAnswerClick = (question, value) => {
+    // Save answer
+    const newAnswers = { ...answers, [question]: value };
+    setAnswers(newAnswers);
+
+    // Auto advance behavior
     if (step < 3) {
       setStep(step + 1);
     } else {
-      // Last question answered → compute recommendations
-      computeRecommendations({ ...answers, [question]: value });
+      computeRecommendations(newAnswers);
     }
   };
 
@@ -226,6 +233,30 @@ export default function AIRoomRecommendationModal({ isOpen, onClose }) {
     return percent;
   };
 
+  // Step Navigation Handlers
+  const handlePrev = () => {
+    if (step > 1) {
+      setStep(step - 1);
+    }
+  };
+
+  const handleNext = () => {
+    if (step === 1 && answers.guest) {
+      setStep(2);
+    } else if (step === 2 && answers.experience) {
+      setStep(3);
+    } else if (step === 3 && answers.priority) {
+      computeRecommendations(answers);
+    }
+  };
+
+  const isNextDisabled = () => {
+    if (step === 1) return !answers.guest;
+    if (step === 2) return !answers.experience;
+    if (step === 3) return !answers.priority;
+    return true;
+  };
+
   if (!isOpen) return null;
 
   const progressPercent = ((step - 1) / 2) * 100;
@@ -233,27 +264,60 @@ export default function AIRoomRecommendationModal({ isOpen, onClose }) {
   const renderQuestion = () => {
     if (step === 1) {
       return (
-        <div className="animate-fadeIn">
-          <h3 className="text-xl font-bold text-gray-900 mb-1.5">How many guests are staying?</h3>
-          <p className="text-gray-500 text-xs mb-6">Select the option that matches your group size.</p>
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-            {guestOptions.map(opt => (
-              <button
-                key={opt.id}
-                onClick={() => handleAnswer('guest', opt.id)}
-                className="group relative p-4 rounded-2xl border border-slate-100 bg-white shadow-xs text-left transition-all duration-300 hover:shadow-md hover:-translate-y-0.5 hover:border-blue-500/30 hover:bg-blue-50/10 focus:outline-none"
-              >
-                <div className="flex items-center justify-between gap-3">
-                  <div>
-                    <div className="font-bold text-gray-800 group-hover:text-blue-900 transition-colors">{opt.label}</div>
-                    <div className="text-[10px] text-gray-400 mt-1 uppercase tracking-wider font-semibold">Select Option</div>
+        <div className="animate-fadeIn bg-slate-50/75 border border-slate-200/80 rounded-2xl p-5 sm:p-6 shadow-sm">
+          <h3 className="text-lg sm:text-xl font-bold text-gray-900 mb-1.5">How many guests are staying?</h3>
+          <p className="text-gray-500 text-xs mb-5">Select the option that matches your group size.</p>
+          
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-6">
+            {guestOptions.map(opt => {
+              const isSelected = answers.guest === opt.id;
+              return (
+                <button
+                  key={opt.id}
+                  onClick={() => handleAnswerClick('guest', opt.id)}
+                  className={`group relative p-4 rounded-xl border text-left transition-all duration-300 focus:outline-none ${
+                    isSelected 
+                      ? 'border-blue-500 bg-blue-50/30 shadow-sm ring-1 ring-blue-500/20' 
+                      : 'border-slate-200/80 bg-white hover:shadow-sm hover:border-slate-300'
+                  }`}
+                >
+                  <div className="flex items-center justify-between gap-3">
+                    <div>
+                      <div className={`font-bold text-sm sm:text-base ${isSelected ? 'text-blue-900' : 'text-gray-800'}`}>{opt.label}</div>
+                      <div className="text-[10px] text-gray-400 mt-1 uppercase tracking-wider font-semibold">Select Option</div>
+                    </div>
+                    {isSelected ? (
+                      <div className="flex h-7 w-7 items-center justify-center rounded-full bg-blue-600 text-white shadow-xs">
+                        <i className="fas fa-check text-[10px]"></i>
+                      </div>
+                    ) : (
+                      <div className="flex h-7 w-7 items-center justify-center rounded-full bg-slate-50 text-slate-400 group-hover:bg-blue-100 group-hover:text-blue-600 transition-all duration-300">
+                        <i className="fas fa-chevron-right text-[10px]"></i>
+                      </div>
+                    )}
                   </div>
-                  <div className="flex h-7 w-7 items-center justify-center rounded-full bg-slate-50 text-slate-400 group-hover:bg-blue-100 group-hover:text-blue-600 transition-all duration-300">
-                    <i className="fas fa-chevron-right text-[10px]"></i>
-                  </div>
-                </div>
-              </button>
-            ))}
+                </button>
+              );
+            })}
+          </div>
+
+          {/* Navigation Controls */}
+          <div className="flex items-center justify-between border-t border-slate-200/60 pt-4">
+            <button
+              disabled={true}
+              className="flex h-9 w-9 items-center justify-center rounded-full border border-slate-200 bg-white text-slate-300 disabled:opacity-40 disabled:cursor-not-allowed shadow-xs transition-all duration-200"
+              aria-label="Previous"
+            >
+              <i className="fas fa-arrow-left text-xs"></i>
+            </button>
+            <button
+              onClick={handleNext}
+              disabled={isNextDisabled()}
+              className="flex h-9 w-9 items-center justify-center rounded-full border border-slate-200 bg-white text-slate-600 hover:text-blue-600 hover:border-blue-500 hover:shadow-xs disabled:opacity-40 disabled:cursor-not-allowed shadow-xs transition-all duration-200"
+              aria-label="Next"
+            >
+              <i className="fas fa-arrow-right text-xs"></i>
+            </button>
           </div>
         </div>
       );
@@ -261,27 +325,60 @@ export default function AIRoomRecommendationModal({ isOpen, onClose }) {
 
     if (step === 2) {
       return (
-        <div className="animate-fadeIn">
-          <h3 className="text-xl font-bold text-gray-900 mb-1.5">What kind of experience are you looking for?</h3>
-          <p className="text-gray-500 text-xs mb-6">Tell us your perfect resort vibe.</p>
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-            {experienceOptions.map(opt => (
-              <button
-                key={opt.id}
-                onClick={() => handleAnswer('experience', opt.id)}
-                className="group relative p-4 rounded-2xl border border-slate-100 bg-white shadow-xs text-left transition-all duration-300 hover:shadow-md hover:-translate-y-0.5 hover:border-blue-500/30 hover:bg-blue-50/10 focus:outline-none"
-              >
-                <div className="flex items-center justify-between gap-3">
-                  <div>
-                    <div className="font-bold text-gray-800 group-hover:text-blue-900 transition-colors">{opt.label}</div>
-                    <div className="text-[10px] text-gray-400 mt-1 uppercase tracking-wider font-semibold">Choose Vibe</div>
+        <div className="animate-fadeIn bg-slate-50/75 border border-slate-200/80 rounded-2xl p-5 sm:p-6 shadow-sm">
+          <h3 className="text-lg sm:text-xl font-bold text-gray-900 mb-1.5">What kind of experience are you looking for?</h3>
+          <p className="text-gray-500 text-xs mb-5">Tell us your perfect resort vibe.</p>
+          
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-6">
+            {experienceOptions.map(opt => {
+              const isSelected = answers.experience === opt.id;
+              return (
+                <button
+                  key={opt.id}
+                  onClick={() => handleAnswerClick('experience', opt.id)}
+                  className={`group relative p-4 rounded-xl border text-left transition-all duration-300 focus:outline-none ${
+                    isSelected 
+                      ? 'border-blue-500 bg-blue-50/30 shadow-sm ring-1 ring-blue-500/20' 
+                      : 'border-slate-200/80 bg-white hover:shadow-sm hover:border-slate-300'
+                  }`}
+                >
+                  <div className="flex items-center justify-between gap-3">
+                    <div>
+                      <div className={`font-bold text-sm sm:text-base ${isSelected ? 'text-blue-900' : 'text-gray-800'}`}>{opt.label}</div>
+                      <div className="text-[10px] text-gray-400 mt-1 uppercase tracking-wider font-semibold">Choose Vibe</div>
+                    </div>
+                    {isSelected ? (
+                      <div className="flex h-7 w-7 items-center justify-center rounded-full bg-blue-600 text-white shadow-xs">
+                        <i className="fas fa-check text-[10px]"></i>
+                      </div>
+                    ) : (
+                      <div className="flex h-7 w-7 items-center justify-center rounded-full bg-slate-50 text-slate-400 group-hover:bg-blue-100 group-hover:text-blue-600 transition-all duration-300">
+                        <i className="fas fa-chevron-right text-[10px]"></i>
+                      </div>
+                    )}
                   </div>
-                  <div className="flex h-7 w-7 items-center justify-center rounded-full bg-slate-50 text-slate-400 group-hover:bg-blue-100 group-hover:text-blue-600 transition-all duration-300">
-                    <i className="fas fa-chevron-right text-[10px]"></i>
-                  </div>
-                </div>
-              </button>
-            ))}
+                </button>
+              );
+            })}
+          </div>
+
+          {/* Navigation Controls */}
+          <div className="flex items-center justify-between border-t border-slate-200/60 pt-4">
+            <button
+              onClick={handlePrev}
+              className="flex h-9 w-9 items-center justify-center rounded-full border border-slate-200 bg-white text-slate-600 hover:text-blue-600 hover:border-blue-500 hover:shadow-xs shadow-xs transition-all duration-200"
+              aria-label="Previous"
+            >
+              <i className="fas fa-arrow-left text-xs"></i>
+            </button>
+            <button
+              onClick={handleNext}
+              disabled={isNextDisabled()}
+              className="flex h-9 w-9 items-center justify-center rounded-full border border-slate-200 bg-white text-slate-600 hover:text-blue-600 hover:border-blue-500 hover:shadow-xs disabled:opacity-40 disabled:cursor-not-allowed shadow-xs transition-all duration-200"
+              aria-label="Next"
+            >
+              <i className="fas fa-arrow-right text-xs"></i>
+            </button>
           </div>
         </div>
       );
@@ -289,27 +386,60 @@ export default function AIRoomRecommendationModal({ isOpen, onClose }) {
 
     if (step === 3 && recommendations.length === 0) {
       return (
-        <div className="animate-fadeIn">
-          <h3 className="text-xl font-bold text-gray-900 mb-1.5">What matters most to you?</h3>
-          <p className="text-gray-500 text-xs mb-6">Choose your absolute top priority.</p>
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-            {priorityOptions.map(opt => (
-              <button
-                key={opt.id}
-                onClick={() => handleAnswer('priority', opt.id)}
-                className="group relative p-4 rounded-2xl border border-slate-100 bg-white shadow-xs text-left transition-all duration-300 hover:shadow-md hover:-translate-y-0.5 hover:border-blue-500/30 hover:bg-blue-50/10 focus:outline-none"
-              >
-                <div className="flex items-center justify-between gap-3">
-                  <div>
-                    <div className="font-bold text-gray-800 group-hover:text-blue-900 transition-colors">{opt.label}</div>
-                    <div className="text-[10px] text-gray-400 mt-1 uppercase tracking-wider font-semibold">Select Priority</div>
+        <div className="animate-fadeIn bg-slate-50/75 border border-slate-200/80 rounded-2xl p-5 sm:p-6 shadow-sm">
+          <h3 className="text-lg sm:text-xl font-bold text-gray-900 mb-1.5">What matters most to you?</h3>
+          <p className="text-gray-500 text-xs mb-5">Choose your absolute top priority.</p>
+          
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-6">
+            {priorityOptions.map(opt => {
+              const isSelected = answers.priority === opt.id;
+              return (
+                <button
+                  key={opt.id}
+                  onClick={() => handleAnswerClick('priority', opt.id)}
+                  className={`group relative p-4 rounded-xl border text-left transition-all duration-300 focus:outline-none ${
+                    isSelected 
+                      ? 'border-blue-500 bg-blue-50/30 shadow-sm ring-1 ring-blue-500/20' 
+                      : 'border-slate-200/80 bg-white hover:shadow-sm hover:border-slate-300'
+                  }`}
+                >
+                  <div className="flex items-center justify-between gap-3">
+                    <div>
+                      <div className={`font-bold text-sm sm:text-base ${isSelected ? 'text-blue-900' : 'text-gray-800'}`}>{opt.label}</div>
+                      <div className="text-[10px] text-gray-400 mt-1 uppercase tracking-wider font-semibold">Select Priority</div>
+                    </div>
+                    {isSelected ? (
+                      <div className="flex h-7 w-7 items-center justify-center rounded-full bg-blue-600 text-white shadow-xs">
+                        <i className="fas fa-check text-[10px]"></i>
+                      </div>
+                    ) : (
+                      <div className="flex h-7 w-7 items-center justify-center rounded-full bg-slate-50 text-slate-400 group-hover:bg-blue-100 group-hover:text-blue-600 transition-all duration-300">
+                        <i className="fas fa-chevron-right text-[10px]"></i>
+                      </div>
+                    )}
                   </div>
-                  <div className="flex h-7 w-7 items-center justify-center rounded-full bg-slate-50 text-slate-400 group-hover:bg-blue-100 group-hover:text-blue-600 transition-all duration-300">
-                    <i className="fas fa-chevron-right text-[10px]"></i>
-                  </div>
-                </div>
-              </button>
-            ))}
+                </button>
+              );
+            })}
+          </div>
+
+          {/* Navigation Controls */}
+          <div className="flex items-center justify-between border-t border-slate-200/60 pt-4">
+            <button
+              onClick={handlePrev}
+              className="flex h-9 w-9 items-center justify-center rounded-full border border-slate-200 bg-white text-slate-600 hover:text-blue-600 hover:border-blue-500 hover:shadow-xs shadow-xs transition-all duration-200"
+              aria-label="Previous"
+            >
+              <i className="fas fa-arrow-left text-xs"></i>
+            </button>
+            <button
+              onClick={handleNext}
+              disabled={isNextDisabled()}
+              className="flex h-9 w-9 items-center justify-center rounded-full border border-slate-200 bg-white text-slate-600 hover:text-blue-600 hover:border-blue-500 hover:shadow-xs disabled:opacity-40 disabled:cursor-not-allowed shadow-xs transition-all duration-200"
+              aria-label="Next"
+            >
+              <i className="fas fa-arrow-right text-xs"></i>
+            </button>
           </div>
         </div>
       );
@@ -319,14 +449,14 @@ export default function AIRoomRecommendationModal({ isOpen, onClose }) {
     if (step === 3 && recommendations.length > 0) {
       return (
         <div className="animate-fadeIn space-y-6">
-          <div className="flex items-center justify-between gap-4 border-b border-gray-100 pb-3">
+          <div className="flex items-center justify-between gap-4 border-b border-slate-200/60 pb-3">
             <div>
               <h3 className="text-xl font-bold text-gray-900">Your Recommended Stays</h3>
               <p className="text-xs text-gray-500">Curated automatically based on your preferences</p>
             </div>
             <button
               onClick={resetModal}
-              className="text-xs font-semibold text-blue-600 hover:text-blue-700 flex items-center gap-1 bg-blue-50 px-2.5 py-1.5 rounded-lg border border-blue-100/50 transition-all"
+              className="text-xs font-semibold text-blue-650 hover:text-blue-700 flex items-center gap-1 bg-blue-50 border border-blue-200/30 px-3 py-1.5 rounded-xl shadow-xs transition-all"
             >
               <ChevronLeftIcon className="w-3.5 h-3.5" /> Start Over
             </button>
@@ -384,12 +514,11 @@ export default function AIRoomRecommendationModal({ isOpen, onClose }) {
   const ExclusiveStayCard = ({ reason }) => {
     const matchPercent = 98; // High match for exclusive intent
     return (
-      <div className="rounded-3xl border-2 border-amber-200 bg-gradient-to-br from-amber-50 via-white to-amber-50 shadow-lg overflow-hidden transition-all duration-300 hover:shadow-xl">
+      <div className="rounded-3xl border border-amber-250 bg-[#fffbeb] shadow-sm overflow-hidden transition-all duration-300 hover:shadow-md">
         <div className="relative h-56 w-full">
-          {/* Resort representative image – replace with your own image */}
           <div className="absolute inset-0 bg-gradient-to-r from-amber-900/60 to-blue-900/40 z-0" />
           <div className="absolute inset-0 flex items-center justify-center z-10">
-            <i className="fas fa-crown text-7xl text-amber-300 drop-shadow-lg"></i>
+            <i className="fas fa-crown text-7xl text-amber-300 drop-shadow-lg animate-pulse"></i>
           </div>
           <div className="absolute inset-0 bg-[url('/SandyFeet_logo2.png')] bg-cover bg-center opacity-30 mix-blend-overlay" />
           <div className="absolute inset-0 bg-gradient-to-t from-black/50 via-transparent to-transparent" />
@@ -414,10 +543,10 @@ export default function AIRoomRecommendationModal({ isOpen, onClose }) {
             Enjoy complete privacy, all resort amenities, and personalized service. Perfect for large groups, weddings, or corporate retreats.
           </p>
           {reason && (
-            <div className="p-3 bg-amber-50/60 rounded-2xl border border-amber-200 mb-5 flex items-start gap-2">
+            <div className="p-3 bg-white/80 rounded-xl border border-amber-200/60 mb-5 flex items-start gap-2">
               <span className="text-amber-600 mt-0.5">✨</span>
               <p className="text-xs text-amber-900 leading-relaxed font-semibold">
-                Why we recommend this: <span className="font-medium text-amber-800">{reason}</span>
+                Why we recommend this: <span className="font-medium text-amber-850">{reason}</span>
               </p>
             </div>
           )}
@@ -444,22 +573,22 @@ export default function AIRoomRecommendationModal({ isOpen, onClose }) {
 
     if (compact) {
       return (
-        <div className="flex gap-4 p-4 rounded-2xl border border-slate-100 bg-white shadow-xs hover:shadow-sm hover:border-blue-100 transition-all duration-300">
-          <div className="relative w-24 h-24 rounded-xl overflow-hidden flex-shrink-0">
+        <div className="flex gap-4 p-4 rounded-2xl border border-slate-200/70 bg-[#f8fbff]/90 shadow-xs hover:shadow-sm hover:border-blue-300 hover:bg-[#f0f6ff] transition-all duration-300">
+          <div className="relative w-24 h-24 rounded-xl overflow-hidden flex-shrink-0 border border-slate-200/50">
             <Image src={imageUrl} alt={room.type} fill className="object-cover" />
           </div>
           <div className="flex-grow min-w-0">
             <div className="flex justify-between items-start gap-2">
               <div>
-                <h4 className="font-bold text-gray-900 truncate">{room.type}</h4>
+                <h4 className="font-bold text-gray-900 text-sm sm:text-base truncate">{room.type}</h4>
                 <p className="text-xs text-gray-500 mt-0.5">👥 {capacityText}</p>
               </div>
-              <span className="text-xs font-bold text-blue-600 text-right shrink-0">
+              <span className="text-xs sm:text-sm font-bold text-blue-600 text-right shrink-0">
                 ₱{room.price.toLocaleString()}<span className="text-[10px] text-gray-400 font-normal">/n</span>
               </span>
             </div>
             {reason && (
-              <p className="text-[11px] text-blue-900 mt-2 line-clamp-1 bg-blue-50/30 px-2 py-0.5 rounded border border-blue-100/30">
+              <p className="text-[11px] text-blue-900 mt-2 line-clamp-1 bg-white/80 px-2 py-0.5 rounded border border-blue-100/30">
                 ✨ {reason}
               </p>
             )}
@@ -471,7 +600,7 @@ export default function AIRoomRecommendationModal({ isOpen, onClose }) {
                 View details <i className="fas fa-arrow-right text-[8px]"></i>
               </Link>
               {matchPercent !== undefined && (
-                <span className="text-[10px] font-bold text-indigo-600 bg-indigo-50 px-1.5 py-0.5 rounded">
+                <span className="text-[10px] font-bold text-indigo-650 bg-indigo-50/80 px-1.5 py-0.5 rounded-lg border border-indigo-100/30">
                   {matchPercent}% match
                 </span>
               )}
@@ -482,7 +611,7 @@ export default function AIRoomRecommendationModal({ isOpen, onClose }) {
     }
 
     return (
-      <div className="rounded-3xl border border-slate-100 bg-white shadow-md overflow-hidden transition-all duration-300 hover:shadow-lg">
+      <div className="rounded-3xl border border-slate-250 bg-[#f8fbff]/90 shadow-sm overflow-hidden transition-all duration-300 hover:shadow-md hover:border-slate-300">
         <div className="relative h-56 w-full">
           <Image src={imageUrl} alt={room.type} fill className="object-cover" />
           <div className="absolute inset-0 bg-gradient-to-t from-black/40 via-transparent to-transparent" />
@@ -507,7 +636,7 @@ export default function AIRoomRecommendationModal({ isOpen, onClose }) {
           </p>
           <p className="text-gray-600 text-sm leading-relaxed mb-4 line-clamp-2">{room.description}</p>
           {reason && (
-            <div className="p-3 bg-blue-50/40 rounded-2xl border border-blue-100/50 mb-5 flex items-start gap-2">
+            <div className="p-3 bg-white/80 rounded-2xl border border-blue-100/60 mb-5 flex items-start gap-2">
               <span className="text-blue-600 mt-0.5">✨</span>
               <p className="text-xs text-blue-900 leading-relaxed font-semibold">
                 Why we recommend this: <span className="font-medium text-blue-800">{reason}</span>
@@ -555,7 +684,7 @@ export default function AIRoomRecommendationModal({ isOpen, onClose }) {
         </div>
 
         {/* Body */}
-        <div className="p-6 overflow-y-auto flex-1">
+        <div className="p-6 overflow-y-auto flex-1 bg-white">
           {loading && step !== 3 ? (
             <div className="flex flex-col items-center justify-center py-16">
               <div className="w-10 h-10 border-3 border-blue-100 border-t-blue-500 rounded-full animate-spin" />
