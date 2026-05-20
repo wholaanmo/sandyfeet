@@ -136,6 +136,8 @@ export const normalizeBooking = (docSnap, type) => {
     guests: Number(d.guests || d.totalGuests || 0), totalGuests: Number(d.totalGuests || 0),
     exclusiveAdults: Number(d.exclusiveAdults || 0), exclusiveKids: Number(d.exclusiveKids || 0),
     tentCount: Number(d.tentCount || 0), paymentMethod: d.paymentMethod || null,
+    paymentProof: d.paymentProof || null,
+    paymentProofUrl: d.paymentProofUrl || null,
     roomTypesArray: Array.isArray(d.roomTypes) ? d.roomTypes : d.roomTypesArray || null,
     guestUid: d.guestUid || null,
   };

@@ -2,9 +2,14 @@
 'use client';
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import Link from 'next/link';
 import { collection, onSnapshot, query, where } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 import { useGuestAuth } from '@/components/guest/GuestAuthContext';
+import {
+  getBookingResumePath,
+  isPendingBankPaymentRequest,
+} from '@/lib/pendingBankPayments';
 import {
   dedupeIdRequestNotifications,
   mapDocToIdRequestNotification,
@@ -309,6 +314,93 @@ function useBookingStatusSnapshot(collectionName, bookingType, field, value) {
   return items;
 }
 
+function useGuestBookingsForBankChecks(user, normalizedEmail) {
+  const [bookings, setBookings] = useState([]);
+
+  useEffect(() => {
+    if (!normalizedEmail && !user?.uid) {
+      setBookings([]);
+      return undefined;
+    }
+
+    const liveMap = new Map();
+    const rebuild = () => setBookings(Array.from(liveMap.values()));
+    const unsubs = [];
+
+    const attach = (col, field, value) => {
+      if (!value) return;
+      unsubs.push(
+        onSnapshot(query(collection(db, col), where(field, '==', value)), (snapshot) => {
+          snapshot.docs.forEach((docSnap) => {
+            liveMap.set(`${col}-${docSnap.id}`, { id: docSnap.id, ...docSnap.data() });
+          });
+          rebuild();
+        })
+      );
+    };
+
+    attach('bookings', 'guestInfo.email', normalizedEmail);
+    attach('dayTourBookings', 'guestInfo.email', normalizedEmail);
+    attach('bookings', 'guestUid', user?.uid || '');
+    attach('dayTourBookings', 'guestUid', user?.uid || '');
+
+    return () => unsubs.forEach((unsub) => unsub());
+  }, [normalizedEmail, user?.uid]);
+
+  return bookings;
+}
+
+function useBankPaymentNotifications(collectionName, requestType, email, rawBookings) {
+  const [items, setItems] = useState([]);
+
+  useEffect(() => {
+    if (!email) {
+      setItems([]);
+      return undefined;
+    }
+
+    const snapshotQuery = query(
+      collection(db, collectionName),
+      where('guestEmail', '==', email)
+    );
+
+    return onSnapshot(snapshotQuery, (snapshot) => {
+      const notifications = snapshot.docs
+        .map((docSnap) => {
+          const data = docSnap.data();
+          const request = { id: docSnap.id, ...data, requestType };
+          if (!isPendingBankPaymentRequest(request, rawBookings)) return null;
+
+          const bank = data.providedBankDetails || {};
+          const typeLabel =
+            requestType === 'daytour'
+              ? 'Day Tour'
+              : data.isExclusiveResortBooking
+                ? 'Entire Resort'
+                : data.isMultiRoom
+                  ? 'Multi-Room Types'
+                  : data.roomType || 'Single Room Type';
+
+          return {
+            source: 'bank_payment',
+            key: `bank-payment-${requestType}-${docSnap.id}`,
+            notificationType: 'Payment Details Available',
+            typeLabel,
+            bookingId: data.bookingId || docSnap.id,
+            adminNote: `Bank: ${bank.bankName || 'N/A'} · Account: ${bank.accountName || 'N/A'}`,
+            timestamp: bank.providedAt || data.updatedAt || data.createdAt,
+            resumePath: getBookingResumePath(request),
+          };
+        })
+        .filter(Boolean);
+
+      setItems(notifications);
+    });
+  }, [collectionName, requestType, email, rawBookings]);
+
+  return items;
+}
+
 export default function IdRequestNotifications() {
   const { user } = useGuestAuth();
   const [selectedNotification, setSelectedNotification] = useState(null);
@@ -343,6 +435,21 @@ export default function IdRequestNotifications() {
     return merged.filter((notification) => !dismissedKeys.has(notification.key));
   }, [roomStatusByEmail, dayStatusByEmail, roomStatusByUid, dayStatusByUid, dismissedKeys]);
 
+  const guestBookingsForBank = useGuestBookingsForBankChecks(user, normalizedEmail);
+
+  const bankPaymentRoom = useBankPaymentNotifications(
+    'bank_requests',
+    'room',
+    normalizedEmail,
+    guestBookingsForBank
+  );
+  const bankPaymentDayTour = useBankPaymentNotifications(
+    'daytour_bank_requests',
+    'daytour',
+    normalizedEmail,
+    guestBookingsForBank
+  );
+
   const notifications = useMemo(() => {
     const combined = [
       ...idRequestNotifications.map((notification) => ({
@@ -351,12 +458,20 @@ export default function IdRequestNotifications() {
         timestamp: notification.requestedAt,
       })),
       ...bookingStatusNotifications,
+      ...bankPaymentRoom.filter((n) => !dismissedKeys.has(n.key)),
+      ...bankPaymentDayTour.filter((n) => !dismissedKeys.has(n.key)),
     ];
 
     return combined.sort(
       (a, b) => new Date(b.timestamp || 0).getTime() - new Date(a.timestamp || 0).getTime()
     );
-  }, [idRequestNotifications, bookingStatusNotifications]);
+  }, [
+    idRequestNotifications,
+    bookingStatusNotifications,
+    bankPaymentRoom,
+    bankPaymentDayTour,
+    dismissedKeys,
+  ]);
 
   const handleDismissBookingNotification = useCallback((notificationKey) => {
     setDismissedKeys((prev) => {
@@ -387,6 +502,12 @@ export default function IdRequestNotifications() {
                     setSelectedNotification(notification);
                     setModalOpen(true);
                   }}
+                />
+              ) : notification.source === 'bank_payment' ? (
+                <BankPaymentNotificationItem
+                  key={`bank-${notification.key}`}
+                  notification={notification}
+                  onDismiss={() => handleDismissBookingNotification(notification.key)}
                 />
               ) : (
                 <BookingStatusNotificationItem
@@ -456,6 +577,52 @@ function IdRequestNotificationItem({ notification, onView }) {
         <i className="fas fa-eye text-[10px]" />
         View
       </button>
+    </div>
+  );
+}
+
+function BankPaymentNotificationItem({ notification, onDismiss }) {
+  return (
+    <div className="rounded-xl border border-amber-200/80 bg-amber-50/40 p-3">
+      <div className="flex items-start gap-2">
+        <div className="mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-amber-100 text-amber-600">
+          <i className="fas fa-university text-xs" />
+        </div>
+        <div className="min-w-0 flex-1">
+          <p className="text-xs font-bold uppercase tracking-wide text-amber-700">
+            {notification.notificationType}
+          </p>
+          <p className="mt-0.5 text-xs text-[#5C7AA6]">
+            {notification.typeLabel} · {notification.bookingId}
+          </p>
+          <p className="mt-2 text-xs leading-relaxed text-[#1E3A8A]">
+            The resort has provided bank transfer details. Please complete your payment and upload proof.
+          </p>
+          <p className="mt-1 text-xs text-[#5C7AA6]">{notification.adminNote}</p>
+          {notification.timestamp && (
+            <p className="mt-1 text-[10px] text-[#5C7AA6]/80">
+              {formatNotificationTimestamp(notification.timestamp)}
+            </p>
+          )}
+        </div>
+      </div>
+      <div className="mt-3 flex flex-col gap-2">
+        <Link
+          href={notification.resumePath}
+          className="inline-flex w-full items-center justify-center gap-2 rounded-xl bg-[#4D8CF5] px-3 py-2 text-xs font-semibold text-white transition hover:bg-[#3b7ae0]"
+        >
+          <i className="fas fa-arrow-right text-[10px]" />
+          Continue payment
+        </Link>
+        <button
+          type="button"
+          onClick={onDismiss}
+          className="inline-flex w-full items-center justify-center gap-2 rounded-xl border border-[#4D8CF5]/20 bg-white px-3 py-2 text-xs font-semibold text-[#4D8CF5] transition hover:bg-[#f8fbff]"
+        >
+          <i className="fas fa-check text-[10px]" />
+          Dismiss
+        </button>
+      </div>
     </div>
   );
 }

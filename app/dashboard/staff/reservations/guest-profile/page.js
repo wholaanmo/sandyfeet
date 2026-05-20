@@ -446,7 +446,7 @@ export default function AdminGuestProfilePage() {
   }, [feedbackEmail]);
 
   const handleBack = () => {
-    router.push('/dashboard/admin/reservations?restoreGuestProfile=1');
+    router.push('/dashboard/staff/reservations?restoreGuestProfile=1');
   };
 
   const isGuestDeactivated = guestProfile?.accountStatus === 'deactivated';
@@ -528,7 +528,7 @@ export default function AdminGuestProfilePage() {
         <p className="text-sm text-[#5C7AA6]">Guest information is missing.</p>
         <button
           type="button"
-          onClick={() => router.push('/dashboard/admin/reservations')}
+          onClick={() => router.push('/dashboard/staff/reservations')}
           className="mt-4 inline-flex items-center gap-2 rounded-xl bg-[#4D8CF5] px-4 py-2 text-sm font-semibold text-white"
         >
           <i className="fas fa-arrow-left text-xs" />

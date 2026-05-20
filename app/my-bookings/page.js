@@ -19,11 +19,14 @@ import {
   cancelBooking,
   getTypeDisplay,
 } from './utils';
+import PendingPaymentList from './PendingPaymentList';
+import { isPendingBankPaymentRequest } from '@/lib/pendingBankPayments';
 
 // Updated TAB_OPTIONS with "All" tab as the first option
 const TAB_OPTIONS = [
   { id: 'all',       label: 'All',       icon: 'fa-list',          emptyIcon: 'fa-calendar-alt', emptyText: 'No bookings found', color: 'blue' },
   { id: 'pending',   label: 'Pending',   icon: 'fa-clock',         emptyIcon: 'fa-hourglass-half', emptyText: 'No pending reservations', color: 'amber' },
+  { id: 'pending_payment', label: 'Pending Payment', icon: 'fa-university', emptyIcon: 'fa-wallet', emptyText: 'No pending payments', color: 'amber' },
   { id: 'success',   label: 'Confirmed', icon: 'fa-check-circle',  emptyIcon: 'fa-calendar-check', emptyText: 'No confirmed reservations yet', color: 'emerald' },
   { id: 'cancelled', label: 'Cancelled', icon: 'fa-times-circle',  emptyIcon: 'fa-ban',            emptyText: 'No cancelled reservations', color: 'red' },
   { id: 'completed', label: 'Completed', icon: 'fa-check-double',  emptyIcon: 'fa-calendar-check', emptyText: 'No completed reservations', color: 'blue' },
@@ -37,7 +40,9 @@ function MyBookingsPageContent() {
   const [bookings, setBookings] = useState([]);
   const [bookingsLoading, setBookingsLoading] = useState(false);
   const [bookingsError, setBookingsError] = useState('');
-  const [searchQuery, setSearchQuery] = useState(''); // <-- added search state
+  const [searchQuery, setSearchQuery] = useState('');
+  const [roomBankRequests, setRoomBankRequests] = useState([]);
+  const [dayTourBankRequests, setDayTourBankRequests] = useState([]);
 
   // ─── Cancel Modal State ───
   const [cancelTarget, setCancelTarget] = useState(null);
@@ -118,6 +123,29 @@ function MyBookingsPageContent() {
     return () => unsubs.forEach((u) => u());
   }, [user?.email, user?.uid]);
 
+  useEffect(() => {
+    if (!user?.email) {
+      setRoomBankRequests([]);
+      setDayTourBankRequests([]);
+      return undefined;
+    }
+
+    const normalizedEmail = user.email.toLowerCase().trim();
+    const unsubRoom = onSnapshot(
+      query(collection(db, 'bank_requests'), where('guestEmail', '==', normalizedEmail)),
+      (snap) => setRoomBankRequests(snap.docs.map((d) => ({ id: d.id, ...d.data() })))
+    );
+    const unsubDayTour = onSnapshot(
+      query(collection(db, 'daytour_bank_requests'), where('guestEmail', '==', normalizedEmail)),
+      (snap) => setDayTourBankRequests(snap.docs.map((d) => ({ id: d.id, ...d.data() })))
+    );
+
+    return () => {
+      unsubRoom();
+      unsubDayTour();
+    };
+  }, [user?.email]);
+
   // ─── Filtered + Counts (updated for All tab and search) ───
   const { filtered, counts } = useMemo(() => {
     // First, filter by search query (booking type or booking ID)
@@ -141,9 +169,20 @@ function MyBookingsPageContent() {
     const completed = searchFiltered.filter((b) => b.status === 'completed');
 
     // Counts for tab badges (using searchFiltered length for 'all')
+    const rawForBank = [];
+    bookings.forEach((b) => {
+      rawForBank.push(b);
+      if (b.children?.length) b.children.forEach((c) => rawForBank.push(c));
+    });
+    const pendingPaymentCount = [
+      ...roomBankRequests.map((r) => ({ ...r, requestType: 'room' })),
+      ...dayTourBankRequests.map((r) => ({ ...r, requestType: 'daytour' })),
+    ].filter((request) => isPendingBankPaymentRequest(request, rawForBank)).length;
+
     const c = {
       all: searchFiltered.length,
       pending: pending.length,
+      pending_payment: pendingPaymentCount,
       success: confirmed.length,
       cancelled: cancelled.length,
       completed: completed.length,
@@ -154,10 +193,11 @@ function MyBookingsPageContent() {
     else if (activeTab === 'pending') f = pending;
     else if (activeTab === 'cancelled') f = cancelled;
     else if (activeTab === 'completed') f = completed;
+    else if (activeTab === 'pending_payment') f = [];
     else f = confirmed; // activeTab === 'success'
 
     return { filtered: f, counts: c };
-  }, [activeTab, bookings, searchQuery]);
+  }, [activeTab, bookings, searchQuery, roomBankRequests, dayTourBankRequests]);
 
   const handleBookingUpdated = useCallback(() => {
     setBookings(prev => [...prev]); // Force re-render if needed
@@ -435,6 +475,8 @@ function MyBookingsPageContent() {
                         </div>
                         <p className="mt-4 text-sm font-medium text-red-700">{bookingsError}</p>
                       </div>
+                    ) : activeTab === 'pending_payment' ? (
+                      <PendingPaymentList user={user} bookings={bookings} />
                     ) : filtered.length > 0 ? (
                       filtered.map((booking) => (
                         <BookingCard

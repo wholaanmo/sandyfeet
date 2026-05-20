@@ -1662,7 +1662,7 @@ export default function AdminReservations() {
     const email = encodeURIComponent(sidebarBooking.guestInfo.email || '');
     const guestUid = sidebarBooking.guestUid || '';
     const uidQuery = guestUid ? `&guestUid=${encodeURIComponent(guestUid)}` : '';
-    router.push(`/dashboard/admin/reservations/guest-profile?email=${email}${uidQuery}`);
+    router.push(`/dashboard/staff/reservations/guest-profile?email=${email}${uidQuery}`);
   };
 
   useEffect(() => {

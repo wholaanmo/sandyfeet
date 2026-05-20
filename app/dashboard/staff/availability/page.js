@@ -4,13 +4,18 @@
 import { useState, useEffect, useMemo } from 'react';
 import { db } from '@/lib/firebase';
 import { collection, query, where, doc, onSnapshot, getDocs } from 'firebase/firestore';
+import {
+  aggregateDayTourGuestsFromBookings,
+  aggregateRoomAvailabilityFromBookings,
+  toLocalDateKey,
+} from '@/lib/reservationAvailability';
 
 export default function StaffRoomStatus() {
   const [rooms, setRooms] = useState([]);
   const [loading, setLoading] = useState(true);
   const [roomDetails, setRoomDetails] = useState({});
   const [bookedUnits, setBookedUnits] = useState({}); // Track booked units per room per date
-  const [exclusiveResortBookings, setExclusiveResortBookings] = useState({}); // Track exclusive resort dates
+  const [exclusiveByDate, setExclusiveByDate] = useState({}); // dateKey -> { tentCount }
   const [blockedSlots, setBlockedSlots] = useState({});
   const [dayTourCapacity, setDayTourCapacity] = useState(null);
   const [dayTourBookedGuests, setDayTourBookedGuests] = useState({}); // Track total booked guests per date
@@ -20,14 +25,6 @@ export default function StaffRoomStatus() {
   const [currentDate, setCurrentDate] = useState(new Date());
   const [selectedTab, setSelectedTab] = useState('rooms');
   const [calendarViewDate, setCalendarViewDate] = useState(new Date());
-
-  // Helper function to convert Date to YYYY-MM-DD local date string
-  const toLocalDateKey = (date) => {
-    const year = date.getFullYear();
-    const month = String(date.getMonth() + 1).padStart(2, '0');
-    const day = String(date.getDate()).padStart(2, '0');
-    return `${year}-${month}-${day}`;
-  };
 
   // Get today date
   const today = new Date();
@@ -84,103 +81,24 @@ export default function StaffRoomStatus() {
     return room?.type || '';
   };
 
-  // Fetch ALL bookings for accurate availability counting
-  // We fetch all bookings and filter out cancelled ones in JavaScript
+  // Real-time sync with all reservation bookings (same source as admin reservations)
   useEffect(() => {
-    if (rooms.length === 0) return;
-    
-    const roomIds = rooms.map(r => r.id);
     const bookingsRef = collection(db, 'bookings');
-    
-    // Use a single query without 'not-in' to avoid Firestore limitations
-    // We'll fetch all relevant bookings and filter in JavaScript
-    const qRoom = query(
-      bookingsRef,
-      where('roomId', 'in', roomIds)
-    );
-    
-    // Query for exclusive resort bookings separately
-    const qExclusive = query(
-      bookingsRef,
-      where('isExclusiveResortBooking', '==', true)
-    );
-    
-    const unsubscribeRoom = onSnapshot(qRoom, (snapshot) => {
-      const booked = {};
-      snapshot.forEach((docSnap) => {
-        const booking = docSnap.data();
-        
-        // Filter out cancelled statuses in JavaScript
-        const cancelledStatuses = ['cancelled', 'cancelled-by-guest'];
-        if (cancelledStatuses.includes(booking.status)) return;
-        
-        // Skip if no valid check-in/out
-        if (!booking.checkIn || !booking.checkOut) return;
-        
-        const checkIn = booking.checkIn?.toDate ? booking.checkIn.toDate() : new Date(booking.checkIn);
-        const checkOut = booking.checkOut?.toDate ? booking.checkOut.toDate() : new Date(booking.checkOut);
-        const roomId = booking.roomId;
-        
-        // Get the number of rooms booked (default 1)
-        let numberOfRooms = booking.numberOfRooms || 1;
-        
-        // For multi-room bookings, the count is in the child booking
-        if (booking.parentBookingId && booking.numberOfRooms) {
-          numberOfRooms = booking.numberOfRooms;
-        }
-        
-        if (!checkIn || !checkOut || checkOut <= checkIn || !roomId) return;
-        
-        // Iterate through each day in the booking period
-        let current = new Date(checkIn);
-        while (current < checkOut) {
-          const dateKey = toLocalDateKey(current);
-          
-          if (!booked[dateKey]) booked[dateKey] = {};
-          if (!booked[dateKey][roomId]) booked[dateKey][roomId] = 0;
-          
-          // Add the number of rooms to the count for this date
-          booked[dateKey][roomId] += numberOfRooms;
-          
-          // Move to next day
-          current.setDate(current.getDate() + 1);
-        }
-      });
-      setBookedUnits(booked);
+    const unsubscribe = onSnapshot(bookingsRef, (snapshot) => {
+      const bookingDocs = snapshot.docs.map((docSnap) => ({
+        id: docSnap.id,
+        ...docSnap.data(),
+      }));
+      const { bookedUnits: nextBooked, exclusiveByDate: nextExclusive } =
+        aggregateRoomAvailabilityFromBookings(bookingDocs);
+      setBookedUnits(nextBooked);
+      setExclusiveByDate(nextExclusive);
+    }, (error) => {
+      console.error('Error listening to room bookings for availability:', error);
     });
-    
-    const unsubscribeExclusive = onSnapshot(qExclusive, (snapshot) => {
-      const exclusive = {};
-      snapshot.forEach((docSnap) => {
-        const booking = docSnap.data();
-        
-        // Filter out cancelled statuses in JavaScript
-        const cancelledStatuses = ['cancelled', 'cancelled-by-guest'];
-        if (cancelledStatuses.includes(booking.status)) return;
-        
-        if (!booking.checkIn || !booking.checkOut) return;
-        
-        const checkIn = booking.checkIn?.toDate ? booking.checkIn.toDate() : new Date(booking.checkIn);
-        const checkOut = booking.checkOut?.toDate ? booking.checkOut.toDate() : new Date(booking.checkOut);
-        
-        if (!checkIn || !checkOut || checkOut <= checkIn) return;
-        
-        // Mark all dates in the range as exclusive resort booking
-        let current = new Date(checkIn);
-        while (current < checkOut) {
-          const dateKey = toLocalDateKey(current);
-          exclusive[dateKey] = true;
-          current.setDate(current.getDate() + 1);
-        }
-      });
-      setExclusiveResortBookings(exclusive);
-    });
-    
-    return () => {
-      unsubscribeRoom();
-      unsubscribeExclusive();
-    };
-  }, [rooms]);
+
+    return () => unsubscribe();
+  }, []);
 
   // Fetch blocked slots for all rooms
   useEffect(() => {
@@ -234,22 +152,8 @@ export default function StaffRoomStatus() {
     const q = query(bookingsRef);
     
     const unsubscribe = onSnapshot(q, (snapshot) => {
-      const booked = {};
-      snapshot.forEach((docSnap) => {
-        const booking = docSnap.data();
-        
-        // Filter out cancelled statuses in JavaScript
-        const cancelledStatuses = ['cancelled', 'cancelled-by-guest'];
-        if (cancelledStatuses.includes(booking.status)) return;
-        
-        const dateKey = booking.selectedDate;
-        if (dateKey) {
-          if (!booked[dateKey]) booked[dateKey] = 0;
-          const totalGuests = (booking.adults || 0) + (booking.kids || 0) + (booking.seniors || 0);
-          booked[dateKey] += totalGuests;
-        }
-      });
-      setDayTourBookedGuests(booked);
+      const bookingDocs = snapshot.docs.map((docSnap) => docSnap.data());
+      setDayTourBookedGuests(aggregateDayTourGuestsFromBookings(bookingDocs));
     });
     
     // Fetch day tour unavailable dates
@@ -274,38 +178,32 @@ export default function StaffRoomStatus() {
   const getAvailableUnitsForRoomOnDate = (roomId, date) => {
     const totalUnits = getTotalRoomUnits(roomId);
     if (totalUnits <= 0) return 0;
-    
+
     const dateKey = toLocalDateKey(date);
-    
-    // Check if this date has an exclusive resort booking - if yes, NON-TENT rooms should show 0 availability
-    const isExclusiveDate = exclusiveResortBookings[dateKey];
+    const exclusiveInfo = exclusiveByDate[dateKey];
     const roomType = getRoomTypeFromId(roomId);
-    const isTentRoom = roomType === 'Tent' || (roomType?.toLowerCase() === 'tent');
-    
-    // If exclusive resort booking exists and this is NOT a tent room, no availability
-    if (isExclusiveDate && !isTentRoom) return 0;
-    
-    // Get booked units for this room on this date
-    const bookedCount = bookedUnits[dateKey]?.[roomId] || 0;
+    const isTentRoom = roomType === 'Tent' || String(roomType || '').toLowerCase() === 'tent';
+
+    if (exclusiveInfo && !isTentRoom) return 0;
+
+    let bookedCount = bookedUnits[dateKey]?.[roomId] || 0;
+
+    if (isTentRoom && exclusiveInfo?.tentCount) {
+      bookedCount += exclusiveInfo.tentCount;
+    }
+
     const blockedCount = blockedSlots[dateKey]?.[roomId] || 0;
-    
     const usedUnits = bookedCount + blockedCount;
-    
+
     return Math.max(0, totalUnits - usedUnits);
   };
-  
-  // Check if a date is fully booked for ALL room types
+
+  const isExclusiveResortDate = (date) => Boolean(exclusiveByDate[toLocalDateKey(date)]);
+
+  // Fully booked when every room type (including tents) has zero availability
   const isDateFullyBookedForAllRooms = (date) => {
     if (rooms.length === 0) return false;
-    
-    const dateKey = toLocalDateKey(date);
-    const isExclusiveDate = exclusiveResortBookings[dateKey];
-    
-    // If there's an exclusive resort booking, the entire resort is booked
-    if (isExclusiveDate) return true;
-    
-    // Otherwise, check if every room type has 0 available units
-    return rooms.every(room => getAvailableUnitsForRoomOnDate(room.id, date) === 0);
+    return rooms.every((room) => getAvailableUnitsForRoomOnDate(room.id, date) === 0);
   };
 
   // Calculate remaining guest capacity for day tour on a specific date
@@ -563,28 +461,30 @@ export default function StaffRoomStatus() {
                 if (!day) return <div key={idx} className="min-h-[80px] sm:min-h-[100px]"></div>;
                 
                 const isPast = isDatePast(day);
+                const isExclusiveDate = !isPast && isExclusiveResortDate(day);
                 const isFullyBooked = !isPast && isDateFullyBookedForAllRooms(day);
-                
+                const highlightRed = isExclusiveDate || isFullyBooked;
+
                 let bgColor = 'bg-white';
                 let borderColor = 'border-gray-100';
-                
+
                 if (isPast) {
                   bgColor = 'bg-gray-50/80';
                   borderColor = 'border-gray-100';
-                } else if (isFullyBooked) {
+                } else if (highlightRed) {
                   bgColor = 'bg-rose-50/30';
-                  borderColor = 'border-rose-100';
+                  borderColor = 'border-rose-200';
                 }
                 
                 let shadowClass = isPast ? '' : 'hover:shadow-md';
-                let hoverBorder = (!isPast && !isFullyBooked) ? 'hover:border-blue-300' : '';
-                
+                let hoverBorder = (!isPast && !highlightRed) ? 'hover:border-blue-300' : '';
+
                 return (
                   <div
                     key={idx}
                     className={`relative rounded-xl border ${bgColor} ${borderColor} ${shadowClass} p-1.5 sm:p-2 min-h-[80px] sm:min-h-[100px] transition-all duration-300 flex flex-col gap-1 sm:gap-1.5 ${hoverBorder}`}
                   >
-                    <span className={`text-[10px] sm:text-xs font-bold block ${isPast ? 'text-gray-400' : (isFullyBooked ? 'text-rose-600' : 'text-[#1E3A8A]')}`}>
+                    <span className={`text-[10px] sm:text-xs font-bold block ${isPast ? 'text-gray-400' : (highlightRed ? 'text-rose-600' : 'text-[#1E3A8A]')}`}>
                       {day.getDate()}
                     </span>
                     <div className="flex flex-col gap-1 mt-auto">
@@ -616,7 +516,7 @@ export default function StaffRoomStatus() {
               </div>
               <div className="flex items-center gap-2.5">
                 <div className="w-3.5 h-3.5 bg-rose-50/50 border border-rose-200 rounded-md shadow-sm"></div>
-                <span className="text-gray-600">Fully Booked</span>
+                <span className="text-gray-600">Fully Booked / Entire Resort</span>
               </div>
               <div className="flex items-center gap-2.5">
                 <div className="w-3.5 h-3.5 bg-gray-50 border border-gray-200 rounded-md shadow-sm"></div>
