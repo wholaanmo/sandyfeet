@@ -1,7 +1,7 @@
 // app/account/page.js
 'use client';
 
-import { useEffect, useState } from 'react';
+import { Suspense, useEffect, useState } from 'react';
 import Image from 'next/image';
 import Link from 'next/link';
 import GuestLayout from '@/app/guest/layout';
@@ -599,8 +599,16 @@ function GuestAccountContent() {
 
 export default function GuestAccountPage() {
   return (
-    <GuestLayout>
-      <GuestAccountContent />
-    </GuestLayout>
+    <Suspense
+      fallback={
+        <div className="min-h-screen flex items-center justify-center">
+          <i className="fas fa-spinner fa-spin text-3xl text-ocean-light"></i>
+        </div>
+      }
+    >
+      <GuestLayout>
+        <GuestAccountContent />
+      </GuestLayout>
+    </Suspense>
   );
 }

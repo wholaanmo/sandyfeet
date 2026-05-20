@@ -1,7 +1,8 @@
 // app/rooms/page.js
 'use client';
 
-import { useState, useEffect, useRef } from 'react';
+
+import { Suspense, useState, useEffect, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import GuestLayout from '@/app/guest/layout';
 import { db } from '@/lib/firebase';
@@ -10,7 +11,7 @@ import ChatBot from '@/components/guest/ChatBot';
 import GuestAuthModal from '@/components/guest/GuestAuthModal';
 import { useGuestAuth } from '@/components/guest/GuestAuthContext';
 
-export default function RoomsPage() {
+function RoomsPageContent() {
   const router = useRouter();
   const { user } = useGuestAuth();
   const [availableRoomTypes, setAvailableRoomTypes] = useState([]);
@@ -1742,5 +1743,17 @@ export default function RoomsPage() {
         onClose={() => setIsAuthOpen(false)}
       />
     </GuestLayout>
+  );
+}
+
+export default function RoomsPage() {
+  return (
+    <Suspense fallback={
+      <div className="min-h-screen bg-gradient-to-br from-ocean-ice to-blue-white flex items-center justify-center">
+        <i className="fas fa-spinner fa-spin text-3xl text-ocean-light"></i>
+      </div>
+    }>
+      <RoomsPageContent />
+    </Suspense>
   );
 }

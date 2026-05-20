@@ -1,7 +1,7 @@
 // app/feedback/page.js
 'use client';
 
-import { useEffect, useMemo, useState } from 'react';
+import { Suspense, useEffect, useMemo, useState } from 'react';
 import { useSearchParams } from 'next/navigation';
 import Image from 'next/image';
 import Link from 'next/link';
@@ -32,7 +32,7 @@ import {
 
 const feedbackEligibleStatuses = new Set(['check-in', 'check-out', 'completed']);
 
-export default function FeedbackPage() {
+function FeedbackPageContent() {
   const { user, profile, loading: authLoading, logout } = useGuestAuth();
   const [isAuthModalOpen, setIsAuthModalOpen] = useState(false);
   const [showSignOutModal, setShowSignOutModal] = useState(false);
@@ -937,5 +937,18 @@ export default function FeedbackPage() {
         onClose={() => setIsAuthModalOpen(false)}
       />
     </GuestLayout>
+  );
+}
+
+// Wrap the component with Suspense to handle useSearchParams during static generation
+export default function FeedbackPage() {
+  return (
+    <Suspense fallback={
+      <div className="min-h-screen bg-gradient-to-br from-ocean-ice to-blue-white flex items-center justify-center">
+        <i className="fas fa-spinner fa-spin text-3xl text-ocean-light"></i>
+      </div>
+    }>
+      <FeedbackPageContent />
+    </Suspense>
   );
 }

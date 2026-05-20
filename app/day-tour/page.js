@@ -1,6 +1,7 @@
 // app/day-tour/page.js
 'use client';
 
+import { Suspense } from 'react';
 import Image from 'next/image';
 import { useState, useEffect, useRef } from 'react';
 import { useRouter } from 'next/navigation';
@@ -10,7 +11,8 @@ import { collection, query, orderBy, onSnapshot, where } from 'firebase/firestor
 import ActivityCard from '@/components/guest/ActivityCard';
 import ChatBot from '@/components/guest/ChatBot';
 
-export default function DayTourPage() {
+// Rename the main component so it can be wrapped with Suspense
+function DayTourPageContent() {
   const router = useRouter();
   const [date, setDate] = useState('');
   const [adults, setAdults] = useState('1');
@@ -802,5 +804,18 @@ export default function DayTourPage() {
       </div>
       <ChatBot />
     </GuestLayout>
+  );
+}
+
+// Wrap the main component with Suspense to fix the useSearchParams prerender error
+export default function DayTourPage() {
+  return (
+    <Suspense fallback={
+      <div className="min-h-screen bg-gradient-to-br from-ocean-ice to-blue-white flex items-center justify-center">
+        <i className="fas fa-spinner fa-spin text-3xl text-ocean-light"></i>
+      </div>
+    }>
+      <DayTourPageContent />
+    </Suspense>
   );
 }

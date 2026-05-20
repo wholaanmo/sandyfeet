@@ -1,6 +1,7 @@
 // app/home/page.js
 'use client';
 
+import { Suspense } from 'react';
 import { useEffect, useState } from 'react';
 import GuestLayout from '../guest/layout';
 import Image from 'next/image';
@@ -9,6 +10,7 @@ import { db } from '@/lib/firebase';
 import { addDoc, collection, getDocs, limit, onSnapshot, query, serverTimestamp, where } from 'firebase/firestore';
 import ChatBot from '@/components/guest/ChatBot';
 import dynamic from 'next/dynamic';
+import { MagnifyingGlassIcon, SunIcon, CpuChipIcon } from '@heroicons/react/24/outline';
 
 const AIRoomRecommendationModal = dynamic(
   () => import('@/components/AIRoomRecommendationModal'),
@@ -90,7 +92,7 @@ const StarRating = ({ rating }) => {
   );
 };
 
-export default function HomePage() {
+function HomePageContent() {
   const [featuredRooms, setFeaturedRooms] = useState([]);
   const [featuredRoomsLoading, setFeaturedRoomsLoading] = useState(true);
   const [showFeedbackModal, setShowFeedbackModal] = useState(false);
@@ -485,35 +487,36 @@ export default function HomePage() {
               <p className="mb-10 max-w-xl pr-0 text-base leading-relaxed text-[#4A6762] sm:text-lg xl:max-w-md xl:pr-8">
                 Reserve rooms and day tours in minutes. Enjoy a quick and smooth booking flow from search to confirmation.
               </p>
-              <div className="flex flex-col gap-3 max-w-md sm:max-w-none">
+              <div className="flex flex-col gap-3 w-full max-w-[420px]">
                 {/* Explore & Book Row */}
-                <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3 sm:gap-3.5">
+                <div className="grid grid-cols-2 gap-3.5 w-full">
                   <Link
                     href="/rooms"
-                    className="inline-flex items-center justify-center gap-2 rounded-full bg-blue-600 px-6 py-2.5 text-sm font-semibold text-white shadow-sm hover:shadow-md hover:bg-blue-700 hover:-translate-y-0.5 transition-all duration-300 ease-out"
+                    className="group inline-flex items-center justify-center gap-2 rounded-full bg-gradient-to-r from-blue-600 to-indigo-600 px-4 sm:px-5 py-2.5 text-xs sm:text-sm font-semibold text-white shadow-md shadow-blue-500/20 hover:shadow-lg hover:shadow-blue-500/35 hover:-translate-y-0.5 hover:scale-[1.02] active:scale-[0.98] transition-all duration-300 ease-out border border-blue-500/10"
                   >
-                    <i className="fas fa-search text-xs"></i>
-                    Explore Rooms
+                    <MagnifyingGlassIcon className="w-4 h-4 text-blue-100 group-hover:text-white transition-colors duration-300 shrink-0" />
+                    <span>Explore Rooms</span>
                   </Link>
                   <Link
                     href="/day-tour"
-                    className="inline-flex items-center justify-center gap-2 rounded-full border border-gray-200/80 bg-white/95 px-6 py-2.5 text-sm font-semibold text-gray-800 shadow-xs hover:bg-gray-50 hover:border-gray-300 hover:shadow-sm hover:-translate-y-0.5 transition-all duration-300 ease-out"
+                    className="group inline-flex items-center justify-center gap-2 rounded-full border border-slate-200/85 bg-white/95 px-4 sm:px-5 py-2.5 text-xs sm:text-sm font-semibold text-slate-800 shadow-xs hover:bg-slate-50/90 hover:border-blue-400 hover:text-blue-600 hover:shadow-md hover:shadow-blue-500/5 hover:-translate-y-0.5 hover:scale-[1.02] active:scale-[0.98] transition-all duration-300 ease-out"
                   >
-                    <i className="fas fa-umbrella-beach text-xs text-blue-500"></i>
-                    Book a Day Tour
+                    <SunIcon className="w-4 h-4 text-amber-500 group-hover:text-amber-600 group-hover:rotate-45 transition-transform duration-500 shrink-0" />
+                    <span>Book a Day Tour</span>
                   </Link>
                 </div>
 
                 {/* AI Recommendation Row */}
-                <div className="flex flex-col sm:flex-row">
-                  <button
-                    onClick={() => setShowAIRecommendation(true)}
-                    className="inline-flex items-center justify-center gap-2 rounded-full bg-indigo-600 px-6 py-2.5 text-sm font-semibold text-white shadow-sm hover:shadow-md hover:bg-indigo-700 hover:-translate-y-0.5 transition-all duration-300 ease-out group"
-                  >
-                    <span className="inline-block animate-pulse group-hover:scale-110 transition-transform duration-300">✨</span>
-                    <span>AI Room Recommendation</span>
-                  </button>
-                </div>
+                <button
+                  onClick={() => setShowAIRecommendation(true)}
+                  className="w-full inline-flex items-center justify-center gap-2.5 rounded-full bg-slate-900 border border-slate-800 text-indigo-100 hover:text-white hover:bg-slate-800 hover:border-indigo-500/50 hover:-translate-y-0.5 hover:shadow-md hover:shadow-indigo-500/10 px-5 py-2.5 text-xs sm:text-sm font-semibold transition-all duration-300 ease-out group"
+                >
+                  <span className="relative flex h-2 w-2">
+                    <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-indigo-450 opacity-75"></span>
+                    <span className="relative inline-flex rounded-full h-2 w-2 bg-indigo-500"></span>
+                  </span>
+                  <span>AI Room Recommendation</span>
+                </button>
               </div>
             </div>
 
@@ -1202,5 +1205,17 @@ export default function HomePage() {
   onClose={() => setShowAIRecommendation(false)}
 />
     </GuestLayout>
+  );
+}
+
+export default function HomePage() {
+  return (
+    <Suspense fallback={
+      <div className="min-h-screen flex items-center justify-center">
+        <i className="fas fa-spinner fa-spin text-3xl text-ocean-light"></i>
+      </div>
+    }>
+      <HomePageContent />
+    </Suspense>
   );
 }

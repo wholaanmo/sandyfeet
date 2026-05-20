@@ -172,7 +172,7 @@ export default function BookingDetailsModal({ booking, feedback, onClose }) {
             </div>
             <button
               onClick={onClose}
-className="w-7 h-7 rounded-md bg-ocean-ice text-neutral hover:bg-ocean-light/20 hover:text-textPrimary transition-all duration-200 flex items-center justify-center">
+              className="w-7 h-7 rounded-md bg-ocean-ice text-neutral hover:bg-ocean-light/20 hover:text-textPrimary transition-all duration-200 flex items-center justify-center">
               <i className="fas fa-times text-sm" />
             </button>
           </div>

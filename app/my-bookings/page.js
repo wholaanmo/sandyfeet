@@ -1,7 +1,7 @@
 // app/my-bookings/page.js
 'use client';
 
-import { useEffect, useMemo, useState, useCallback } from 'react';
+import { Suspense, useEffect, useMemo, useState, useCallback } from 'react';
 import Image from 'next/image';
 import Link from 'next/link';
 import GuestLayout from '@/app/guest/layout';
@@ -29,7 +29,7 @@ const TAB_OPTIONS = [
   { id: 'completed', label: 'Completed', icon: 'fa-check-double',  emptyIcon: 'fa-calendar-check', emptyText: 'No completed reservations', color: 'blue' },
 ];
 
-export default function MyBookingsPage() {
+function MyBookingsPageContent() {
   const { user, profile, loading, logout, updateGuestProfile } = useGuestAuth();
   const [isAuthOpen, setIsAuthOpen] = useState(false);
   const [showSignOutModal, setShowSignOutModal] = useState(false);
@@ -54,7 +54,7 @@ export default function MyBookingsPage() {
   const handleConfirmSignOut = () => { setShowSignOutModal(false); logout(); };
   const handleCancelSignOut = () => setShowSignOutModal(false);
 
-  // ─── Real-time Firestore Listener (unchanged) ───
+  // ─── Real-time Firestore Listener ───
   useEffect(() => {
     if (!user?.email) {
       setBookings([]);
@@ -163,7 +163,7 @@ export default function MyBookingsPage() {
     setBookings(prev => [...prev]); // Force re-render if needed
   }, []);
 
-  // ─── Cancel Handlers (unchanged) ───
+  // ─── Cancel Handlers ───
   const openCancelModal = useCallback((booking) => {
     setCancelTarget(booking);
     setCancelReason('');
@@ -311,26 +311,24 @@ export default function MyBookingsPage() {
 
             {/* ─── Main Content ─── */}
             <section className="space-y-5">
-<div className="relative mb-6 overflow-hidden rounded-2xl border border-[#7AAAF8]/20 bg-gradient-to-br from-[#7AAAF8]/5 via-white to-[#7AAAF8]/5 p-5 shadow-sm backdrop-blur-sm sm:p-6">
-  <div className="absolute -right-12 -top-12 h-32 w-32 rounded-full bg-[#4D8CF5]/10 blur-3xl"></div>
-  <div className="absolute -bottom-16 -left-16 h-40 w-40 rounded-full bg-[#1E3A8A]/5 blur-3xl"></div>
+              <div className="relative mb-6 overflow-hidden rounded-2xl border border-[#7AAAF8]/20 bg-gradient-to-br from-[#7AAAF8]/5 via-white to-[#7AAAF8]/5 p-5 shadow-sm backdrop-blur-sm sm:p-6">
+                <div className="absolute -right-12 -top-12 h-32 w-32 rounded-full bg-[#4D8CF5]/10 blur-3xl"></div>
+                <div className="absolute -bottom-16 -left-16 h-40 w-40 rounded-full bg-[#1E3A8A]/5 blur-3xl"></div>
 
-  <div className="relative flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-    <div>
-      <h1 className="text-2xl font-bold tracking-tight text-[#1E3A8A] font-playfair sm:text-3xl">
-        My Bookings
-      </h1>
-
-      <p className="mt-2 max-w-lg text-sm leading-relaxed text-[#4D6FA8]">
-        Track your reservations and stay updated with booking status.
-      </p>
-    </div>
-
-    <div className="hidden h-14 w-14 items-center justify-center rounded-2xl border border-[#7AAAF8]/20 bg-white shadow-sm transition-all duration-200 hover:scale-105 sm:flex">
-      <i className="fas fa-calendar-check text-xl text-[#4D6FA8]"></i>
-    </div>
-  </div>
-</div>
+                <div className="relative flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+                  <div>
+                    <h1 className="text-2xl font-bold tracking-tight text-[#1E3A8A] font-playfair sm:text-3xl">
+                      My Bookings
+                    </h1>
+                    <p className="mt-2 max-w-lg text-sm leading-relaxed text-[#4D6FA8]">
+                      Track your reservations and stay updated with booking status.
+                    </p>
+                  </div>
+                  <div className="hidden h-14 w-14 items-center justify-center rounded-2xl border border-[#7AAAF8]/20 bg-white shadow-sm transition-all duration-200 hover:scale-105 sm:flex">
+                    <i className="fas fa-calendar-check text-xl text-[#4D6FA8]"></i>
+                  </div>
+                </div>
+              </div>
 
               {/* Unauthenticated */}
               {!user && (
@@ -574,5 +572,18 @@ export default function MyBookingsPage() {
 
       <GuestAuthModal isOpen={isAuthOpen} onClose={() => setIsAuthOpen(false)} />
     </GuestLayout>
+  );
+}
+
+// Wrap the actual component with Suspense to prevent the useSearchParams() error during static generation
+export default function MyBookingsPage() {
+  return (
+    <Suspense fallback={
+      <div className="min-h-screen flex items-center justify-center">
+        <i className="fas fa-spinner fa-spin text-3xl text-ocean-light"></i>
+      </div>
+    }>
+      <MyBookingsPageContent />
+    </Suspense>
   );
 }

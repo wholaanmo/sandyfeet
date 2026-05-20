@@ -1,7 +1,7 @@
 // app/rooms/multi-room-booking/page.js
 'use client';
 
-import { useState, useEffect } from 'react';
+import { Suspense, useState, useEffect } from 'react'; 
 import { useRouter } from 'next/navigation';
 import GuestLayout from '@/app/guest/layout';
 import { db } from '@/lib/firebase';
@@ -19,7 +19,7 @@ import { getDisplayValidIdType, hasAccountValidId, hasAccountMobileNumber } from
 const MULTI_ROOM_STORAGE_KEY = 'multi_room_booking_data';
 const MULTI_ROOM_STEP_KEY = 'multi_room_booking_step';
 
-export default function MultiRoomBookingPage() {
+function MultiRoomBookingPageContent() {
   const router = useRouter();
   const { user, profile, loading: authLoading } = useGuestAuth();
   const [bookingData, setBookingData] = useState(null);
@@ -1574,3 +1574,17 @@ export default function MultiRoomBookingPage() {
     </GuestLayout>
   );
 }   
+
+export default function MultiRoomBookingPage() {
+  return (
+    <Suspense
+      fallback={
+        <div className="min-h-screen bg-gradient-to-br from-ocean-ice to-blue-white flex items-center justify-center">
+          <i className="fas fa-spinner fa-spin text-3xl text-ocean-light"></i>
+        </div>
+      }
+    >
+      <MultiRoomBookingPageContent />
+    </Suspense>
+  );
+}
