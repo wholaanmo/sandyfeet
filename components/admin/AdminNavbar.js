@@ -19,17 +19,17 @@ import {
   initializeDismissedNotifications,
   filterActiveNotifications,
   NotificationDeleteButton,
+  setupNotificationReadStatusListener,
+  subscribeToReadStatusChanges,
+  getCachedReadStatus,
 } from './notificationService';
 
 export default function AdminNavbar({ toggleSidebar, sidebarOpen, isDesktop }) {
-  const STATUS_READ_STORAGE_KEY = 'admin_status_notifications_read';
   const [userName, setUserName] = useState('');
   const [userRole, setUserRole] = useState('');
   const [unreadCount, setUnreadCount] = useState(0);
   const [showNotifications, setShowNotifications] = useState(false);
   const [notifications, setNotifications] = useState([]);
-  const [statusReadMap, setStatusReadMap] = useState({});
-  const statusReadMapRef = useRef({});
   const hasMarkedReadForCurrentOpen = useRef(false); // Prevent duplicate marking per open
 
   useEffect(() => {
@@ -52,29 +52,11 @@ export default function AdminNavbar({ toggleSidebar, sidebarOpen, isDesktop }) {
     fetchUserData();
   }, []);
 
-  useEffect(() => {
-    try {
-      const raw = localStorage.getItem(STATUS_READ_STORAGE_KEY);
-      if (!raw) return;
-      const parsed = JSON.parse(raw);
-      if (parsed && typeof parsed === 'object') {
-        setStatusReadMap(parsed);
-        statusReadMapRef.current = parsed;
-      }
-    } catch (error) {
-      console.error('Error loading notification read state:', error);
-    }
-  }, []);
-
-  const persistStatusReadMap = (nextMap) => {
-    setStatusReadMap(nextMap);
-    statusReadMapRef.current = nextMap;
-    try {
-      localStorage.setItem(STATUS_READ_STORAGE_KEY, JSON.stringify(nextMap));
-    } catch (error) {
-      console.error('Error saving notification read state:', error);
-    }
-  };
+  const applySyncedReadStatus = (items) =>
+    items.map((item) => ({
+      ...item,
+      read: getCachedReadStatus(item.id, item.type) || item.read === true,
+    }));
 
   // Combined notification update handler
   const handleNotificationsUpdate = (newItems, type) => {
@@ -88,11 +70,8 @@ export default function AdminNavbar({ toggleSidebar, sidebarOpen, isDesktop }) {
 
       const filtered = prev.filter(n => n.type !== type);
 
-      // Mark read status for status notifications
       let itemsWithReadState = filterActiveNotifications(
-        isStatusType
-          ? newItems.map(item => ({ ...item, read: statusReadMapRef.current[`${item.type}-${item.id}`] === true }))
-          : newItems
+        applySyncedReadStatus(newItems)
       );
 
       // --- DEDUPLICATE based on type + id ---
@@ -118,6 +97,10 @@ export default function AdminNavbar({ toggleSidebar, sidebarOpen, isDesktop }) {
   // Set up all notification listeners
   useEffect(() => {
     initializeDismissedNotifications();
+    const unsubscribeReadStatus = setupNotificationReadStatusListener();
+    const unsubscribeReadStatusChanges = subscribeToReadStatusChanges(() => {
+      setNotifications((prev) => applySyncedReadStatus(prev));
+    });
     const unsubscribeBank = setupBankRequestsListener(handleNotificationsUpdate);
     const unsubscribeDayTourBank = setupDayTourBankRequestsListener(handleNotificationsUpdate);
     const unsubscribeRoomReservations = setupRoomReservationsListener(handleNotificationsUpdate);
@@ -127,6 +110,8 @@ export default function AdminNavbar({ toggleSidebar, sidebarOpen, isDesktop }) {
     const unsubscribeRoomStatus = setupRoomStatusListener(handleNotificationsUpdate);
 
     return () => {
+      unsubscribeReadStatus();
+      unsubscribeReadStatusChanges();
       unsubscribeBank();
       unsubscribeDayTourBank();
       unsubscribeRoomReservations();
@@ -149,14 +134,7 @@ export default function AdminNavbar({ toggleSidebar, sidebarOpen, isDesktop }) {
       hasMarkedReadForCurrentOpen.current = true;
       markAllNotificationsAsRead()
         .then(() => {
-          const nextReadMap = { ...statusReadMap };
-          notifications.forEach((n) => {
-            if ((n.type === 'check_in' || n.type === 'check_out') && !n.read) {
-              nextReadMap[`${n.type}-${n.id}`] = true;
-            }
-          });
-          persistStatusReadMap(nextReadMap);
-          setNotifications(prev => prev.map(n => ({ ...n, read: true })));
+          setNotifications((prev) => prev.map((n) => ({ ...n, read: true })));
         })
         .catch(err => console.error('Error marking notifications as read:', err));
     }
@@ -164,7 +142,7 @@ export default function AdminNavbar({ toggleSidebar, sidebarOpen, isDesktop }) {
     if (!showNotifications) {
       hasMarkedReadForCurrentOpen.current = false;
     }
-  }, [showNotifications, unreadCount, notifications, statusReadMap]);
+  }, [showNotifications, unreadCount, notifications]);
 
   const handleToggleNotifications = async () => {
     // Open the dropdown immediately – do NOT wait for markAllNotificationsAsRead
@@ -174,12 +152,6 @@ export default function AdminNavbar({ toggleSidebar, sidebarOpen, isDesktop }) {
 
   const handleMarkAsRead = async (notification) => {
     await markNotificationAsRead(notification);
-    if (notification.type === 'check_in' || notification.type === 'check_out') {
-      persistStatusReadMap({
-        ...statusReadMap,
-        [`${notification.type}-${notification.id}`]: true
-      });
-    }
     setNotifications(prev => prev.map(n => 
       n.id === notification.id && n.type === notification.type ? { ...n, read: true } : n
     ));

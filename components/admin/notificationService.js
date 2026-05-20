@@ -246,12 +246,76 @@ export const filterActiveNotifications = (notifications = []) =>
     (notification) => !isNotificationDismissed(notification.type, notification.id)
   );
 
+const getReadStatusCacheKey = (type, notificationId) => `${type}_${notificationId}`;
+
+const readStatusCache = new Map();
+const readStatusChangeCallbacks = new Set();
+let readStatusUnsubscribe = null;
+
+const notifyReadStatusChange = () => {
+  readStatusChangeCallbacks.forEach((callback) => callback());
+};
+
+export const subscribeToReadStatusChanges = (callback) => {
+  readStatusChangeCallbacks.add(callback);
+  return () => readStatusChangeCallbacks.delete(callback);
+};
+
+export const getCachedReadStatus = (notificationId, type) =>
+  readStatusCache.get(getReadStatusCacheKey(type, notificationId)) === true;
+
+export const setupNotificationReadStatusListener = () => {
+  const userId = getCurrentUserId();
+  if (!userId) return () => {};
+
+  if (readStatusUnsubscribe) {
+    readStatusUnsubscribe();
+    readStatusUnsubscribe = null;
+  }
+
+  const readStatusQuery = query(
+    collection(db, 'notificationReadStatus'),
+    where('userId', '==', userId)
+  );
+
+  readStatusUnsubscribe = onSnapshot(
+    readStatusQuery,
+    (snapshot) => {
+      readStatusCache.clear();
+      snapshot.forEach((docSnap) => {
+        const data = docSnap.data();
+        if (data.read === true && data.type && data.notificationId) {
+          readStatusCache.set(getReadStatusCacheKey(data.type, data.notificationId), true);
+        }
+      });
+      notifyReadStatusChange();
+    },
+    (error) => {
+      console.error('Error listening to notification read status:', error);
+    }
+  );
+
+  return () => {
+    if (readStatusUnsubscribe) {
+      readStatusUnsubscribe();
+      readStatusUnsubscribe = null;
+    }
+    readStatusCache.clear();
+  };
+};
+
 const getUserReadStatus = async (userId, notificationId, type) => {
   if (!userId) return false;
+  const cacheKey = getReadStatusCacheKey(type, notificationId);
+  if (readStatusCache.has(cacheKey)) {
+    return readStatusCache.get(cacheKey) === true;
+  }
   try {
     const readStatusRef = doc(db, 'notificationReadStatus', `${userId}_${type}_${notificationId}`);
     const docSnap = await getDoc(readStatusRef);
-    return docSnap.exists() ? docSnap.data().read === true : false;
+    const isRead = docSnap.exists() ? docSnap.data().read === true : false;
+    readStatusCache.set(cacheKey, isRead);
+    return isRead;
   } catch (error) {
     console.error('Error getting user read status:', error);
     return false;
@@ -269,6 +333,7 @@ const setUserReadStatus = async (userId, notificationId, type, read = true) => {
       read,
       updatedAt: new Date().toISOString()
     });
+    readStatusCache.set(getReadStatusCacheKey(type, notificationId), read);
   } catch (error) {
     console.error('Error setting user read status:', error);
   }

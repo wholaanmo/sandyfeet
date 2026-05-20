@@ -10,10 +10,14 @@ import { db } from '@/lib/firebase';
 import { collection, query, orderBy, onSnapshot, where } from 'firebase/firestore';
 import ActivityCard from '@/components/guest/ActivityCard';
 import ChatBot from '@/components/guest/ChatBot';
+import { useGuestAuth } from '@/components/guest/GuestAuthContext';
+import GuestAuthModal from '@/components/guest/GuestAuthModal';
 
 // Rename the main component so it can be wrapped with Suspense
 function DayTourPageContent() {
   const router = useRouter();
+  const { user } = useGuestAuth();
+  const [isAuthModalOpen, setIsAuthModalOpen] = useState(false);
   const [date, setDate] = useState('');
   const [adults, setAdults] = useState('1');
   const [kids, setKids] = useState('0');
@@ -413,6 +417,11 @@ function DayTourPageContent() {
       return;
     }
 
+    if (!user) {
+      setIsAuthModalOpen(true);
+      return;
+    }
+
     router.push(`/day-tour/booking?date=${date}&adults=${adultsCount}&kids=${kidsCount}`);
   };
 
@@ -803,6 +812,10 @@ function DayTourPageContent() {
         </div>
       </div>
       <ChatBot />
+      <GuestAuthModal
+        isOpen={isAuthModalOpen}
+        onClose={() => setIsAuthModalOpen(false)}
+      />
     </GuestLayout>
   );
 }

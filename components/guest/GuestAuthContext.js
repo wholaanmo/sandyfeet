@@ -11,7 +11,16 @@ import {
   signInWithEmailAndPassword,
   updateProfile
 } from 'firebase/auth';
-import { doc, getDoc, serverTimestamp, setDoc, updateDoc, deleteDoc } from 'firebase/firestore';
+import { doc, getDoc, onSnapshot, serverTimestamp, setDoc, updateDoc, deleteDoc } from 'firebase/firestore';
+import GuestDeactivationBlocker from './GuestDeactivationBlocker';
+import {
+  buildGuestDeactivationMessage,
+  clearGuestSessionVersion,
+  getGuestDeactivationReason,
+  isGuestAccountDeactivated,
+  isGuestSessionInvalidated,
+  persistGuestSessionVersion,
+} from '@/lib/guestAccountStatus';
 
 /** Routes where staff/admin auth runs — never sync guestProfiles here */
 function isStaffOrAdminAppRoute() {
@@ -100,6 +109,21 @@ async function deleteUserDocumentIfNotAdminStaff(uid) {
   }
 }
 
+async function loadGuestProfile(firebaseUser) {
+  const profileRef = doc(db, 'guestProfiles', firebaseUser.uid);
+  const profileSnap = await getDoc(profileRef);
+  if (!profileSnap.exists()) return null;
+  return { id: firebaseUser.uid, ...profileSnap.data() };
+}
+
+async function ensureGuestCanAuthenticate(profile) {
+  if (!profile) return;
+  if (isGuestAccountDeactivated(profile)) {
+    await signOut(auth);
+    throw new Error(buildGuestDeactivationMessage(profile));
+  }
+}
+
 async function upsertGuestProfile(firebaseUser, additionalData = {}) {
   if (!firebaseUser) return null;
 
@@ -176,6 +200,25 @@ export function GuestAuthProvider({ children }) {
   const [loading, setLoading] = useState(true);
   const [actionLoading, setActionLoading] = useState(false);
   const [error, setError] = useState('');
+  const [deactivationBlock, setDeactivationBlock] = useState({ active: false, reason: '' });
+
+  const activateDeactivationBlock = (guestProfile) => {
+    setDeactivationBlock({
+      active: true,
+      reason: getGuestDeactivationReason(guestProfile),
+    });
+  };
+
+  const evaluateGuestAccess = (guestProfile) => {
+    if (!guestProfile) return true;
+    if (isGuestAccountDeactivated(guestProfile) || isGuestSessionInvalidated(guestProfile)) {
+      activateDeactivationBlock(guestProfile);
+      return false;
+    }
+    setDeactivationBlock({ active: false, reason: '' });
+    persistGuestSessionVersion(guestProfile);
+    return true;
+  };
 
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, async (firebaseUser) => {
@@ -184,6 +227,7 @@ export function GuestAuthProvider({ children }) {
       if (!firebaseUser) {
         setUser(null);
         setProfile(null);
+        setDeactivationBlock({ active: false, reason: '' });
         setLoading(false);
         return;
       }
@@ -220,6 +264,9 @@ export function GuestAuthProvider({ children }) {
             guestProfile = await upsertGuestProfile(firebaseUser);
           }
         }
+        if (!evaluateGuestAccess(guestProfile)) {
+          return;
+        }
         setProfile(guestProfile);
       } catch (err) {
         console.error('Unable to sync guest profile:', err);
@@ -231,6 +278,24 @@ export function GuestAuthProvider({ children }) {
 
     return () => unsubscribe();
   }, []);
+
+  useEffect(() => {
+    if (!user?.uid || isStaffOrAdminAppRoute()) return undefined;
+
+    const profileRef = doc(db, 'guestProfiles', user.uid);
+    const unsubscribe = onSnapshot(profileRef, (profileSnap) => {
+      if (!profileSnap.exists()) return;
+      const guestProfile = { id: user.uid, ...profileSnap.data() };
+      if (!evaluateGuestAccess(guestProfile)) {
+        return;
+      }
+      setProfile(guestProfile);
+    }, (err) => {
+      console.error('Guest profile listener error:', err);
+    });
+
+    return () => unsubscribe();
+  }, [user?.uid]);
 
   const signInWithGoogle = useCallback(async () => {
     setActionLoading(true);
@@ -249,15 +314,22 @@ export function GuestAuthProvider({ children }) {
         throw new Error('Admin/Staff cannot use guest sign-in');
       }
       
-      const guestProfile = await upsertGuestProfile(result.user);
+      const guestProfile = await loadGuestProfile(result.user) || await upsertGuestProfile(result.user);
+      await ensureGuestCanAuthenticate(guestProfile);
+      if (!evaluateGuestAccess(guestProfile)) {
+        throw new Error(buildGuestDeactivationMessage(guestProfile));
+      }
       setUser(result.user);
       setProfile(guestProfile);
       return result.user;
     } catch (err) {
       console.error('Google guest sign-in failed:', err);
-      const message = err?.code === 'auth/popup-closed-by-user'
-        ? 'Google sign-in was closed before it finished.'
-        : err.message || 'Google sign-in failed. Please try again.';
+      let message = 'Google sign-in failed. Please try again.';
+      if (err?.code === 'auth/popup-closed-by-user') {
+        message = 'Google sign-in was closed before it finished.';
+      } else if (err?.message) {
+        message = err.message;
+      }
       setError(message);
       throw new Error(message);
     } finally {
@@ -362,6 +434,8 @@ export function GuestAuthProvider({ children }) {
       const profileSnap = await getDoc(profileRef);
       const profileData = profileSnap.exists() ? profileSnap.data() : null;
 
+      await ensureGuestCanAuthenticate(profileData);
+
       const isVerified = profileData?.emailVerified === true || signedInUser.emailVerified === true;
 
       if (isEmailUser(signedInUser) && !isVerified) {
@@ -375,6 +449,9 @@ export function GuestAuthProvider({ children }) {
       }
 
       const guestProfile = await upsertGuestProfile(signedInUser);
+      if (!evaluateGuestAccess(guestProfile)) {
+        throw new Error(buildGuestDeactivationMessage(guestProfile));
+      }
       setUser(signedInUser);
       setProfile(guestProfile);
       return signedInUser;
@@ -388,6 +465,8 @@ export function GuestAuthProvider({ children }) {
       } else if (err.code === 'auth/invalid-email') {
         message = 'Please enter a valid email address.';
       } else if (err.message === 'Email not verified') {
+        message = err.message;
+      } else if (!err.code && err.message) {
         message = err.message;
       }
       setError(message);
@@ -425,6 +504,8 @@ export function GuestAuthProvider({ children }) {
       await signOut(auth);
       setUser(null);
       setProfile(null);
+      setDeactivationBlock({ active: false, reason: '' });
+      clearGuestSessionVersion();
     } catch (err) {
       console.error('Guest sign-out failed:', err);
       setError('Sign out failed. Please try again.');
@@ -433,22 +514,32 @@ export function GuestAuthProvider({ children }) {
     }
   }, []);
 
+  const handleDeactivationConfirm = async () => {
+    await logout();
+  };
+
   const value = useMemo(() => ({
     user,
     profile,
     loading,
     actionLoading,
     error,
+    deactivationBlock,
     signInWithGoogle,
     signUpWithEmail,
     signInWithEmail,
     logout,
     updateGuestProfile
-  }), [actionLoading, error, loading, logout, profile, signInWithGoogle, signUpWithEmail, signInWithEmail, updateGuestProfile, user]);
+  }), [actionLoading, deactivationBlock, error, loading, logout, profile, signInWithGoogle, signUpWithEmail, signInWithEmail, updateGuestProfile, user]);
 
   return (
     <GuestAuthContext.Provider value={value}>
       {children}
+      <GuestDeactivationBlocker
+        isOpen={deactivationBlock.active}
+        reason={deactivationBlock.reason}
+        onConfirm={handleDeactivationConfirm}
+      />
     </GuestAuthContext.Provider>
   );
 }

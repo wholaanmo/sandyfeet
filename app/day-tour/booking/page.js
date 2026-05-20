@@ -315,6 +315,12 @@ function DayTourBookingContent() {
     }
   }, [dateParam, router]);
 
+  useEffect(() => {
+    if (!authLoading && !user) {
+      router.replace('/day-tour');
+    }
+  }, [authLoading, user, router]);
+
   // Fetch day tour details
   useEffect(() => {
     const fetchDayTour = async () => {
@@ -1243,22 +1249,6 @@ function DayTourBookingContent() {
                     <p className="text-[12px] text-rose-600/80 mt-3">{errors.guests}</p>
                   )}
 
-                  {!user && (
-                    <div className="mt-4 p-4 bg-amber-50 border border-amber-200 rounded-xl">
-                      <p className="text-sm text-amber-800">
-                        <i className="fas fa-info-circle mr-2"></i>
-                        You need to be signed in to continue. Please sign in or create an account.
-                      </p>
-                      <button
-                        onClick={() => setIsAuthModalOpen(true)}
-                        className="mt-2 inline-flex items-center gap-1 text-sm font-medium text-amber-800 underline hover:text-amber-900"
-                      >
-                        Sign in now
-                        <i className="fas fa-arrow-right text-[10px]"></i>
-                      </button>
-                    </div>
-                  )}
-
                   <div className="flex flex-col-reverse sm:flex-row gap-3 mt-6">
                     <button
                       onClick={handlePreviousStep}
@@ -1275,8 +1265,7 @@ function DayTourBookingContent() {
                         adultsCount < 1 ||
                         totalGuests < 1 ||
                         totalGuests > maxAllowedGuests ||
-                        (remainingCapacity !== Infinity && totalGuests > remainingCapacity) ||
-                        !user
+                        (remainingCapacity !== Infinity && totalGuests > remainingCapacity)
                       }
                       className={`flex-1 h-12 rounded-xl font-semibold transition-all duration-300 ${
                         bookingData.adults !== '' && bookingData.kids !== '' && adultsCount >= 1 && totalGuests >= 1 && totalGuests <= maxAllowedGuests && (remainingCapacity === Infinity || totalGuests <= remainingCapacity) && user

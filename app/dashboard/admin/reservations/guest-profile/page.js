@@ -3,7 +3,8 @@
 
 import React, { useEffect, useMemo, useState } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
-import { collection, doc, onSnapshot, query, where } from 'firebase/firestore';
+import { collection, doc, onSnapshot, query, where, updateDoc } from 'firebase/firestore';
+import { logAdminAction } from '@/lib/auditLogger';
 import { db } from '@/lib/firebase';
 import {
   normalizeBooking,
@@ -167,6 +168,10 @@ export default function AdminGuestProfilePage() {
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
   const [modalBooking, setModalBooking] = useState(null); // { booking, feedback }
+  const [showDeactivateModal, setShowDeactivateModal] = useState(false);
+  const [deactivationReason, setDeactivationReason] = useState('');
+  const [accountActionLoading, setAccountActionLoading] = useState(false);
+  const [accountActionMessage, setAccountActionMessage] = useState('');
 
   const resolvedGuestUid = useMemo(() => {
     if (guestUid) return guestUid;
@@ -390,6 +395,79 @@ export default function AdminGuestProfilePage() {
     router.push('/dashboard/admin/reservations?restoreGuestProfile=1');
   };
 
+  const isGuestDeactivated = guestProfile?.accountStatus === 'deactivated';
+
+  const handleDeactivateAccount = async () => {
+    const reason = deactivationReason.trim();
+    if (!reason) {
+      setAccountActionMessage('Please provide a reason for deactivation.');
+      return;
+    }
+    if (!resolvedGuestUid) {
+      setAccountActionMessage('Guest account ID is missing. Cannot deactivate this profile.');
+      return;
+    }
+
+    setAccountActionLoading(true);
+    setAccountActionMessage('');
+
+    try {
+      const nextSessionVersion = (Number(guestProfile?.sessionVersion) || 1) + 1;
+      await updateDoc(doc(db, 'guestProfiles', resolvedGuestUid), {
+        accountStatus: 'deactivated',
+        deactivationReason: reason,
+        deactivatedAt: new Date().toISOString(),
+        sessionVersion: nextSessionVersion,
+      });
+
+      await logAdminAction({
+        action: 'Deactivated guest account',
+        module: 'Guest Management',
+        details: `Deactivated guest account: ${personalInfo.email} (${resolvedGuestUid}). Reason: ${reason}`,
+      });
+
+      setShowDeactivateModal(false);
+      setDeactivationReason('');
+      setAccountActionMessage('Guest account deactivated successfully.');
+    } catch (error) {
+      console.error('Error deactivating guest account:', error);
+      setAccountActionMessage('Failed to deactivate guest account. Please try again.');
+    } finally {
+      setAccountActionLoading(false);
+    }
+  };
+
+  const handleReactivateAccount = async () => {
+    if (!resolvedGuestUid) {
+      setAccountActionMessage('Guest account ID is missing. Cannot reactivate this profile.');
+      return;
+    }
+
+    setAccountActionLoading(true);
+    setAccountActionMessage('');
+
+    try {
+      await updateDoc(doc(db, 'guestProfiles', resolvedGuestUid), {
+        accountStatus: 'active',
+        deactivationReason: '',
+        deactivatedAt: null,
+      });
+
+      await logAdminAction({
+        action: 'Reactivated guest account',
+        module: 'Guest Management',
+        details: `Reactivated guest account: ${personalInfo.email} (${resolvedGuestUid})`,
+      });
+
+      setAccountActionMessage('Guest account reactivated successfully.');
+    } catch (error) {
+      console.error('Error reactivating guest account:', error);
+      setAccountActionMessage('Failed to reactivate guest account. Please try again.');
+    } finally {
+      setAccountActionLoading(false);
+    }
+  };
+
   if (!email && !guestUid) {
     return (
       <GuestProfilePageShell>
@@ -437,6 +515,27 @@ export default function AdminGuestProfilePage() {
           </div>
         </div>
         <div className="p-5 sm:p-6">
+          {accountActionMessage && (
+            <p className={`mb-4 rounded-xl px-4 py-3 text-sm font-medium ${
+              accountActionMessage.toLowerCase().includes('failed')
+                ? 'bg-red-50 text-red-700 border border-red-100'
+                : 'bg-emerald-50 text-emerald-700 border border-emerald-100'
+            }`}>
+              {accountActionMessage}
+            </p>
+          )}
+
+          {isGuestDeactivated && (
+            <div className="mb-4 rounded-xl border border-red-200 bg-red-50 px-4 py-3">
+              <p className="text-sm font-semibold text-red-700">Account Status: Deactivated</p>
+              {guestProfile?.deactivationReason && (
+                <p className="mt-1 text-sm text-red-600">
+                  Reason: {guestProfile.deactivationReason}
+                </p>
+              )}
+            </div>
+          )}
+
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
             <GuestInfoCardField
               label="First Name"
@@ -459,6 +558,36 @@ export default function AdminGuestProfilePage() {
               icon="fa-envelope"
             />
           </div>
+
+          {resolvedGuestUid && (
+            <div className="mt-6 flex flex-wrap items-center gap-3 border-t border-[#4D8CF5]/10 pt-5">
+              {isGuestDeactivated ? (
+                <button
+                  type="button"
+                  onClick={handleReactivateAccount}
+                  disabled={accountActionLoading}
+                  className="inline-flex items-center gap-2 rounded-xl bg-emerald-600 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-emerald-700 disabled:opacity-60"
+                >
+                  <i className="fas fa-user-check text-xs" />
+                  {accountActionLoading ? 'Processing...' : 'Reactivate Account'}
+                </button>
+              ) : (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setDeactivationReason('');
+                    setAccountActionMessage('');
+                    setShowDeactivateModal(true);
+                  }}
+                  disabled={accountActionLoading}
+                  className="inline-flex items-center gap-2 rounded-xl bg-red-600 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-red-700 disabled:opacity-60"
+                >
+                  <i className="fas fa-user-slash text-xs" />
+                  Deactivate This Account
+                </button>
+              )}
+            </div>
+          )}
         </div>
       </div>
 
@@ -529,6 +658,67 @@ export default function AdminGuestProfilePage() {
           feedback={modalBooking.feedback}
           onClose={() => setModalBooking(null)}
         />
+      )}
+
+      {showDeactivateModal && (
+        <div
+          className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/40 p-4 backdrop-blur-sm"
+          onClick={() => !accountActionLoading && setShowDeactivateModal(false)}
+          role="presentation"
+        >
+          <div
+            className="w-full max-w-md overflow-hidden rounded-2xl bg-white shadow-2xl"
+            onClick={(e) => e.stopPropagation()}
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="deactivate-guest-title"
+          >
+            <div className="border-b border-[#4D8CF5]/10 bg-gradient-to-r from-[#4D8CF5]/5 to-white px-5 py-4">
+              <h3 id="deactivate-guest-title" className="text-base font-bold text-[#1E3A8A]">
+                Deactivate Guest Account
+              </h3>
+              <p className="mt-1 text-sm text-[#5C7AA6]">
+                Are you sure you want to deactivate this account?
+              </p>
+            </div>
+            <div className="space-y-4 px-5 py-4">
+              <div>
+                <label htmlFor="deactivation-reason" className="mb-1 block text-xs font-semibold uppercase tracking-wide text-[#5C7AA6]">
+                  Reason <span className="text-red-500">*</span>
+                </label>
+                <textarea
+                  id="deactivation-reason"
+                  value={deactivationReason}
+                  onChange={(e) => setDeactivationReason(e.target.value)}
+                  rows={4}
+                  placeholder="Enter the reason for deactivation..."
+                  className="w-full rounded-xl border border-[#4D8CF5]/20 px-3 py-2.5 text-sm text-[#1E3A8A] focus:border-[#4D8CF5] focus:outline-none focus:ring-2 focus:ring-[#4D8CF5]/20"
+                />
+              </div>
+              {accountActionMessage && showDeactivateModal && (
+                <p className="text-sm text-red-600">{accountActionMessage}</p>
+              )}
+            </div>
+            <div className="flex items-center justify-end gap-2 border-t border-[#4D8CF5]/10 px-5 py-4">
+              <button
+                type="button"
+                onClick={() => setShowDeactivateModal(false)}
+                disabled={accountActionLoading}
+                className="rounded-xl border border-[#4D8CF5]/20 bg-white px-4 py-2 text-sm font-semibold text-[#1E3A8A] transition hover:bg-[#4D8CF5]/5 disabled:opacity-60"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={handleDeactivateAccount}
+                disabled={accountActionLoading}
+                className="rounded-xl bg-red-600 px-4 py-2 text-sm font-semibold text-white transition hover:bg-red-700 disabled:opacity-60"
+              >
+                {accountActionLoading ? 'Deactivating...' : 'Confirm Deactivation'}
+              </button>
+            </div>
+          </div>
+        </div>
       )}
     </GuestProfilePageShell>
   );
