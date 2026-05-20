@@ -1,6 +1,7 @@
 // app/home/page.js
 'use client';
 
+import { Suspense } from 'react';
 import { useEffect, useState } from 'react';
 import GuestLayout from '../guest/layout';
 import Image from 'next/image';
@@ -90,7 +91,7 @@ const StarRating = ({ rating }) => {
   );
 };
 
-export default function HomePage() {
+function HomePageContent() {
   const [featuredRooms, setFeaturedRooms] = useState([]);
   const [featuredRoomsLoading, setFeaturedRoomsLoading] = useState(true);
   const [showFeedbackModal, setShowFeedbackModal] = useState(false);
@@ -1203,5 +1204,17 @@ export default function HomePage() {
   onClose={() => setShowAIRecommendation(false)}
 />
     </GuestLayout>
+  );
+}
+
+export default function HomePage() {
+  return (
+    <Suspense fallback={
+      <div className="min-h-screen flex items-center justify-center">
+        <i className="fas fa-spinner fa-spin text-3xl text-ocean-light"></i>
+      </div>
+    }>
+      <HomePageContent />
+    </Suspense>
   );
 }
