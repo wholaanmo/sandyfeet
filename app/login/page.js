@@ -90,53 +90,36 @@ useEffect(() => {
                Date.now().toString(36);
     };
 
-    const handleResendVerification = async () => {
-        setResendLoading(true);
-        try {
-            // Sign in temporarily to get user object
-            const userCredential = await signInWithEmailAndPassword(auth, pendingEmail, password);
-            const user = userCredential.user;
-            
-            // Check if already verified
-            await user.reload();
-            if (user.emailVerified) {
-                // If verified, update Firestore and proceed with login
-                const userRef = doc(db, 'users', user.uid);
-                await updateDoc(userRef, {
-                    emailVerified: true,
-                    status: 'active'
-                });
-                
-                // Proceed with login
-                await completeLogin(user.uid);
-                return;
-            }
-            
-            // Send new verification email
-            await sendEmailVerification(user);
-            
-            // Update expiration in Firestore
-            const newExpiration = new Date();
-            newExpiration.setMinutes(newExpiration.getMinutes() + 15);
-            
-            const userRef = doc(db, 'users', user.uid);
-            await updateDoc(userRef, {
-                verificationExpiresAt: newExpiration.toISOString()
-            });
-            
-            setError('New verification email sent! Please check your inbox. Link expires in 15 minutes.');
-            setShowResendOption(false);
-            
-            // Sign out after resending
-            await auth.signOut();
-            
-        } catch (error) {
-            console.error('Error resending verification:', error);
-            setError('Unable to resend verification. Please try again later.');
-        } finally {
-            setResendLoading(false);
-        }
-    };
+   const handleResendVerification = async () => {
+  if (!pendingEmail) return;
+  setResendLoading(true);
+  setError('');
+
+  try {
+    const response = await fetch('/api/auth/resend-verification', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ email: pendingEmail }),
+    });
+
+    const data = await response.json();
+
+    if (response.ok) {
+      setError('New verification email sent! Please check your inbox. The link expires in 15 minutes.');
+      setShowResendOption(false);
+      // Sign out the user (they were already signed out after failed login, but ensure it)
+      await auth.signOut();
+    } else {
+      setError(data.error || 'Unable to resend verification. Please try again later.');
+      // Keep the resend option visible for retry
+    }
+  } catch (err) {
+    console.error('Error resending verification:', err);
+    setError('Network error. Please try again.');
+  } finally {
+    setResendLoading(false);
+  }
+};
     
 const completeLogin = async (uid) => {
     const userDoc = await getDoc(doc(db, "users", uid));
@@ -385,25 +368,32 @@ const loginUser = async (e) => {
                             <p className="mt-2 text-sm text-ocean-mid/70">Access your dashboard</p>
                         </div>
 
-                        {error && (
-                            <div className="mb-4 rounded-2xl border border-red-100 bg-red-50/80 p-3 text-xs text-red-600 shadow-sm">
-                                <div className="flex items-start gap-2">
-                                    <i className="fas fa-exclamation-circle text-red-500 text-sm mt-0.5"></i>
-                                    <div className="flex-1">
-                                        <p className="text-xs font-poppins">{error}</p>
-                                        {showResendOption && (
-                                            <button
-                                                onClick={handleResendVerification}
-                                                disabled={resendLoading}
-                                                className="mt-2 text-xs text-ocean-deep underline hover:text-ocean-mid"
-                                            >
-                                                {resendLoading ? 'Sending...' : 'Resend verification email'}
-                                            </button>
-                                        )}
-                                    </div>
-                                </div>
-                            </div>
-                        )}
+{error && (
+    <div className="mb-4 overflow-hidden rounded-2xl border border-red-200/70 bg-gradient-to-br from-red-50 via-white to-red-50/80 p-3 shadow-[0_6px_18px_rgba(239,68,68,0.08)] backdrop-blur-sm">
+        <div className="flex items-start gap-3">
+            <div className="flex h-7 w-7 items-center justify-center rounded-full bg-red-100 ring-2 ring-red-200/50">
+                <i className="fas fa-exclamation-circle text-sm text-red-500"></i>
+            </div>
+
+            <div className="flex-1">
+                <p className="text-xs font-poppins leading-relaxed text-red-700">
+                    {error}
+                </p>
+
+                {showResendOption && (
+                    <button
+                        onClick={handleResendVerification}
+                        disabled={resendLoading}
+                        className="mt-2 inline-flex items-center gap-1 rounded-full border border-ocean-mid/20 bg-white px-3 py-1 text-xs font-medium text-ocean-deep transition-all duration-200 hover:border-ocean-mid hover:bg-ocean-mid/5 hover:shadow-sm disabled:cursor-not-allowed disabled:opacity-50"
+                    >
+                        <i className="fas fa-envelope text-[10px]"></i>
+                        {resendLoading ? 'Sending...' : 'Resend verification email'}
+                    </button>
+                )}
+            </div>
+        </div>
+    </div>
+)}
 
                         <form onSubmit={loginUser}>
                             <div className="mb-4">

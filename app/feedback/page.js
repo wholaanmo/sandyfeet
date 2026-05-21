@@ -680,98 +680,25 @@ function FeedbackPageContent() {
                   </div>
                 ) : null
               ) : (
-                // Unauthenticated View
-                <div className="overflow-hidden rounded-3xl border border-blue-100 bg-white shadow-[0_8px_30px_rgba(0,0,0,0.04)] transition-all duration-300">
-                  <div className="px-6 py-8 sm:px-8">
-                    <div className="mb-8 text-center">
-                      <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-blue-50 text-blue-600">
-                        <i className="fas fa-user-circle text-3xl" />
-                      </div>
-                      <h2 className="text-xl font-bold text-slate-900">Sign in to share feedback</h2>
-                      <p className="mt-2 text-sm text-slate-500">
-                        Access your stay history and skip manual verification.
-                      </p>
-                      <button
-                        onClick={() => setIsAuthModalOpen(true)}
-                        className="mt-6 inline-flex items-center gap-2 rounded-xl bg-slate-900 px-8 py-3 text-sm font-bold text-white transition-all hover:bg-slate-800 active:scale-[0.98] shadow-lg shadow-slate-900/10"
-                      >
-                        <i className="fab fa-google text-xs opacity-70" />
-                        Sign In with Google
-                      </button>
-                    </div>
-
-                    <div className="relative mb-8 text-center">
-                      <div className="absolute inset-0 flex items-center">
-                        <div className="w-full border-t border-slate-100" />
-                      </div>
-                      <span className="relative bg-white px-4 text-[10px] font-bold uppercase tracking-widest text-slate-400">
-                        Or verify manually
-                      </span>
-                    </div>
-
-                    <form onSubmit={handleVerifyBooking} className="space-y-6">
-                      <div className="grid gap-5 sm:grid-cols-2">
-                        <div className="space-y-1.5">
-                          <label htmlFor="email" className="text-[11px] font-bold uppercase tracking-widest text-slate-400">
-                            Email Address
-                          </label>
-                          <div className="group relative">
-                            <i className="fas fa-envelope absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400 transition-colors group-focus-within:text-blue-500 text-sm" />
-                            <input
-                              id="email"
-                              type="email"
-                              value={credentials.email}
-                              onChange={(e) => setCredentials((prev) => ({ ...prev, email: e.target.value }))}
-                              placeholder="you@example.com"
-                              className="w-full rounded-xl border border-slate-200 bg-slate-50 pl-10 pr-4 py-2.5 text-sm text-slate-800 transition-all focus:border-blue-400 focus:bg-white focus:outline-none focus:ring-4 focus:ring-blue-100/50"
-                              required
-                            />
-                          </div>
-                        </div>
-
-                        <div className="space-y-1.5">
-                          <label htmlFor="reference" className="text-[11px] font-bold uppercase tracking-widest text-blue-600/40">
-                            Reference Number
-                          </label>
-                          <div className="group relative">
-                            <i className="fas fa-hashtag absolute left-3.5 top-1/2 -translate-y-1/2 text-blue-300 transition-colors group-focus-within:text-blue-500 text-sm" />
-                            <input
-                              id="reference"
-                              type="text"
-                              value={credentials.reference}
-                              onChange={(e) =>
-                                setCredentials((prev) => ({ ...prev, reference: e.target.value.toUpperCase() }))
-                              }
-                              placeholder="BOOK-..."
-                              className="w-full rounded-2xl border border-blue-50 bg-blue-50/30 pl-10 pr-4 py-2.5 text-sm uppercase text-blue-900 transition-all focus:border-blue-400 focus:bg-white focus:outline-none focus:ring-4 focus:ring-blue-100/50"
-                              required
-                            />
-                          </div>
-                        </div>
-                      </div>
-
-                      <button
-                        type="submit"
-                        disabled={!canVerify || verifying}
-                        className="group relative w-full overflow-hidden rounded-2xl bg-blue-600 py-3.5 text-sm font-bold text-white shadow-[0_10px_25px_-5px_rgba(37,99,235,0.4)] transition-all hover:bg-blue-700 hover:shadow-[0_15px_30px_-5px_rgba(37,99,235,0.5)] active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-60"
-                      >
-                        <div className="relative z-10 flex items-center justify-center gap-2">
-                          {verifying ? (
-                            <>
-                              <i className="fas fa-spinner fa-spin" />
-                              <span>Verifying…</span>
-                            </>
-                          ) : (
-                            <>
-                              <i className="fas fa-shield-alt text-xs opacity-70" />
-                              <span>Verify & Continue</span>
-                            </>
-                          )}
-                        </div>
-                      </button>
-                    </form>
+                // Unauthenticated View - Matching My Bookings style
+                <div className="flex flex-col items-center rounded-3xl border border-blue-100 bg-white px-6 py-16 text-center shadow-[0_10px_40px_rgba(30,58,138,0.04)]">
+                  <div className="flex h-16 w-16 items-center justify-center rounded-2xl bg-blue-50 text-blue-500">
+                    <i className="fas fa-lock text-2xl" />
                   </div>
-                </div>
+                  <h2 className="mt-5 text-xl font-bold text-blue-900">Sign in to share your feedback</h2>
+                  <p className="mt-2 max-w-xs text-sm text-blue-600/60 leading-relaxed">
+                    Access your stay history and give feedback about your experience at the resort.
+                  </p>
+                  <button
+                    onClick={() => setIsAuthModalOpen(true)}
+                    disabled={authLoading}
+                    className="mt-8 inline-flex items-center gap-2.5 rounded-2xl bg-blue-600 px-8 py-3.5 text-sm font-bold text-white shadow-[0_10px_25px_-5px_rgba(37,99,235,0.4)] transition-all hover:bg-blue-700 hover:shadow-[0_15px_30px_-5px_rgba(37,99,235,0.5)] active:scale-[0.98] disabled:opacity-60"
+                  >
+                    <i className="fas fa-sign-in-alt" />
+                    Sign In to Account
+                  </button>
+                        </div>
+
               )}
 
               {/* Feedback Form (Shared) */}
