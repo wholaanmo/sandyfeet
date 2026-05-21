@@ -9,6 +9,27 @@ import {
   submitGuestValidIdResubmission,
 } from '@/lib/idRequestUtils';
 import { formatDateOnly } from '@/app/my-bookings/utils';
+import { db } from '@/lib/firebase';
+import { collection, addDoc, serverTimestamp, doc, getDoc } from 'firebase/firestore';
+
+// Helper to determine booking type (fallback if typeLabel missing)
+async function determineBookingType(notification) {
+  if (notification.typeLabel) return notification.typeLabel;
+  if (notification.collectionName === 'dayTourBookings') return 'Day Tour';
+  if (notification.collectionName === 'bookings') {
+    const docId = notification.parentBookingId || notification.docId;
+    if (!docId) return 'Unknown';
+    const bookingRef = doc(db, 'bookings', docId);
+    const bookingSnap = await getDoc(bookingRef);
+    if (bookingSnap.exists()) {
+      const data = bookingSnap.data();
+      if (data.isExclusiveResortBooking) return 'Entire Resort';
+      if (data.isMultiRoomBooking && notification.parentBookingId) return 'Multi Room Types';
+      return 'Single Room Type';
+    }
+  }
+  return 'Unknown';
+}
 
 function IdRequestSubmitConfirmModal({ isOpen, onConfirm, onCancel, sending }) {
   const [isVisible, setIsVisible] = useState(false);
@@ -130,6 +151,8 @@ export default function IdRequestViewModal({ notification, isOpen, onClose }) {
   const [isVisible, setIsVisible] = useState(false);
   const [isClosing, setIsClosing] = useState(false);
   const [validIdType, setValidIdType] = useState('Passport');
+  const [customIdType, setCustomIdType] = useState('');
+  const [showCustomIdInput, setShowCustomIdInput] = useState(false);
   const [validIdImage, setValidIdImage] = useState(null);
   const [uploading, setUploading] = useState(false);
   const [sending, setSending] = useState(false);
@@ -145,6 +168,8 @@ export default function IdRequestViewModal({ notification, isOpen, onClose }) {
     if (!notification) return;
     setLocalIdRequest(notification.idRequest);
     setValidIdType('Passport');
+    setCustomIdType('');
+    setShowCustomIdInput(false);
     setValidIdImage(null);
     setError('');
     setSuccess('');
@@ -197,9 +222,43 @@ export default function IdRequestViewModal({ notification, isOpen, onClose }) {
     }
   };
 
+  const handleIdTypeChange = (e) => {
+    const selected = e.target.value;
+    if (selected === 'specify') {
+      setShowCustomIdInput(true);
+      setValidIdType(''); // Clear until user types
+      setCustomIdType('');
+    } else {
+      setShowCustomIdInput(false);
+      setValidIdType(selected);
+      setCustomIdType('');
+    }
+    setError('');
+  };
+
+  const handleCustomIdTypeChange = (e) => {
+    const value = e.target.value;
+    setCustomIdType(value);
+    setValidIdType(value); // Store the custom string as the type
+    setError('');
+  };
+
   const handleSend = async () => {
-    if (!validIdImage || !validIdType) {
-      setError('Please select a valid ID type and upload a photo first.');
+    // Validate ID type
+    let finalIdType = validIdType;
+    if (showCustomIdInput) {
+      if (!customIdType.trim()) {
+        setError('Please enter a valid ID type.');
+        return;
+      }
+      finalIdType = customIdType.trim();
+    } else if (!validIdType) {
+      setError('Please select a valid ID type.');
+      return;
+    }
+
+    if (!validIdImage) {
+      setError('Please upload a photo of your valid ID.');
       return;
     }
 
@@ -210,7 +269,7 @@ export default function IdRequestViewModal({ notification, isOpen, onClose }) {
         collectionName: notification.collectionName,
         docId: notification.docId,
         parentBookingId: notification.parentBookingId,
-        validIdType,
+        validIdType: finalIdType,
         validIdImage,
         existingIdRequest: idRequest,
       });
@@ -220,6 +279,40 @@ export default function IdRequestViewModal({ notification, isOpen, onClose }) {
         fulfilledAt: new Date().toISOString(),
       });
       setSuccess('Your new valid ID has been submitted successfully.');
+
+      // Get guest name and booking details
+      let guestName = notification.guestName;
+      let bookingId = notification.bookingId;
+      // Use the existing typeLabel from the notification (correct label)
+      let bookingType = notification.typeLabel || await determineBookingType(notification);
+
+      // If guestName is missing, try to fetch from the booking document
+      if (!guestName && notification.docId && notification.collectionName) {
+        const bookingRef = doc(db, notification.collectionName, notification.docId);
+        const bookingSnap = await getDoc(bookingRef);
+        if (bookingSnap.exists()) {
+          const data = bookingSnap.data();
+          guestName = `${data.guestInfo?.firstName || ''} ${data.guestInfo?.lastName || ''}`.trim() || 'Guest';
+          bookingId = data.bookingId || notification.bookingId || notification.docId;
+        }
+      }
+
+      // Prepare submission data
+      const submissionData = {
+        validIdType: finalIdType,
+        validIdImage,
+      };
+      if (idRequest?.id) {
+        submissionData.idRequestId = idRequest.id;
+      }
+
+      await addDoc(collection(db, 'guest_id_submissions'), {
+        guestName: guestName || 'Guest',
+        bookingId: bookingId || 'unknown',
+        bookingType: bookingType || 'Unknown',
+        createdAt: serverTimestamp(),
+        submissionData,
+      });
     } catch (submitError) {
       console.error('Failed to submit valid ID:', submitError);
       setError(submitError.message || 'Failed to submit valid ID. Please try again.');
@@ -274,7 +367,10 @@ export default function IdRequestViewModal({ notification, isOpen, onClose }) {
             previousIdImage={previousIdImage}
             isFulfilled={isFulfilled}
             validIdType={validIdType}
-            setValidIdType={setValidIdType}
+            customIdType={customIdType}
+            showCustomIdInput={showCustomIdInput}
+            onIdTypeChange={handleIdTypeChange}
+            onCustomIdTypeChange={handleCustomIdTypeChange}
             validIdImage={validIdImage}
             fileInputRef={fileInputRef}
             handleFileChange={handleFileChange}
@@ -304,7 +400,10 @@ function MotionlessConfirmModalBody({
   previousIdImage,
   isFulfilled,
   validIdType,
-  setValidIdType,
+  customIdType,
+  showCustomIdInput,
+  onIdTypeChange,
+  onCustomIdTypeChange,
   validIdImage,
   fileInputRef,
   handleFileChange,
@@ -315,6 +414,9 @@ function MotionlessConfirmModalBody({
   error,
   success,
 }) {
+  // Build ID type options including "Specify"
+  const idTypeOptions = [...VALID_ID_OPTIONS, 'specify'];
+
   return (
     <div className="relative flex-1 space-y-5 overflow-y-auto px-6 py-5">
       <section className="rounded-xl border border-[#4D8CF5]/15 bg-[#f8fbff] p-4">
@@ -344,8 +446,12 @@ function MotionlessConfirmModalBody({
           <MotionlessConfirmModalFulfilledMessage />
         ) : (
           <MotionlessConfirmModalUploadSection
+            idTypeOptions={idTypeOptions}
             validIdType={validIdType}
-            setValidIdType={setValidIdType}
+            customIdType={customIdType}
+            showCustomIdInput={showCustomIdInput}
+            onIdTypeChange={onIdTypeChange}
+            onCustomIdTypeChange={onCustomIdTypeChange}
             validIdImage={validIdImage}
             fileInputRef={fileInputRef}
             handleFileChange={handleFileChange}
@@ -380,8 +486,12 @@ function MotionlessConfirmModalFulfilledMessage() {
 }
 
 function MotionlessConfirmModalUploadSection({
+  idTypeOptions,
   validIdType,
-  setValidIdType,
+  customIdType,
+  showCustomIdInput,
+  onIdTypeChange,
+  onCustomIdTypeChange,
   validIdImage,
   fileInputRef,
   handleFileChange,
@@ -390,6 +500,8 @@ function MotionlessConfirmModalUploadSection({
   setError,
   setShowConfirm,
 }) {
+  const displayValue = showCustomIdInput ? 'specify' : validIdType;
+
   return (
     <>
       <div className="mt-3">
@@ -397,17 +509,29 @@ function MotionlessConfirmModalUploadSection({
           Valid ID type
         </label>
         <select
-          value={validIdType}
-          onChange={(e) => setValidIdType(e.target.value)}
+          value={displayValue}
+          onChange={onIdTypeChange}
           className="w-full rounded-xl border border-[#4D8CF5]/20 bg-white px-3 py-2.5 text-sm font-medium text-[#1E3A8A] outline-none focus:border-[#4D8CF5] focus:ring-2 focus:ring-[#4D8CF5]/20"
         >
-          {VALID_ID_OPTIONS.map((option) => (
+          {idTypeOptions.map((option) => (
             <option key={option} value={option}>
-              {option}
+              {option === 'specify' ? 'Specify' : option}
             </option>
           ))}
         </select>
       </div>
+
+      {showCustomIdInput && (
+        <div className="mt-2">
+          <input
+            type="text"
+            value={customIdType}
+            onChange={onCustomIdTypeChange}
+            placeholder="Enter custom ID type (e.g., Driver's License, etc.)"
+            className="w-full rounded-xl border border-[#4D8CF5]/20 bg-white px-3 py-2.5 text-sm font-medium text-[#1E3A8A] outline-none placeholder:text-[#5C7AA6] focus:border-[#4D8CF5] focus:ring-2 focus:ring-[#4D8CF5]/20"
+          />
+        </div>
+      )}
 
       {validIdImage && <ValidIdImagePreview imageUrl={validIdImage} />}
 
@@ -432,14 +556,11 @@ function MotionlessConfirmModalUploadSection({
         <button
           type="button"
           onClick={() => {
-            if (!validIdImage || !validIdType) {
-              setError('Please select a valid ID type and upload a photo first.');
-              return;
-            }
+            // Validation will be done in handleSend
             setError('');
             setShowConfirm(true);
           }}
-          disabled={uploading || sending || !validIdImage}
+          disabled={uploading || sending}
           className="inline-flex items-center gap-2 rounded-xl bg-[#4D8CF5] px-4 py-2.5 text-sm font-semibold text-white shadow-sm transition hover:bg-[#3b7ae0] disabled:opacity-60"
         >
           <i className="fas fa-paper-plane text-xs" />

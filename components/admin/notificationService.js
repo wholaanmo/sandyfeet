@@ -44,6 +44,43 @@ const formatDateForDisplay = (dateValue) => {
   }
 };
 
+export const setupGuestIdSubmissionListener = (onUpdate) => {
+  const submissionsRef = collection(db, 'guest_id_submissions');
+  const q = query(submissionsRef, orderBy('createdAt', 'desc'));
+
+  const unsubscribe = onSnapshot(q, async (querySnapshot) => {
+    const userId = getCurrentUserId();
+    const submissions = [];
+
+    for (const docSnap of querySnapshot.docs) {
+      const data = docSnap.data();
+      const notificationId = docSnap.id;
+      const isRead = await getUserReadStatus(userId, notificationId, 'guest_id_submission');
+      
+      const notification = {
+        id: notificationId,
+        type: 'guest_id_submission',
+        guestName: data.guestName,
+        bookingId: data.bookingId,
+        bookingType: data.bookingType,
+        createdAt: data.createdAt,
+        read: isRead,
+      };
+      
+      submissions.push(notification);
+      await saveNotification(notification);
+    }
+    
+    if (submissions.length > 0) {
+      onUpdate(submissions, 'guest_id_submission');
+    }
+  }, (error) => {
+    console.error('Error fetching guest ID submissions:', error);
+  });
+  
+  return unsubscribe;
+};
+
 const formatDateTimeForDisplay = (dateValue) => {
   if (!dateValue) return 'N/A';
   try {

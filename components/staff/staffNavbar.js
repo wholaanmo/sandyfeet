@@ -13,7 +13,8 @@ import {
   setupDayTourReservationsListener, 
   setupGuestCancellationsListener,
   setupGuestReservationEditsListener,
-  setupRoomStatusListener,
+  setupRoomStatusListener, 
+  setupGuestIdSubmissionListener,
   markNotificationAsRead,
   markAllNotificationsAsRead,
   initializeDismissedNotifications,
@@ -30,7 +31,7 @@ export default function StaffNavbar({ toggleSidebar, sidebarOpen, isDesktop }) {
   const [unreadCount, setUnreadCount] = useState(0);
   const [showNotifications, setShowNotifications] = useState(false);
   const [notifications, setNotifications] = useState([]);
-  const hasMarkedReadForCurrentOpen = useRef(false); // ← prevent duplicate background marking
+  const hasMarkedReadForCurrentOpen = useRef(false);
 
   useEffect(() => {
     const fetchUserData = async () => {
@@ -108,6 +109,7 @@ export default function StaffNavbar({ toggleSidebar, sidebarOpen, isDesktop }) {
     const unsubscribeCancellations = setupGuestCancellationsListener(handleNotificationsUpdate);
     const unsubscribeGuestActivity = setupGuestReservationEditsListener(handleNotificationsUpdate);
     const unsubscribeRoomStatus = setupRoomStatusListener(handleNotificationsUpdate);
+    const unsubscribeGuestIdSubmission = setupGuestIdSubmissionListener(handleNotificationsUpdate);
 
     return () => {
       unsubscribeReadStatus();
@@ -119,6 +121,7 @@ export default function StaffNavbar({ toggleSidebar, sidebarOpen, isDesktop }) {
       unsubscribeCancellations();
       unsubscribeGuestActivity();
       unsubscribeRoomStatus();
+      unsubscribeGuestIdSubmission();
     };
   }, []);
 
@@ -128,7 +131,7 @@ export default function StaffNavbar({ toggleSidebar, sidebarOpen, isDesktop }) {
     setUnreadCount(count);
   }, [notifications]);
 
-  // Mark all as read in the background when dropdown opens (does not block render)
+  // Mark all as read in the background when dropdown opens (does NOT block render)
   useEffect(() => {
     if (showNotifications && unreadCount > 0 && !hasMarkedReadForCurrentOpen.current) {
       hasMarkedReadForCurrentOpen.current = true;
@@ -144,10 +147,8 @@ export default function StaffNavbar({ toggleSidebar, sidebarOpen, isDesktop }) {
     }
   }, [showNotifications, unreadCount, notifications]);
 
-  const handleToggleNotifications = () => {
-    // Open the dropdown immediately – no waiting for markAllNotificationsAsRead
+  const handleToggleNotifications = async () => {
     setShowNotifications(!showNotifications);
-    // The background marking will be triggered by the useEffect above
   };
 
   const handleMarkAsRead = async (notification) => {
@@ -189,6 +190,8 @@ export default function StaffNavbar({ toggleSidebar, sidebarOpen, isDesktop }) {
         return { icon: 'fas fa-pen-to-square', bgColor: 'bg-gradient-to-br from-indigo-50 to-indigo-100', iconColor: 'text-indigo-600', borderColor: 'border-indigo-200' };
       case 'guest_change_request':
         return { icon: 'fas fa-exchange-alt', bgColor: 'bg-gradient-to-br from-teal-50 to-teal-100', iconColor: 'text-teal-600', borderColor: 'border-teal-200' };
+      case 'guest_id_submission':
+        return { icon: 'fas fa-id-card', bgColor: 'bg-gradient-to-br from-blue-50 to-blue-100', iconColor: 'text-blue-600', borderColor: 'border-blue-200' };
       default:
         return { icon: 'fas fa-bell', bgColor: 'bg-gradient-to-br from-gray-50 to-gray-100', iconColor: 'text-gray-600', borderColor: 'border-gray-200' };
     }
@@ -202,7 +205,6 @@ export default function StaffNavbar({ toggleSidebar, sidebarOpen, isDesktop }) {
       <div className="flex items-center justify-between h-full px-6 w-full">
         {/* Left section: hamburger (mobile) */}
         <div className="flex items-center gap-3">
-          {/* Hamburger button - visible only on mobile */}
           <button
             onClick={toggleSidebar}
             className="block lg:hidden text-[#1E3A8A] hover:text-[#4D8CF5] hover:scale-105 transition-all duration-200 p-2 rounded-xl hover:bg-[#4D8CF5]/10 focus:outline-none"
@@ -406,8 +408,19 @@ export default function StaffNavbar({ toggleSidebar, sidebarOpen, isDesktop }) {
       <span className="text-[11px] font-medium text-orange-700">Check-out: {notification.eventDate}</span>
     </div>
   </>
+) : notification.type === 'guest_id_submission' ? (
+  <>
+    <p className="text-sm font-bold text-gray-800 mb-1">Guest ID Submitted</p>
+    <p className="text-xs text-gray-600 mb-1">
+      <span className="font-semibold">{notification.guestName}</span> submitted an ID for booking <span className="font-mono">{notification.bookingId}</span>
+    </p>
+    <div className="inline-flex items-center gap-1.5 mt-1 px-2 py-0.5 bg-blue-50 rounded-full">
+      <i className="fas fa-tag text-blue-500 text-[10px]"></i>
+      <span className="text-[11px] font-medium text-blue-700">{notification.bookingType}</span>
+    </div>
+  </>
 ) : (
-  // Default cancellation case
+  // Default cancellation case - now shows detailed room types
   <>
     <p className="text-sm font-bold text-gray-800 mb-1">
       Guest Cancellation
@@ -417,7 +430,9 @@ export default function StaffNavbar({ toggleSidebar, sidebarOpen, isDesktop }) {
     </p>
     <div className="inline-flex items-center gap-1.5 mt-1 px-2 py-0.5 bg-red-50 rounded-full">
       <i className="fas fa-door-open text-red-500 text-[10px]"></i>
-      <span className="text-[11px] font-medium text-red-700">{notification.roomType || 'Day Tour'}</span>
+      <span className="text-[11px] font-medium text-red-700">
+        {notification.roomTypesDetail || notification.roomType || 'Day Tour'}
+      </span>
     </div>
   </>
 )}
@@ -455,12 +470,12 @@ export default function StaffNavbar({ toggleSidebar, sidebarOpen, isDesktop }) {
       <style jsx>{`
         @keyframes fadeIn {
           from {
-            opacity: 0;
             transform: translateY(-10px);
+            opacity: 0;
           }
           to {
-            opacity: 1;
             transform: translateY(0);
+            opacity: 1;
           }
         }
         .animate-fadeIn {
