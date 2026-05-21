@@ -3,10 +3,11 @@
 
 import { useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
-import { collection, onSnapshot, query, where, doc, getDoc } from 'firebase/firestore';
+import { collection, onSnapshot, query, where } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 import {
   getBookingResumePath,
+  getDownPaymentDueForBankRequest,
   getPendingPaymentBookingDetails,
   getPendingPaymentTypeLabel,
   isPendingBankPaymentRequest,
@@ -23,47 +24,10 @@ function formatBankDetails(bank) {
   };
 }
 
-// Helper function to check if a booking is fully settled (down payment due is ₱0)
-// This checks both the bank request and the actual booking payment status
-const isBookingFullySettled = async (bankRequest, bookings) => {
-  // First, check if the down payment amount on the bank request is 0
-  const downPaymentAmount = Number(bankRequest?.downPayment || bankRequest?.downPaymentRequired || bankRequest?.totalPrice || bankRequest?.totalAmount || 0);
-  if (downPaymentAmount === 0) return true;
-  
-  // If down payment is not 0, check if the actual booking has been fully paid
-  const relatedBookings = bookings.filter(b => 
-    String(b.bookingId || b.id || '') === String(bankRequest?.bookingId || '') ||
-    String(b.parentBookingId || '') === String(bankRequest?.bookingId || '')
-  );
-  
-  // Check if any related booking has been confirmed or completed (which implies payment)
-  // Also check if balance is 0 (fully paid)
-  for (const booking of relatedBookings) {
-    // If booking is confirmed, check-in, check-out, or completed, and balance is 0
-    if (['confirmed', 'check-in', 'check-out', 'completed'].includes(booking.status)) {
-      // Check if balance is 0 or down payment has been fully paid
-      const balance = Number(booking.balance || booking.manualBalance || 0);
-      if (balance === 0) return true;
-      
-      // Also check if the down payment has been fully paid via manualTotalPrice
-      const totalPrice = Number(booking.totalPrice || booking.manualTotalPrice || 0);
-      const downPayment = totalPrice * 0.5;
-      const paidAmount = totalPrice - balance;
-      if (paidAmount >= downPayment && downPayment > 0) {
-        // If paid amount meets or exceeds down payment, consider it settled for pending payment purposes
-        return true;
-      }
-    }
-  }
-  
-  return false;
-};
-
 export default function PendingPaymentList({ user, bookings }) {
   const [roomBankRequests, setRoomBankRequests] = useState([]);
   const [dayTourBankRequests, setDayTourBankRequests] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [settledStatusMap, setSettledStatusMap] = useState({});
 
   const normalizedEmail = user?.email?.toLowerCase().trim() || '';
 
@@ -87,17 +51,8 @@ export default function PendingPaymentList({ user, bookings }) {
 
     const unsubRoom = onSnapshot(
       roomQuery,
-      async (snapshot) => {
-        const requests = snapshot.docs.map((docSnap) => ({ id: docSnap.id, ...docSnap.data() }));
-        setRoomBankRequests(requests);
-        
-        // Check settled status for these requests
-        const settledMap = { ...settledStatusMap };
-        for (const request of requests) {
-          const isSettled = await isBookingFullySettled(request, []);
-          settledMap[`room-${request.id}`] = isSettled;
-        }
-        setSettledStatusMap(settledMap);
+      (snapshot) => {
+        setRoomBankRequests(snapshot.docs.map((docSnap) => ({ id: docSnap.id, ...docSnap.data() })));
         setLoading(false);
       },
       (err) => {
@@ -108,17 +63,8 @@ export default function PendingPaymentList({ user, bookings }) {
 
     const unsubDayTour = onSnapshot(
       dayTourQuery,
-      async (snapshot) => {
-        const requests = snapshot.docs.map((docSnap) => ({ id: docSnap.id, ...docSnap.data() }));
-        setDayTourBankRequests(requests);
-        
-        // Check settled status for these requests
-        const settledMap = { ...settledStatusMap };
-        for (const request of requests) {
-          const isSettled = await isBookingFullySettled(request, []);
-          settledMap[`daytour-${request.id}`] = isSettled;
-        }
-        setSettledStatusMap(settledMap);
+      (snapshot) => {
+        setDayTourBankRequests(snapshot.docs.map((docSnap) => ({ id: docSnap.id, ...docSnap.data() })));
       },
       (err) => console.error('Error loading day tour bank requests:', err)
     );
@@ -128,29 +74,6 @@ export default function PendingPaymentList({ user, bookings }) {
       unsubDayTour();
     };
   }, [normalizedEmail]);
-
-  // Listen for booking updates to re-check settled status when bookings change
-  useEffect(() => {
-    const checkAllSettledStatus = async () => {
-      const settledMap = { ...settledStatusMap };
-      
-      for (const request of roomBankRequests) {
-        const isSettled = await isBookingFullySettled(request, rawBookings);
-        settledMap[`room-${request.id}`] = isSettled;
-      }
-      
-      for (const request of dayTourBankRequests) {
-        const isSettled = await isBookingFullySettled(request, rawBookings);
-        settledMap[`daytour-${request.id}`] = isSettled;
-      }
-      
-      setSettledStatusMap(settledMap);
-    };
-    
-    if (roomBankRequests.length > 0 || dayTourBankRequests.length > 0) {
-      checkAllSettledStatus();
-    }
-  }, [bookings, roomBankRequests, dayTourBankRequests]);
 
   const rawBookings = useMemo(() => {
     const list = [];
@@ -170,24 +93,13 @@ export default function PendingPaymentList({ user, bookings }) {
     ];
 
     return allRequests
-      .filter((request) => {
-        // Check if this is still a pending payment request
-        const isPending = isPendingBankPaymentRequest(request, rawBookings);
-        if (!isPending) return false;
-        
-        // Check if the booking has been fully settled (down payment due is ₱0)
-        const requestKey = `${request.requestType}-${request.id}`;
-        const isSettled = settledStatusMap[requestKey];
-        
-        // Only show if not settled (down payment due > 0)
-        return !isSettled;
-      })
+      .filter((request) => isPendingBankPaymentRequest(request, rawBookings))
       .sort((a, b) => {
         const aTime = new Date(a.providedBankDetails?.providedAt || a.updatedAt || a.createdAt || 0).getTime();
         const bTime = new Date(b.providedBankDetails?.providedAt || b.updatedAt || b.createdAt || 0).getTime();
         return bTime - aTime;
       });
-  }, [roomBankRequests, dayTourBankRequests, rawBookings, settledStatusMap]);
+  }, [roomBankRequests, dayTourBankRequests, rawBookings]);
 
   if (loading) {
     return (
@@ -219,9 +131,7 @@ export default function PendingPaymentList({ user, bookings }) {
         const resumePath = getBookingResumePath(request);
         const typeLabel = getPendingPaymentTypeLabel(request);
         const bookingDetails = getPendingPaymentBookingDetails(request, rawBookings);
-        
-        // Calculate the actual down payment due (should be > 0 for pending payments)
-        const downPaymentDue = Number(request.downPayment || request.totalPrice || 0);
+        const downPaymentDue = getDownPaymentDueForBankRequest(request, rawBookings);
 
         return (
           <div

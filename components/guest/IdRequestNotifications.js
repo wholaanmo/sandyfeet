@@ -2,12 +2,10 @@
 'use client';
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import Link from 'next/link';
 import { collection, onSnapshot, query, where } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 import { useGuestAuth } from '@/components/guest/GuestAuthContext';
 import {
-  getBookingResumePath,
   getPendingPaymentTypeLabel,
   isPendingBankPaymentRequest,
 } from '@/lib/pendingBankPayments';
@@ -383,7 +381,6 @@ function useBankPaymentNotifications(collectionName, requestType, email, rawBook
             bookingId: data.bookingId || docSnap.id,
             adminNote: `Bank: ${bank.bankName || 'N/A'} · Account: ${bank.accountName || 'N/A'}`,
             timestamp: bank.providedAt || data.updatedAt || data.createdAt,
-            resumePath: getBookingResumePath(request),
           };
         })
         .filter(Boolean);
@@ -600,23 +597,14 @@ function BankPaymentNotificationItem({ notification, onDismiss }) {
           )}
         </div>
       </div>
-      <div className="mt-3 flex flex-col gap-2">
-        <Link
-          href={notification.resumePath}
-          className="inline-flex w-full items-center justify-center gap-2 rounded-xl bg-[#4D8CF5] px-3 py-2 text-xs font-semibold text-white transition hover:bg-[#3b7ae0]"
-        >
-          <i className="fas fa-arrow-right text-[10px]" />
-          Continue payment
-        </Link>
-        <button
-          type="button"
-          onClick={onDismiss}
-          className="inline-flex w-full items-center justify-center gap-2 rounded-xl border border-[#4D8CF5]/20 bg-white px-3 py-2 text-xs font-semibold text-[#4D8CF5] transition hover:bg-[#f8fbff]"
-        >
-          <i className="fas fa-check text-[10px]" />
-          Dismiss
-        </button>
-      </div>
+      <button
+        type="button"
+        onClick={onDismiss}
+        className="mt-3 inline-flex w-full items-center justify-center gap-2 rounded-xl border border-[#4D8CF5]/20 bg-white px-3 py-2 text-xs font-semibold text-[#4D8CF5] transition hover:bg-[#f8fbff]"
+      >
+        <i className="fas fa-check text-[10px]" />
+        Dismiss
+      </button>
     </div>
   );
 }
