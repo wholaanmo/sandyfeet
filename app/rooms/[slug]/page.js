@@ -542,7 +542,7 @@ export default function RoomDetailsPage({ params }) {
     router.push('/rooms');
   };
 
-  // +++ EXTRACTED BOOKING NAVIGATION LOGIC +++
+  // +++ EXTRACTED BOOKING LOGIC (unchanged except moved) +++
   const proceedWithBooking = () => {
     setActionError('');
 
@@ -1144,7 +1144,7 @@ export default function RoomDetailsPage({ params }) {
                   </div>
                 )}
 
-                {/* Book button - disabled while auth state is loading */}
+                {/* Book button */}
                 <button
                   onClick={handleBookNow}
                   disabled={authLoading}
@@ -1227,7 +1227,6 @@ export default function RoomDetailsPage({ params }) {
       <GuestAuthModal
         isOpen={isAuthModalOpen}
         onClose={handleAuthModalClose}
-        // prefillEmail can be left empty or set from a previous email input (optional)
       />
 
       <ChatBot />

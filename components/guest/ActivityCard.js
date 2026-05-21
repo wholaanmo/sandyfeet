@@ -15,12 +15,19 @@ function formatPeso(value) {
   if (value === null || value === undefined) {
     return 'TBA';
   }
-
   return `PHP ${Number(value).toLocaleString()}`;
 }
 
+// MODIFIED: support custom pricing types
 function getPriceMeta(priceType) {
-  return PRICE_TYPE_META[priceType] || { short: '', full: '' };
+  if (PRICE_TYPE_META[priceType]) {
+    return PRICE_TYPE_META[priceType];
+  }
+  // Custom pricing type – use the raw string
+  return {
+    short: `/${priceType}`,
+    full: `per ${priceType}`
+  };
 }
 
 export default function ActivityCard({ activity }) {

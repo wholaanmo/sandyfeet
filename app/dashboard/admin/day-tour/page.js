@@ -32,6 +32,16 @@ export default function AdminDayTour({ defaultTab = 'tours', hideTabs = false })
   const buttonRefs = useRef({});
   const [viewImageIndex, setViewImageIndex] = useState(0);
   const [showInclusionDropdown, setShowInclusionDropdown] = useState(false);
+  
+  // +++ NEW STATE FOR CUSTOM INCLUSION +++
+  const [showCustomInclusion, setShowCustomInclusion] = useState(false);
+  const [customInclusionText, setCustomInclusionText] = useState('');
+  
+  // +++ NEW STATE FOR CUSTOM PRICING TYPE +++
+  const [priceTypeOption, setPriceTypeOption] = useState('perHour'); // for dropdown
+  const [showCustomPriceTypeInput, setShowCustomPriceTypeInput] = useState(false);
+  const [customPriceTypeText, setCustomPriceTypeText] = useState('');
+  
   const inclusionOptions = [
     'Access to Pool',
     'Common Bathroom',
@@ -105,7 +115,7 @@ export default function AdminDayTour({ defaultTab = 'tours', hideTabs = false })
     { value: 'unavailable', label: 'Not Available', color: 'bg-red-50 text-red-700 border-red-200' }
   ];
   
-  // Pricing type options
+  // Predefined pricing type options (for the dropdown)
   const pricingTypes = [
     { value: 'perHour', label: 'Per Hour' },
     { value: 'per30Mins', label: 'Per 30 Minutes' },
@@ -113,21 +123,22 @@ export default function AdminDayTour({ defaultTab = 'tours', hideTabs = false })
     { value: 'per1Hr30Mins', label: 'Per 1 Hour 30 Minutes' }
   ];
   
-  // Helper function to format price display text
+  // Helper function to format price display text (supports custom strings)
   const getPriceDisplayText = (priceType, priceValue) => {
     const price = parseFloat(priceValue).toLocaleString();
-    switch (priceType) {
-      case 'perHour':
-        return `₱${price}/hour`;
-      case 'per30Mins':
-        return `₱${price}/30 minutes`;
-      case 'per2Hrs':
-        return `₱${price}/2 hours`;
-      case 'per1Hr30Mins':
-        return `₱${price}/1.5 hours`;
-      default:
-        return `₱${price}`;
+    // Check if priceType is one of the predefined values
+    const predefined = pricingTypes.find(p => p.value === priceType);
+    if (predefined) {
+      switch (priceType) {
+        case 'perHour': return `₱${price}/hour`;
+        case 'per30Mins': return `₱${price}/30 minutes`;
+        case 'per2Hrs': return `₱${price}/2 hours`;
+        case 'per1Hr30Mins': return `₱${price}/1.5 hours`;
+        default: return `₱${price}`;
+      }
     }
+    // Custom price type
+    return `₱${price} / ${priceType}`;
   };
   
   // Real-time listener for day tours (only get the first non-archived one)
@@ -247,6 +258,21 @@ export default function AdminDayTour({ defaultTab = 'tours', hideTabs = false })
         inclusions: [...prev.inclusions, inclusionInput.trim()]
       }));
       setInclusionInput('');
+    }
+  };
+  
+  // +++ HANDLE ADDING CUSTOM INCLUSION +++
+  const handleAddCustomInclusion = () => {
+    const trimmed = customInclusionText.trim();
+    if (trimmed && !tourFormData.inclusions.includes(trimmed)) {
+      setTourFormData(prev => ({
+        ...prev,
+        inclusions: [...prev.inclusions, trimmed]
+      }));
+      setCustomInclusionText('');
+      setShowCustomInclusion(false);
+    } else if (trimmed && tourFormData.inclusions.includes(trimmed)) {
+      showNotification('This inclusion already exists.', 'error');
     }
   };
   
@@ -507,6 +533,9 @@ export default function AdminDayTour({ defaultTab = 'tours', hideTabs = false })
     setOriginalTourData(JSON.parse(JSON.stringify(formData)));
     setTourModalType('edit');
     setShowTourModal(true);
+    // Reset custom inclusion states
+    setShowCustomInclusion(false);
+    setCustomInclusionText('');
   };
   
   const resetTourForm = () => {
@@ -522,6 +551,8 @@ export default function AdminDayTour({ defaultTab = 'tours', hideTabs = false })
     setTourFormData(emptyForm);
     setOriginalTourData(null);
     setInclusionInput('');
+    setShowCustomInclusion(false);
+    setCustomInclusionText('');
     setTourFormErrors({});
   };
   
@@ -568,6 +599,35 @@ export default function AdminDayTour({ defaultTab = 'tours', hideTabs = false })
     }
   };
 
+  // +++ NEW: Handle pricing type selection (including "Specify") +++
+  const handlePriceTypeChange = (e) => {
+    const selected = e.target.value;
+    setPriceTypeOption(selected);
+    
+    if (selected === 'specify') {
+      setShowCustomPriceTypeInput(true);
+      // Keep existing custom text if any, but don't overwrite activityFormData.priceType until user types
+      if (!customPriceTypeText) {
+        setCustomPriceTypeText('');
+      }
+    } else {
+      setShowCustomPriceTypeInput(false);
+      setActivityFormData(prev => ({ ...prev, priceType: selected }));
+      setCustomPriceTypeText('');
+    }
+  };
+  
+  // +++ Handle custom price type input changes +++
+  const handleCustomPriceTypeChange = (e) => {
+    const value = e.target.value;
+    setCustomPriceTypeText(value);
+    setActivityFormData(prev => ({ ...prev, priceType: value }));
+    // Clear any previous priceType error if exists
+    if (activityFormErrors.priceType) {
+      setActivityFormErrors(prev => ({ ...prev, priceType: '' }));
+    }
+  };
+
   const handleActivityImageUpload = async (e) => {
     const files = Array.from(e.target.files);
     if (files.length === 0) return;
@@ -605,13 +665,22 @@ export default function AdminDayTour({ defaultTab = 'tours', hideTabs = false })
     else if (isNaN(activityFormData.priceValue) || parseFloat(activityFormData.priceValue) <= 0) {
       errors.priceValue = 'Price must be a positive number';
     }
+    // Validate priceType: if "specify" is selected, custom text must be non-empty
+    if (priceTypeOption === 'specify') {
+      if (!customPriceTypeText.trim()) {
+        errors.priceType = 'Please enter a custom pricing type';
+      }
+    } else if (!activityFormData.priceType) {
+      errors.priceType = 'Pricing type is required';
+    }
     if (!activityFormData.description.trim()) errors.description = 'Description is required';
     
     return errors;
   };
   
   const isActivityFormIncomplete = () => {
-    return !activityFormData.name.trim() || !activityFormData.priceValue || !activityFormData.description.trim();
+    const hasCustomTypeError = priceTypeOption === 'specify' && !customPriceTypeText.trim();
+    return !activityFormData.name.trim() || !activityFormData.priceValue || !activityFormData.description.trim() || hasCustomTypeError;
   };
   
   const handleAddActivity = async (e) => {
@@ -628,7 +697,7 @@ export default function AdminDayTour({ defaultTab = 'tours', hideTabs = false })
     try {
       const activityData = {
         name: activityFormData.name,
-        priceType: activityFormData.priceType,
+        priceType: activityFormData.priceType, // already set from custom or predefined
         priceValue: parseFloat(activityFormData.priceValue),
         description: activityFormData.description,
         images: activityFormData.images,
@@ -772,6 +841,19 @@ export default function AdminDayTour({ defaultTab = 'tours', hideTabs = false })
     setActivityFormData(formData);
     setOriginalActivityData(JSON.parse(JSON.stringify(formData)));
     setActivityModalType('edit');
+    
+    // Check if priceType is a predefined one or custom
+    const isPredefined = pricingTypes.some(pt => pt.value === activity.priceType);
+    if (isPredefined) {
+      setPriceTypeOption(activity.priceType);
+      setShowCustomPriceTypeInput(false);
+      setCustomPriceTypeText('');
+    } else {
+      setPriceTypeOption('specify');
+      setShowCustomPriceTypeInput(true);
+      setCustomPriceTypeText(activity.priceType || '');
+    }
+    
     setShowActivityModal(true);
   };
   
@@ -785,6 +867,10 @@ export default function AdminDayTour({ defaultTab = 'tours', hideTabs = false })
     });
     setOriginalActivityData(null);
     setActivityFormErrors({});
+    // Reset custom price type states
+    setPriceTypeOption('perHour');
+    setShowCustomPriceTypeInput(false);
+    setCustomPriceTypeText('');
   };
   
   const openAddActivityModal = () => {
@@ -1037,6 +1123,7 @@ export default function AdminDayTour({ defaultTab = 'tours', hideTabs = false })
                   {activity.priceType === 'per30Mins' && '/ 30m'}
                   {activity.priceType === 'per2Hrs' && '/ 2h'}
                   {activity.priceType === 'per1Hr30Mins' && '/ 1.5h'}
+                  {!['perHour','per30Mins','per2Hrs','per1Hr30Mins'].includes(activity.priceType) && `/${activity.priceType}`}
                 </span>
               </div>
             </div>
@@ -1360,6 +1447,7 @@ className="px-3 py-2 rounded-lg bg-[#93C5FD]/10 text-[#1E3A8A] border border-[#9
                   {selectedActivity.priceType === 'per30Mins' && '/ 30 mins'}
                   {selectedActivity.priceType === 'per2Hrs' && '/ 2 hours'}
                   {selectedActivity.priceType === 'per1Hr30Mins' && '/ 1.5 hours'}
+                  {!['perHour','per30Mins','per2Hrs','per1Hr30Mins'].includes(selectedActivity.priceType) && `/${selectedActivity.priceType}`}
                 </span></p>
               </div>
 
@@ -1367,7 +1455,11 @@ className="px-3 py-2 rounded-lg bg-[#93C5FD]/10 text-[#1E3A8A] border border-[#9
                 <label className="block text-[10px] font-bold text-[#1E3A8A]/50 uppercase tracking-widest mb-1">Activity Type</label>
                 <p className="text-sm font-semibold text-[#1E3A8A] flex items-center gap-2">
                   <i className="fas fa-tag text-[#4D8CF5]/60"></i>
-                  {selectedActivity.priceType.replace('per', 'Per ')}
+                  {selectedActivity.priceType === 'perHour' && 'Per Hour'}
+                  {selectedActivity.priceType === 'per30Mins' && 'Per 30 Minutes'}
+                  {selectedActivity.priceType === 'per2Hrs' && 'Per 2 Hours'}
+                  {selectedActivity.priceType === 'per1Hr30Mins' && 'Per 1 Hour 30 Minutes'}
+                  {!['perHour','per30Mins','per2Hrs','per1Hr30Mins'].includes(selectedActivity.priceType) && selectedActivity.priceType}
                 </p>
               </div>
 
@@ -1430,7 +1522,7 @@ className="px-3 py-2 rounded-lg bg-[#93C5FD]/10 text-[#1E3A8A] border border-[#9
                 </div>
               </div>
 
-              {/* Inclusions Dropdown */}
+              {/* Inclusions Dropdown with Custom Option */}
               <div className="mb-4">
                 <label className="block mb-1.5 text-xs font-bold text-[#1E3A8A]/60 uppercase tracking-widest px-1">Tour Inclusions</label>
                 <div className="relative">
@@ -1452,6 +1544,49 @@ className="px-3 py-2 rounded-lg bg-[#93C5FD]/10 text-[#1E3A8A] border border-[#9
                           <span className="text-sm text-[#1E3A8A]">{option}</span>
                         </label>
                       ))}
+                      {/* +++ CUSTOM INCLUSION OPTION +++ */}
+                      <div className="border-t border-gray-100 mt-1 pt-1">
+                        {!showCustomInclusion ? (
+                          <button
+                            type="button"
+                            onClick={() => setShowCustomInclusion(true)}
+                            className="w-full text-left px-4 py-2.5 text-sm text-[#4D8CF5] hover:bg-[#4D8CF5]/5 flex items-center gap-2 transition-colors"
+                          >
+                            <i className="fas fa-plus-circle text-xs"></i>
+                            <span>Specify custom inclusion</span>
+                          </button>
+                        ) : (
+                          <div className="p-3 border-t border-[#4D8CF5]/10">
+                            <div className="flex gap-2">
+                              <input
+                                type="text"
+                                value={customInclusionText}
+                                onChange={(e) => setCustomInclusionText(e.target.value)}
+                                placeholder="Enter custom inclusion"
+                                className="flex-1 px-3 py-1.5 border border-[#4D8CF5]/20 rounded-lg text-sm focus:outline-none focus:border-[#4D8CF5]"
+                                autoFocus
+                              />
+                              <button
+                                type="button"
+                                onClick={handleAddCustomInclusion}
+                                className="px-3 py-1.5 bg-[#4D8CF5] text-white rounded-lg text-sm hover:bg-[#3B78E7] transition-colors"
+                              >
+                                Add
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  setShowCustomInclusion(false);
+                                  setCustomInclusionText('');
+                                }}
+                                className="px-3 py-1.5 border border-gray-300 rounded-lg text-sm hover:bg-gray-100 transition-colors"
+                              >
+                                Cancel
+                              </button>
+                            </div>
+                          </div>
+                        )}
+                      </div>
                     </div>
                   )}
                 </div>
@@ -1539,9 +1674,34 @@ className="px-3 py-2 rounded-lg bg-[#93C5FD]/10 text-[#1E3A8A] border border-[#9
                 <div className="grid grid-cols-2 gap-4">
                   <div>
                     <label className="block mb-1.5 text-xs font-bold text-[#1E3A8A]/60 uppercase tracking-widest">Pricing Type *</label>
-                    <select name="priceType" value={activityFormData.priceType} onChange={handleActivityInputChange} className="w-full px-4 py-2.5 border-2 border-[#4D8CF5]/20 rounded-xl text-sm focus:outline-none focus:border-[#4D8CF5] bg-white transition-all">
-                      {pricingTypes.map(type => (<option key={type.value} value={type.value}>{type.label}</option>))}
+                    <select
+                      name="priceType"
+                      value={priceTypeOption}
+                      onChange={handlePriceTypeChange}
+                      className={`w-full px-4 py-2.5 border-2 ${activityFormErrors.priceType ? 'border-red-500' : 'border-[#4D8CF5]/20'} rounded-xl text-sm focus:outline-none focus:border-[#4D8CF5] bg-white transition-all`}
+                    >
+                      {pricingTypes.map(type => (
+                        <option key={type.value} value={type.value}>{type.label}</option>
+                      ))}
+                      <option value="specify">Specify</option>
                     </select>
+                    {showCustomPriceTypeInput && (
+                      <div className="mt-2">
+                        <input
+                          type="text"
+                          value={customPriceTypeText}
+                          onChange={handleCustomPriceTypeChange}
+                          placeholder="Enter custom pricing type"
+                          className={`w-full px-4 py-2.5 border-2 ${activityFormErrors.priceType ? 'border-red-500' : 'border-[#4D8CF5]/20'} rounded-xl text-sm focus:outline-none focus:border-[#4D8CF5] transition-all`}
+                        />
+                        {activityFormErrors.priceType && (
+                          <p className="text-red-500 text-[10px] mt-1 font-medium ml-1">{activityFormErrors.priceType}</p>
+                        )}
+                      </div>
+                    )}
+                    {!showCustomPriceTypeInput && activityFormErrors.priceType && (
+                      <p className="text-red-500 text-[10px] mt-1 font-medium ml-1">{activityFormErrors.priceType}</p>
+                    )}
                   </div>
                   <div>
                     <label className="block mb-1.5 text-xs font-bold text-[#1E3A8A]/60 uppercase tracking-widest">Price (₱) *</label>

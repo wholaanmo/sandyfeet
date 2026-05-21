@@ -22,6 +22,11 @@ export default function AdminRooms() {
   const [confirmArchiveModal, setConfirmArchiveModal] = useState({ show: false, room: null });
   const [hasChanges, setHasChanges] = useState(false);
   const [manualOverride, setManualOverride] = useState(false);
+  
+  // New state for custom inputs
+  const [showCustomRoomTypeInput, setShowCustomRoomTypeInput] = useState(false);
+  const [showCustomInclusionInput, setShowCustomInclusionInput] = useState(false);
+  const [customInclusionInput, setCustomInclusionInput] = useState('');
 
   const [formData, setFormData] = useState({
     type: '',
@@ -86,10 +91,10 @@ export default function AdminRooms() {
   }, []);
 
   useEffect(() => {
-  if (modalType === 'edit' && selectedRoom) {
-    setHasChanges(detectChanges());
-  }
-}, [formData, selectedRoom, modalType]);
+    if (modalType === 'edit' && selectedRoom) {
+      setHasChanges(detectChanges());
+    }
+  }, [formData, selectedRoom, modalType]);
   
   // Auto-hide notification
   useEffect(() => {
@@ -142,6 +147,15 @@ export default function AdminRooms() {
           }));
         }
       }
+    } else if (name === 'type') {
+      // Handle room type selection
+      if (value === 'specify') {
+        setShowCustomRoomTypeInput(true);
+        setFormData(prev => ({ ...prev, type: '' }));
+      } else {
+        setShowCustomRoomTypeInput(false);
+        setFormData(prev => ({ ...prev, type: value }));
+      }
     } else {
       setFormData(prev => ({
         ...prev,
@@ -181,6 +195,31 @@ export default function AdminRooms() {
     // Update hasChanges state in edit mode
     if (modalType === 'edit' && selectedRoom) {
       setHasChanges(detectChanges());
+    }
+  };
+  
+  // Handle custom room type input
+  const handleCustomRoomTypeChange = (e) => {
+    setFormData(prev => ({ ...prev, type: e.target.value }));
+    if (formErrors.type) {
+      setFormErrors(prev => ({ ...prev, type: '' }));
+    }
+  };
+  
+  // Handle adding custom inclusion
+  const handleAddCustomInclusion = () => {
+    if (customInclusionInput.trim() && !formData.inclusions.includes(customInclusionInput.trim())) {
+      setFormData(prev => ({
+        ...prev,
+        inclusions: [...prev.inclusions, customInclusionInput.trim()]
+      }));
+      setCustomInclusionInput('');
+      setShowCustomInclusionInput(false);
+      
+      // Update hasChanges state in edit mode
+      if (modalType === 'edit' && selectedRoom) {
+        setHasChanges(detectChanges());
+      }
     }
   };
   
@@ -528,11 +567,20 @@ export default function AdminRooms() {
       description: room.description || '',
       images: room.images || []
     });
+    // Check if the room type is a predefined one; if not, show custom input
+    const predefinedTypes = ['Tent', 'Ground Floor Room', 'Couple Room', 'Group Room'];
+    if (room.type && !predefinedTypes.includes(room.type)) {
+      setShowCustomRoomTypeInput(true);
+    } else {
+      setShowCustomRoomTypeInput(false);
+    }
     setManualOverride(false);
     setHasChanges(false);
     setModalType('edit');
     setShowModal(true);
     setShowViewModal(false);
+    setShowCustomInclusionInput(false);
+    setCustomInclusionInput('');
   };
   
   const handleViewRoom = (room) => {
@@ -558,6 +606,9 @@ export default function AdminRooms() {
     setFormErrors({});
     setManualOverride(false);
     setHasChanges(false);
+    setShowCustomRoomTypeInput(false);
+    setShowCustomInclusionInput(false);
+    setCustomInclusionInput('');
   };
 
   const detectChanges = () => {
@@ -827,7 +878,7 @@ export default function AdminRooms() {
                             <i className="fas fa-archive"></i>
                           </button>
                         </div>
-                       </td>
+                        </td>
                     </tr>
                   ))
                 )}
@@ -1042,7 +1093,7 @@ export default function AdminRooms() {
                   <label className="block mb-1.5 text-xs font-bold text-[#1E3A8A]/60 uppercase tracking-widest">Room Type *</label>
                   <select
                     name="type"
-                    value={formData.type}
+                    value={showCustomRoomTypeInput ? 'specify' : formData.type}
                     onChange={handleInputChange}
                     className={`w-full px-4 py-2.5 border-2 ${formErrors.type ? 'border-red-500' : 'border-[#4D8CF5]/20'} rounded-xl text-sm focus:outline-none focus:border-[#4D8CF5] focus:ring-2 focus:ring-[#4D8CF5]/10 bg-white transition-all`}
                   >
@@ -1051,8 +1102,21 @@ export default function AdminRooms() {
                     <option value="Ground Floor Room">Ground Floor Room</option>
                     <option value="Couple Room">Couple Room</option>
                     <option value="Group Room">Group Room</option>
+                    <option value="specify">Specify</option>
                   </select>
-                  {formErrors.type && <p className="text-red-500 text-[10px] mt-1 font-medium ml-1">{formErrors.type}</p>}
+                  {showCustomRoomTypeInput && (
+                    <div className="mt-2">
+                      <input
+                        type="text"
+                        value={formData.type}
+                        onChange={handleCustomRoomTypeChange}
+                        placeholder="Enter custom room type"
+                        className={`w-full px-4 py-2.5 border-2 ${formErrors.type ? 'border-red-500' : 'border-[#4D8CF5]/20'} rounded-xl text-sm focus:outline-none focus:border-[#4D8CF5] transition-all`}
+                      />
+                      {formErrors.type && <p className="text-red-500 text-[10px] mt-1 font-medium ml-1">{formErrors.type}</p>}
+                    </div>
+                  )}
+                  {!showCustomRoomTypeInput && formErrors.type && <p className="text-red-500 text-[10px] mt-1 font-medium ml-1">{formErrors.type}</p>}
                 </div>
 
                 <div className="grid grid-cols-2 gap-4">
@@ -1153,7 +1217,7 @@ export default function AdminRooms() {
                 </div>
               </div>
               
-              {/* Inclusions Dropdown (Standardized) */}
+              {/* Inclusions Dropdown (Standardized) with Custom Option */}
               <div className="mb-4">
                 <label className="block mb-1.5 text-xs font-bold text-[#1E3A8A]/60 uppercase tracking-widest px-1">Room Inclusions</label>
                 <div className="relative">
@@ -1187,6 +1251,49 @@ export default function AdminRooms() {
                           <span className="text-sm text-[#1E3A8A]">{option}</span>
                         </label>
                       ))}
+                      {/* Custom Inclusion Option */}
+                      <div className="border-t border-gray-100 mt-1 pt-1">
+                        {!showCustomInclusionInput ? (
+                          <button
+                            type="button"
+                            onClick={() => setShowCustomInclusionInput(true)}
+                            className="w-full text-left px-4 py-2.5 text-sm text-[#4D8CF5] hover:bg-[#4D8CF5]/5 flex items-center gap-2 transition-colors"
+                          >
+                            <i className="fas fa-plus-circle text-xs"></i>
+                            <span>Specify custom inclusion</span>
+                          </button>
+                        ) : (
+                          <div className="p-3 border-t border-[#4D8CF5]/10">
+                            <div className="flex gap-2">
+                              <input
+                                type="text"
+                                value={customInclusionInput}
+                                onChange={(e) => setCustomInclusionInput(e.target.value)}
+                                placeholder="Enter custom inclusion"
+                                className="flex-1 px-3 py-1.5 border border-[#4D8CF5]/20 rounded-lg text-sm focus:outline-none focus:border-[#4D8CF5]"
+                                autoFocus
+                              />
+                              <button
+                                type="button"
+                                onClick={handleAddCustomInclusion}
+                                className="px-3 py-1.5 bg-[#4D8CF5] text-white rounded-lg text-sm hover:bg-[#3B78E7] transition-colors"
+                              >
+                                Add
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  setShowCustomInclusionInput(false);
+                                  setCustomInclusionInput('');
+                                }}
+                                className="px-3 py-1.5 border border-gray-300 rounded-lg text-sm hover:bg-gray-100 transition-colors"
+                              >
+                                Cancel
+                              </button>
+                            </div>
+                          </div>
+                        )}
+                      </div>
                     </div>
                   )}
                 </div>
