@@ -574,8 +574,7 @@ export default function AdminGuestProfilePage() {
                   type="button"
                   onClick={handleReactivateAccount}
                   disabled={accountActionLoading}
-                  className="inline-flex items-center gap-2 rounded-xl bg-emerald-600 px-4 py-2 text-xs sm:text-sm font-semibold text-white transition hover:bg-emerald-700 disabled:opacity-60 shadow-sm"
-                >
+className="inline-flex items-center justify-center gap-1.5 rounded-xl bg-emerald-500/10 px-4 py-2 text-xs sm:text-sm font-semibold text-emerald-600 shadow-sm transition-all duration-200 hover:bg-emerald-600 hover:text-white disabled:opacity-60">
                   <i className="fas fa-user-check text-xs" />
                   {accountActionLoading ? 'Processing...' : 'Reactivate Account'}
                 </button>
@@ -588,8 +587,7 @@ export default function AdminGuestProfilePage() {
                     setShowDeactivateModal(true);
                   }}
                   disabled={accountActionLoading}
-                  className="inline-flex items-center gap-2 rounded-xl bg-red-600 px-4 py-2 text-xs sm:text-sm font-semibold text-white transition hover:bg-red-700 disabled:opacity-60 shadow-sm"
-                >
+className="inline-flex items-center gap-2 rounded-xl bg-red-500/10 px-4 py-2 text-xs sm:text-sm font-semibold text-red-600 shadow-sm transition-all duration-200 hover:bg-red-600 hover:text-white disabled:opacity-60">
                   <i className="fas fa-user-slash text-xs" />
                   Deactivate This Account
                 </button>

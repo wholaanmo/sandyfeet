@@ -968,8 +968,7 @@ export default function AdminEditBookingModal({ isOpen, booking, onClose, onSucc
               <button
                 type="button"
                 onClick={onClose}
-                className="rounded-full p-2 text-gray-400 transition-all hover:bg-gray-100 hover:text-gray-600"
-              >
+className="w-7 h-7 rounded-md bg-ocean-ice text-neutral hover:bg-ocean-light/20 hover:text-textPrimary transition-all duration-200 flex items-center justify-center">
                 <i className="fas fa-times" />
               </button>
             </div>

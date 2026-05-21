@@ -71,8 +71,7 @@ export default function AdminRequestChangesModal({ isOpen, booking, onClose, onC
             </div>
             <button
               onClick={onClose}
-              className="rounded-full p-2 text-gray-400 transition-all hover:bg-gray-100 hover:text-gray-600"
-            >
+className="w-7 h-7 rounded-md bg-ocean-ice text-neutral hover:bg-ocean-light/20 hover:text-textPrimary transition-all duration-200 flex items-center justify-center">
               <i className="fas fa-times" />
             </button>
           </div>
@@ -93,41 +92,29 @@ export default function AdminRequestChangesModal({ isOpen, booking, onClose, onC
               <p className="whitespace-pre-wrap">{adminNote}</p>
             </div>
           )}
-
-          {!isProcessed && (
-            <p className="text-xs text-gray-500">
-              After you confirm or cancel, you will be asked for a reason. An email will be sent to the guest with your note.
-            </p>
-          )}
         </div>
 
-        <div className="flex items-center justify-end gap-3 border-t border-gray-100 bg-gray-50 px-5 py-3">
-          <button
-            type="button"
-            onClick={onClose}
-            className="rounded-xl bg-gray-200 px-5 py-2.5 text-sm font-semibold text-gray-700 shadow-sm hover:bg-gray-300"
-          >
-            Close
-          </button>
-          {!isProcessed && (
-            <>
-              <button
+<div className="flex items-center justify-end gap-2 border-t border-gray-100 bg-gray-50 px-4 py-2.5">
+
+
+    {!isProcessed && (
+        <>
+            <button
                 type="button"
                 onClick={() => onConfirm('reject')}
-                className="rounded-xl bg-red-600 px-5 py-2.5 text-sm font-semibold text-white shadow-sm hover:bg-red-700"
-              >
+                className="flex h-10 min-w-[170px] items-center justify-center gap-1.5 rounded-xl bg-red-500/10 px-4 text-sm font-semibold text-red-600 shadow-sm transition-all duration-200 hover:bg-red-600 hover:text-white disabled:opacity-50">
                 Cancel Request Changes
-              </button>
-              <button
+            </button>
+
+            <button
                 type="button"
                 onClick={() => onConfirm('approve')}
-                className="rounded-xl bg-green-600 px-5 py-2.5 text-sm font-semibold text-white shadow-sm hover:bg-green-700"
-              >
+className="flex h-10 min-w-[170px] items-center justify-center gap-1.5 rounded-xl bg-green-500/10 px-4 text-sm font-semibold text-green-600 shadow-sm transition-all duration-200 hover:bg-green-600 hover:text-white disabled:opacity-50">
                 Confirm Request Changes
-              </button>
-            </>
-          )}
-        </div>
+            </button>
+        </>
+    )}
+</div>
       </div>
     </div>
   );
