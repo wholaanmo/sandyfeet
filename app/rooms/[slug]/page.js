@@ -8,6 +8,9 @@ import GuestLayout from '@/app/guest/layout';
 import { db } from '@/lib/firebase';
 import { collection, query, where, onSnapshot } from 'firebase/firestore';
 import ChatBot from '@/components/guest/ChatBot';
+// +++ NEW IMPORTS +++
+import { useGuestAuth } from '@/components/guest/GuestAuthContext';
+import GuestAuthModal from '@/components/guest/GuestAuthModal';
 
 const formatHour = (hour) => {
   const period = hour >= 12 ? 'PM' : 'AM';
@@ -57,6 +60,11 @@ export default function RoomDetailsPage({ params }) {
   const routeParams = useParams();
   const slugValue = routeParams?.slug ?? params?.slug ?? '';
   const slug = useMemo(() => toRoomSlug(Array.isArray(slugValue) ? slugValue[0] : slugValue), [slugValue]);
+
+  // +++ AUTHENTICATION HOOKS +++
+  const { user, loading: authLoading } = useGuestAuth();
+  const [isAuthModalOpen, setIsAuthModalOpen] = useState(false);
+  const [pendingBooking, setPendingBooking] = useState(false);
 
   const [roomData, setRoomData] = useState(null);
   const [roomUnitsById, setRoomUnitsById] = useState({});
@@ -534,7 +542,8 @@ export default function RoomDetailsPage({ params }) {
     router.push('/rooms');
   };
 
-  const handleBookNow = () => {
+  // +++ EXTRACTED BOOKING NAVIGATION LOGIC +++
+  const proceedWithBooking = () => {
     setActionError('');
 
     if (!checkInDate) {
@@ -607,7 +616,7 @@ export default function RoomDetailsPage({ params }) {
 
     const bookingData = {
       selectedRooms: { [roomData.type]: roomQuantity },
-      perRoomGuests: { [roomData.type]: perRoomGuests },   // <-- per‑room breakdown
+      perRoomGuests: { [roomData.type]: perRoomGuests },
       totalGuestsPerType: { [roomData.type]: totalGuests },
       adultsPerType: { [roomData.type]: totalAdults },
       kidsPerType: { [roomData.type]: totalKids },
@@ -634,6 +643,34 @@ export default function RoomDetailsPage({ params }) {
 
     sessionStorage.setItem('multiRoomBooking', JSON.stringify(bookingData));
     router.push('/rooms/multi-room-booking');
+  };
+
+  // +++ MODIFIED handleBookNow: check authentication +++
+  const handleBookNow = () => {
+    // If user is already authenticated, proceed immediately
+    if (user) {
+      proceedWithBooking();
+    } else {
+      // Not authenticated: open modal and remember that a booking is pending
+      setPendingBooking(true);
+      setIsAuthModalOpen(true);
+    }
+  };
+
+  // +++ AUTO‑CONTINUE AFTER SUCCESSFUL LOGIN +++
+  useEffect(() => {
+    if (user && pendingBooking) {
+      // User just became authenticated and we have a pending booking
+      setPendingBooking(false);     // clear flag to avoid repeated calls
+      proceedWithBooking();          // continue the booking flow
+    }
+  }, [user, pendingBooking]);
+
+  // +++ CLOSE MODAL HANDLER: reset pending flag if user dismisses +++
+  const handleAuthModalClose = () => {
+    setIsAuthModalOpen(false);
+    setPendingBooking(false);        // user closed without authenticating, clear pending
+    setActionError('');               // optional: clear any previous errors
   };
 
   // ─── LOADING STATE ───
@@ -1107,13 +1144,20 @@ export default function RoomDetailsPage({ params }) {
                   </div>
                 )}
 
-                {/* Book button */}
+                {/* Book button - disabled while auth state is loading */}
                 <button
                   onClick={handleBookNow}
-                  className="w-full py-3 bg-blue-600 hover:bg-blue-700 text-white rounded-2xl text-xs font-bold shadow-[0_8px_20px_rgb(37,99,235,0.25)] transition-all hover:-translate-y-0.5 flex justify-center items-center gap-2"
+                  disabled={authLoading}
+                  className="w-full py-3 bg-blue-600 hover:bg-blue-700 text-white rounded-2xl text-xs font-bold shadow-[0_8px_20px_rgb(37,99,235,0.25)] transition-all hover:-translate-y-0.5 flex justify-center items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
                 >
-                  <span>Book this room</span>
-                  <i className="fas fa-arrow-right text-xs"></i>
+                  {authLoading ? (
+                    <i className="fas fa-spinner fa-spin"></i>
+                  ) : (
+                    <>
+                      <span>Book this room</span>
+                      <i className="fas fa-arrow-right text-xs"></i>
+                    </>
+                  )}
                 </button>
 
                 <div className="flex items-center justify-center gap-2 text-gray-400">
@@ -1178,6 +1222,14 @@ export default function RoomDetailsPage({ params }) {
           </div>
         </div>
       )}
+
+      {/* +++ GUEST AUTH MODAL +++ */}
+      <GuestAuthModal
+        isOpen={isAuthModalOpen}
+        onClose={handleAuthModalClose}
+        // prefillEmail can be left empty or set from a previous email input (optional)
+      />
+
       <ChatBot />
     </GuestLayout>
   );

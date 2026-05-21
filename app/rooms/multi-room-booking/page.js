@@ -1398,7 +1398,7 @@ function MultiRoomBookingPageContent() {
                   )}
 
                   {!canConfirmBooking && confirmBookingBlockers.length > 0 && (
-                    <div className="mb-4 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3">
+                    <div className="mt-4 mb-4 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3">
                       <p className="text-sm font-semibold text-amber-900 flex items-center gap-2">
                         <i className="fas fa-info-circle" />
                         Complete the following to confirm your booking:
