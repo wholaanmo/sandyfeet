@@ -28,7 +28,7 @@ const TAB_OPTIONS = [
   { id: 'pending',   label: 'Pending',   icon: 'fa-clock',         emptyIcon: 'fa-hourglass-half', emptyText: 'No pending reservations', color: 'amber' },
   { id: 'pending_payment', label: 'Pending Payment', icon: 'fa-university', emptyIcon: 'fa-wallet', emptyText: 'No pending payments', color: 'amber' },
   { id: 'success',   label: 'Confirmed', icon: 'fa-check-circle',  emptyIcon: 'fa-calendar-check', emptyText: 'No confirmed reservations yet', color: 'emerald' },
-  { id: 'cancelled', label: 'Cancelled', icon: 'fa-times-circle',  emptyIcon: 'fa-ban',            emptyText: 'No cancelled reservations', color: 'red' },
+  { id: 'cancelled', label: 'Declined', icon: 'fa-times-circle',  emptyIcon: 'fa-ban',            emptyText: 'No cancelled reservations', color: 'red' },
   { id: 'completed', label: 'Completed', icon: 'fa-check-double',  emptyIcon: 'fa-calendar-check', emptyText: 'No completed reservations', color: 'blue' },
 ];
 

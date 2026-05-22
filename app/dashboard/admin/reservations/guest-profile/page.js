@@ -172,6 +172,7 @@ export default function AdminGuestProfilePage() {
   const [searchQuery, setSearchQuery] = useState('');
   const [modalBooking, setModalBooking] = useState(null); // { booking, feedback }
   const [showDeactivateModal, setShowDeactivateModal] = useState(false);
+  const [showReactivateModal, setShowReactivateModal] = useState(false); // NEW: reactivation confirmation modal
   const [deactivationReason, setDeactivationReason] = useState('');
   const [accountActionLoading, setAccountActionLoading] = useState(false);
   const [accountActionMessage, setAccountActionMessage] = useState('');
@@ -447,7 +448,7 @@ export default function AdminGuestProfilePage() {
   }, [feedbackEmail]);
 
   const handleBack = () => {
-    router.push('/dashboard/admin/reservations?restoreGuestProfile=1');
+    router.push('/dashboard/staff/reservations?restoreGuestProfile=1');
   };
 
   const isGuestDeactivated = guestProfile?.accountStatus === 'deactivated';
@@ -529,7 +530,7 @@ export default function AdminGuestProfilePage() {
         <p className="text-sm text-[#5C7AA6]">Guest information is missing.</p>
         <button
           type="button"
-          onClick={() => router.push('/dashboard/admin/reservations')}
+          onClick={() => router.push('/dashboard/staff/reservations')}
           className="mt-4 inline-flex items-center gap-2 rounded-xl bg-[#4D8CF5] px-4 py-2 text-sm font-semibold text-white"
         >
           <i className="fas fa-arrow-left text-xs" />
@@ -573,9 +574,10 @@ export default function AdminGuestProfilePage() {
               {isGuestDeactivated ? (
                 <button
                   type="button"
-                  onClick={handleReactivateAccount}
+                  onClick={() => setShowReactivateModal(true)} // Open confirmation modal instead of direct reactivation
                   disabled={accountActionLoading}
-className="inline-flex items-center justify-center gap-1.5 rounded-xl bg-emerald-500/10 px-4 py-2 text-xs sm:text-sm font-semibold text-emerald-600 shadow-sm transition-all duration-200 hover:bg-emerald-600 hover:text-white disabled:opacity-60">
+                  className="inline-flex items-center justify-center gap-1.5 rounded-xl bg-emerald-500/10 px-4 py-2 text-xs sm:text-sm font-semibold text-emerald-600 shadow-sm transition-all duration-200 hover:bg-emerald-600 hover:text-white disabled:opacity-60"
+                >
                   <i className="fas fa-user-check text-xs" />
                   {accountActionLoading ? 'Processing...' : 'Reactivate Account'}
                 </button>
@@ -588,7 +590,8 @@ className="inline-flex items-center justify-center gap-1.5 rounded-xl bg-emerald
                     setShowDeactivateModal(true);
                   }}
                   disabled={accountActionLoading}
-className="inline-flex items-center gap-2 rounded-xl bg-red-500/10 px-4 py-2 text-xs sm:text-sm font-semibold text-red-600 shadow-sm transition-all duration-200 hover:bg-red-600 hover:text-white disabled:opacity-60">
+                  className="inline-flex items-center gap-2 rounded-xl bg-red-500/10 px-4 py-2 text-xs sm:text-sm font-semibold text-red-600 shadow-sm transition-all duration-200 hover:bg-red-600 hover:text-white disabled:opacity-60"
+                >
                   <i className="fas fa-user-slash text-xs" />
                   Deactivate This Account
                 </button>
@@ -718,6 +721,7 @@ className="inline-flex items-center gap-2 rounded-xl bg-red-500/10 px-4 py-2 tex
         />
       )}
 
+      {/* Deactivate Account Modal */}
       {showDeactivateModal && (
         <div
           className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/40 p-4 backdrop-blur-sm"
@@ -773,6 +777,53 @@ className="inline-flex items-center gap-2 rounded-xl bg-red-500/10 px-4 py-2 tex
                 className="rounded-xl bg-red-600 px-4 py-2 text-sm font-semibold text-white transition hover:bg-red-700 disabled:opacity-60"
               >
                 {accountActionLoading ? 'Deactivating...' : 'Confirm Deactivation'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* NEW: Reactivate Account Confirmation Modal */}
+      {showReactivateModal && (
+        <div
+          className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/40 p-4 backdrop-blur-sm"
+          onClick={() => !accountActionLoading && setShowReactivateModal(false)}
+          role="presentation"
+        >
+          <div
+            className="w-full max-w-md overflow-hidden rounded-2xl bg-white shadow-2xl"
+            onClick={(e) => e.stopPropagation()}
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="reactivate-guest-title"
+          >
+            <div className="border-b border-[#4D8CF5]/10 bg-gradient-to-r from-[#4D8CF5]/5 to-white px-5 py-4">
+              <h3 id="reactivate-guest-title" className="text-base font-bold text-[#1E3A8A]">
+                Reactivate Account
+              </h3>
+              <p className="mt-1 text-sm text-[#5C7AA6]">
+                Are you sure you want to reactivate this account?
+              </p>
+            </div>
+            <div className="flex items-center justify-end gap-2 border-t border-[#4D8CF5]/10 px-5 py-4">
+              <button
+                type="button"
+                onClick={() => setShowReactivateModal(false)}
+                disabled={accountActionLoading}
+                className="rounded-xl border border-[#4D8CF5]/20 bg-white px-4 py-2 text-sm font-semibold text-[#1E3A8A] transition hover:bg-[#4D8CF5]/5 disabled:opacity-60"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setShowReactivateModal(false);
+                  handleReactivateAccount();
+                }}
+                disabled={accountActionLoading}
+                className="rounded-xl bg-emerald-600 px-4 py-2 text-sm font-semibold text-white transition hover:bg-emerald-700 disabled:opacity-60"
+              >
+                Confirm
               </button>
             </div>
           </div>
