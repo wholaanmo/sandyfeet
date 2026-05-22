@@ -68,6 +68,13 @@ export default function GuestAuthModal({ isOpen, onClose, prefillEmail = '' }) {
   // Terms & Conditions state
   const [termsAccepted, setTermsAccepted] = useState(false);
   const [showTermsModal, setShowTermsModal] = useState(false);
+  
+  // Forgot Password state
+  const [showForgotModal, setShowForgotModal] = useState(false);
+  const [forgotEmail, setForgotEmail] = useState('');
+  const [forgotLoading, setForgotLoading] = useState(false);
+  const [forgotMessage, setForgotMessage] = useState('');
+  const [forgotError, setForgotError] = useState('');
 
   // Prefill email when modal opens and mode is signin
   useEffect(() => {
@@ -80,6 +87,10 @@ export default function GuestAuthModal({ isOpen, onClose, prefillEmail = '' }) {
   useEffect(() => {
     if (!isOpen) {
       resetForm();
+      setShowForgotModal(false);
+      setForgotEmail('');
+      setForgotMessage('');
+      setForgotError('');
     }
   }, [isOpen]);
 
@@ -182,6 +193,57 @@ export default function GuestAuthModal({ isOpen, onClose, prefillEmail = '' }) {
     }
   };
 
+  // Forgot Password handlers
+  const handleForgotPasswordOpen = () => {
+    setForgotEmail(email); // prefill with current email if any
+    setForgotMessage('');
+    setForgotError('');
+    setShowForgotModal(true);
+  };
+
+  const handleForgotPasswordClose = () => {
+    setShowForgotModal(false);
+    setForgotEmail('');
+    setForgotMessage('');
+    setForgotError('');
+  };
+
+  const handleSendResetEmail = async (e) => {
+    e.preventDefault();
+    if (!forgotEmail) {
+      setForgotError('Please enter your email address.');
+      return;
+    }
+    if (!/^\S+@\S+\.\S+$/.test(forgotEmail)) {
+      setForgotError('Please enter a valid email address.');
+      return;
+    }
+
+    setForgotLoading(true);
+    setForgotError('');
+    setForgotMessage('');
+
+    try {
+      const response = await fetch('/api/auth/guest-forgot-password', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email: forgotEmail }),
+      });
+      const data = await response.json();
+      if (!response.ok) {
+        throw new Error(data.error || 'Failed to send reset email.');
+      }
+      setForgotMessage('Password reset email sent! Please check your inbox.');
+      setTimeout(() => {
+        handleForgotPasswordClose();
+      }, 3000);
+    } catch (err) {
+      setForgotError(err.message || 'Something went wrong. Please try again.');
+    } finally {
+      setForgotLoading(false);
+    }
+  };
+
   // Accept button handler for T&C modal
   const handleAcceptTerms = () => {
     setTermsAccepted(true);
@@ -224,33 +286,30 @@ export default function GuestAuthModal({ isOpen, onClose, prefillEmail = '' }) {
 
           {/* Body Section */}
           <div className="flex-1 overflow-y-auto px-6 py-5 scrollbar-thin scrollbar-thumb-slate-200">
-<button
-  type="button"
-  onClick={handleGoogleContinue}
-  disabled={actionLoading}
-  className="group relative flex h-12 w-full items-center justify-center gap-3 overflow-hidden rounded-2xl border border-white/10 bg-gradient-to-br from-[#111111] via-[#1a1a1a] to-[#0d0d0d] px-4 text-[14px] font-semibold text-white shadow-[0_6px_20px_rgba(0,0,0,0.35)] transition-all duration-300 hover:-translate-y-[2px] hover:border-white/20 hover:shadow-[0_10px_30px_rgba(0,0,0,0.45)] active:scale-[0.985] disabled:cursor-not-allowed disabled:opacity-50"
->
-  <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/5 to-transparent opacity-0 transition-opacity duration-300 group-hover:opacity-100" />
+            <button
+              type="button"
+              onClick={handleGoogleContinue}
+              disabled={actionLoading}
+              className="group relative flex h-12 w-full items-center justify-center gap-3 overflow-hidden rounded-2xl border border-white/10 bg-gradient-to-br from-[#111111] via-[#1a1a1a] to-[#0d0d0d] px-4 text-[14px] font-semibold text-white shadow-[0_6px_20px_rgba(0,0,0,0.35)] transition-all duration-300 hover:-translate-y-[2px] hover:border-white/20 hover:shadow-[0_10px_30px_rgba(0,0,0,0.45)] active:scale-[0.985] disabled:cursor-not-allowed disabled:opacity-50"
+            >
+              <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/5 to-transparent opacity-0 transition-opacity duration-300 group-hover:opacity-100" />
 
-  <div className="relative flex items-center gap-3">
-    {actionLoading ? (
-      <>
-        <i className="fas fa-spinner fa-spin text-sm text-gray-300"></i>
-        <span className="tracking-wide">Connecting...</span>
-      </>
-    ) : (
-      <>
-        <div className="flex h-8 w-8 items-center justify-center rounded-full bg-white shadow-md">
-          <GoogleMark />
-        </div>
-
-        <span className="tracking-wide">
-          Continue with Google
-        </span>
-      </>
-    )}
-  </div>
-</button>
+              <div className="relative flex items-center gap-3">
+                {actionLoading ? (
+                  <>
+                    <i className="fas fa-spinner fa-spin text-sm text-gray-300"></i>
+                    <span className="tracking-wide">Connecting...</span>
+                  </>
+                ) : (
+                  <>
+                    <div className="flex h-8 w-8 items-center justify-center rounded-full bg-white shadow-md">
+                      <GoogleMark />
+                    </div>
+                    <span className="tracking-wide">Continue with Google</span>
+                  </>
+                )}
+              </div>
+            </button>
 
             <div className="my-4.5 flex items-center gap-3">
               <div className="h-px flex-1 bg-slate-100" />
@@ -309,6 +368,15 @@ export default function GuestAuthModal({ isOpen, onClose, prefillEmail = '' }) {
                       <i className={`fas ${showPassword ? 'fa-eye-slash' : 'fa-eye'} text-xs`}></i>
                     </button>
                   </div>
+                </div>
+                <div className="flex justify-end">
+                  <button
+                    type="button"
+                    onClick={handleForgotPasswordOpen}
+                    className="text-xs font-semibold text-[#2563EB] hover:text-blue-700 hover:underline transition-colors"
+                  >
+                    Forgot Password?
+                  </button>
                 </div>
                 <button
                   type="submit"
@@ -533,7 +601,89 @@ export default function GuestAuthModal({ isOpen, onClose, prefillEmail = '' }) {
           </div>
         </div>
       </div>
-      
+
+      {/* Forgot Password Modal */}
+      {showForgotModal && (
+        <div
+          className="fixed inset-0 z-[100] flex items-center justify-center bg-slate-950/60 px-4 py-6 backdrop-blur-[5px] transition-all duration-300"
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="forgot-password-title"
+          onMouseDown={handleForgotPasswordClose}
+        >
+          <div
+            className="w-full max-w-[430px] max-h-[92vh] flex flex-col overflow-hidden rounded-2xl border border-slate-100/80 bg-white shadow-[0_24px_60px_rgba(15,23,42,0.16)] transition-all duration-300"
+            onMouseDown={(event) => event.stopPropagation()}
+          >
+            {/* Header */}
+            <div className="flex items-center justify-between border-b border-slate-100 bg-gradient-to-b from-slate-50/50 to-white/0 px-6 py-4.5 flex-none">
+              <div>
+                <h2 id="forgot-password-title" className="text-xl font-bold tracking-tight text-slate-900">
+                  Reset Password
+                </h2>
+                <p className="mt-0.5 text-xs text-slate-400 font-medium">
+                  We'll send you a link to reset your password
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={handleForgotPasswordClose}
+                aria-label="Close forgot password dialog"
+                className="flex h-9 w-9 items-center justify-center rounded-full border border-slate-200 bg-white text-slate-400 transition-all hover:border-slate-300 hover:text-slate-700 hover:bg-slate-50 active:scale-95 shadow-sm"
+              >
+                <i className="fas fa-xmark text-sm"></i>
+              </button>
+            </div>
+
+            {/* Body */}
+            <div className="flex-1 overflow-y-auto px-6 py-5 scrollbar-thin scrollbar-thumb-slate-200">
+              <form onSubmit={handleSendResetEmail} className="space-y-4">
+                <div>
+                  <label className="mb-1 block text-xs font-semibold text-slate-500 uppercase tracking-wider">
+                    Email address
+                  </label>
+                  <div className="relative">
+                    <span className="absolute inset-y-0 left-0 flex items-center pl-3.5 pointer-events-none text-slate-400/85">
+                      <i className="fas fa-envelope text-xs"></i>
+                    </span>
+                    <input
+                      type="email"
+                      value={forgotEmail}
+                      onChange={(e) => setForgotEmail(e.target.value)}
+                      placeholder="you@example.com"
+                      className="h-10.5 w-full rounded-xl border border-slate-200/80 bg-slate-50/40 pl-10 pr-4 text-sm text-slate-900 outline-none transition-all placeholder:text-slate-400 hover:bg-slate-50/60 focus:bg-white focus:border-[#2563EB] focus:ring-4 focus:ring-blue-100/50"
+                      required
+                    />
+                  </div>
+                </div>
+
+                {forgotError && (
+                  <div className="rounded-xl border border-amber-100 bg-amber-50 px-4 py-3 text-xs text-amber-800">
+                    <i className="fas fa-circle-exclamation mr-2 text-sm"></i>
+                    {forgotError}
+                  </div>
+                )}
+                {forgotMessage && (
+                  <div className="rounded-xl border border-emerald-100 bg-emerald-50 px-4 py-3 text-xs text-emerald-800">
+                    <i className="fas fa-envelope-open-text mr-2 text-sm"></i>
+                    {forgotMessage}
+                  </div>
+                )}
+
+                <button
+                  type="submit"
+                  disabled={forgotLoading}
+                  className="h-11 w-full rounded-xl bg-[#2563EB] px-5 text-sm font-semibold text-white shadow-sm hover:bg-blue-600 active:scale-[0.99] transition-all hover:shadow-[0_4px_12px_rgba(37,99,235,0.2)] disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  {forgotLoading ? <i className="fas fa-spinner fa-spin mr-2"></i> : null}
+                  Send Reset Email
+                </button>
+              </form>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Terms and Conditions Modal */}
       {showTermsModal && (
         <div
