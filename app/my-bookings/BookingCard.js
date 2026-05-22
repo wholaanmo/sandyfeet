@@ -12,6 +12,7 @@ import {
   getStatusBadge, getTypeDisplay, getBookingTitle, getGuestTotal,
   getDownPayment, getBalance, getRoomTypes, canCancel,
 } from './utils';
+import { formatBalancePaymentMethodLabel } from '@/lib/balancePaymentMethod';
 
 // Constant for Entire Resort base price (matches multi-room-booking/page.js)
 const BASE_EXCLUSIVE_PRICE = 22500;
@@ -356,7 +357,12 @@ export default function BookingCard({ booking, onCancel, onEditSuccess }) {
                         <span className="font-bold text-slate-800">₱{exclusiveRemainingBalance.toLocaleString()}</span>
                       </div>
                       {booking.paymentMethod && (
-                        <p className="text-xs text-slate-500">Via {booking.paymentMethod}</p>
+                        <p className="text-xs text-slate-500">Down payment via {booking.paymentMethod}</p>
+                      )}
+                      {formatBalancePaymentMethodLabel(booking.balancePaymentMethod) && (
+                        <p className="text-xs text-slate-500">
+                          Balance at check-in: {formatBalancePaymentMethodLabel(booking.balancePaymentMethod)}
+                        </p>
                       )}
                     </>
                   ) : (
@@ -375,7 +381,12 @@ export default function BookingCard({ booking, onCancel, onEditSuccess }) {
                         <span className="font-bold text-slate-800">₱{balance.toLocaleString()}</span>
                       </div>
                       {booking.paymentMethod && (
-                        <p className="text-xs text-slate-500">Via {booking.paymentMethod}</p>
+                        <p className="text-xs text-slate-500">Down payment via {booking.paymentMethod}</p>
+                      )}
+                      {formatBalancePaymentMethodLabel(booking.balancePaymentMethod) && (
+                        <p className="text-xs text-slate-500">
+                          Balance at check-in: {formatBalancePaymentMethodLabel(booking.balancePaymentMethod)}
+                        </p>
                       )}
                     </>
                   )}

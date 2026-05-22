@@ -44,6 +44,7 @@ function DayTourBookingContent() {
     bankAccounts: []
   });
   const [paymentMethod, setPaymentMethod] = useState('gcash');
+  const [balancePaymentMethod, setBalancePaymentMethod] = useState('');
   const [bankRequestSent, setBankRequestSent] = useState(false);
   const [bankRequestId, setBankRequestId] = useState(null);
   const [bankDetailsProvided, setBankDetailsProvided] = useState(null);
@@ -143,6 +144,7 @@ function DayTourBookingContent() {
           specialRequest: parsed.specialRequest || ''
         }));
         if (parsed.paymentMethod) setPaymentMethod(parsed.paymentMethod);
+        if (parsed.balancePaymentMethod) setBalancePaymentMethod(parsed.balancePaymentMethod);
         if (parsed.bankRequestSent) setBankRequestSent(parsed.bankRequestSent);
         if (parsed.bankRequestId) setBankRequestId(parsed.bankRequestId);
         if (parsed.bankDetailsProvided) setBankDetailsProvided(parsed.bankDetailsProvided);
@@ -160,6 +162,7 @@ function DayTourBookingContent() {
         kids: bookingData.kids,
         paymentProof: bookingData.paymentProof,
         paymentMethod: paymentMethod,
+        balancePaymentMethod: balancePaymentMethod,
         bankRequestSent: bankRequestSent,
         bankRequestId: bankRequestId,
         bankDetailsProvided: bankDetailsProvided,
@@ -169,7 +172,7 @@ function DayTourBookingContent() {
     } catch (error) {
       console.error('Error saving payment data:', error);
     }
-  }, [bookingData, paymentMethod, bankRequestSent, bankRequestId, bankDetailsProvided]);
+  }, [bookingData, paymentMethod, balancePaymentMethod, bankRequestSent, bankRequestId, bankDetailsProvided]);
 
   // Save step to localStorage
   useEffect(() => {
@@ -417,7 +420,8 @@ function DayTourBookingContent() {
     !submitting &&
     hasMobileNumber &&
     hasAccountValidId(profile) &&
-    (paymentMethod !== 'bank_transfer' || bankDetailsProvided || visibleGuestQrBank)
+    (paymentMethod !== 'bank_transfer' || bankDetailsProvided || visibleGuestQrBank) &&
+    ['digital', 'cash'].includes(balancePaymentMethod)
   );
   const visibleGuestQrBank = paymentSettings.bankAccounts.find(
     (account) => account.qrCodeUrl && account.showToGuest === true
@@ -668,6 +672,7 @@ function DayTourBookingContent() {
         },
         status: 'pending',
         paymentMethod: paymentMethod,
+        balancePaymentMethod: balancePaymentMethod,
         paymentProof: bookingData.paymentProof,
         validIdType: accountValidIdType || null,
         validIdImage: accountValidIdUrl || null,
@@ -758,6 +763,14 @@ function DayTourBookingContent() {
   };
 
   const paymentChecklist = [
+    {
+      icon: 'fa-hand-holding-usd',
+      label: 'Balance at Check-In',
+      description: ['digital', 'cash'].includes(balancePaymentMethod)
+        ? `Pay remaining balance via ${balancePaymentMethod === 'digital' ? 'Digital' : 'Cash'}.`
+        : 'Select Digital or Cash for your remaining balance at check-in.',
+      complete: ['digital', 'cash'].includes(balancePaymentMethod),
+    },
     {
       icon: 'fa-wallet',
       label: 'Choose Method',
@@ -1447,6 +1460,51 @@ function DayTourBookingContent() {
                         )}
                       </div>
                     )}
+                  </div>
+
+                  <div className="mt-6 mb-6">
+                    <label className="mb-3 block text-sm font-semibold text-textPrimary">
+                      How would you like to pay your remaining balance upon check-in?
+                    </label>
+                    <div className="grid gap-4 md:grid-cols-2">
+                      {[
+                        { value: 'digital', label: 'Digital', icon: 'fa-mobile-alt', description: 'Pay the remaining balance digitally at check-in.' },
+                        { value: 'cash', label: 'Cash', icon: 'fa-money-bill-wave', description: 'Pay the remaining balance in cash at check-in.' },
+                      ].map((option) => (
+                        <button
+                          key={option.value}
+                          type="button"
+                          onClick={() => setBalancePaymentMethod(option.value)}
+                          className={`rounded-[1.5rem] border p-5 text-left transition-all duration-200 ${
+                            balancePaymentMethod === option.value
+                              ? 'border-ocean-mid bg-ocean-ice shadow-[0_14px_32px_rgba(33,105,243,0.14)]'
+                              : 'border-ocean-light/20 bg-white hover:-translate-y-0.5 hover:border-ocean-light hover:shadow-md'
+                          }`}
+                        >
+                          <div className="flex items-start justify-between gap-3">
+                            <div className="flex items-start gap-3">
+                              <span
+                                className={`mt-1 flex h-4 w-4 shrink-0 items-center justify-center rounded-full border-2 ${
+                                  balancePaymentMethod === option.value ? 'border-ocean-mid' : 'border-gray-300'
+                                }`}
+                              >
+                                {balancePaymentMethod === option.value && (
+                                  <span className="h-2 w-2 rounded-full bg-ocean-mid" />
+                                )}
+                              </span>
+                              <div className={`flex h-12 w-12 items-center justify-center rounded-2xl ${balancePaymentMethod === option.value ? 'bg-ocean-mid text-white' : 'bg-ocean-ice text-ocean-mid'}`}>
+                                <i className={`fas ${option.icon} text-base`} />
+                              </div>
+                              <div>
+                                <p className={`text-base font-semibold ${balancePaymentMethod === option.value ? 'text-ocean-mid' : 'text-textPrimary'}`}>{option.label}</p>
+                                <p className="mt-1 text-sm text-textSecondary">{option.description}</p>
+                              </div>
+                            </div>
+                            {balancePaymentMethod === option.value && <i className="fas fa-check-circle text-ocean-mid" />}
+                          </div>
+                        </button>
+                      ))}
+                    </div>
                   </div>
 
                   <div className="mt-6 mb-6">

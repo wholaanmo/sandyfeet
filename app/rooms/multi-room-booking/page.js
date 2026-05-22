@@ -33,6 +33,7 @@ function MultiRoomBookingPageContent() {
   const [totalPrice, setTotalPrice] = useState(0);
   const [downPaymentAmount, setDownPaymentAmount] = useState(0);
   const [paymentMethod, setPaymentMethod] = useState('gcash');
+  const [balancePaymentMethod, setBalancePaymentMethod] = useState('');
   const [paymentSettings, setPaymentSettings] = useState({
     gcashQRCode: '',
     bankAccounts: []
@@ -126,6 +127,9 @@ function MultiRoomBookingPageContent() {
     if (persistedFormData.paymentMethod) {
       setPaymentMethod(persistedFormData.paymentMethod);
     }
+    if (persistedFormData.balancePaymentMethod) {
+      setBalancePaymentMethod(persistedFormData.balancePaymentMethod);
+    }
 
     // Try to load persisted bank request state
     if (persistedFormData.bankRequestSent) {
@@ -168,6 +172,7 @@ function MultiRoomBookingPageContent() {
         paymentProofUrl: bookingData.paymentProofUrl,
         specialRequest: bookingData.specialRequest,
         paymentMethod: paymentMethod,
+        balancePaymentMethod: balancePaymentMethod,
         bankRequestSent: bankRequestSent,
         bankRequestId: bankRequestId,
         bankDetailsProvided: bankDetailsProvided
@@ -176,7 +181,7 @@ function MultiRoomBookingPageContent() {
     } catch (error) {
       console.error('Error saving booking data to localStorage:', error);
     }
-  }, [bookingData, paymentMethod, bankRequestSent, bankRequestId, bankDetailsProvided]);
+  }, [bookingData, paymentMethod, balancePaymentMethod, bankRequestSent, bankRequestId, bankDetailsProvided]);
 
   // Save step to localStorage whenever it changes
   useEffect(() => {
@@ -561,6 +566,7 @@ function MultiRoomBookingPageContent() {
           },
           status: 'pending',
           paymentMethod: paymentMethod,
+          balancePaymentMethod: balancePaymentMethod,
           paymentProofUrl: bookingData.paymentProofUrl,
           validIdType: accountValidIdType || null,
           validIdUrl: accountValidIdUrl || null,
@@ -631,6 +637,7 @@ function MultiRoomBookingPageContent() {
               },
               status: 'pending',
               paymentMethod: paymentMethod,
+              balancePaymentMethod: balancePaymentMethod,
               paymentProofUrl: bookingData.paymentProofUrl,
               validIdType: accountValidIdType || null,
               validIdUrl: accountValidIdUrl || null,
@@ -824,7 +831,8 @@ function MultiRoomBookingPageContent() {
     !submitting &&
     (paymentMethod !== 'bank_transfer' || bankDetailsProvided || visibleGuestQrBank) &&
     userMobileNumber &&
-    hasAccountValidId(profile)
+    hasAccountValidId(profile) &&
+    ['digital', 'cash'].includes(balancePaymentMethod)
   );
 
   const confirmBookingBlockers = [];
@@ -839,6 +847,9 @@ function MultiRoomBookingPageContent() {
   }
   if (!hasAccountValidId(profile)) {
     confirmBookingBlockers.push('Upload a valid ID in your account profile.');
+  }
+  if (!['digital', 'cash'].includes(balancePaymentMethod)) {
+    confirmBookingBlockers.push('Select how you will pay your remaining balance at check-in (Digital or Cash).');
   }
   if (submitting) {
     confirmBookingBlockers.push('Your booking is being submitted…');
@@ -988,6 +999,46 @@ function MultiRoomBookingPageContent() {
                         )}
                       </div>
                     )}
+                  </div>
+
+                  {/* Balance payment method at check-in */}
+                  <div className="mb-5 sm:mb-6">
+                    <label className="block text-sm font-semibold text-textPrimary mb-2 sm:mb-3">
+                      How would you like to pay your remaining balance upon check-in?
+                    </label>
+                    <div className="grid grid-cols-2 gap-3 sm:gap-4">
+                      {[
+                        { value: 'digital', label: 'Digital', icon: 'fa-mobile-alt' },
+                        { value: 'cash', label: 'Cash', icon: 'fa-money-bill-wave' },
+                      ].map((option) => (
+                        <button
+                          key={option.value}
+                          type="button"
+                          onClick={() => setBalancePaymentMethod(option.value)}
+                          className={`p-3 sm:p-4 rounded-xl border transition-all duration-200 flex flex-row items-center justify-center gap-2 sm:gap-3 ${
+                            balancePaymentMethod === option.value
+                              ? 'border-blue-500 bg-blue-50/50 shadow-sm'
+                              : 'border-gray-200 bg-white hover:border-blue-300'
+                          }`}
+                        >
+                          <span
+                            className={`flex h-4 w-4 shrink-0 items-center justify-center rounded-full border-2 ${
+                              balancePaymentMethod === option.value
+                                ? 'border-blue-600'
+                                : 'border-gray-300'
+                            }`}
+                          >
+                            {balancePaymentMethod === option.value && (
+                              <span className="h-2 w-2 rounded-full bg-blue-600" />
+                            )}
+                          </span>
+                          <i className={`fas ${option.icon} text-xl sm:text-2xl ${balancePaymentMethod === option.value ? 'text-blue-600' : 'text-gray-400'}`} />
+                          <span className={`text-sm font-medium ${balancePaymentMethod === option.value ? 'text-blue-600' : 'text-gray-500'}`}>
+                            {option.label}
+                          </span>
+                        </button>
+                      ))}
+                    </div>
                   </div>
 
                   {/* Payment Method Selection */}

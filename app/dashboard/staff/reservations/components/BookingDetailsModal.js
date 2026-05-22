@@ -2,6 +2,7 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
+import { formatBalancePaymentMethodLabel } from '@/lib/balancePaymentMethod';
 import {
   formatDateOnly,
   formatDateTime,
@@ -309,6 +310,14 @@ className="w-7 h-7 rounded-md bg-ocean-ice text-neutral hover:bg-ocean-light/20 
                     {statusInfo.label}
                   </span>
                 </div>
+                {formatBalancePaymentMethodLabel(booking.balancePaymentMethod) && (
+                  <div className="col-span-2 rounded-xl border border-[#4D8CF5]/10 bg-white p-4 shadow-sm">
+                    <p className="text-[10px] font-bold uppercase tracking-wider text-[#5C7AA6] mb-1">Balance Payment at Check-In</p>
+                    <p className="font-bold text-[#1E3A8A] text-sm">
+                      {formatBalancePaymentMethodLabel(booking.balancePaymentMethod)}
+                    </p>
+                  </div>
+                )}
               </div>
             </DetailSection>
 

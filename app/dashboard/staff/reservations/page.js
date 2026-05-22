@@ -12,6 +12,7 @@ import AdminRequestChangesModal from './components/AdminRequestChangesModal';
 import AdminActionReasonModal from './components/AdminActionReasonModal';
 import AdminEditBookingModal, { canAdminEditBooking } from './components/AdminEditBookingModal';
 import AdminEditDayTourModal, { canAdminEditDayTour } from './components/AdminEditDayTourModal';
+import { formatBalancePaymentMethodLabel } from '@/lib/balancePaymentMethod';
 
 export default function AdminReservations() {
   const router = useRouter();
@@ -243,6 +244,7 @@ export default function AdminReservations() {
             checkOut: booking.checkOut,
             status: booking.status,
             paymentMethod: booking.paymentMethod,
+            balancePaymentMethod: booking.balancePaymentMethod,
             paymentProofUrl: booking.paymentProofUrl,
             validIdType: booking.validIdType,
             validIdUrl: booking.validIdUrl,
@@ -404,6 +406,7 @@ export default function AdminReservations() {
         checkOut: group.checkOut,
         status: group.status,
         paymentMethod: group.paymentMethod,
+        balancePaymentMethod: group.balancePaymentMethod,
         paymentProofUrl: group.paymentProofUrl,
         validIdType: group.validIdType,
         validIdUrl: group.validIdUrl,
@@ -655,8 +658,10 @@ export default function AdminReservations() {
             targetStatus = 'completed';
           } else if (now >= checkOutTime && now < completedTime) {
             targetStatus = 'check-out';
+          } else if (now < checkOutTime && booking.status === 'check-out') {
+            targetStatus = 'check-in';
           }
-          // No automatic 'check-in' transition
+          // No automatic 'check-in' transition (except reverting extended check-out schedules)
 
           if (targetStatus && booking.status !== targetStatus) {
             if (booking.isMultiRoomGroup && booking.originalChildBookings) {
@@ -2455,6 +2460,14 @@ export default function AdminReservations() {
                               </span>
                             </p>
                           </div>
+                          {formatBalancePaymentMethodLabel(sidebarBooking.balancePaymentMethod) && (
+                            <div className="col-span-2 rounded-lg border border-slate-100 bg-slate-50/80 p-3">
+                              <p className="text-xs text-[#1E3A8A]/70 mb-0.5">Balance payment at check-in</p>
+                              <p className="text-sm font-semibold text-[#1E3A8A]">
+                                {formatBalancePaymentMethodLabel(sidebarBooking.balancePaymentMethod)}
+                              </p>
+                            </div>
+                          )}
                           {sidebarBooking.adminNote && (
                             <div className="col-span-2 mt-1">
                               <p className="text-xs p-2 rounded-lg bg-slate-50/80 border border-slate-100 text-gray-600">

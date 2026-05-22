@@ -59,6 +59,7 @@ const enrichBookingFromRaw = (normalized, raw) => ({
   refundNotificationSent: Boolean(raw.refundNotificationSent),
   moveDateNotificationSent: Boolean(raw.moveDateNotificationSent),
   changeRequest: raw.changeRequest || null,
+  balancePaymentMethod: raw.balancePaymentMethod || null,
 });
 
 const pickFromChildren = (children, ...keys) => {

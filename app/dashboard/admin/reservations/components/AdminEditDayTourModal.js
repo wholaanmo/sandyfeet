@@ -17,7 +17,7 @@ const toDateInputStr = (value) => {
 };
 
 export function canAdminEditDayTour(booking) {
-  return booking?.type === 'daytour' && booking?.status === 'confirmed';
+  return booking?.type === 'daytour' && ['confirmed', 'check-in'].includes(booking?.status);
 }
 
 export default function AdminEditDayTourModal({ isOpen, booking, onClose, onSuccess }) {

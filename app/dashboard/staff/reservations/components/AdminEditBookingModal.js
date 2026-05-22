@@ -6,6 +6,7 @@ import { doc, updateDoc, getDocs, collection, query, where } from 'firebase/fire
 import { db } from '@/lib/firebase';
 import { toDateValue } from '@/app/my-bookings/utils';
 import { logAdminAction } from '../../../../../lib/auditLogger';
+import { getScheduleStatusUpdateOnEdit } from '@/lib/reservationScheduleStatus';
 
 const CHECK_IN_HOUR = 14;
 const CHECK_OUT_HOUR = 12;
@@ -777,11 +778,14 @@ export default function AdminEditBookingModal({ isOpen, booking, onClose, onSucc
         totalPrice: childTotalPrice,
       });
 
+      const statusUpdate = getScheduleStatusUpdateOnEdit(booking, checkInDt, checkOutDt);
+
       const baseUpdates = {
         checkIn: checkInDt,
         checkOut: checkOutDt,
         nights: calculatedNights,
         ...buildPaymentFields(),
+        ...statusUpdate,
         updatedAt: new Date().toISOString(),
       };
 
@@ -863,6 +867,7 @@ export default function AdminEditBookingModal({ isOpen, booking, onClose, onSucc
               kids: childKids,
               guests: childAdults + childKids,
               ...buildPaymentFields(childDown, scaledTotal),
+              ...statusUpdate,
               updatedAt: new Date().toISOString(),
             })
           );
@@ -898,6 +903,7 @@ export default function AdminEditBookingModal({ isOpen, booking, onClose, onSucc
       });
 
       onSuccess?.({
+        ...(statusUpdate.status ? { status: statusUpdate.status } : {}),
         checkIn: checkInDt,
         checkOut: checkOutDt,
         adults: isExclusive ? exclusiveAdults : totalAdults,

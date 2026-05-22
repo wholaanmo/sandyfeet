@@ -173,6 +173,19 @@ const getRoomStatusBookingKey = (docId, data) => {
   return data.parentBookingId || data.bookingId || docId;
 };
 
+const getRoomCheckOutNotificationKey = (bookingKey, checkOut) => {
+  const checkoutMs = asDate(checkOut).getTime();
+  return `${bookingKey}_checkout_${checkoutMs}`;
+};
+
+const clearGeneratedRoomCheckOutsForBooking = (bookingKey) => {
+  for (const key of [...generatedRoomCheckOuts.keys()]) {
+    if (key === bookingKey || key.startsWith(`${bookingKey}_checkout`)) {
+      generatedRoomCheckOuts.delete(key);
+    }
+  }
+};
+
 const getDayTourGuestCount = (data) => {
   if (typeof data.totalGuests === 'number') return data.totalGuests;
   if (typeof data.guests === 'number') return data.guests;
@@ -231,7 +244,8 @@ const removeNotificationFromInternalState = (notification) => {
     generatedDayTourCheckIns.delete(id.replace('_checkin', ''));
   }
   if (type === 'check_out') {
-    generatedRoomCheckOuts.delete(id.replace('_checkout', ''));
+    const baseKey = id.replace(/_checkout.*$/, '');
+    clearGeneratedRoomCheckOutsForBooking(baseKey);
   }
   if (type === 'guest_reservation_edit') {
     generatedGuestEdits.delete(id);
@@ -420,7 +434,7 @@ const loadExistingNotifications = async (onUpdate) => {
         
         // Restore to memory map to prevent duplicate generation
         const notificationId = notification.id;
-        generatedRoomCheckOuts.set(notificationId.replace('_checkout', ''), notification);
+        generatedRoomCheckOuts.set(notificationId, notification);
       }
     }
     
@@ -588,10 +602,15 @@ export const setupRoomStatusListener = (onUpdate) => {
       
       const guestName = `${data.guestInfo?.firstName || ''} ${data.guestInfo?.lastName || ''}`.trim() || 'Guest';
       
-      // Check-out notifications (triggered on status change)
-      if (status === 'check-out' && !generatedRoomCheckOuts.has(bookingKey)) {
+      if (status !== 'check-out') {
+        clearGeneratedRoomCheckOutsForBooking(bookingKey);
+      }
+
+      // Check-out notifications (triggered on status change; keyed by checkout time for schedule extensions)
+      const checkOutNotificationKey = getRoomCheckOutNotificationKey(bookingKey, data.checkOut);
+      if (status === 'check-out' && !generatedRoomCheckOuts.has(checkOutNotificationKey)) {
         const notification = {
-          id: `${bookingKey}_checkout`,
+          id: checkOutNotificationKey,
           type: 'check_out',
           guestName,
           bookingId: bookingKey,
@@ -600,7 +619,7 @@ export const setupRoomStatusListener = (onUpdate) => {
           createdAt: data.updatedAt || data.createdAt || new Date().toISOString(),
           isMultiRoom: !!(data.isMultiRoomBooking && data.parentBookingId)
         };
-        generatedRoomCheckOuts.set(bookingKey, notification);
+        generatedRoomCheckOuts.set(checkOutNotificationKey, notification);
         await saveNotification(notification);
         await emitSingleNotification(notification, 'check_out', onUpdate);
       }
