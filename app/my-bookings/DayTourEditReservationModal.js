@@ -433,6 +433,26 @@ export default function DayTourEditReservationModal({ isOpen, booking, onClose, 
               {/* Body */}
               <div className="max-h-[60vh] overflow-y-auto px-6 py-6 space-y-5">
                 {/* Date Picker */}
+
+  {/* Edit Reservation Notice */}
+  <div className="rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3">
+    <div className="flex items-start gap-3">
+      <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-amber-100 text-amber-600">
+        <i className="fas fa-exclamation-circle text-sm" />
+      </div>
+
+      <div>
+        <h4 className="text-sm font-semibold text-amber-700">
+          One-Time Edit Only
+        </h4>
+
+        <p className="mt-1 text-xs leading-relaxed text-amber-600">
+          You are only allowed to edit your reservation once. Please make sure your selected changes are final before saving changes.
+        </p>
+      </div>
+    </div>
+  </div>
+
                 <div>
                   <h4 className="mb-3 text-sm font-semibold text-gray-700">
                     <i className="fas fa-calendar-alt mr-2 text-blue-500" />

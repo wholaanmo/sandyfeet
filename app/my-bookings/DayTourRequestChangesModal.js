@@ -146,6 +146,21 @@ export default function DayTourRequestChangesModal({ isOpen, booking, onClose, o
               </div>
             </div>
 
+                  <div className="mx-6 mt-5 rounded-2xl border border-blue-200 bg-blue-50 p-4">
+          <div className="flex items-start gap-3">
+            <i className="fas fa-info-circle mt-1 text-blue-500" />
+
+            <div>
+              <h4 className="text-sm font-semibold text-blue-700">
+                Change Request Policy
+              </h4>
+              <p className="mt-1 text-xs text-blue-600">
+                You can only request changes once. Please make sure all details are complete before submitting your request.
+              </p>
+            </div>
+          </div>
+        </div>
+
             <div className="px-6 py-5 space-y-4">
               <div className="rounded-lg bg-amber-50 p-3 text-sm text-amber-800 flex items-start gap-2">
                 <i className="fas fa-info-circle mt-0.5 text-amber-600" />

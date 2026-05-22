@@ -369,10 +369,10 @@ function GuestAccountContent() {
                       <div className="grid gap-6 sm:grid-cols-2">
                         {/* Mobile Number */}
                         <div className="space-y-1">
-                          <label className="flex items-center gap-2 text-sm font-semibold text-[#1E3A8A]">
-                            <i className="fas fa-phone-alt text-[#4D8CF5] text-xs"></i>
-                            Mobile Number
-                          </label>
+     <label className="flex items-center gap-2 text-sm font-semibold text-[#1E3A8A]">
+  <i className="fas fa-phone-alt text-[#4D8CF5] text-xs"></i>
+  Mobile Number <span className="text-red-500">(Required for Booking)</span>
+</label>
                           {isEditing ? (
                             <input
                               type="tel"
@@ -452,7 +452,7 @@ function GuestAccountContent() {
                         </div>
                         <div>
                           <h2 className="text-xl font-bold text-[#1E3A8A]">Photo Details</h2>
-                          <p className="text-sm text-[#4D6FA8]">Manage your valid ID for reservations</p>
+                          <p className="text-sm text-[#4D6FA8]">Manage your valid ID for reservations <span className="text-red-500">(Required for Booking)</span> </p>
                         </div>
                       </div>
                       {user && !isEditingValidId && profile?.validIdUrl && (

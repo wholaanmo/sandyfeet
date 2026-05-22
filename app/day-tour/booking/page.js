@@ -1463,51 +1463,6 @@ function DayTourBookingContent() {
                   </div>
 
                   <div className="mt-6 mb-6">
-                    <label className="mb-3 block text-sm font-semibold text-textPrimary">
-                      How would you like to pay your remaining balance upon check-in?
-                    </label>
-                    <div className="grid gap-4 md:grid-cols-2">
-                      {[
-                        { value: 'digital', label: 'Digital', icon: 'fa-mobile-alt', description: 'Pay the remaining balance digitally at check-in.' },
-                        { value: 'cash', label: 'Cash', icon: 'fa-money-bill-wave', description: 'Pay the remaining balance in cash at check-in.' },
-                      ].map((option) => (
-                        <button
-                          key={option.value}
-                          type="button"
-                          onClick={() => setBalancePaymentMethod(option.value)}
-                          className={`rounded-[1.5rem] border p-5 text-left transition-all duration-200 ${
-                            balancePaymentMethod === option.value
-                              ? 'border-ocean-mid bg-ocean-ice shadow-[0_14px_32px_rgba(33,105,243,0.14)]'
-                              : 'border-ocean-light/20 bg-white hover:-translate-y-0.5 hover:border-ocean-light hover:shadow-md'
-                          }`}
-                        >
-                          <div className="flex items-start justify-between gap-3">
-                            <div className="flex items-start gap-3">
-                              <span
-                                className={`mt-1 flex h-4 w-4 shrink-0 items-center justify-center rounded-full border-2 ${
-                                  balancePaymentMethod === option.value ? 'border-ocean-mid' : 'border-gray-300'
-                                }`}
-                              >
-                                {balancePaymentMethod === option.value && (
-                                  <span className="h-2 w-2 rounded-full bg-ocean-mid" />
-                                )}
-                              </span>
-                              <div className={`flex h-12 w-12 items-center justify-center rounded-2xl ${balancePaymentMethod === option.value ? 'bg-ocean-mid text-white' : 'bg-ocean-ice text-ocean-mid'}`}>
-                                <i className={`fas ${option.icon} text-base`} />
-                              </div>
-                              <div>
-                                <p className={`text-base font-semibold ${balancePaymentMethod === option.value ? 'text-ocean-mid' : 'text-textPrimary'}`}>{option.label}</p>
-                                <p className="mt-1 text-sm text-textSecondary">{option.description}</p>
-                              </div>
-                            </div>
-                            {balancePaymentMethod === option.value && <i className="fas fa-check-circle text-ocean-mid" />}
-                          </div>
-                        </button>
-                      ))}
-                    </div>
-                  </div>
-
-                  <div className="mt-6 mb-6">
                     <label className="mb-3 block text-xs font-bold uppercase tracking-[0.18em] text-textSecondary">Select Payment Method</label>
                     <div className="grid gap-4 md:grid-cols-2">
                       <button
@@ -1559,6 +1514,86 @@ function DayTourBookingContent() {
                   
                   {paymentMethod === 'gcash' && renderGcashPanel()}
                   {paymentMethod === 'bank_transfer' && renderBankTransferPanel()}
+
+                   <div className="mt-6 mb-6">
+  <label className="mb-2 block text-xs font-semibold text-textPrimary sm:text-sm">
+    How would you like to pay your remaining balance upon check-in?
+  </label>
+
+  <div className="grid gap-3 md:grid-cols-2">
+    {[
+      {
+        value: 'digital',
+        label: 'Digital',
+        icon: 'fa-mobile-alt',
+        description: 'Pay the remaining balance digitally at check-in.',
+      },
+      {
+        value: 'cash',
+        label: 'Cash',
+        icon: 'fa-money-bill-wave',
+        description: 'Pay the remaining balance in cash at check-in.',
+      },
+    ].map((option) => (
+      <button
+        key={option.value}
+        type="button"
+        onClick={() => setBalancePaymentMethod(option.value)}
+        className={`rounded-[1.5rem] border p-4 text-left transition-all duration-200 ${
+          balancePaymentMethod === option.value
+            ? 'border-ocean-mid bg-ocean-ice shadow-[0_14px_32px_rgba(33,105,243,0.14)]'
+            : 'border-ocean-light/20 bg-white hover:-translate-y-0.5 hover:border-ocean-light hover:shadow-md'
+        }`}
+      >
+        <div className="flex items-start justify-between gap-2">
+          <div className="flex items-start gap-2">
+            <span
+              className={`mt-1 flex h-3.5 w-3.5 shrink-0 items-center justify-center rounded-full border-2 ${
+                balancePaymentMethod === option.value
+                  ? 'border-ocean-mid'
+                  : 'border-gray-300'
+              }`}
+            >
+              {balancePaymentMethod === option.value && (
+                <span className="h-1.5 w-1.5 rounded-full bg-ocean-mid" />
+              )}
+            </span>
+
+            <div
+              className={`flex h-10 w-10 items-center justify-center rounded-xl ${
+                balancePaymentMethod === option.value
+                  ? 'bg-ocean-mid text-white'
+                  : 'bg-ocean-ice text-ocean-mid'
+              }`}
+            >
+              <i className={`fas ${option.icon} text-sm`} />
+            </div>
+
+            <div>
+              <p
+                className={`text-sm font-semibold ${
+                  balancePaymentMethod === option.value
+                    ? 'text-ocean-mid'
+                    : 'text-textPrimary'
+                }`}
+              >
+                {option.label}
+              </p>
+
+              <p className="mt-0.5 text-xs leading-snug text-textSecondary">
+                {option.description}
+              </p>
+            </div>
+          </div>
+
+          {balancePaymentMethod === option.value && (
+            <i className="fas fa-check-circle text-sm text-ocean-mid" />
+          )}
+        </div>
+      </button>
+    ))}
+  </div>
+</div>
                   
                   <div className="mt-6 grid gap-4 lg:grid-cols-[minmax(0,1fr)_320px]">
                     <div className="rounded-[1.75rem] border border-ocean-light/20 bg-[#f7fbff] p-5">

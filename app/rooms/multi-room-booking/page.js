@@ -1001,46 +1001,6 @@ function MultiRoomBookingPageContent() {
                     )}
                   </div>
 
-                  {/* Balance payment method at check-in */}
-                  <div className="mb-5 sm:mb-6">
-                    <label className="block text-sm font-semibold text-textPrimary mb-2 sm:mb-3">
-                      How would you like to pay your remaining balance upon check-in?
-                    </label>
-                    <div className="grid grid-cols-2 gap-3 sm:gap-4">
-                      {[
-                        { value: 'digital', label: 'Digital', icon: 'fa-mobile-alt' },
-                        { value: 'cash', label: 'Cash', icon: 'fa-money-bill-wave' },
-                      ].map((option) => (
-                        <button
-                          key={option.value}
-                          type="button"
-                          onClick={() => setBalancePaymentMethod(option.value)}
-                          className={`p-3 sm:p-4 rounded-xl border transition-all duration-200 flex flex-row items-center justify-center gap-2 sm:gap-3 ${
-                            balancePaymentMethod === option.value
-                              ? 'border-blue-500 bg-blue-50/50 shadow-sm'
-                              : 'border-gray-200 bg-white hover:border-blue-300'
-                          }`}
-                        >
-                          <span
-                            className={`flex h-4 w-4 shrink-0 items-center justify-center rounded-full border-2 ${
-                              balancePaymentMethod === option.value
-                                ? 'border-blue-600'
-                                : 'border-gray-300'
-                            }`}
-                          >
-                            {balancePaymentMethod === option.value && (
-                              <span className="h-2 w-2 rounded-full bg-blue-600" />
-                            )}
-                          </span>
-                          <i className={`fas ${option.icon} text-xl sm:text-2xl ${balancePaymentMethod === option.value ? 'text-blue-600' : 'text-gray-400'}`} />
-                          <span className={`text-sm font-medium ${balancePaymentMethod === option.value ? 'text-blue-600' : 'text-gray-500'}`}>
-                            {option.label}
-                          </span>
-                        </button>
-                      ))}
-                    </div>
-                  </div>
-
                   {/* Payment Method Selection */}
                   <div className="mb-5 sm:mb-6">
                     <label className="block text-sm font-semibold text-textPrimary mb-2 sm:mb-3">Select Payment Method</label>
@@ -1197,6 +1157,7 @@ function MultiRoomBookingPageContent() {
                       </div>
                     </div>
                   )}
+
 
                   {/* Bank Transfer Section */}
                   {paymentMethod === 'bank_transfer' && (
@@ -1447,6 +1408,87 @@ function MultiRoomBookingPageContent() {
                       </div>
                     </div>
                   )}
+
+                  {/* Balance payment method at check-in */}
+<div className="mt-5 mb-5 sm:mt-6 sm:mb-6">
+  <label className="block text-xs sm:text-sm font-semibold text-textPrimary mb-2 sm:mb-3">
+    How would you like to pay your remaining balance upon check-in?
+  </label>
+
+  <div className="grid grid-cols-2 gap-3 sm:gap-4">
+    {[
+      {
+        value: 'digital',
+        label: 'Digital',
+        icon: 'fa-mobile-alt',
+        description: 'Pay digitally at check-in.',
+      },
+      {
+        value: 'cash',
+        label: 'Cash',
+        icon: 'fa-money-bill-wave',
+        description: 'Pay in cash at check-in.',
+      },
+    ].map((option) => (
+      <button
+        key={option.value}
+        type="button"
+        onClick={() => setBalancePaymentMethod(option.value)}
+        className={`rounded-xl border p-3 sm:p-4 text-left transition-all duration-200 ${
+          balancePaymentMethod === option.value
+            ? 'border-blue-500 bg-blue-50/50 shadow-sm'
+            : 'border-gray-200 bg-white hover:border-blue-300 hover:shadow-md'
+        }`}
+      >
+        <div className="flex items-start justify-between gap-2">
+          <div className="flex items-start gap-2">
+            <span
+              className={`mt-1 flex h-3.5 w-3.5 shrink-0 items-center justify-center rounded-full border-2 ${
+                balancePaymentMethod === option.value
+                  ? 'border-blue-600'
+                  : 'border-gray-300'
+              }`}
+            >
+              {balancePaymentMethod === option.value && (
+                <span className="h-1.5 w-1.5 rounded-full bg-blue-600" />
+              )}
+            </span>
+
+            <div
+              className={`flex h-9 w-9 sm:h-10 sm:w-10 items-center justify-center rounded-xl ${
+                balancePaymentMethod === option.value
+                  ? 'bg-blue-600 text-white'
+                  : 'bg-blue-50 text-blue-600'
+              }`}
+            >
+              <i className={`fas ${option.icon} text-xs sm:text-sm`} />
+            </div>
+
+            <div>
+              <p
+                className={`text-xs sm:text-sm font-semibold ${
+                  balancePaymentMethod === option.value
+                    ? 'text-blue-600'
+                    : 'text-textPrimary'
+                }`}
+              >
+                {option.label}
+              </p>
+
+              <p className="mt-0.5 text-[11px] sm:text-xs leading-tight text-textSecondary">
+                {option.description}
+              </p>
+            </div>
+          </div>
+
+          {balancePaymentMethod === option.value && (
+            <i className="fas fa-check-circle text-blue-600 text-xs sm:text-sm" />
+          )}
+        </div>
+      </button>
+    ))}
+  </div>
+</div>
 
                   {!canConfirmBooking && confirmBookingBlockers.length > 0 && (
                     <div className="mt-4 mb-4 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3">

@@ -1045,6 +1045,23 @@ export default function EditReservationModal({ isOpen, booking, onClose, onSucce
 
           {/* Body */}
           <div className="max-h-[60vh] overflow-y-auto px-6 py-6">
+
+              <div className="mb-6 rounded-2xl border border-amber-200 bg-amber-50 p-4">
+    <div className="flex items-start gap-3">
+      <i className="fas fa-exclamation-triangle mt-1 text-amber-500"></i>
+
+      <div>
+        <h4 className="text-sm font-semibold text-amber-700">
+          One-Time Edit Only
+        </h4>
+
+        <p className="mt-1 text-xs text-amber-600">
+          You are only allowed to edit your reservation once. Please make sure your selected changes are final before saving changes.
+        </p>
+      </div>
+    </div>
+  </div>
+
             {/* Date Selection */}
             <div className="mb-6">
               <h4 className="mb-3 text-sm font-semibold text-gray-700">
