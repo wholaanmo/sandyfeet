@@ -1,4 +1,4 @@
-// app/dashboard/admin/reservations/components/AdminEditBookingModal.js
+// app/dashboard/staff/reservations/components/AdminEditBookingModal.js
 'use client';
 
 import { useState, useEffect, useRef, useMemo, useCallback } from 'react';

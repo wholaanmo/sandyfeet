@@ -1,4 +1,4 @@
-// app/dashboard/admin/reservations/components/AdminEditDayTourModal.js
+// app/dashboard/staff/reservations/components/AdminEditDayTourModal.js
 'use client';
 
 import { useState, useEffect, useMemo, useRef } from 'react';
