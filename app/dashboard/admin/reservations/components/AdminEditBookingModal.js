@@ -4,6 +4,7 @@
 import { useState, useEffect, useRef, useMemo, useCallback } from 'react';
 import { doc, updateDoc, getDocs, collection, query, where } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
+import { normalizeDayTourDateKey } from '@/lib/reservationAvailability';
 import { toDateValue } from '@/app/my-bookings/utils';
 import { logAdminAction } from '../../../../../lib/auditLogger';
 import { getScheduleStatusUpdateOnEdit } from '@/lib/reservationScheduleStatus';
@@ -103,6 +104,7 @@ export default function AdminEditBookingModal({ isOpen, booking, onClose, onSucc
   const [roomDetailsMap, setRoomDetailsMap] = useState({});
   const [bookedDates, setBookedDates] = useState({});
   const [blockedSlots, setBlockedSlots] = useState({});
+  const [dayTourBlockedDates, setDayTourBlockedDates] = useState({});
   const [currentMonth, setCurrentMonth] = useState(new Date());
   const [isCalendarOpen, setIsCalendarOpen] = useState(false);
   const [calendarTarget, setCalendarTarget] = useState('checkIn');
@@ -139,7 +141,7 @@ export default function AdminEditBookingModal({ isOpen, booking, onClose, onSucc
       ids.add(booking.id);
     }
     return ids;
-  }, [booking, childBookings]);
+  }, [booking?.id, childBookings]);
 
   const getExclusiveMaxPax = useCallback(() => {
     let totalPax = 38;
@@ -273,6 +275,21 @@ export default function AdminEditBookingModal({ isOpen, booking, onClose, onSucc
           }
         });
         setBlockedSlots(blocks);
+
+        const dayTourQuery = query(
+          collection(db, 'dayTourBookings'),
+          where('status', 'in', ['pending', 'confirmed', 'check-in'])
+        );
+        const dayTourSnapshot = await getDocs(dayTourQuery);
+        const dayTourBlocked = {};
+        dayTourSnapshot.forEach((docSnap) => {
+          const bookingData = docSnap.data();
+          const dateKey = normalizeDayTourDateKey(bookingData.selectedDate || bookingData.selectedDateISO);
+          if (dateKey) {
+            dayTourBlocked[dateKey] = true;
+          }
+        });
+        setDayTourBlockedDates(dayTourBlocked);
       } catch (err) {
         console.error('Error fetching availability:', err);
       }
@@ -387,7 +404,7 @@ export default function AdminEditBookingModal({ isOpen, booking, onClose, onSucc
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, [isCalendarOpen]);
 
-  const getTotalUnitsForRoomType = (roomTypeData) => {
+  const getTotalUnitsForRoomType = useCallback((roomTypeData) => {
     if (!roomTypeData) return 0;
     let totalUnits = 0;
     for (const roomId of roomTypeData.roomIds || []) {
@@ -397,9 +414,9 @@ export default function AdminEditBookingModal({ isOpen, booking, onClose, onSucc
     }
     if (totalUnits > 0) return totalUnits;
     return Math.max(0, Number(roomTypeData.availableRooms || 0));
-  };
+  }, [roomDetailsMap]);
 
-  const getAvailableUnitsForRoomTypeOnDate = (date, roomTypeData, nights) => {
+  const getAvailableUnitsForRoomTypeOnDate = useCallback((date, roomTypeData, nights) => {
     if (!date || !roomTypeData) return 0;
     let totalAvailableUnits = 0;
     for (const roomId of roomTypeData.roomIds || []) {
@@ -423,9 +440,9 @@ export default function AdminEditBookingModal({ isOpen, booking, onClose, onSucc
       totalAvailableUnits += availableForStay;
     }
     return totalAvailableUnits;
-  };
+  }, [roomDetailsMap, blockedSlots, bookedDates]);
 
-  const getMaxBookedUnitsForRoomTypeOnDate = (date, roomTypeData) => {
+  const getMaxBookedUnitsForRoomTypeOnDate = useCallback((date, roomTypeData) => {
     if (!date || !roomTypeData) return 0;
     const dateStr = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
     let totalMaxBooked = 0;
@@ -438,10 +455,22 @@ export default function AdminEditBookingModal({ isOpen, booking, onClose, onSucc
       totalMaxBooked += maxForRoom;
     }
     return totalMaxBooked;
-  };
+  }, [bookedDates]);
 
-  const isDateFullyAvailableForExclusive = (date, nights) => {
+  const isEntireResortRangeBlockedByDayTourBookings = useCallback((date, nights) => {
+    if (!date || nights <= 0) return false;
+    for (let dayOffset = 0; dayOffset < nights; dayOffset++) {
+      const currentDate = new Date(date);
+      currentDate.setDate(date.getDate() + dayOffset);
+      const dateKey = `${currentDate.getFullYear()}-${String(currentDate.getMonth() + 1).padStart(2, '0')}-${String(currentDate.getDate()).padStart(2, '0')}`;
+      if (dayTourBlockedDates[dateKey]) return true;
+    }
+    return false;
+  }, [dayTourBlockedDates]);
+
+  const isDateFullyAvailableForExclusive = useCallback((date, nights) => {
     if (!date || availableRoomTypes.length === 0) return false;
+    if (isEntireResortRangeBlockedByDayTourBookings(date, nights)) return false;
     for (const roomTypeData of availableRoomTypes) {
       const totalUnits = getTotalUnitsForRoomType(roomTypeData);
       if (totalUnits <= 0) return false;
@@ -455,9 +484,9 @@ export default function AdminEditBookingModal({ isOpen, booking, onClose, onSucc
       }
     }
     return true;
-  };
+  }, [availableRoomTypes, getTotalUnitsForRoomType, getMaxBookedUnitsForRoomTypeOnDate, getAvailableUnitsForRoomTypeOnDate, isEntireResortRangeBlockedByDayTourBookings]);
 
-  const getRoomRequests = () => {
+  const getRoomRequests = useCallback(() => {
     if (isMultiRoom && roomTypesArray.length > 0) {
       return roomTypesArray.map((rt) => ({ type: rt.type, quantity: rt.quantity }));
     }
@@ -465,9 +494,9 @@ export default function AdminEditBookingModal({ isOpen, booking, onClose, onSucc
       return [{ type: booking.roomType, quantity: booking.numberOfRooms || 1 }];
     }
     return [];
-  };
+  }, [isMultiRoom, roomTypesArray, booking?.roomType, booking?.numberOfRooms]);
 
-  const getUnavailableRoomTypeForStay = (date, roomRequests, nights) => {
+  const getUnavailableRoomTypeForStay = useCallback((date, roomRequests, nights) => {
     if (!date || !roomRequests.length) return null;
     const checkInDate = new Date(date);
     for (let dayOffset = 0; dayOffset < nights; dayOffset++) {
@@ -496,9 +525,9 @@ export default function AdminEditBookingModal({ isOpen, booking, onClose, onSucc
       }
     }
     return null;
-  };
+  }, [availableRoomTypes, roomDetailsMap, blockedSlots, bookedDates]);
 
-  const isDateUnavailableForCheckIn = (date) => {
+  const isDateUnavailableForCheckIn = useCallback((date) => {
     if (!date || availableRoomTypes.length === 0) return true;
     if (isExclusive) return !isDateFullyAvailableForExclusive(date, stayNights);
 
@@ -526,18 +555,18 @@ export default function AdminEditBookingModal({ isOpen, booking, onClose, onSucc
       if (totalAvailable < req.quantity) return true;
     }
     return false;
-  };
+  }, [availableRoomTypes, isExclusive, stayNights, getRoomRequests, roomDetailsMap, blockedSlots, bookedDates, isDateFullyAvailableForExclusive]);
 
   const restrictPastDates = ['pending', 'confirmed'].includes(booking?.status);
 
-  const isDatePast = (date) => {
+  const isDatePast = useCallback((date) => {
     if (!restrictPastDates) return false;
     const today = new Date();
     today.setHours(0, 0, 0, 0);
     return date < today;
-  };
+  }, [restrictPastDates]);
 
-  const isDateSelectable = (date) => {
+  const isDateSelectable = useCallback((date) => {
     if (isDatePast(date)) return false;
     if (calendarTarget === 'checkIn' && isDateUnavailableForCheckIn(date)) return false;
     if (calendarTarget === 'checkOut') {
@@ -549,9 +578,9 @@ export default function AdminEditBookingModal({ isOpen, booking, onClose, onSucc
       if (selected < minOut) return false;
     }
     return true;
-  };
+  }, [isDatePast, calendarTarget, isDateUnavailableForCheckIn, checkIn]);
 
-  const checkAvailability = async () => {
+  const checkAvailability = useCallback(async () => {
     if (!checkIn || !checkOut) return false;
 
     setIsCheckingAvailability(true);
@@ -561,6 +590,12 @@ export default function AdminEditBookingModal({ isOpen, booking, onClose, onSucc
       const checkInDate = new Date(`${checkIn}T00:00:00`);
 
       if (isExclusive) {
+        if (isEntireResortRangeBlockedByDayTourBookings(checkInDate, stayNights)) {
+          setAvailabilityError(
+            'A day tour booking already exists on one or more selected dates. The Entire Resort Package cannot be booked for those dates.'
+          );
+          return false;
+        }
         if (!isDateFullyAvailableForExclusive(checkInDate, stayNights)) {
           setAvailabilityError(
             'The Entire Resort Package is not available for the selected dates. Some rooms are already booked.'
@@ -586,9 +621,9 @@ export default function AdminEditBookingModal({ isOpen, booking, onClose, onSucc
     } finally {
       setIsCheckingAvailability(false);
     }
-  };
+  }, [checkIn, checkOut, isExclusive, stayNights, isEntireResortRangeBlockedByDayTourBookings, isDateFullyAvailableForExclusive, getRoomRequests, getUnavailableRoomTypeForStay]);
 
-  const validateGuestCounts = () => {
+  const validateGuestCounts = useCallback(() => {
     const errors = {};
     let hasError = false;
 
@@ -622,9 +657,9 @@ export default function AdminEditBookingModal({ isOpen, booking, onClose, onSucc
 
     setGuestErrors(errors);
     return !hasError;
-  };
+  }, [guestCounts, roomMaxCapacity, roomMinCapacity, isMultiRoom, roomCapacitiesMap]);
 
-  const validateExclusiveGuests = () => {
+  const validateExclusiveGuests = useCallback(() => {
     const totalGuests = exclusiveAdults + exclusiveKids;
     const maxPax = getExclusiveMaxPax();
     if (exclusiveAdults < 1) {
@@ -637,9 +672,9 @@ export default function AdminEditBookingModal({ isOpen, booking, onClose, onSucc
     }
     setExclusiveGuestError('');
     return true;
-  };
+  }, [exclusiveAdults, exclusiveKids, getExclusiveMaxPax]);
 
-  const handleExclusiveGuestChange = (guestType, rawValue) => {
+  const handleExclusiveGuestChange = useCallback((guestType, rawValue) => {
     const parsedValue = Number.parseInt(rawValue, 10);
     const safeValue = Number.isNaN(parsedValue) ? 0 : Math.max(0, parsedValue);
     let nextAdults = Number(exclusiveAdults) || 1;
@@ -655,9 +690,9 @@ export default function AdminEditBookingModal({ isOpen, booking, onClose, onSucc
     setExclusiveAdults(Math.max(0, nextAdults));
     setExclusiveKids(Math.max(0, nextKids));
     setExclusiveGuestError(errorMessage);
-  };
+  }, [exclusiveAdults, exclusiveKids, getExclusiveMaxPax]);
 
-  const updateGuestCount = (index, field, value) => {
+  const updateGuestCount = useCallback((index, field, value) => {
     const parsedValue = parseInt(value, 10) || 0;
     let maxCapacity = roomMaxCapacity;
     if (isMultiRoom && guestCounts[index]?.roomType) {
@@ -680,9 +715,9 @@ export default function AdminEditBookingModal({ isOpen, booking, onClose, onSucc
     if (guestErrors[index]) {
       setGuestErrors((prev) => ({ ...prev, [index]: '' }));
     }
-  };
+  }, [roomMaxCapacity, isMultiRoom, guestCounts, roomCapacitiesMap, guestErrors]);
 
-  const handleDateSelect = (date) => {
+  const handleDateSelect = useCallback((date) => {
     if (!isDateSelectable(date)) return;
     const formattedDate = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
 
@@ -701,22 +736,22 @@ export default function AdminEditBookingModal({ isOpen, booking, onClose, onSucc
 
     setIsCalendarOpen(false);
     setAvailabilityError('');
-  };
+  }, [isDateSelectable, calendarTarget, checkOut, stayNights]);
 
-  const openCalendar = (target) => {
+  const openCalendar = useCallback((target) => {
     setCalendarTarget(target);
     setIsCalendarOpen(true);
     const refDate = target === 'checkIn' && checkIn ? new Date(`${checkIn}T00:00:00`) : checkOut ? new Date(`${checkOut}T00:00:00`) : new Date();
     setCurrentMonth(new Date(refDate.getFullYear(), refDate.getMonth(), 1));
-  };
+  }, [checkIn, checkOut]);
 
-  const formatDisplayDate = (dateString) => {
+  const formatDisplayDate = useCallback((dateString) => {
     if (!dateString) return '';
     const date = new Date(`${dateString}T00:00:00`);
     return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
-  };
+  }, []);
 
-  const getDaysInMonth = (date) => {
+  const getDaysInMonth = useCallback((date) => {
     const year = date.getFullYear();
     const month = date.getMonth();
     const firstDay = new Date(year, month, 1);
@@ -726,9 +761,9 @@ export default function AdminEditBookingModal({ isOpen, booking, onClose, onSucc
     for (let i = 0; i < startingDayOfWeek; i++) days.push(null);
     for (let i = 1; i <= daysInMonth; i++) days.push(new Date(year, month, i));
     return days;
-  };
+  }, []);
 
-  const handleSave = async () => {
+  const handleSave = useCallback(async () => {
     setError('');
     if (!checkIn || !checkOut) {
       setError('Please select both check-in and check-out dates.');
@@ -943,7 +978,7 @@ export default function AdminEditBookingModal({ isOpen, booking, onClose, onSucc
     } finally {
       setIsLoading(false);
     }
-  };
+  }, [checkIn, checkOut, isExclusive, validateExclusiveGuests, validateGuestCounts, parsedBalanceNum, checkAvailability, exclusiveGuestError, fixedDownPayment, stayNights, booking, exclusiveTentCount, exclusiveAdults, exclusiveKids, childBookings, isMultiRoom, guestCounts, onSuccess]);
 
   if (!isOpen || !booking) return null;
 

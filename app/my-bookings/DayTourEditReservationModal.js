@@ -24,6 +24,7 @@ export default function DayTourEditReservationModal({ isOpen, booking, onClose, 
   const [dayTour, setDayTour] = useState(null);
   const [bookedDates, setBookedDates] = useState({});
   const [unavailableDates, setUnavailableDates] = useState({});
+  const [exclusiveResortBlockedDates, setExclusiveResortBlockedDates] = useState({});
 
   // Calendar state
   const [currentMonth, setCurrentMonth] = useState(new Date());
@@ -105,6 +106,32 @@ export default function DayTourEditReservationModal({ isOpen, booking, onClose, 
     return new Date(year, month - 1, day);
   };
 
+  const parseFirestoreDateValue = (value) => {
+    if (!value) return null;
+    if (value?.toDate) return value.toDate();
+    if (typeof value === 'string') return new Date(value);
+    if (value instanceof Date) return value;
+    return null;
+  };
+
+  const getDateKeysForRange = (startDate, endDate) => {
+    const keys = [];
+    if (!startDate || !endDate) return keys;
+    const current = new Date(startDate);
+    current.setHours(0, 0, 0, 0);
+    const finish = new Date(endDate);
+    finish.setHours(0, 0, 0, 0);
+    while (current < finish) {
+      keys.push(toLocalDateKey(current));
+      current.setDate(current.getDate() + 1);
+    }
+    return keys;
+  };
+
+  const isDateBlockedByExclusiveResort = (dateKey) => {
+    return !!exclusiveResortBlockedDates[dateKey];
+  };
+
   // Fetch day tour details (prices, maxCapacity)
   useEffect(() => {
     if (!isOpen) return;
@@ -113,6 +140,35 @@ export default function DayTourEditReservationModal({ isOpen, booking, onClose, 
     const unsubscribe = onSnapshot(q, (snap) => {
       if (!snap.empty) setDayTour(snap.docs[0].data());
     });
+    return () => unsubscribe();
+  }, [isOpen]);
+
+  useEffect(() => {
+    if (!isOpen) return;
+
+    const bookingsRef = collection(db, 'bookings');
+    const q = query(
+      bookingsRef,
+      where('isExclusiveResortBooking', '==', true),
+      where('status', 'in', ['pending', 'confirmed', 'check-in'])
+    );
+
+    const unsubscribe = onSnapshot(q, (snap) => {
+      const blocked = {};
+      snap.forEach((docSnap) => {
+        const data = docSnap.data();
+        const checkInDate = parseFirestoreDateValue(data.checkIn);
+        const checkOutDate = parseFirestoreDateValue(data.checkOut);
+        if (!checkInDate || !checkOutDate) return;
+        getDateKeysForRange(checkInDate, checkOutDate).forEach((dateKey) => {
+          blocked[dateKey] = true;
+        });
+      });
+      setExclusiveResortBlockedDates(blocked);
+    }, (err) => {
+      console.error('Error fetching exclusive resort booking blocks:', err);
+    });
+
     return () => unsubscribe();
   }, [isOpen]);
 
@@ -219,6 +275,7 @@ export default function DayTourEditReservationModal({ isOpen, booking, onClose, 
     if (!date) return false;
     if (isDatePast(date)) return false;
     if (isDateTooSoon(date)) return false;
+    if (isDateBlockedByExclusiveResort(dateKey)) return false;
     return getEffectiveRemainingCapacity(dateKey) > 0;
   };
 
@@ -226,6 +283,10 @@ export default function DayTourEditReservationModal({ isOpen, booking, onClose, 
   const handleDateSelect = (date) => {
     if (hasBeenEdited && isPending) return;
     const key = toLocalDateKey(date);
+    if (isDateBlockedByExclusiveResort(key)) {
+      setError('Entire Resort is already booked for the selected date. Please choose another date.');
+      return;
+    }
     if (isDateSelectable(key)) {
       setSelectedDate(key);
       setIsCalendarOpen(false);
@@ -291,6 +352,11 @@ export default function DayTourEditReservationModal({ isOpen, booking, onClose, 
     const validationError = validateGuests(adults, kids, selectedDate);
     if (validationError) {
       setError(validationError);
+      return;
+    }
+
+    if (isDateBlockedByExclusiveResort(selectedDate)) {
+      setError('The selected date conflicts with an Entire Resort booking. Please choose a different date.');
       return;
     }
 
@@ -514,8 +580,9 @@ export default function DayTourEditReservationModal({ isOpen, booking, onClose, 
                             const dateKey = toLocalDateKey(day);
                             const isPast = isDatePast(day);
                             const isTooSoon = isDateTooSoon(day);
+                            const isExclusiveBlocked = isDateBlockedByExclusiveResort(dateKey);
                             const selectable = isDateSelectable(dateKey);
-                            const isDisabled = isPast || isTooSoon || !selectable;
+                            const isDisabled = isPast || isTooSoon || isExclusiveBlocked || !selectable;
                             const isSelected = selectedDate === dateKey;
                             
                             let bgColor = 'bg-white';

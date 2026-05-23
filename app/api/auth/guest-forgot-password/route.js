@@ -25,6 +25,13 @@ export async function POST(request) {
     const guestData = guestDoc.data();
     const uid = guestDoc.id;
 
+    if (guestData.provider === 'google') {
+      return NextResponse.json(
+        { error: "You can’t use this feature because your account is signed in using Google." },
+        { status: 400 }
+      );
+    }
+
     const resetToken = crypto.randomBytes(32).toString('hex');
     const expiresAt = new Date();
     expiresAt.setMinutes(expiresAt.getMinutes() + 15);

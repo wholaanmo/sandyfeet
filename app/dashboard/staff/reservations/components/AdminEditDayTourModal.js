@@ -4,6 +4,7 @@
 import { useState, useEffect, useMemo, useRef } from 'react';
 import { doc, updateDoc, getDoc, getDocs, collection, query, where } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
+import { buildExclusiveResortBlockedDateMap, toLocalDateKey } from '@/lib/exclusiveResortDayTourBlocks';
 import { toDateValue } from '@/app/my-bookings/utils';
 import { logAdminAction } from '../../../../../lib/auditLogger';
 
@@ -33,6 +34,7 @@ export default function AdminEditDayTourModal({ isOpen, booking, onClose, onSucc
   const [isCalendarOpen, setIsCalendarOpen] = useState(false);
   const [bookedGuestsOnDate, setBookedGuestsOnDate] = useState(0);
   const [unavailableGuestsOnDate, setUnavailableGuestsOnDate] = useState(0);
+  const [exclusiveResortBlockedDates, setExclusiveResortBlockedDates] = useState({});
   const calendarPopoverRef = useRef(null);
   const calendarTriggerRef = useRef(null);
 
@@ -83,10 +85,38 @@ export default function AdminEditDayTourModal({ isOpen, booking, onClose, onSucc
   }, [isOpen, booking]);
 
   useEffect(() => {
+    if (!isOpen) return;
+
+    const loadExclusiveBlocks = async () => {
+      try {
+        const exclusiveQuery = query(
+          collection(db, 'bookings'),
+          where('isExclusiveResortBooking', '==', true),
+          where('status', 'in', ['pending', 'confirmed', 'check-in'])
+        );
+        const exclusiveSnap = await getDocs(exclusiveQuery);
+        const exclusiveBookings = exclusiveSnap.docs.map((docSnap) => ({ id: docSnap.id, ...docSnap.data() }));
+        setExclusiveResortBlockedDates(buildExclusiveResortBlockedDateMap(exclusiveBookings));
+      } catch (err) {
+        console.error('Error fetching exclusive resort blocks:', err);
+      }
+    };
+
+    loadExclusiveBlocks();
+  }, [isOpen]);
+
+  useEffect(() => {
     if (!selectedDate || !isOpen) return;
 
     const fetchCapacity = async () => {
       try {
+        if (exclusiveResortBlockedDates[selectedDate]) {
+          setBookedGuestsOnDate(0);
+          setUnavailableGuestsOnDate(0);
+          setCapacityError('Selected date is blocked by an existing Entire Resort booking.');
+          return;
+        }
+
         const bookingsQuery = query(
           collection(db, 'dayTourBookings'),
           where('selectedDate', '==', selectedDate),
@@ -146,7 +176,10 @@ export default function AdminEditDayTourModal({ isOpen, booking, onClose, onSucc
     return date < today;
   };
 
-  const isDateSelectable = (date) => !isDatePast(date);
+  const isDateSelectable = (date) => {
+    if (isDatePast(date)) return false;
+    return !exclusiveResortBlockedDates[toLocalDateKey(date)];
+  };
 
   const handleDateSelect = (date) => {
     if (!isDateSelectable(date)) return;

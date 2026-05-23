@@ -10,6 +10,7 @@ import { collection, query, where, onSnapshot } from 'firebase/firestore';
 import ChatBot from '@/components/guest/ChatBot';
 import GuestAuthModal from '@/components/guest/GuestAuthModal';
 import { useGuestAuth } from '@/components/guest/GuestAuthContext';
+import { normalizeDayTourDateKey, toLocalDateKey } from '@/lib/reservationAvailability';
 
 function RoomsPageContent() {
   const router = useRouter();
@@ -26,6 +27,7 @@ function RoomsPageContent() {
   const [currentMonth, setCurrentMonth] = useState(new Date());
   const [bookedDates, setBookedDates] = useState({});
   const [blockedSlots, setBlockedSlots] = useState({});
+  const [dayTourBlockedDates, setDayTourBlockedDates] = useState({});
   const [roomDetailsMap, setRoomDetailsMap] = useState({});
   const [specialRequest, setSpecialRequest] = useState('');
   const [dateSelectionError, setDateSelectionError] = useState('');
@@ -491,6 +493,30 @@ function RoomsPageContent() {
   }, [availableRoomTypes]);
 
   useEffect(() => {
+    const dayTourRef = collection(db, 'dayTourBookings');
+    const dayTourQuery = query(
+      dayTourRef,
+      where('status', 'in', ['pending', 'confirmed', 'check-in'])
+    );
+
+    const unsubscribe = onSnapshot(dayTourQuery, (snapshot) => {
+      const blocked = {};
+      snapshot.forEach((docSnap) => {
+        const data = docSnap.data();
+        const dateKey = normalizeDayTourDateKey(data.selectedDate || data.selectedDateISO);
+        if (dateKey) {
+          blocked[dateKey] = true;
+        }
+      });
+      setDayTourBlockedDates(blocked);
+    }, (error) => {
+      console.error('Error fetching day tour blocked dates:', error);
+    });
+
+    return () => unsubscribe();
+  }, []);
+
+  useEffect(() => {
     if (checkInDate && numberOfNights) {
       const newCheckOutDate = new Date(checkInDate);
       newCheckOutDate.setDate(checkInDate.getDate() + numberOfNights);
@@ -597,8 +623,25 @@ function RoomsPageContent() {
     return totalMaxBooked;
   };
 
+  // MOVED toLocalDateKey function HERE before it's used
+  const toLocalDateKey = (d) => {
+    if (!d) return '';
+    const y = d.getFullYear();
+    const m = String(d.getMonth() + 1).padStart(2, '0');
+    const day = String(d.getDate()).padStart(2, '0');
+    return `${y}-${m}-${day}`;
+  };
+
   const isDateFullyAvailableForExclusive = (date) => {
     if (!date || availableRoomTypes.length === 0) return false;
+
+    for (let dayOffset = 0; dayOffset < numberOfNights; dayOffset++) {
+      const currentDate = new Date(date);
+      currentDate.setDate(date.getDate() + dayOffset);
+      const dateKey = toLocalDateKey(currentDate);
+      if (dayTourBlockedDates[dateKey]) return false;
+    }
+
     for (const roomTypeData of availableRoomTypes) {
       const totalUnits = getTotalUnitsForRoomType(roomTypeData);
       if (totalUnits <= 0) return false;
@@ -661,7 +704,7 @@ function RoomsPageContent() {
 
   useEffect(() => {
     if (!isExclusiveResortBooking || availableRoomTypes.length === 0) return;
-    if (!checkInDate || !isDateFullyAvailableForExclusive(checkInDate)) {
+    if (!checkInDate || !isDateFullyAvailableForExclusive(checkInDate, numberOfNights)) {
       const clearedSelected = {};
       const clearedGuests = {};
       for (const roomType of availableRoomTypes) {
@@ -771,7 +814,7 @@ function RoomsPageContent() {
     setNumberOfNights(newNights);
   };
 
-  const canBookExclusiveResort = Boolean(checkInDate && isDateFullyAvailableForExclusive(checkInDate));
+  const canBookExclusiveResort = Boolean(checkInDate && isDateFullyAvailableForExclusive(checkInDate, numberOfNights));
 
   const applyExclusiveSelections = () => {
     const nextSelected = {};
@@ -1070,13 +1113,7 @@ function RoomsPageContent() {
     return days;
   };
 
-  const toLocalDateKey = (d) => {
-    if (!d) return '';
-    const y = d.getFullYear();
-    const m = String(d.getMonth() + 1).padStart(2, '0');
-    const day = String(d.getDate()).padStart(2, '0');
-    return `${y}-${m}-${day}`;
-  };
+  // REMOVED the duplicate toLocalDateKey definition from here
 
   const isDatePast = (date) => {
     const today = new Date();
@@ -1095,7 +1132,7 @@ function RoomsPageContent() {
 
   const isDateFullyBooked = (date) => {
     if (!date) return false;
-    if (isExclusiveResortBooking) return !isDateFullyAvailableForExclusive(date);
+    if (isExclusiveResortBooking) return !isDateFullyAvailableForExclusive(date, numberOfNights);
     const selectedTypes = Object.entries(selectedRooms).filter(([_, qty]) => qty > 0);
     if (selectedTypes.length === 0) return false;
     for (const [roomType, quantity] of selectedTypes) {

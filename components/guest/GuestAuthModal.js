@@ -56,7 +56,7 @@ function getPasswordStrength(password) {
 }
 
 export default function GuestAuthModal({ isOpen, onClose, prefillEmail = '' }) {
-  const { actionLoading, signInWithGoogle, signUpWithEmail, signInWithEmail, clearAuthError } = useGuestAuth();
+  const { actionLoading, signInWithGoogle, signUpWithEmail, signInWithEmail, clearAuthError, profile } = useGuestAuth();
   const [mode, setMode] = useState('signin');
   const [signInError, setSignInError] = useState('');
   const [signUpError, setSignUpError] = useState('');
@@ -111,6 +111,8 @@ export default function GuestAuthModal({ isOpen, onClose, prefillEmail = '' }) {
   useEffect(() => {
     setPasswordStrength(getPasswordStrength(password));
   }, [password]);
+
+  const isGoogleGuestUser = profile?.provider === 'google';
 
   const resetForm = () => {
     setEmail('');
@@ -226,6 +228,9 @@ export default function GuestAuthModal({ isOpen, onClose, prefillEmail = '' }) {
     setForgotEmail(email); // prefill with current email if any
     setForgotMessage('');
     setForgotError('');
+    if (isGoogleGuestUser) {
+      setForgotError("You can’t use this feature because your account is signed in using Google.");
+    }
     setShowForgotModal(true);
   };
 
@@ -250,6 +255,12 @@ export default function GuestAuthModal({ isOpen, onClose, prefillEmail = '' }) {
     setForgotLoading(true);
     setForgotError('');
     setForgotMessage('');
+
+    if (isGoogleGuestUser) {
+      setForgotError("You can’t use this feature because your account is signed in using Google.");
+      setForgotLoading(false);
+      return;
+    }
 
     try {
       const response = await fetch('/api/auth/guest-forgot-password', {
@@ -732,7 +743,7 @@ export default function GuestAuthModal({ isOpen, onClose, prefillEmail = '' }) {
 
                 <button
                   type="submit"
-                  disabled={forgotLoading}
+                  disabled={forgotLoading || isGoogleGuestUser}
                   className="h-11 w-full rounded-xl bg-[#2563EB] px-5 text-sm font-semibold text-white shadow-sm hover:bg-blue-600 active:scale-[0.99] transition-all hover:shadow-[0_4px_12px_rgba(37,99,235,0.2)] disabled:opacity-50 disabled:cursor-not-allowed"
                 >
                   {forgotLoading ? <i className="fas fa-spinner fa-spin mr-2"></i> : null}

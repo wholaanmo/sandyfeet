@@ -2,7 +2,7 @@
 'use client';
 
 import { useState, useEffect, useRef } from 'react';
-import { doc, updateDoc, getDocs, collection, query, where, getDoc } from 'firebase/firestore';
+import { doc, updateDoc, getDocs, collection, query, where, getDoc, onSnapshot } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 import { toDateValue } from './utils';
 
@@ -37,6 +37,7 @@ export default function EditReservationModal({ isOpen, booking, onClose, onSucce
   const [isCalendarOpen, setIsCalendarOpen] = useState(false);
   const [bookedDates, setBookedDates] = useState({});
   const [blockedSlots, setBlockedSlots] = useState({});
+  const [dayTourBlockedDates, setDayTourBlockedDates] = useState({});
   const [roomDetailsMap, setRoomDetailsMap] = useState({});
   const [availableRoomTypes, setAvailableRoomTypes] = useState([]);
   const calendarPopoverRef = useRef(null);
@@ -343,6 +344,30 @@ export default function EditReservationModal({ isOpen, booking, onClose, onSucce
     fetchBookingsAndBlocks();
   }, [availableRoomTypes, isOpen, booking]);
 
+  useEffect(() => {
+    if (!isOpen) return;
+
+    const dayTourRef = collection(db, 'dayTourBookings');
+    const q = query(
+      dayTourRef,
+      where('status', 'in', ['pending', 'confirmed', 'check-in'])
+    );
+
+    const unsubscribe = onSnapshot(q, (snap) => {
+      const blocked = {};
+      snap.forEach((docSnap) => {
+        const data = docSnap.data();
+        const dateKey = data.selectedDate;
+        if (dateKey) blocked[dateKey] = true;
+      });
+      setDayTourBlockedDates(blocked);
+    }, (err) => {
+      console.error('Error fetching day tour booking blocks:', err);
+    });
+
+    return () => unsubscribe();
+  }, [isOpen]);
+
   // Fetch room capacity limits for the specific room type (single room) — unchanged
   useEffect(() => {
     const fetchRoomCapacity = async () => {
@@ -478,6 +503,11 @@ export default function EditReservationModal({ isOpen, booking, onClose, onSucce
   const isDateUnavailable = (date) => {
     if (!date || availableRoomTypes.length === 0) return true;
     
+    const dateKey = getDateKey(date);
+    if (isExclusive && dayTourBlockedDates[dateKey]) {
+      return true;
+    }
+
     // For exclusive bookings, use the same logic as app/rooms
     if (isExclusive) {
       return !isDateFullyAvailableForExclusive(date);
@@ -597,6 +627,14 @@ export default function EditReservationModal({ isOpen, booking, onClose, onSucce
   const monthNames = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
   const days = getDaysInMonth(currentMonth);
 
+  const getDateKey = (date) => {
+    if (!date) return '';
+    const year = date.getFullYear();
+    const month = String(date.getMonth() + 1).padStart(2, '0');
+    const day = String(date.getDate()).padStart(2, '0');
+    return `${year}-${month}-${day}`;
+  };
+
   const formatDisplayDate = (dateString) => {
     if (!dateString) return '';
     const date = new Date(dateString);
@@ -706,6 +744,12 @@ export default function EditReservationModal({ isOpen, booking, onClose, onSucce
     try {
       if (isExclusive) {
         const selectedDate = new Date(checkIn);
+        const dateKey = getDateKey(selectedDate);
+        if (dayTourBlockedDates[dateKey]) {
+          setAvailabilityError('Selected check-in date conflicts with an existing Day Tour booking. Please choose another date.');
+          setIsCheckingAvailability(false);
+          return false;
+        }
         if (!isDateFullyAvailableForExclusive(selectedDate)) {
           setAvailabilityError('The Entire Resort Package is not available for the selected dates. Some rooms are already booked.');
           setIsCheckingAvailability(false);
@@ -788,6 +832,13 @@ export default function EditReservationModal({ isOpen, booking, onClose, onSucce
       return;
     }
     
+    const selectedDate = new Date(checkIn);
+    const selectedDateKey = getDateKey(selectedDate);
+    if (isExclusive && dayTourBlockedDates[selectedDateKey]) {
+      setError('Selected check-in date conflicts with an existing Day Tour booking. Please choose another date.');
+      return;
+    }
+
     const isAvailable = await checkAvailability();
     if (!isAvailable) return;
     

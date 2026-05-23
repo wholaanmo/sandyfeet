@@ -19,7 +19,7 @@ import {
   getBalance,
 } from '@/app/my-bookings/utils';
 import BookingDetailsModal from '../components/BookingDetailsModal';
-import { formatGuestAddress } from '@/lib/guestAddress';
+import { formatGuestAddress, getGuestAddressFromProfile } from '@/lib/guestAddress';
 
 export const ADMIN_RESERVATIONS_RESTORE_KEY = 'adminReservationsGuestProfileRestore';
 
@@ -29,6 +29,14 @@ export const mapGuestProfileToDisplayInfo = (profile, fallbackGuestInfo = {}, fa
     formatGuestAddress(fallbackGuestInfo?.guestAddress) ||
     formatGuestAddress(fallbackGuestInfo?.address) ||
     '';
+
+  const getAddressFields = () => {
+    if (profile?.address) {
+      return getGuestAddressFromProfile(profile);
+    }
+    const fallbackAddress = fallbackGuestInfo?.guestAddress || fallbackGuestInfo?.address;
+    return getGuestAddressFromProfile({ address: fallbackAddress });
+  };
 
   return {
     firstName: profile?.firstName?.trim() || fallbackGuestInfo?.firstName?.trim() || '—',
@@ -40,6 +48,7 @@ export const mapGuestProfileToDisplayInfo = (profile, fallbackGuestInfo = {}, fa
       '—',
     email: profile?.email?.trim() || fallbackGuestInfo?.email?.trim() || fallbackEmail?.trim() || '—',
     address: addressText || '—',
+    addressFields: getAddressFields(),
   };
 };
 
@@ -632,7 +641,7 @@ export default function AdminGuestProfilePage() {
             </div>
           )}
 
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
             <GuestInfoCardField
               label="First Name"
               value={personalInfo.firstName}
@@ -652,6 +661,31 @@ export default function AdminGuestProfilePage() {
               label="Account Email"
               value={personalInfo.email}
               icon="fa-envelope"
+            />
+            <GuestInfoCardField
+              label="House Number"
+              value={personalInfo.addressFields?.houseNumber || '—'}
+              icon="fa-home"
+            />
+            <GuestInfoCardField
+              label="Street"
+              value={personalInfo.addressFields?.street || '—'}
+              icon="fa-road"
+            />
+            <GuestInfoCardField
+              label="Barangay"
+              value={personalInfo.addressFields?.barangay || '—'}
+              icon="fa-map-marker-alt"
+            />
+            <GuestInfoCardField
+              label="City/Municipality"
+              value={personalInfo.addressFields?.city || '—'}
+              icon="fa-map-marker-alt"
+            />
+            <GuestInfoCardField
+              label="Province"
+              value={personalInfo.addressFields?.province || '—'}
+              icon="fa-flag"
             />
           </div>
         </div>
