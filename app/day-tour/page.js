@@ -8,6 +8,7 @@ import { useRouter } from 'next/navigation';
 import GuestLayout from '../guest/layout';
 import { db } from '@/lib/firebase';
 import { collection, query, orderBy, onSnapshot, where } from 'firebase/firestore';
+import { buildExclusiveResortBlockedDateMap } from '@/lib/exclusiveResortDayTourBlocks';
 import ActivityCard from '@/components/guest/ActivityCard';
 import ChatBot from '@/components/guest/ChatBot';
 import { useGuestAuth } from '@/components/guest/GuestAuthContext';
@@ -27,6 +28,7 @@ function DayTourPageContent() {
   const [galleryImages, setGalleryImages] = useState([]);
   const [bookedDates, setBookedDates] = useState({});
   const [unavailableDates, setUnavailableDates] = useState({});
+  const [exclusiveResortBlockedDates, setExclusiveResortBlockedDates] = useState({});
   const [currentMonth, setCurrentMonth] = useState(new Date());
   const [isCalendarOpen, setIsCalendarOpen] = useState(false);
   const [hoveredDateKey, setHoveredDateKey] = useState('');
@@ -137,8 +139,9 @@ function DayTourPageContent() {
   };
 
   const getRemainingCapacity = (targetDate) => {
-    if (!dayTour?.maxCapacity) return Infinity;
     const dateKey = toLocalDateKey(targetDate);
+    if (exclusiveResortBlockedDates[dateKey]) return 0;
+    if (!dayTour?.maxCapacity) return Infinity;
     const bookedCount = bookedDates[dateKey] || 0;
     const unavailableCount = unavailableDates[dateKey] || 0;
     return dayTour.maxCapacity - (bookedCount + unavailableCount);
@@ -301,6 +304,24 @@ function DayTourPageContent() {
     });
 
     return () => unsubscribeUnavailable();
+  }, []);
+
+  useEffect(() => {
+    const exclusiveQuery = query(
+      collection(db, 'bookings'),
+      where('isExclusiveResortBooking', '==', true),
+      where('status', 'in', ['pending', 'confirmed'])
+    );
+
+    const unsubscribeExclusive = onSnapshot(exclusiveQuery, (querySnapshot) => {
+      const bookings = querySnapshot.docs.map((docSnap) => docSnap.data());
+      setExclusiveResortBlockedDates(buildExclusiveResortBlockedDateMap(bookings));
+    }, (error) => {
+      console.error('Error fetching exclusive resort blocks for day tour:', error);
+      setExclusiveResortBlockedDates({});
+    });
+
+    return () => unsubscribeExclusive();
   }, []);
 
   useEffect(() => {

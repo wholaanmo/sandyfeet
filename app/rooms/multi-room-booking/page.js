@@ -14,6 +14,11 @@ import ChatBot from '@/components/guest/ChatBot';
 import { QRCodeSVG } from 'qrcode.react';
 import { useGuestAuth } from '@/components/guest/GuestAuthContext';
 import { getDisplayValidIdType, hasAccountValidId, hasAccountMobileNumber } from '@/lib/guestValidId';
+import {
+  buildGuestInfoWithAddress,
+  getAddressBlockerMessage,
+  isProfileAddressComplete,
+} from '@/lib/guestAddress';
 
 // Storage keys for persisting data
 const MULTI_ROOM_STORAGE_KEY = 'multi_room_booking_data';
@@ -498,6 +503,14 @@ function MultiRoomBookingPageContent() {
       return;
     }
 
+    if (!isProfileAddressComplete(profile)) {
+      setModalNotification({
+        message: getAddressBlockerMessage(),
+        type: 'error',
+      });
+      return;
+    }
+
     setSubmitting(true);
     try {
       const bookingId = generatedBookingId;
@@ -512,6 +525,13 @@ function MultiRoomBookingPageContent() {
       const userLastName = profile?.lastName || '';
       const userEmail = profile?.email || user?.email || '';
       const userPhone = profile?.mobileNumber || '';
+      const guestInfoBase = {
+        firstName: userFirstName,
+        lastName: userLastName,
+        email: userEmail,
+        phone: userPhone,
+      };
+      const guestInfo = buildGuestInfoWithAddress(profile, guestInfoBase);
 
       // Create booking document for each room type
       const allRoomIds = [];
@@ -558,12 +578,7 @@ function MultiRoomBookingPageContent() {
           remainingBalance: packageRemainingBalance,
           checkIn: bookingData.checkIn,
           checkOut: bookingData.checkOut,
-          guestInfo: {
-            firstName: userFirstName,
-            lastName: userLastName,
-            email: userEmail,
-            phone: userPhone
-          },
+          guestInfo,
           status: 'pending',
           paymentMethod: paymentMethod,
           balancePaymentMethod: balancePaymentMethod,
@@ -629,12 +644,7 @@ function MultiRoomBookingPageContent() {
               remainingBalance: roomTypeObj.price * 0.5,
               checkIn: bookingData.checkIn,
               checkOut: bookingData.checkOut,
-              guestInfo: {
-                firstName: userFirstName,
-                lastName: userLastName,
-                email: userEmail,
-                phone: userPhone
-              },
+              guestInfo,
               status: 'pending',
               paymentMethod: paymentMethod,
               balancePaymentMethod: balancePaymentMethod,
@@ -685,12 +695,7 @@ function MultiRoomBookingPageContent() {
 
         const emailBookingData = {
           bookingId: generatedBookingId,
-          guestInfo: {
-            firstName: userFirstName,
-            lastName: userLastName,
-            email: userEmail,
-            phone: userPhone
-          },
+          guestInfo,
           checkIn: bookingData.checkIn,
           checkOut: bookingData.checkOut,
           totalPrice: packageTotalPrice,
@@ -826,13 +831,16 @@ function MultiRoomBookingPageContent() {
   const userEmail = profile?.email || user?.email || '';
   const userMobileNumber = profile?.mobileNumber || '';
 
+  const hasCompleteAddress = isProfileAddressComplete(profile);
+
   const canConfirmBooking = Boolean(
     bookingData.paymentProofUrl &&
     !submitting &&
     (paymentMethod !== 'bank_transfer' || bankDetailsProvided || visibleGuestQrBank) &&
     userMobileNumber &&
     hasAccountValidId(profile) &&
-    ['digital', 'cash'].includes(balancePaymentMethod)
+    ['digital', 'cash'].includes(balancePaymentMethod) &&
+    hasCompleteAddress
   );
 
   const confirmBookingBlockers = [];
@@ -850,6 +858,9 @@ function MultiRoomBookingPageContent() {
   }
   if (!['digital', 'cash'].includes(balancePaymentMethod)) {
     confirmBookingBlockers.push('Select how you will pay your remaining balance at check-in (Digital or Cash).');
+  }
+  if (!hasCompleteAddress) {
+    confirmBookingBlockers.push(getAddressBlockerMessage());
   }
   if (submitting) {
     confirmBookingBlockers.push('Your booking is being submitted…');
@@ -941,6 +952,12 @@ function MultiRoomBookingPageContent() {
                         Update Profile
                       </button>
                     </div>
+                    {!hasCompleteAddress && (
+                      <p className="mb-3 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-900">
+                        <i className="fas fa-map-marker-alt mr-1.5" />
+                        Complete your home address in Account → Profile Details before you can confirm this booking.
+                      </p>
+                    )}
 
                     {/* Metadata Grid */}
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-xs text-gray-600">

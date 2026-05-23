@@ -3,6 +3,7 @@
 
 import { useEffect, useState } from 'react';
 import { useGuestAuth } from './GuestAuthContext';
+import { mapFirebaseAuthError } from '@/lib/firebaseAuthErrors';
 import PrivacyPolicyModal from './PrivacyPolicyModal';
 import TermsConditionsModal from './TermsConditionsModal';
 
@@ -55,8 +56,10 @@ function getPasswordStrength(password) {
 }
 
 export default function GuestAuthModal({ isOpen, onClose, prefillEmail = '' }) {
-  const { actionLoading, error, signInWithGoogle, signUpWithEmail, signInWithEmail } = useGuestAuth();
+  const { actionLoading, signInWithGoogle, signUpWithEmail, signInWithEmail, clearAuthError } = useGuestAuth();
   const [mode, setMode] = useState('signin');
+  const [signInError, setSignInError] = useState('');
+  const [signUpError, setSignUpError] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
@@ -116,16 +119,29 @@ export default function GuestAuthModal({ isOpen, onClose, prefillEmail = '' }) {
     setFirstName('');
     setLastName('');
     setNotice('');
+    setSignInError('');
+    setSignUpError('');
+    clearAuthError?.();
     setMode('signin');
     setShowPassword(false);
     setShowConfirmPassword(false);
     setTermsAccepted(false);
   };
 
+  const renderAuthError = (message) => (
+    <div className="rounded-xl border border-red-100 bg-red-50 px-4 py-3 text-xs leading-5 text-red-800">
+      <i className="fas fa-circle-exclamation mr-2 text-sm" />
+      {message}
+    </div>
+  );
+
   if (!isOpen) return null;
 
   const handleGoogleContinue = async () => {
     setNotice('');
+    setSignInError('');
+    setSignUpError('');
+    clearAuthError?.();
     
     // Enforce Terms & Conditions when in signup mode
     if (mode === 'signup' && !termsAccepted) {
@@ -136,14 +152,19 @@ export default function GuestAuthModal({ isOpen, onClose, prefillEmail = '' }) {
     try {
       await signInWithGoogle();
       onClose();
-    } catch {
-      // error handled by context
+    } catch (err) {
+      const message = mapFirebaseAuthError(err, mode === 'signup' ? 'signup' : 'signin');
+      if (mode === 'signup') setSignUpError(message);
+      else setSignInError(message);
     }
   };
 
   const handleSignUp = async (event) => {
     event.preventDefault();
     setNotice('');
+    setSignUpError('');
+    setSignInError('');
+    clearAuthError?.();
 
     if (password !== confirmPassword) {
       setNotice('Passwords do not match.');
@@ -172,16 +193,20 @@ export default function GuestAuthModal({ isOpen, onClose, prefillEmail = '' }) {
       setMode('signin');
       setPassword('');
       setConfirmPassword('');
+      setSignUpError('');
       setNotice('Verification email sent! Please check your inbox and verify your email before signing in.');
       setTermsAccepted(false); // reset after successful signup
     } catch (err) {
-      // error already in context
+      setSignUpError(mapFirebaseAuthError(err, 'signup'));
     }
   };
 
   const handleSignIn = async (event) => {
     event.preventDefault();
     setNotice('');
+    setSignInError('');
+    setSignUpError('');
+    clearAuthError?.();
 
     if (!email || !password) {
       setNotice('Please enter both email and password.');
@@ -192,7 +217,7 @@ export default function GuestAuthModal({ isOpen, onClose, prefillEmail = '' }) {
       await signInWithEmail(email, password);
       onClose();
     } catch (err) {
-      // error handled by context
+      setSignInError(mapFirebaseAuthError(err, 'signin'));
     }
   };
 
@@ -321,6 +346,7 @@ export default function GuestAuthModal({ isOpen, onClose, prefillEmail = '' }) {
 
             {mode === 'signin' ? (
               <form onSubmit={handleSignIn} className="space-y-3.5">
+                {signInError && renderAuthError(signInError)}
                 <div>
                   <label className="mb-1 block text-xs font-semibold text-slate-500 uppercase tracking-wider">
                     Email address
@@ -395,6 +421,9 @@ export default function GuestAuthModal({ isOpen, onClose, prefillEmail = '' }) {
                     onClick={() => {
                       setMode('signup');
                       setNotice('');
+                      setSignInError('');
+                      setSignUpError('');
+                      clearAuthError?.();
                       setTermsAccepted(false);
                     }}
                     className="font-semibold text-[#2563EB] hover:text-blue-700 hover:underline focus:outline-none"
@@ -424,6 +453,7 @@ export default function GuestAuthModal({ isOpen, onClose, prefillEmail = '' }) {
               </form>
             ) : (
               <form onSubmit={handleSignUp} className="space-y-3">
+                {signUpError && renderAuthError(signUpError)}
                 <div className="grid grid-cols-2 gap-3">
                   <div>
                     <label className="mb-1 block text-xs font-semibold text-slate-500 uppercase tracking-wider">
@@ -601,6 +631,9 @@ export default function GuestAuthModal({ isOpen, onClose, prefillEmail = '' }) {
                     onClick={() => {
                       setMode('signin');
                       setNotice('');
+                      setSignInError('');
+                      setSignUpError('');
+                      clearAuthError?.();
                       setTermsAccepted(false);
                     }}
                     className="font-semibold text-[#2563EB] hover:text-blue-700 hover:underline focus:outline-none"
@@ -611,7 +644,7 @@ export default function GuestAuthModal({ isOpen, onClose, prefillEmail = '' }) {
               </form>
             )}
 
-            {(notice || error) && (
+            {notice && (
               <div className={`mt-3.5 rounded-xl border px-4 py-3 text-xs leading-5 transition-all ${
                 notice?.includes('Verification email') 
                   ? 'border-emerald-100 bg-emerald-50 text-emerald-800' 
@@ -620,7 +653,7 @@ export default function GuestAuthModal({ isOpen, onClose, prefillEmail = '' }) {
                 <i className={`${
                   notice?.includes('Verification email') ? 'fas fa-envelope-open-text' : 'fas fa-circle-exclamation'
                 } mr-2 text-sm`}></i>
-                {error || notice}
+                {notice}
               </div>
             )}
 

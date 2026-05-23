@@ -34,6 +34,7 @@ function isStaffOrAdminAppRoute() {
   );
 }
 import { auth, db } from '@/lib/firebase';
+import { mapFirebaseAuthError } from '@/lib/firebaseAuthErrors';
 
 const GuestAuthContext = createContext(null);
 
@@ -399,14 +400,7 @@ export function GuestAuthProvider({ children }) {
       return { success: true, email: newUser.email };
     } catch (err) {
       console.error('Email sign-up failed:', err);
-      let message = 'Sign up failed. Please try again.';
-      if (err.code === 'auth/email-already-in-use') {
-        message = 'This email is already registered. Please sign in instead.';
-      } else if (err.code === 'auth/weak-password') {
-        message = 'Password should be at least 6 characters.';
-      } else if (err.code === 'auth/invalid-email') {
-        message = 'Please enter a valid email address.';
-      }
+      const message = mapFirebaseAuthError(err, 'signup');
       setError(message);
       throw new Error(message);
     } finally {
@@ -440,7 +434,8 @@ export function GuestAuthProvider({ children }) {
 
       if (isEmailUser(signedInUser) && !isVerified) {
         await signOut(auth);
-        setError('Please verify your email address before signing in. Check your inbox for the verification link.');
+        const verifyMessage = mapFirebaseAuthError({ code: 'auth/email-not-verified' }, 'signin');
+        setError(verifyMessage);
         throw new Error('Email not verified');
       }
 
@@ -457,18 +452,7 @@ export function GuestAuthProvider({ children }) {
       return signedInUser;
     } catch (err) {
       console.error('Email sign-in failed:', err);
-      let message = 'Sign in failed. Please try again.';
-      if (err.code === 'auth/user-not-found') {
-        message = 'No account found with this email. Please sign up first.';
-      } else if (err.code === 'auth/wrong-password') {
-        message = 'Incorrect password. Please try again.';
-      } else if (err.code === 'auth/invalid-email') {
-        message = 'Please enter a valid email address.';
-      } else if (err.message === 'Email not verified') {
-        message = err.message;
-      } else if (!err.code && err.message) {
-        message = err.message;
-      }
+      const message = mapFirebaseAuthError(err, 'signin');
       setError(message);
       throw new Error(message);
     } finally {
@@ -518,19 +502,22 @@ export function GuestAuthProvider({ children }) {
     await logout();
   };
 
+  const clearAuthError = useCallback(() => setError(''), []);
+
   const value = useMemo(() => ({
     user,
     profile,
     loading,
     actionLoading,
     error,
+    clearAuthError,
     deactivationBlock,
     signInWithGoogle,
     signUpWithEmail,
     signInWithEmail,
     logout,
     updateGuestProfile
-  }), [actionLoading, deactivationBlock, error, loading, logout, profile, signInWithGoogle, signUpWithEmail, signInWithEmail, updateGuestProfile, user]);
+  }), [actionLoading, clearAuthError, deactivationBlock, error, loading, logout, profile, signInWithGoogle, signUpWithEmail, signInWithEmail, updateGuestProfile, user]);
 
   return (
     <GuestAuthContext.Provider value={value}>

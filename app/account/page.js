@@ -12,6 +12,12 @@ import IdRequestNotifications from '@/components/guest/IdRequestNotifications';
 import { uploadImage } from '@/lib/cloudinary';
 import { compressImage } from '@/lib/imageUtils';
 import { VALID_ID_OPTIONS, getDisplayValidIdType } from '@/lib/guestValidId';
+import {
+  ADDRESS_VERIFICATION_NOTE,
+  EMPTY_GUEST_ADDRESS,
+  getGuestAddressFromProfile,
+  sanitizeNumericMobileInput,
+} from '@/lib/guestAddress';
 
 function GuestAccountContent() {
   const { user, profile, loading, logout, updateGuestProfile } = useGuestAuth();
@@ -25,6 +31,7 @@ function GuestAccountContent() {
     firstName: '',
     lastName: '',
     mobileNumber: '',
+    address: { ...EMPTY_GUEST_ADDRESS },
   });
   const [profileSaving, setProfileSaving] = useState(false);
   const [profileNotice, setProfileNotice] = useState('');
@@ -57,6 +64,7 @@ function GuestAccountContent() {
       firstName: profile?.firstName || '',
       lastName: profile?.lastName || '',
       mobileNumber: profile?.mobileNumber || '',
+      address: getGuestAddressFromProfile(profile),
     });
     setValidIdForm({
       validIdType: profile?.validIdType || 'Passport',
@@ -70,7 +78,18 @@ function GuestAccountContent() {
   const avatarLetter = (displayName || email || 'G').charAt(0).toUpperCase();
 
   const handleProfileChange = (field, value) => {
-    setProfileForm(prev => ({ ...prev, [field]: value }));
+    setProfileForm((prev) => ({ ...prev, [field]: value }));
+  };
+
+  const handleAddressChange = (field, value) => {
+    setProfileForm((prev) => ({
+      ...prev,
+      address: { ...prev.address, [field]: value },
+    }));
+  };
+
+  const handleMobileNumberChange = (value) => {
+    handleProfileChange('mobileNumber', sanitizeNumericMobileInput(value));
   };
 
   const handleEditClick = () => {
@@ -178,6 +197,13 @@ function GuestAccountContent() {
         firstName: profileForm.firstName.trim(),
         lastName: profileForm.lastName.trim(),
         mobileNumber: profileForm.mobileNumber || '',
+        address: {
+          houseNumber: profileForm.address.houseNumber.trim(),
+          street: profileForm.address.street.trim(),
+          barangay: profileForm.address.barangay.trim(),
+          city: profileForm.address.city.trim(),
+          province: profileForm.address.province.trim(),
+        },
       });
       setProfileNotice('Profile updated.');
       setIsEditing(false);
@@ -376,8 +402,10 @@ function GuestAccountContent() {
                           {isEditing ? (
                             <input
                               type="tel"
+                              inputMode="numeric"
+                              pattern="[0-9]*"
                               value={profileForm.mobileNumber}
-                              onChange={(e) => handleProfileChange('mobileNumber', e.target.value)}
+                              onChange={(e) => handleMobileNumberChange(e.target.value)}
                               className="w-full rounded-xl border border-[#4D8CF5]/20 bg-white px-4 py-2.5 text-sm text-gray-900 transition-all focus:border-[#4D8CF5] focus:bg-white focus:outline-none focus:ring-2 focus:ring-[#4D8CF5]/20"
                             />
                           ) : (
@@ -399,6 +427,47 @@ function GuestAccountContent() {
                             {user.email || '—'}
                           </div>
                         </div>
+                      </div>
+
+                      <div className="space-y-4 border-t border-[#4D8CF5]/10 pt-6">
+                        <div>
+                          <h3 className="text-sm font-semibold text-[#1E3A8A]">Home Address</h3>
+                          <p className="mt-1 text-xs text-[#4D6FA8]">
+                            Required for booking confirmation and verification.
+                          </p>
+                        </div>
+                        <div className="grid gap-6 sm:grid-cols-2">
+                          {[
+                            { key: 'houseNumber', label: 'House Number', icon: 'fa-home' },
+                            { key: 'street', label: 'Street', icon: 'fa-road' },
+                            { key: 'barangay', label: 'Barangay', icon: 'fa-map-marker-alt' },
+                            { key: 'city', label: 'City/Municipality', icon: 'fa-city' },
+                            { key: 'province', label: 'Province', icon: 'fa-map' },
+                          ].map(({ key, label, icon }) => (
+                            <div key={key} className={`space-y-1 ${key === 'province' ? 'sm:col-span-2' : ''}`}>
+                              <label className="flex items-center gap-2 text-sm font-semibold text-[#1E3A8A]">
+                                <i className={`fas ${icon} text-[#4D8CF5] text-xs`} />
+                                {label}
+                              </label>
+                              {isEditing ? (
+                                <input
+                                  type="text"
+                                  value={profileForm.address[key]}
+                                  onChange={(e) => handleAddressChange(key, e.target.value)}
+                                  className="w-full rounded-xl border border-[#4D8CF5]/20 bg-white px-4 py-2.5 text-sm text-gray-900 transition-all focus:border-[#4D8CF5] focus:bg-white focus:outline-none focus:ring-2 focus:ring-[#4D8CF5]/20"
+                                />
+                              ) : (
+                                <div className="flex items-center gap-2 rounded-xl border border-[#4D8CF5]/20 bg-[#F9FCFF] px-4 py-2.5 text-sm text-gray-700">
+                                  {profileForm.address[key] || '—'}
+                                </div>
+                              )}
+                            </div>
+                          ))}
+                        </div>
+                        <p className="rounded-xl border border-[#4D8CF5]/10 bg-[#F9FCFF] px-4 py-3 text-xs leading-relaxed text-[#4D6FA8]">
+                          <i className="fas fa-shield-alt mr-1.5 text-[#4D8CF5]" />
+                          {ADDRESS_VERIFICATION_NOTE}
+                        </p>
                       </div>
 
                       {isEditing && (

@@ -5,6 +5,7 @@ import { useState, useEffect } from 'react';
 import { db } from '@/lib/firebase';
 import { collection, query, where, doc, onSnapshot, addDoc, deleteDoc, getDocs, updateDoc } from 'firebase/firestore';
 import { logAdminAction } from '@/lib/auditLogger';
+import { buildExclusiveResortBlockedDateMap } from '@/lib/exclusiveResortDayTourBlocks';
 import Link from 'next/link';
 
 export default function AdminDayTourCalendar() {
@@ -21,6 +22,7 @@ export default function AdminDayTourCalendar() {
   const [removeConfirm, setRemoveConfirm] = useState(null);
   const [editingEntry, setEditingEntry] = useState(null);
   const [bookedDates, setBookedDates] = useState({});
+  const [exclusiveResortBlockedDates, setExclusiveResortBlockedDates] = useState({});
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   
   // Helper function to convert Date to YYYY-MM-DD local date string
@@ -118,6 +120,24 @@ export default function AdminDayTourCalendar() {
     return () => unsubscribe();
   }, [dayTour]);
 
+  useEffect(() => {
+    const exclusiveQuery = query(
+      collection(db, 'bookings'),
+      where('isExclusiveResortBooking', '==', true),
+      where('status', 'in', ['pending', 'confirmed'])
+    );
+
+    const unsubscribeExclusive = onSnapshot(exclusiveQuery, (querySnapshot) => {
+      const bookings = querySnapshot.docs.map((docSnap) => docSnap.data());
+      setExclusiveResortBlockedDates(buildExclusiveResortBlockedDateMap(bookings));
+    }, (error) => {
+      console.error('Error fetching exclusive resort blocks:', error);
+      setExclusiveResortBlockedDates({});
+    });
+
+    return () => unsubscribeExclusive();
+  }, []);
+
   // Handle body scroll when sidebar is open
   useEffect(() => {
     if (isSidebarOpen) {
@@ -160,8 +180,9 @@ export default function AdminDayTourCalendar() {
   };
 
   const isDateFullyBooked = (date) => {
-    if (!dayTour?.maxCapacity) return false;
     const dateKey = toLocalDateKey(date);
+    if (exclusiveResortBlockedDates[dateKey]) return true;
+    if (!dayTour?.maxCapacity) return false;
     const bookedCount = bookedDates[dateKey] || 0;
     const unavailableGuestCount = unavailableDates[dateKey] || 0;
     return bookedCount + unavailableGuestCount >= dayTour.maxCapacity;

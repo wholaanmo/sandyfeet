@@ -13,6 +13,11 @@ import { QRCodeSVG } from 'qrcode.react';
 import { useGuestAuth } from '@/components/guest/GuestAuthContext';
 import GuestAuthModal from '@/components/guest/GuestAuthModal';
 import { getDisplayValidIdType, hasAccountValidId, hasAccountMobileNumber } from '@/lib/guestValidId';
+import {
+  buildGuestInfoWithAddress,
+  getAddressBlockerMessage,
+  isProfileAddressComplete,
+} from '@/lib/guestAddress';
 
 // Storage key for persisting payment‑related data
 const STORAGE_KEY = 'daytour_booking_data';
@@ -415,13 +420,16 @@ function DayTourBookingContent() {
     : 'Guest';
   const userEmail = profile?.email || user?.email || '';
   const userMobileNumber = profile?.mobileNumber || '';
+  const hasCompleteAddress = isProfileAddressComplete(profile);
+
   const canSubmitPayment = Boolean(
     bookingData.paymentProof &&
     !submitting &&
     hasMobileNumber &&
     hasAccountValidId(profile) &&
     (paymentMethod !== 'bank_transfer' || bankDetailsProvided || visibleGuestQrBank) &&
-    ['digital', 'cash'].includes(balancePaymentMethod)
+    ['digital', 'cash'].includes(balancePaymentMethod) &&
+    hasCompleteAddress
   );
   const visibleGuestQrBank = paymentSettings.bankAccounts.find(
     (account) => account.qrCodeUrl && account.showToGuest === true
@@ -611,6 +619,10 @@ function DayTourBookingContent() {
       return;
     }
     setValidIdError('');
+    if (!isProfileAddressComplete(profile)) {
+      setModalNotification({ message: getAddressBlockerMessage(), type: 'error' });
+      return;
+    }
 
     setSubmitting(true);
     try {
@@ -664,12 +676,12 @@ function DayTourBookingContent() {
         totalPrice: totalPrice,
         downPayment: downPaymentAmount,
         remainingBalance: totalPrice - downPaymentAmount,
-        guestInfo: {
+        guestInfo: buildGuestInfoWithAddress(profile, {
           firstName: profile?.firstName || '',
           lastName: profile?.lastName || '',
           email: user.email,
-          phone: profile?.mobileNumber || ''
-        },
+          phone: profile?.mobileNumber || '',
+        }),
         status: 'pending',
         paymentMethod: paymentMethod,
         balancePaymentMethod: balancePaymentMethod,
@@ -763,6 +775,14 @@ function DayTourBookingContent() {
   };
 
   const paymentChecklist = [
+    {
+      icon: 'fa-map-marker-alt',
+      label: 'Complete Address',
+      description: hasCompleteAddress
+        ? 'Your home address is saved in your account profile.'
+        : getAddressBlockerMessage(),
+      complete: hasCompleteAddress,
+    },
     {
       icon: 'fa-hand-holding-usd',
       label: 'Balance at Check-In',
@@ -1404,6 +1424,12 @@ function DayTourBookingContent() {
                         Update Profile
                       </button>
                     </div>
+                    {!hasCompleteAddress && (
+                      <p className="mb-3 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-900">
+                        <i className="fas fa-map-marker-alt mr-1.5" />
+                        Complete your home address in Account → Profile Details before you can confirm this booking.
+                      </p>
+                    )}
 
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-xs text-gray-600">
                       <div className="flex items-center gap-2">

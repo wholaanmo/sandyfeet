@@ -3,6 +3,7 @@
 
 import React, { useState, useEffect } from 'react';
 import { formatBalancePaymentMethodLabel } from '@/lib/balancePaymentMethod';
+import { formatGuestAddress } from '@/lib/guestAddress';
 import {
   formatDateOnly,
   formatDateTime,
@@ -127,7 +128,7 @@ export default function BookingDetailsModal({ booking, feedback, onClose }) {
   const [imageZoom, setImageZoom] = useState({ show: false, imageUrl: '', title: '' });
   const typeInfo = getTypeDisplay(booking);
   const statusInfo = getStatusBadge(booking.status, booking.cancelledBy);
-  const address = formatAddress(booking.guestInfo?.address);
+  const address = formatGuestAddress(booking.guestInfo?.guestAddress || booking.guestInfo?.address);
   const paymentProofUrl = booking.paymentProof || booking.paymentProofUrl;
   const validIdUrl = booking.validIdImage || booking.validIdUrl;
   const paymentDisplay = computePaymentDisplay(booking);
@@ -187,6 +188,11 @@ export default function BookingDetailsModal({ booking, feedback, onClose }) {
                 <DetailRow label="Status" value={statusInfo.label} />
                 <DetailRow label="Booked On" value={formatDateTime(booking.createdAt)} />
                 {booking.paymentMethod && <DetailRow label="Payment Method" value={booking.paymentMethod} />}
+                {address && (
+                  <div className="sm:col-span-2">
+                    <DetailRow label="Guest Address" value={address} />
+                  </div>
+                )}
               </div>
               {booking.adminNote && (
                 <div className="mt-4 rounded-xl border border-amber-200 bg-amber-50 p-3">

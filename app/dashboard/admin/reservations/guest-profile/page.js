@@ -19,26 +19,31 @@ import {
   getBalance,
 } from '@/app/my-bookings/utils';
 import BookingDetailsModal from '../components/BookingDetailsModal';
+import { formatGuestAddress } from '@/lib/guestAddress';
 
 export const ADMIN_RESERVATIONS_RESTORE_KEY = 'adminReservationsGuestProfileRestore';
 
-export const mapGuestProfileToDisplayInfo = (profile, fallbackGuestInfo = {}, fallbackEmail = '') => ({
-  firstName: profile?.firstName?.trim() || fallbackGuestInfo?.firstName?.trim() || '—',
-  lastName: profile?.lastName?.trim() || fallbackGuestInfo?.lastName?.trim() || '—',
-  mobile:
-    profile?.mobileNumber?.trim() ||
-    profile?.phone?.trim() ||
-    fallbackGuestInfo?.phone?.trim() ||
-    '—',
-  email: profile?.email?.trim() || fallbackGuestInfo?.email?.trim() || fallbackEmail?.trim() || '—',
-});
+export const mapGuestProfileToDisplayInfo = (profile, fallbackGuestInfo = {}, fallbackEmail = '') => {
+  const addressText =
+    formatGuestAddress(profile?.address) ||
+    formatGuestAddress(fallbackGuestInfo?.guestAddress) ||
+    formatGuestAddress(fallbackGuestInfo?.address) ||
+    '';
 
-const formatAddress = (address) => {
-  if (!address) return '';
-  if (typeof address === 'string') return address;
-  return [address.street, address.city, address.province, address.postalCode]
-    .map(p => String(p || '').trim()).filter(Boolean).join(', ');
+  return {
+    firstName: profile?.firstName?.trim() || fallbackGuestInfo?.firstName?.trim() || '—',
+    lastName: profile?.lastName?.trim() || fallbackGuestInfo?.lastName?.trim() || '—',
+    mobile:
+      profile?.mobileNumber?.trim() ||
+      profile?.phone?.trim() ||
+      fallbackGuestInfo?.phone?.trim() ||
+      '—',
+    email: profile?.email?.trim() || fallbackGuestInfo?.email?.trim() || fallbackEmail?.trim() || '—',
+    address: addressText || '—',
+  };
 };
+
+const formatAddress = (address) => formatGuestAddress(address);
 
 const BASE_EXCLUSIVE_PRICE = 22500;
 const FIXED_CHECK_IN_DISPLAY = '02:00 PM';

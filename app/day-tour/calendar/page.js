@@ -6,6 +6,7 @@ import { useRouter, useSearchParams } from 'next/navigation';
 import GuestLayout from '@/app/guest/layout';
 import { db } from '@/lib/firebase';
 import { collection, query, where, getDocs, onSnapshot, doc } from 'firebase/firestore';
+import { buildExclusiveResortBlockedDateMap } from '@/lib/exclusiveResortDayTourBlocks';
 
 function DayTourCalendarContent() {
   const router = useRouter();
@@ -38,6 +39,7 @@ function DayTourCalendarContent() {
   const [bookedDates, setBookedDates] = useState({});
   const [remainingCapacityForSelected, setRemainingCapacityForSelected] = useState(null);
   const [unavailableDates, setUnavailableDates] = useState({});
+  const [exclusiveResortBlockedDates, setExclusiveResortBlockedDates] = useState({});
   const maxAllowedGuests = HARD_MAX_PACKS;
   const requestedGuests = adults + kids;
 
@@ -154,6 +156,24 @@ function DayTourCalendarContent() {
     return () => unsubscribe();
   }, [dayTour]);
 
+  useEffect(() => {
+    const exclusiveQuery = query(
+      collection(db, 'bookings'),
+      where('isExclusiveResortBooking', '==', true),
+      where('status', 'in', ['pending', 'confirmed'])
+    );
+
+    const unsubscribeExclusive = onSnapshot(exclusiveQuery, (querySnapshot) => {
+      const bookings = querySnapshot.docs.map((docSnap) => docSnap.data());
+      setExclusiveResortBlockedDates(buildExclusiveResortBlockedDateMap(bookings));
+    }, (error) => {
+      console.error('Error fetching exclusive resort blocks:', error);
+      setExclusiveResortBlockedDates({});
+    });
+
+    return () => unsubscribeExclusive();
+  }, []);
+
   // Update remaining capacity when selected date changes
   useEffect(() => {
     if (selectedDate && dayTour) {
@@ -162,7 +182,7 @@ function DayTourCalendarContent() {
     } else {
       setRemainingCapacityForSelected(null);
     }
-  }, [selectedDate, dayTour, bookedDates, unavailableDates]);
+  }, [selectedDate, dayTour, bookedDates, unavailableDates, exclusiveResortBlockedDates]);
 
   const getDaysInMonth = (date) => {
     const year = date.getFullYear();
@@ -178,8 +198,9 @@ function DayTourCalendarContent() {
   };
 
   const getRemainingCapacity = (date) => {
-    if (!dayTour?.maxCapacity) return Infinity;
     const dateKey = toLocalDateKey(date);
+    if (exclusiveResortBlockedDates[dateKey]) return 0;
+    if (!dayTour?.maxCapacity) return Infinity;
     const bookedCount = bookedDates[dateKey] || 0;
     const unavailableGuestCount = unavailableDates[dateKey] || 0;
     return dayTour.maxCapacity - (bookedCount + unavailableGuestCount);

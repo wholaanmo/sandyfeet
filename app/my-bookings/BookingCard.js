@@ -13,6 +13,7 @@ import {
   getDownPayment, getBalance, getRoomTypes, canCancel,
 } from './utils';
 import { formatBalancePaymentMethodLabel } from '@/lib/balancePaymentMethod';
+import { QRCodeSVG } from 'qrcode.react';
 
 // Constant for Entire Resort base price (matches multi-room-booking/page.js)
 const BASE_EXCLUSIVE_PRICE = 22500;
@@ -44,7 +45,29 @@ export default function BookingCard({ booking, onCancel, onEditSuccess }) {
   const balance = getBalance(booking);
   const dp = getDownPayment(booking);
   const roomTypes = getRoomTypes(booking);
-  const address = formatAddress(booking.guestInfo?.address);
+  const address = formatAddress(booking.guestInfo?.guestAddress || booking.guestInfo?.address);
+  const checkinToken = booking.checkinToken || booking.children?.[0]?.checkinToken;
+  const canShowQr =
+    checkinToken && !['cancelled', 'cancelled-by-guest'].includes(booking.status);
+
+  const downloadQRCode = async () => {
+    if (!checkinToken || typeof window === 'undefined') return;
+    try {
+      const response = await fetch(`/api/download-qr?token=${checkinToken}`);
+      if (!response.ok) throw new Error('Failed to download QR code');
+      const blob = await response.blob();
+      const url = window.URL.createObjectURL(blob);
+      const anchor = document.createElement('a');
+      anchor.href = url;
+      anchor.download = `booking-${booking.bookingId}-qr.png`;
+      document.body.appendChild(anchor);
+      anchor.click();
+      document.body.removeChild(anchor);
+      window.URL.revokeObjectURL(url);
+    } catch (err) {
+      console.error('Error downloading QR code:', err);
+    }
+  };
   const showCancel = canCancel(booking);
   const isPending = booking.status === 'pending';
   const isRoomBooking = booking.type === 'room';
@@ -392,6 +415,42 @@ export default function BookingCard({ booking, onCancel, onEditSuccess }) {
                   )}
                 </div>
               </div>
+
+              {canShowQr && (
+                <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm md:col-span-2">
+                  <h4 className="flex items-center gap-2 text-xs font-semibold uppercase tracking-wider text-slate-500">
+                    <span className="flex h-6 w-6 items-center justify-center rounded-full bg-indigo-100 text-indigo-600">
+                      <i className="fas fa-qrcode text-xs" />
+                    </span>
+                    Check-in QR Code
+                  </h4>
+                  <div className="mt-4 flex flex-col items-center gap-4 sm:flex-row sm:items-start sm:justify-center">
+                    <div className="rounded-xl border border-slate-100 bg-white p-3">
+                      <QRCodeSVG
+                        value={`${typeof window !== 'undefined' ? window.location.origin : ''}/check-in?token=${checkinToken}`}
+                        size={168}
+                        bgColor="#ffffff"
+                        fgColor="#000000"
+                        level="M"
+                        includeMargin
+                      />
+                    </div>
+                    <div className="text-center sm:text-left">
+                      <p className="text-sm text-slate-600">
+                        Present this QR code at the resort for check-in.
+                      </p>
+                      <button
+                        type="button"
+                        onClick={downloadQRCode}
+                        className="mt-3 inline-flex items-center gap-2 rounded-lg bg-blue-600 px-4 py-2 text-sm font-semibold text-white shadow-sm transition hover:bg-blue-700"
+                      >
+                        <i className="fas fa-download text-xs" />
+                        Download QR Code
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              )}
 
               {/* ---- Resort Response moved inside grid, after Payment Summary, before Notes ---- */}
               {isProcessedChangeRequest && (

@@ -27,9 +27,19 @@ export const formatDateTime = (value) => {
 
 export const formatAddress = (address) => {
   if (!address) return '';
-  if (typeof address === 'string') return address;
-  return [address.street, address.city, address.province, address.postalCode]
-    .map((p) => String(p || '').trim()).filter(Boolean).join(', ');
+  if (typeof address === 'string') return address.trim();
+  if (address.formatted) return String(address.formatted).trim();
+  const parts = [
+    address.houseNumber,
+    address.street,
+    address.barangay,
+    address.city || address.cityMunicipality,
+    address.province,
+    address.postalCode,
+  ]
+    .map((p) => String(p || '').trim())
+    .filter(Boolean);
+  return parts.join(', ');
 };
 
 export const calcNights = (checkIn, checkOut) => {
@@ -141,6 +151,7 @@ export const normalizeBooking = (docSnap, type) => {
     paymentProofUrl: d.paymentProofUrl || null,
     roomTypesArray: Array.isArray(d.roomTypes) ? d.roomTypes : d.roomTypesArray || null,
     guestUid: d.guestUid || null,
+    checkinToken: d.checkinToken || null,
   };
 };
 

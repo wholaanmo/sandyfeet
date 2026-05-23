@@ -2116,6 +2116,12 @@ export default function AdminReservations() {
                   </p>
                   <p className="text-xs text-[#1E3A8A]/70 mt-0.5">{sidebarGuestInfo?.email}</p>
                   <p className="text-xs text-[#1E3A8A]/70 mt-0.5">{sidebarGuestInfo?.mobile}</p>
+                  {sidebarGuestInfo?.address && sidebarGuestInfo.address !== '—' && (
+                    <p className="text-xs text-[#1E3A8A]/70 mt-2 leading-relaxed">
+                      <span className="font-semibold text-[#1E3A8A]/80">Address:</span>{' '}
+                      {sidebarGuestInfo.address}
+                    </p>
+                  )}
                 </div>
               </div>
 

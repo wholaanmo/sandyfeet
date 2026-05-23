@@ -1,41 +1,57 @@
 // components/SessionGuard.js
 'use client';
 
-import { useEffect } from 'react';
+import { useEffect, useCallback } from 'react';
 import { useRouter, usePathname } from 'next/navigation';
+import { clearStaffAdminSession, isStaffAdminSessionValid } from '@/lib/sessionGuardUtils';
 
 export function SessionGuard({ children }) {
   const router = useRouter();
   const pathname = usePathname();
 
-const clearSessionAndRedirect = () => {
-  localStorage.removeItem('userType');
-  localStorage.removeItem('userEmail');
-  localStorage.removeItem('userName');        // ✅ ADDED
-  localStorage.removeItem('uid');
-  localStorage.removeItem('sessionToken');
-  localStorage.removeItem('sessionExpiry');
-  localStorage.removeItem('rememberMe');
+  const redirectToLogin = useCallback(() => {
+    clearStaffAdminSession();
+    router.replace('/login');
+  }, [router]);
 
-  document.cookie = 'sessionToken=; path=/; expires=Thu, 01 Jan 1970 00:00:01 GMT; SameSite=Lax';
-  document.cookie = 'userType=; path=/; expires=Thu, 01 Jan 1970 00:00:01 GMT; SameSite=Lax';
-  document.cookie = 'sessionExpiry=; path=/; expires=Thu, 01 Jan 1970 00:00:01 GMT; SameSite=Lax';
-
-  router.push('/login');
-};
-
-  const checkSession = () => {
-    const expiry = localStorage.getItem('sessionExpiry');
-    if (expiry && parseInt(expiry) < Date.now()) {
-      clearSessionAndRedirect();
+  const enforceSession = useCallback(() => {
+    if (!isStaffAdminSessionValid()) {
+      redirectToLogin();
+      return false;
     }
-  };
+    return true;
+  }, [redirectToLogin]);
 
   useEffect(() => {
-    checkSession();
-    const interval = setInterval(checkSession, 60000); // every minute
-    return () => clearInterval(interval);
-  }, [pathname]); // re‑run on route change
+    if (!enforceSession()) return undefined;
+
+    const interval = setInterval(() => {
+      enforceSession();
+    }, 60000);
+
+    const handlePageShow = (event) => {
+      if (event.persisted || !isStaffAdminSessionValid()) {
+        enforceSession();
+      }
+    };
+
+    const handlePopState = () => {
+      enforceSession();
+    };
+
+    window.addEventListener('pageshow', handlePageShow);
+    window.addEventListener('popstate', handlePopState);
+
+    return () => {
+      clearInterval(interval);
+      window.removeEventListener('pageshow', handlePageShow);
+      window.removeEventListener('popstate', handlePopState);
+    };
+  }, [pathname, enforceSession]);
+
+  if (typeof window !== 'undefined' && !isStaffAdminSessionValid()) {
+    return null;
+  }
 
   return children;
 }

@@ -7,6 +7,7 @@ import Image from 'next/image';
 import { usePathname, useRouter } from 'next/navigation';
 import { auth } from '../../lib/firebase';
 import { signOut } from 'firebase/auth';
+import { clearStaffAdminSession } from '@/lib/sessionGuardUtils';
 
 export default function AdminSidebar({ isOpen, onToggle, isDesktop }) {
   const [is_expanded, setIsExpanded] = useState(false);
@@ -26,39 +27,17 @@ export default function AdminSidebar({ isOpen, onToggle, isDesktop }) {
     try {
       await signOut(auth);
 
-      // Clear localStorage
-      localStorage.removeItem('userType');
-      localStorage.removeItem('userEmail');
-      localStorage.removeItem('uid');
-      localStorage.removeItem('sessionToken');
-      localStorage.removeItem('sessionExpiry');
-      localStorage.removeItem('rememberMe');
-
-      // Clear cookies for middleware
-      document.cookie = 'sessionToken=; path=/; expires=Thu, 01 Jan 1970 00:00:01 GMT; SameSite=Lax';
-      document.cookie = 'userType=; path=/; expires=Thu, 01 Jan 1970 00:00:01 GMT; SameSite=Lax';
-      document.cookie = 'sessionExpiry=; path=/; expires=Thu, 01 Jan 1970 00:00:01 GMT; SameSite=Lax';
+      clearStaffAdminSession();
 
       setShowSignOutModal(false);
-      router.push('/login');
+      router.replace('/login');
     } catch (error) {
       console.error('Sign out error:', error);
 
-      // Still clear local data even if Firebase signOut fails
-      localStorage.removeItem('userType');
-      localStorage.removeItem('userEmail');
-      localStorage.removeItem('uid');
-      localStorage.removeItem('sessionToken');
-      localStorage.removeItem('sessionExpiry');
-      localStorage.removeItem('rememberMe');
-
-      // Clear cookies as well
-      document.cookie = 'sessionToken=; path=/; expires=Thu, 01 Jan 1970 00:00:01 GMT; SameSite=Lax';
-      document.cookie = 'userType=; path=/; expires=Thu, 01 Jan 1970 00:00:01 GMT; SameSite=Lax';
-      document.cookie = 'sessionExpiry=; path=/; expires=Thu, 01 Jan 1970 00:00:01 GMT; SameSite=Lax';
+      clearStaffAdminSession();
 
       setShowSignOutModal(false);
-      router.push('/login');
+      router.replace('/login');
     }
   };
 
