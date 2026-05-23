@@ -145,7 +145,7 @@ export default function GuestAuthModal({ isOpen, onClose, prefillEmail = '' }) {
     
     // Enforce Terms & Conditions when in signup mode
     if (mode === 'signup' && !termsAccepted) {
-      setNotice('You must agree to the Terms and Conditions to create an account.');
+      setNotice('You must agree to the Terms and Conditions and Privacy Policy to create an account.');
       return;
     }
     
@@ -184,7 +184,7 @@ export default function GuestAuthModal({ isOpen, onClose, prefillEmail = '' }) {
     
     // Terms & Conditions validation
     if (!termsAccepted) {
-      setNotice('You must agree to the Terms and Conditions to create an account.');
+      setNotice('You must agree to the Terms and Conditions and Privacy Policy to create an account.');
       return;
     }
 

@@ -416,41 +416,69 @@ export default function BookingCard({ booking, onCancel, onEditSuccess }) {
                 </div>
               </div>
 
-              {canShowQr && (
-                <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm md:col-span-2">
-                  <h4 className="flex items-center gap-2 text-xs font-semibold uppercase tracking-wider text-slate-500">
-                    <span className="flex h-6 w-6 items-center justify-center rounded-full bg-indigo-100 text-indigo-600">
-                      <i className="fas fa-qrcode text-xs" />
-                    </span>
-                    Check-in QR Code
-                  </h4>
-                  <div className="mt-4 flex flex-col items-center gap-4 sm:flex-row sm:items-start sm:justify-center">
-                    <div className="rounded-xl border border-slate-100 bg-white p-3">
-                      <QRCodeSVG
-                        value={`${typeof window !== 'undefined' ? window.location.origin : ''}/check-in?token=${checkinToken}`}
-                        size={168}
-                        bgColor="#ffffff"
-                        fgColor="#000000"
-                        level="M"
-                        includeMargin
-                      />
-                    </div>
-                    <div className="text-center sm:text-left">
-                      <p className="text-sm text-slate-600">
-                        Present this QR code at the resort for check-in.
-                      </p>
-                      <button
-                        type="button"
-                        onClick={downloadQRCode}
-                        className="mt-3 inline-flex items-center gap-2 rounded-lg bg-blue-600 px-4 py-2 text-sm font-semibold text-white shadow-sm transition hover:bg-blue-700"
-                      >
-                        <i className="fas fa-download text-xs" />
-                        Download QR Code
-                      </button>
-                    </div>
-                  </div>
-                </div>
-              )}
+     {canShowQr && (
+  <div className="relative overflow-hidden rounded-2xl border border-slate-200 bg-gradient-to-br from-white via-slate-50 to-slate-100 p-5 shadow-sm md:col-span-2">
+    
+    {/* Decorative Blur */}
+    <div className="absolute -right-10 -top-10 h-32 w-32 rounded-full bg-blue-100/40 blur-3xl" />
+
+    <div className="relative z-10">
+      <div className="flex items-start justify-between gap-4">
+        <div>
+          <h4 className="flex items-center gap-2 text-sm font-semibold text-slate-800">
+            <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-blue-100 text-blue-600 shadow-sm">
+              <i className="fas fa-qrcode text-sm" />
+            </span>
+            Check-in QR Code
+          </h4>
+
+        </div>
+
+        <span className="rounded-full bg-emerald-100 px-3 py-1 text-[11px] font-medium text-emerald-700">
+          Ready to Scan
+        </span>
+      </div>
+
+      <div className="mt-5 flex flex-col items-center gap-5 lg:flex-row lg:items-center">
+        
+        {/* QR Container */}
+        <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
+          <QRCodeSVG
+            value={`${
+              typeof window !== "undefined"
+                ? window.location.origin
+                : ""
+            }/check-in?token=${checkinToken}`}
+            size={170}
+            bgColor="#ffffff"
+            fgColor="#0f172a"
+            level="M"
+            includeMargin
+          />
+        </div>
+
+        {/* Actions */}
+        <div className="flex flex-1 flex-col items-center text-center lg:items-start lg:text-left">
+          <div className="rounded-xl bg-slate-100 px-4 py-3 text-xs leading-relaxed text-slate-600">
+            <p>
+              Please keep this QR code accessible during your stay. Resort
+              staff will scan it during check-in verification.
+            </p>
+          </div>
+
+          <button
+            type="button"
+            onClick={downloadQRCode}
+            className="mt-4 inline-flex items-center gap-2 rounded-xl bg-blue-600 px-5 py-2.5 text-sm font-semibold text-white shadow-sm transition-all duration-200 hover:-translate-y-0.5 hover:bg-blue-700"
+          >
+            <i className="fas fa-download text-xs" />
+            Download QR Code
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+)}
 
               {/* ---- Resort Response moved inside grid, after Payment Summary, before Notes ---- */}
               {isProcessedChangeRequest && (
