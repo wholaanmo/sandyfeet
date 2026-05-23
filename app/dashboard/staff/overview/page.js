@@ -455,7 +455,7 @@ useEffect(() => {
               </p>
             </div>
 <Link 
-  href="/dashboard/admin/reservations"
+  href="/dashboard/staff/reservations"
   className="px-3 py-1.5 rounded-lg border border-[#7AAAF8]/30 bg-white/70 backdrop-blur-md text-[#1E3A8A] text-xs font-medium hover:bg-[#7AAAF8] hover:text-white transition-all duration-200 flex items-center gap-2 shadow-sm hover:shadow"
 >
   View All
@@ -535,7 +535,7 @@ useEffect(() => {
               </p>
             </div>
  <Link 
-  href="/dashboard/admin/reservations"
+  href="/dashboard/staff/reservations"
   className="px-3 py-1.5 rounded-lg border border-[#7AAAF8]/30 bg-white/70 backdrop-blur-md text-[#1E3A8A] text-xs font-medium hover:bg-[#7AAAF8] hover:text-white transition-all duration-200 flex items-center gap-2 shadow-sm hover:shadow"
 >
   View All

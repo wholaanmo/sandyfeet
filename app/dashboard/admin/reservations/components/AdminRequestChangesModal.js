@@ -97,24 +97,25 @@ className="w-7 h-7 rounded-md bg-ocean-ice text-neutral hover:bg-ocean-light/20 
 <div className="flex items-center justify-end gap-2 border-t border-gray-100 bg-gray-50 px-4 py-2.5">
 
 
-    {!isProcessed && (
-        <>
-            <button
+          {!isProcessed && (
+            <>
+              <button
                 type="button"
                 onClick={() => onConfirm('reject')}
-                className="flex h-10 min-w-[170px] items-center justify-center gap-1.5 rounded-xl bg-red-500/10 px-4 text-sm font-semibold text-red-600 shadow-sm transition-all duration-200 hover:bg-red-600 hover:text-white disabled:opacity-50">
-                Cancel Request Changes
-            </button>
-
-            <button
+                className="flex h-10 items-center justify-center gap-1.5 rounded-xl bg-red-500/10 px-4 text-sm font-semibold text-red-600 shadow-sm transition-all duration-200 hover:bg-red-600 hover:text-white disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                Decline
+              </button>
+              <button
                 type="button"
                 onClick={() => onConfirm('approve')}
-className="flex h-10 min-w-[170px] items-center justify-center gap-1.5 rounded-xl bg-green-500/10 px-4 text-sm font-semibold text-green-600 shadow-sm transition-all duration-200 hover:bg-green-600 hover:text-white disabled:opacity-50">
-                Confirm Request Changes
-            </button>
-        </>
-    )}
-</div>
+                className="flex h-10 items-center justify-center gap-1.5 rounded-xl bg-green-500/10 px-4 text-sm font-semibold text-green-600 shadow-sm transition-all duration-200 hover:bg-green-600 hover:text-white disabled:opacity-50"
+              >
+                Approve
+              </button>
+            </>
+          )}
+        </div>
       </div>
     </div>
   );

@@ -258,42 +258,83 @@ export default function AdminActionReasonModal({ isOpen, action, booking, onClos
 
   const title = action === 'approve' ? 'Approve Change Request' : 'Reject Change Request';
   const buttonLabel = action === 'approve' ? 'Approve & Notify Guest' : 'Reject & Notify Guest';
-  const buttonColor = action === 'approve' ? 'bg-green-600 hover:bg-green-700' : 'bg-red-600 hover:bg-red-700';
+  const isApprove = action === 'approve';
 
   return (
     <div className="fixed inset-0 z-[70] flex items-center justify-center p-4">
       <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" onClick={onClose} />
       <div className="relative z-10 w-full max-w-md overflow-hidden rounded-2xl bg-white shadow-2xl animate-[fadeIn_0.2s_ease-out]">
-        <div className="border-b border-gray-100 px-6 py-5">
-          <h3 className="text-lg font-bold text-gray-900">{title}</h3>
+        <div className={`border-b px-6 py-5 ${
+          isApprove
+            ? 'border-green-100 bg-gradient-to-r from-green-50 to-white'
+            : 'border-red-100 bg-gradient-to-r from-red-50 to-white'
+        }`}>
+          <div className="flex items-start gap-4">
+            <div className={`flex h-12 w-12 shrink-0 items-center justify-center rounded-full ${
+              isApprove ? 'bg-green-100 text-green-600' : 'bg-red-100 text-red-600'
+            }`}>
+              <i className={`fas ${isApprove ? 'fa-check-circle' : 'fa-times-circle'} text-lg`} />
+            </div>
+            <div className="flex-1">
+              <h3 className={`text-xl font-bold ${isApprove ? 'text-green-900' : 'text-red-900'}`}>{title}</h3>
+              <p className={`mt-1 text-sm ${isApprove ? 'text-green-600' : 'text-red-600'}`}>
+                Booking ID: <span className="font-mono font-semibold">{booking?.bookingId}</span>
+              </p>
+            </div>
+            <button
+              onClick={onClose}
+              className="w-7 h-7 rounded-md bg-ocean-ice text-neutral hover:bg-ocean-light/20 hover:text-textPrimary transition-all duration-200 flex items-center justify-center"
+            >
+              <i className="fas fa-times" />
+            </button>
+          </div>
         </div>
+
         <div className="px-6 py-5 space-y-4">
           <p className="text-sm text-gray-600">
-            Please provide a reason for {action === 'approve' ? 'approving' : 'rejecting'} this change request.
+            Please provide a reason for {isApprove ? 'approving' : 'rejecting'} this change request.
             This will be included in the email sent to the guest and displayed in their booking.
           </p>
-          <textarea
-            rows={3}
-            value={reason}
-            onChange={(e) => setReason(e.target.value)}
-            placeholder="Type your reason here..."
-            className="w-full rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm focus:outline-none focus:border-blue-400 focus:bg-white focus:ring-2 focus:ring-blue-100"
-          />
+          <div>
+            <label className="block text-sm font-semibold text-textPrimary mb-1.5">
+              Reason <span className="text-red-500">*</span>
+            </label>
+            <textarea
+              rows={3}
+              value={reason}
+              onChange={(e) => setReason(e.target.value)}
+              placeholder="Type your reason here..."
+              className={`w-full px-3 py-2 border border-ocean-light/20 rounded-xl text-sm focus:outline-none transition-all duration-300 bg-white resize-none focus:ring-2 ${
+                isApprove
+                  ? 'focus:border-green-300 focus:ring-green-200'
+                  : 'focus:border-red-300 focus:ring-red-200'
+              }`}
+            />
+          </div>
         </div>
-        <div className="flex justify-end gap-3 border-t border-gray-100 bg-gray-50 px-6 py-4">
+
+        <div className="flex items-center justify-end gap-2 border-t border-gray-100 bg-gray-50 px-4 py-2.5">
           <button
             onClick={onClose}
             disabled={loading}
-            className="rounded-xl px-5 py-2.5 text-sm font-semibold text-gray-600 hover:bg-gray-100"
+            className="flex h-10 items-center justify-center rounded-xl border border-gray-200 bg-white px-4 text-sm font-medium text-gray-600 shadow-sm transition-all duration-200 hover:bg-gray-50 disabled:opacity-50"
           >
             Cancel
           </button>
           <button
             onClick={handleSubmit}
             disabled={!reason.trim() || loading}
-            className={`rounded-xl px-5 py-2.5 text-sm font-semibold text-white shadow-sm ${buttonColor} disabled:opacity-50`}
+            className={
+              isApprove
+                ? 'flex h-10 items-center justify-center gap-1.5 rounded-xl bg-green-500/10 px-4 text-sm font-semibold text-green-600 shadow-sm transition-all duration-200 hover:bg-green-600 hover:text-white disabled:opacity-50'
+                : 'flex h-10 items-center justify-center gap-1.5 rounded-xl bg-red-500/10 px-4 text-sm font-semibold text-red-600 shadow-sm transition-all duration-200 hover:bg-red-600 hover:text-white disabled:opacity-50 disabled:cursor-not-allowed'
+            }
           >
-            {loading ? 'Processing...' : buttonLabel}
+            {loading ? (
+              <><i className="fas fa-spinner fa-spin"></i> Processing...</>
+            ) : (
+              buttonLabel
+            )}
           </button>
         </div>
       </div>

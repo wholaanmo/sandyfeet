@@ -102,15 +102,15 @@ export default function AdminRequestChangesModal({ isOpen, booking, onClose, onC
             <button
                 type="button"
                 onClick={() => onConfirm('reject')}
-                className="flex h-10 min-w-[170px] items-center justify-center gap-1.5 rounded-xl bg-red-500/10 px-4 text-sm font-semibold text-red-600 shadow-sm transition-all duration-200 hover:bg-red-600 hover:text-white disabled:opacity-50">
-                Cancel Request Changes
+                className="flex h-10 items-center justify-center gap-1.5 rounded-xl bg-red-500/10 px-4 text-sm font-semibold text-red-600 shadow-sm transition-all duration-200 hover:bg-red-600 hover:text-white disabled:opacity-50 disabled:cursor-not-allowed">
+                Decline
             </button>
 
             <button
                 type="button"
                 onClick={() => onConfirm('approve')}
-className="flex h-10 min-w-[170px] items-center justify-center gap-1.5 rounded-xl bg-green-500/10 px-4 text-sm font-semibold text-green-600 shadow-sm transition-all duration-200 hover:bg-green-600 hover:text-white disabled:opacity-50">
-                Confirm Request Changes
+                className="flex h-10 items-center justify-center gap-1.5 rounded-xl bg-green-500/10 px-4 text-sm font-semibold text-green-600 shadow-sm transition-all duration-200 hover:bg-green-600 hover:text-white disabled:opacity-50">
+                Approve
             </button>
         </>
     )}

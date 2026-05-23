@@ -451,7 +451,7 @@ function GuestAccountContent() {
                           <i className="fas fa-id-card text-base"></i>
                         </div>
                         <div>
-                          <h2 className="text-xl font-bold text-[#1E3A8A]">Photo Details</h2>
+                          <h2 className="text-xl font-bold text-[#1E3A8A]">VALID ID</h2>
                           <p className="text-sm text-[#4D6FA8]">Manage your valid ID for reservations <span className="text-red-500">(Required for Booking)</span> </p>
                         </div>
                       </div>

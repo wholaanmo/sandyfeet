@@ -1392,7 +1392,7 @@ function DayTourBookingContent() {
                       <div className="flex items-center gap-2">
                         <i className="fas fa-user-circle text-blue-600 text-lg"></i>
                         <span className="text-sm font-semibold text-gray-800">
-                          Full Name: <span className="font-bold text-blue-900">{userDisplayName || '—'}</span>
+                          Booking For: <span className="font-bold text-blue-900">{userDisplayName || '—'}</span>
                         </span>
                       </div>
                       <button

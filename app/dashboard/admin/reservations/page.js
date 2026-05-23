@@ -2983,60 +2983,82 @@ export default function AdminReservations() {
 
       {/* Confirm Reservation Modal with Note Field and Loading State */}
       {confirmModal.show && confirmModal.booking && (
-        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-[60] p-4">
-          <div className="bg-white rounded-2xl w-full max-w-md p-6 shadow-2xl animate-scaleIn">
-            <div className="text-center mb-5">
-              <div className="w-14 h-14 mx-auto mb-3 rounded-full bg-green-100 flex items-center justify-center">
-                <i className="fas fa-check-circle text-green-500 text-2xl"></i>
+        <div className="fixed inset-0 z-[60] flex items-center justify-center p-4">
+          <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" onClick={() => setConfirmModal({ show: false, booking: null, type: '', note: '', loading: false })} />
+          <div className="relative z-10 w-full max-w-md overflow-hidden rounded-2xl bg-white shadow-2xl animate-[fadeIn_0.2s_ease-out]">
+            <div className="border-b border-green-100 bg-gradient-to-r from-green-50 to-white px-6 py-5">
+              <div className="flex items-start gap-4">
+                <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-full bg-green-100">
+                  <i className="fas fa-check-circle text-green-600 text-lg" />
+                </div>
+                <div className="flex-1">
+                  <h3 className="text-xl font-bold text-green-900">Confirm Reservation</h3>
+                  <p className="mt-1 text-sm text-green-600">
+                    Booking ID: <span className="font-mono font-semibold">{confirmModal.booking.bookingId}</span>
+                  </p>
+                </div>
+                <button
+                  onClick={() => setConfirmModal({ show: false, booking: null, type: '', note: '', loading: false })}
+                  className="w-7 h-7 rounded-md bg-ocean-ice text-neutral hover:bg-ocean-light/20 hover:text-textPrimary transition-all duration-200 flex items-center justify-center"
+                >
+                  <i className="fas fa-times" />
+                </button>
               </div>
-              <h3 className="text-lg font-bold text-textPrimary mb-2">Confirm Reservation</h3>
-              <p className="text-textSecondary text-sm">
-                Are you sure you want to confirm this {confirmModal.type === 'room' ? 'room' : 'day tour'} reservation for{" "}
-                <span className="font-semibold text-textPrimary">
-                  {confirmModal.booking.guestInfo?.firstName} {confirmModal.booking.guestInfo?.lastName}
-                </span>?<br />
-                <span className="text-xs mt-1 block">
-                  Booking ID: {confirmModal.booking.bookingId}
+            </div>
+
+            <div className="px-6 py-5 space-y-4">
+              <div className="text-sm text-gray-600">
+                <p>
+                  Are you sure you want to confirm this {confirmModal.type === 'room' ? 'room' : 'day tour'} reservation for{" "}
+                  <span className="font-semibold text-textPrimary">
+                    {confirmModal.booking.guestInfo?.firstName} {confirmModal.booking.guestInfo?.lastName}
+                  </span>?
+                </p>
+                <div className="mt-2 text-xs bg-gray-50 p-2.5 rounded-lg border border-gray-100 font-mono space-y-0.5">
                   {confirmModal.type === 'room' && confirmModal.booking.isExclusiveResortBooking && (
-                    <><br />Entire Resort Booking (All Room Types)</>
+                    <div>Entire Resort Booking (All Room Types)</div>
                   )}
                   {confirmModal.type === 'room' && confirmModal.booking.isMultiRoomGroup && !confirmModal.booking.isExclusiveResortBooking && (
-                    <><br />Multi-Room Booking: {confirmModal.booking.roomTypesDisplay}</>
+                    <div>Multi-Room Booking: {confirmModal.booking.roomTypesDisplay}</div>
                   )}
                   {confirmModal.type === 'room' && !confirmModal.booking.isMultiRoomGroup && (
-                    <><br />Room: {confirmModal.booking.roomType}<br />Number of Rooms: {confirmModal.booking.numberOfRooms || 1}</>
+                    <>
+                      <div>Room: {confirmModal.booking.roomType}</div>
+                      <div>Number of Rooms: {confirmModal.booking.numberOfRooms || 1}</div>
+                    </>
                   )}
-                </span>
-              </p>
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-sm font-semibold text-textPrimary mb-1.5">
+                  Note (Optional)
+                </label>
+                <textarea
+                  value={confirmModal.note}
+                  onChange={(e) => setConfirmModal(prev => ({ ...prev, note: e.target.value }))}
+                  placeholder="Add a note to include in the confirmation email..."
+                  rows="3"
+                  className="w-full px-3 py-2 border border-ocean-light/20 rounded-xl text-sm focus:outline-none focus:border-green-300 focus:ring-2 focus:ring-green-200 transition-all duration-300 bg-white resize-none"
+                />
+                <p className="text-xs text-textSecondary mt-1">
+                  This note will be included in the confirmation email sent to the guest.
+                </p>
+              </div>
             </div>
 
-            <div className="mb-5">
-              <label className="block text-sm font-semibold text-textPrimary mb-2">
-                Note (Optional)
-              </label>
-              <textarea
-                value={confirmModal.note}
-                onChange={(e) => setConfirmModal(prev => ({ ...prev, note: e.target.value }))}
-                placeholder="Add a note to include in the confirmation email (e.g., special instructions, welcome message, etc.)"
-                rows="3"
-                className="w-full px-3 py-2 border border-ocean-light/20 rounded-xl text-sm focus:outline-none focus:border-green-300 focus:ring-2 focus:ring-green-200 transition-all duration-300 bg-white resize-none"
-              />
-              <p className="text-xs text-textSecondary mt-1">
-                This note will be included in the confirmation email sent to the guest.
-              </p>
-            </div>
-
-            <div className="flex gap-3 justify-center">
+            <div className="flex items-center justify-end gap-2 border-t border-gray-100 bg-gray-50 px-4 py-2.5">
               <button
                 onClick={() => setConfirmModal({ show: false, booking: null, type: '', note: '', loading: false })}
-                className="px-5 py-2 border border-ocean-light/20 rounded-xl text-textSecondary text-sm font-medium hover:bg-ocean-ice transition-all duration-300"
+                className="flex h-10 items-center justify-center rounded-xl border border-slate-200 bg-white px-4 text-sm font-medium text-slate-600 shadow-sm transition-all duration-200 hover:bg-slate-50 disabled:opacity-50"
+                disabled={confirmModal.loading}
               >
                 Cancel
               </button>
               <button
                 onClick={confirmModal.type === 'room' ? handleConfirmReservation : handleConfirmDayTourReservation}
                 disabled={confirmModal.loading}
-                className="px-5 py-2 bg-gradient-to-r from-green-500 to-green-600 rounded-xl text-white text-sm font-medium hover:shadow-lg hover:-translate-y-0.5 transition-all duration-300 disabled:opacity-50 flex items-center gap-2"
+                className="flex h-10 items-center justify-center gap-1.5 rounded-xl bg-green-500/10 px-4 text-sm font-semibold text-green-600 shadow-sm transition-all duration-200 hover:bg-green-600 hover:text-white disabled:opacity-50"
               >
                 {confirmModal.loading ? (
                   <><i className="fas fa-spinner fa-spin"></i> Confirming...</>
@@ -3051,51 +3073,66 @@ export default function AdminReservations() {
 
       {/* Cancel Reservation Modal with Loading State */}
       {cancelModal.show && cancelModal.booking && (
-        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-[60] p-4">
-          <div className="bg-white rounded-2xl w-full max-w-md p-6 shadow-2xl animate-scaleIn">
-            <div className="text-center mb-5">
-              <div className="w-14 h-14 mx-auto mb-3 rounded-full bg-red-100 flex items-center justify-center">
-                <i className="fas fa-times-circle text-red-500 text-2xl"></i>
+        <div className="fixed inset-0 z-[60] flex items-center justify-center p-4">
+          <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" onClick={() => setCancelModal({ show: false, booking: null, reason: '', loading: false })} />
+          <div className="relative z-10 w-full max-w-md overflow-hidden rounded-2xl bg-white shadow-2xl animate-[fadeIn_0.2s_ease-out]">
+            <div className="border-b border-red-100 bg-gradient-to-r from-red-50 to-white px-6 py-5">
+              <div className="flex items-start gap-4">
+                <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-full bg-red-100">
+                  <i className="fas fa-times-circle text-red-600 text-lg" />
+                </div>
+                <div className="flex-1">
+                  <h3 className="text-xl font-bold text-red-900">Decline Reservation</h3>
+                  <p className="mt-1 text-sm text-red-600">
+                    Booking ID: <span className="font-mono font-semibold">{cancelModal.booking.bookingId}</span>
+                  </p>
+                </div>
+                <button
+                  onClick={() => setCancelModal({ show: false, booking: null, reason: '', loading: false })}
+                  className="w-7 h-7 rounded-md bg-ocean-ice text-neutral hover:bg-ocean-light/20 hover:text-textPrimary transition-all duration-200 flex items-center justify-center"
+                >
+                  <i className="fas fa-times" />
+                </button>
               </div>
-              <h3 className="text-lg font-bold text-textPrimary mb-2">Decline Reservation</h3>
-              <p className="text-textSecondary text-sm">
+            </div>
+
+            <div className="px-6 py-5 space-y-4">
+              <p className="text-sm text-gray-600">
                 Are you sure you want to decline this reservation for{" "}
                 <span className="font-semibold text-textPrimary">
                   {cancelModal.booking.guestInfo?.firstName} {cancelModal.booking.guestInfo?.lastName}
-                </span>?<br />
-                <span className="text-xs mt-1 block">
-                  Booking ID: {cancelModal.booking.bookingId}
-                </span>
+                </span>?
               </p>
+
+              <div>
+                <label className="block text-sm font-semibold text-textPrimary mb-1.5">
+                  Cancellation Reason <span className="text-red-500">*</span>
+                </label>
+                <textarea
+                  value={cancelModal.reason}
+                  onChange={(e) => setCancelModal(prev => ({ ...prev, reason: e.target.value }))}
+                  placeholder="Please provide a reason for cancellation..."
+                  rows="3"
+                  className="w-full px-3 py-2 border border-ocean-light/20 rounded-xl text-sm focus:outline-none focus:border-red-300 focus:ring-2 focus:ring-red-200 transition-all duration-300 bg-white resize-none"
+                />
+                <p className="text-xs text-textSecondary mt-1">
+                  This reason will be included in the confirmation email sent to the guest.
+                </p>
+              </div>
             </div>
 
-            <div className="mb-5">
-              <label className="block text-sm font-semibold text-textPrimary mb-2">
-                Cancellation Reason <span className="text-red-500">*</span>
-              </label>
-              <textarea
-                value={cancelModal.reason}
-                onChange={(e) => setCancelModal(prev => ({ ...prev, reason: e.target.value }))}
-                placeholder="Please provide a reason for cancellation..."
-                rows="3"
-                className="w-full px-3 py-2 border border-ocean-light/20 rounded-xl text-sm focus:outline-none focus:border-red-300 focus:ring-2 focus:ring-red-200 transition-all duration-300 bg-white resize-none"
-              ></textarea>
-              <p className="text-xs text-textSecondary mt-1">
-                This reason will be included in the confirmation email sent to the guest.
-              </p>
-            </div>
-
-            <div className="flex gap-3 justify-center">
+            <div className="flex items-center justify-end gap-2 border-t border-gray-100 bg-gray-50 px-4 py-2.5">
               <button
                 onClick={() => setCancelModal({ show: false, booking: null, reason: '', loading: false })}
-                className="px-5 py-2 border border-ocean-light/20 rounded-xl text-textSecondary text-sm font-medium hover:bg-ocean-ice transition-all duration-300"
+                className="flex h-10 items-center justify-center rounded-xl border border-slate-200 bg-white px-4 text-sm font-medium text-slate-600 shadow-sm transition-all duration-200 hover:bg-slate-50 disabled:opacity-50"
+                disabled={cancelModal.loading}
               >
                 Go Back
               </button>
               <button
                 onClick={activeTab === 'rooms' ? handleCancelReservation : handleCancelDayTourReservation}
                 disabled={!cancelModal.reason.trim() || cancelModal.loading}
-                className="px-5 py-2 bg-gradient-to-r from-red-500 to-red-600 rounded-xl text-white text-sm font-medium hover:shadow-lg hover:-translate-y-0.5 transition-all duration-300 disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:translate-y-0 flex items-center gap-2"
+                className="flex h-10 items-center justify-center gap-1.5 rounded-xl bg-red-500/10 px-4 text-sm font-semibold text-red-600 shadow-sm transition-all duration-200 hover:bg-red-600 hover:text-white disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 {cancelModal.loading ? (
                   <><i className="fas fa-spinner fa-spin"></i> Cancelling...</>
@@ -3110,25 +3147,39 @@ export default function AdminReservations() {
 
       {/* Refund Notification Confirmation Modal with Loading State */}
       {refundModal.show && refundModal.booking && (
-        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-[60] p-4">
-          <div className="bg-white rounded-2xl w-full max-w-sm p-6 shadow-2xl animate-scaleIn">
-            <div className="text-center mb-5">
-              <div className="w-14 h-14 mx-auto mb-3 rounded-full bg-green-100 flex items-center justify-center">
-                <i className="fas fa-envelope-open-text text-green-500 text-2xl"></i>
+        <div className="fixed inset-0 z-[60] flex items-center justify-center p-4">
+          <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" onClick={() => setRefundModal({ show: false, booking: null, sending: false })} />
+          <div className="relative z-10 w-full max-w-md overflow-hidden rounded-2xl bg-white shadow-2xl animate-[fadeIn_0.2s_ease-out]">
+            <div className="border-b border-green-100 bg-gradient-to-r from-green-50 to-white px-6 py-5">
+              <div className="flex items-start gap-4">
+                <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-full bg-green-100">
+                  <i className="fas fa-envelope-open-text text-green-600 text-lg" />
+                </div>
+                <div className="flex-1">
+                  <h3 className="text-xl font-bold text-green-900">Send Refund Notification</h3>
+                  <p className="mt-1 text-sm text-green-600">
+                    Booking ID: <span className="font-mono font-semibold">{refundModal.booking.bookingId}</span>
+                  </p>
+                </div>
+                <button
+                  onClick={() => setRefundModal({ show: false, booking: null, sending: false })}
+                  className="w-7 h-7 rounded-md bg-ocean-ice text-neutral hover:bg-ocean-light/20 hover:text-textPrimary transition-all duration-200 flex items-center justify-center"
+                >
+                  <i className="fas fa-times" />
+                </button>
               </div>
-              <h3 className="text-lg font-bold text-textPrimary mb-2">Send Refund Notification</h3>
-              <p className="text-textSecondary text-sm">
-                Send an email to <strong>{refundModal.booking.guestInfo?.firstName} {refundModal.booking.guestInfo?.lastName}</strong><br />
-                confirming that 50% of their down payment has been refunded.
-              </p>
-              <p className="text-xs text-neutral mt-2">
-                Booking ID: {refundModal.booking.bookingId}
+            </div>
+
+            <div className="px-6 py-5 space-y-4">
+              <p className="text-sm text-gray-600">
+                Send an email to <span className="font-semibold text-textPrimary">{refundModal.booking.guestInfo?.firstName} {refundModal.booking.guestInfo?.lastName}</span> confirming that 50% of their down payment has been refunded.
               </p>
             </div>
-            <div className="flex gap-3 justify-center">
+
+            <div className="flex items-center justify-end gap-2 border-t border-gray-100 bg-gray-50 px-4 py-2.5">
               <button
                 onClick={() => setRefundModal({ show: false, booking: null, sending: false })}
-                className="px-5 py-2 border border-ocean-light/20 rounded-xl text-textSecondary text-sm font-medium hover:bg-ocean-ice transition-all duration-300"
+                className="flex h-10 items-center justify-center rounded-xl border border-slate-200 bg-white px-4 text-sm font-medium text-slate-600 shadow-sm transition-all duration-200 hover:bg-slate-50 disabled:opacity-50"
                 disabled={refundModal.sending}
               >
                 Cancel
@@ -3136,12 +3187,12 @@ export default function AdminReservations() {
               <button
                 onClick={handleSendRefundNotification}
                 disabled={refundModal.sending}
-                className="px-5 py-2 bg-gradient-to-r from-green-500 to-green-600 rounded-xl text-white text-sm font-medium hover:shadow-lg hover:-translate-y-0.5 transition-all duration-300 disabled:opacity-50 flex items-center gap-2"
+                className="flex h-10 items-center justify-center gap-1.5 rounded-xl bg-green-500/10 px-4 text-sm font-semibold text-green-600 shadow-sm transition-all duration-200 hover:bg-green-600 hover:text-white disabled:opacity-50"
               >
                 {refundModal.sending ? (
                   <><i className="fas fa-spinner fa-spin"></i> Sending...</>
                 ) : (
-                  <><i className="fas fa-paper-plane"></i> Send Email</>
+                  'Send Email'
                 )}
               </button>
             </div>
@@ -3151,31 +3202,48 @@ export default function AdminReservations() {
 
       {/* Reason Modal - Refund Notify and Move Date Notify buttons are now permanently disabled after click */}
       {showReasonModal.show && showReasonModal.booking && (
-        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-[60] p-4">
-          <div className="bg-white rounded-2xl w-full max-w-md p-6 shadow-2xl animate-scaleIn">
-            <div className="text-center mb-5">
-              <div className="w-14 h-14 mx-auto mb-3 rounded-full bg-orange-100 flex items-center justify-center">
-                <i className="fas fa-comment-dots text-orange-500 text-2xl"></i>
+        <div className="fixed inset-0 z-[60] flex items-center justify-center p-4">
+          <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" onClick={() => setShowReasonModal({ show: false, booking: null, reason: '', sending: false })} />
+          <div className="relative z-10 w-full max-w-md overflow-hidden rounded-2xl bg-white shadow-2xl animate-[fadeIn_0.2s_ease-out]">
+            <div className="border-b border-orange-100 bg-gradient-to-r from-orange-50 to-white px-6 py-5">
+              <div className="flex items-start gap-4">
+                <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-full bg-orange-100">
+                  <i className="fas fa-comment-dots text-orange-600 text-lg" />
+                </div>
+                <div className="flex-1">
+                  <h3 className="text-xl font-bold text-orange-900">Cancellation Reason</h3>
+                  <p className="mt-1 text-sm text-orange-600">
+                    Booking ID: <span className="font-mono font-semibold">{showReasonModal.booking.bookingId}</span>
+                  </p>
+                </div>
+                <button
+                  onClick={() => setShowReasonModal({ show: false, booking: null, reason: '', sending: false })}
+                  className="w-7 h-7 rounded-md bg-ocean-ice text-neutral hover:bg-ocean-light/20 hover:text-textPrimary transition-all duration-200 flex items-center justify-center"
+                >
+                  <i className="fas fa-times" />
+                </button>
               </div>
-              <h3 className="text-lg font-bold text-textPrimary mb-2">Cancellation Reason</h3>
-              <p className="text-textSecondary text-sm">
-                Guest cancelled this reservation
+            </div>
+
+            <div className="px-6 py-5 space-y-4">
+              <p className="text-sm text-gray-600">
+                Guest cancelled this reservation.
               </p>
-            </div>
 
-            <div className="mb-5">
-              <label className="block text-sm font-semibold text-textPrimary mb-2">
-                Reason Provided by Guest:
-              </label>
-              <div className="p-3 bg-gray-50 rounded-xl border border-gray-200">
-                <p className="text-textPrimary text-sm">{showReasonModal.reason}</p>
+              <div>
+                <label className="block text-sm font-semibold text-textPrimary mb-1.5">
+                  Reason Provided by Guest:
+                </label>
+                <div className="p-3 bg-gray-50 rounded-xl border border-gray-200">
+                  <p className="text-textPrimary text-sm">{showReasonModal.reason}</p>
+                </div>
               </div>
             </div>
 
-            <div className="flex gap-3 justify-center">
+            <div className="flex items-center justify-end gap-2 border-t border-gray-100 bg-gray-50 px-4 py-2.5">
               <button
                 onClick={() => setShowReasonModal({ show: false, booking: null, reason: '', sending: false })}
-                className="px-4 py-2 border border-ocean-light/20 rounded-xl text-textSecondary text-sm font-medium hover:bg-ocean-ice transition-all duration-300"
+                className="flex h-10 items-center justify-center rounded-xl border border-slate-200 bg-white px-4 text-sm font-medium text-slate-600 shadow-sm transition-all duration-200 hover:bg-slate-50 disabled:opacity-50"
                 disabled={showReasonModal.sending || moveDateModal.sending}
               >
                 Close
@@ -3183,25 +3251,25 @@ export default function AdminReservations() {
               <button
                 onClick={() => setRefundConfirmModal({ show: true, booking: showReasonModal.booking })}
                 disabled={isNotificationDisabled(showReasonModal.booking)}
-                className={`px-4 py-2 rounded-xl text-white text-sm font-medium transition-all duration-300 flex items-center gap-2 ${isNotificationDisabled(showReasonModal.booking)
-                  ? 'bg-gray-400 cursor-not-allowed opacity-50'
-                  : 'bg-gradient-to-r from-green-500 to-green-600 hover:shadow-lg hover:-translate-y-0.5'
-                  }`}
+                className={`flex h-10 items-center justify-center gap-1.5 rounded-xl px-4 text-sm font-semibold transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed shadow-sm ${isNotificationDisabled(showReasonModal.booking)
+                  ? 'bg-gray-100 text-gray-400'
+                  : 'bg-green-500/10 text-green-600 hover:bg-green-600 hover:text-white'
+                }`}
                 title={isNotificationDisabled(showReasonModal.booking) ? "Notification already sent" : ""}
               >
-                <i className="fas fa-dollar-sign mr-1"></i>
+                <i className="fas fa-dollar-sign"></i>
                 Notify Non-Refund
               </button>
               <button
                 onClick={() => setMoveDateConfirmModal({ show: true, booking: showReasonModal.booking, message: '', sending: false })}
                 disabled={isNotificationDisabled(showReasonModal.booking)}
-                className={`px-4 py-2 rounded-xl text-white text-sm font-medium transition-all duration-300 flex items-center gap-2 ${isNotificationDisabled(showReasonModal.booking)
-                  ? 'bg-gray-400 cursor-not-allowed opacity-50'
-                  : 'bg-gradient-to-r from-blue-500 to-blue-600 hover:shadow-lg hover:-translate-y-0.5'
-                  }`}
+                className={`flex h-10 items-center justify-center gap-1.5 rounded-xl px-4 text-sm font-semibold transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed shadow-sm ${isNotificationDisabled(showReasonModal.booking)
+                  ? 'bg-gray-100 text-gray-400'
+                  : 'bg-blue-500/10 text-blue-600 hover:bg-blue-600 hover:text-white'
+                }`}
                 title={isNotificationDisabled(showReasonModal.booking) ? "Notification already sent" : ""}
               >
-                <i className="fas fa-calendar-alt mr-1"></i>
+                <i className="fas fa-calendar-alt"></i>
                 Notify Refund
               </button>
             </div>
@@ -3211,37 +3279,55 @@ export default function AdminReservations() {
 
       {/* ID Request Confirmation Modal with Message Field */}
       {idRequestModal.show && idRequestModal.booking && (
-        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-[80] p-4">
-          <div className="bg-white rounded-2xl w-full max-w-md p-6 shadow-2xl animate-scaleIn">
-            <div className="text-center mb-5">
-              <div className="w-14 h-14 mx-auto mb-3 rounded-full bg-blue-100 flex items-center justify-center">
-                <i className="fas fa-id-card text-blue-500 text-2xl"></i>
+        <div className="fixed inset-0 z-[80] flex items-center justify-center p-4">
+          <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" onClick={() => setIdRequestModal({ show: false, booking: null, message: '', sending: false })} />
+          <div className="relative z-10 w-full max-w-md overflow-hidden rounded-2xl bg-white shadow-2xl animate-[fadeIn_0.2s_ease-out]">
+            <div className="border-b border-blue-100 bg-gradient-to-r from-blue-50 to-white px-6 py-5">
+              <div className="flex items-start gap-4">
+                <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-full bg-blue-100">
+                  <i className="fas fa-id-card text-blue-600 text-lg" />
+                </div>
+                <div className="flex-1">
+                  <h3 className="text-xl font-bold text-blue-900">Send ID Request</h3>
+                  <p className="mt-1 text-sm text-blue-600">
+                    Booking ID: <span className="font-mono font-semibold">{idRequestModal.booking.bookingId}</span>
+                  </p>
+                </div>
+                <button
+                  onClick={() => setIdRequestModal({ show: false, booking: null, message: '', sending: false })}
+                  className="w-7 h-7 rounded-md bg-ocean-ice text-neutral hover:bg-ocean-light/20 hover:text-textPrimary transition-all duration-200 flex items-center justify-center"
+                >
+                  <i className="fas fa-times" />
+                </button>
               </div>
-              <h3 className="text-lg font-bold text-textPrimary mb-2">Send ID Request</h3>
-              <p className="text-textSecondary text-sm">
-                Send an email to <strong>{idRequestModal.booking.guestInfo?.firstName} {idRequestModal.booking.guestInfo?.lastName}</strong><br />
-                requesting them to resend their valid ID.
-              </p>
             </div>
-            <div className="mb-5">
-              <label className="block text-sm font-semibold text-textPrimary mb-2">
-                Message to Guest (Optional)
-              </label>
-              <textarea
-                value={idRequestModal.message}
-                onChange={(e) => setIdRequestModal(prev => ({ ...prev, message: e.target.value }))}
-                placeholder="Add a custom message to include in the email (e.g., 'Please ensure the ID is clear and not blurred.')"
-                rows="3"
-                className="w-full px-3 py-2 border border-ocean-light/20 rounded-xl text-sm focus:outline-none focus:border-blue-300 focus:ring-2 focus:ring-blue-200 transition-all duration-300 bg-white resize-none"
-              ></textarea>
-              <p className="text-xs text-textSecondary mt-1">
-                This message will be included in the email sent to the guest.
+
+            <div className="px-6 py-5 space-y-4">
+              <p className="text-sm text-gray-600">
+                Send an email to <span className="font-semibold text-textPrimary">{idRequestModal.booking.guestInfo?.firstName} {idRequestModal.booking.guestInfo?.lastName}</span> requesting them to resend their valid ID.
               </p>
+
+              <div>
+                <label className="block text-sm font-semibold text-textPrimary mb-1.5">
+                  Message to Guest (Optional)
+                </label>
+                <textarea
+                  value={idRequestModal.message}
+                  onChange={(e) => setIdRequestModal(prev => ({ ...prev, message: e.target.value }))}
+                  placeholder="Add a custom message to include in the email..."
+                  rows="3"
+                  className="w-full px-3 py-2 border border-ocean-light/20 rounded-xl text-sm focus:outline-none focus:border-blue-300 focus:ring-2 focus:ring-blue-200 transition-all duration-300 bg-white resize-none"
+                />
+                <p className="text-xs text-textSecondary mt-1">
+                  This message will be included in the email sent to the guest.
+                </p>
+              </div>
             </div>
-            <div className="flex gap-3 justify-center">
+
+            <div className="flex items-center justify-end gap-2 border-t border-gray-100 bg-gray-50 px-4 py-2.5">
               <button
                 onClick={() => setIdRequestModal({ show: false, booking: null, message: '', sending: false })}
-                className="px-5 py-2 border border-ocean-light/20 rounded-xl text-textSecondary text-sm font-medium hover:bg-ocean-ice transition-all duration-300"
+                className="flex h-10 items-center justify-center rounded-xl border border-slate-200 bg-white px-4 text-sm font-medium text-slate-600 shadow-sm transition-all duration-200 hover:bg-slate-50 disabled:opacity-50"
                 disabled={idRequestModal.sending}
               >
                 Cancel
@@ -3249,12 +3335,12 @@ export default function AdminReservations() {
               <button
                 onClick={() => handleSendIdRequest(idRequestModal.booking, idRequestModal.message)}
                 disabled={idRequestModal.sending}
-                className="px-5 py-2 bg-gradient-to-r from-blue-500 to-blue-600 rounded-xl text-white text-sm font-medium hover:shadow-lg hover:-translate-y-0.5 transition-all duration-300 disabled:opacity-50 flex items-center gap-2"
+                className="flex h-10 items-center justify-center gap-1.5 rounded-xl bg-blue-500/10 px-4 text-sm font-semibold text-blue-600 shadow-sm transition-all duration-200 hover:bg-blue-600 hover:text-white disabled:opacity-50"
               >
                 {idRequestModal.sending ? (
                   <><i className="fas fa-spinner fa-spin"></i> Sending...</>
                 ) : (
-                  <><i className="fas fa-paper-plane"></i> Send ID Request</>
+                  'Send ID Request'
                 )}
               </button>
             </div>
@@ -3264,25 +3350,43 @@ export default function AdminReservations() {
 
       {/* Refund Confirmation Modal with Loading State */}
       {refundConfirmModal.show && refundConfirmModal.booking && (
-        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-[70] p-4">
-          <div className="bg-white rounded-2xl w-full max-w-sm p-6 shadow-2xl animate-scaleIn">
-            <div className="text-center mb-5">
-              <div className="w-14 h-14 mx-auto mb-3 rounded-full bg-yellow-100 flex items-center justify-center">
-                <i className="fas fa-exclamation-triangle text-yellow-500 text-2xl"></i>
+        <div className="fixed inset-0 z-[70] flex items-center justify-center p-4">
+          <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" onClick={() => setRefundConfirmModal({ show: false, booking: null, sending: false })} />
+          <div className="relative z-10 w-full max-w-md overflow-hidden rounded-2xl bg-white shadow-2xl animate-[fadeIn_0.2s_ease-out]">
+            <div className="border-b border-yellow-100 bg-gradient-to-r from-yellow-50 to-white px-6 py-5">
+              <div className="flex items-start gap-4">
+                <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-full bg-yellow-100">
+                  <i className="fas fa-exclamation-triangle text-yellow-600 text-lg" />
+                </div>
+                <div className="flex-1">
+                  <h3 className="text-xl font-bold text-yellow-900">Send Non-Refundable Notice</h3>
+                  <p className="mt-1 text-sm text-yellow-600">
+                    Booking ID: <span className="font-mono font-semibold">{refundConfirmModal.booking.bookingId}</span>
+                  </p>
+                </div>
+                <button
+                  onClick={() => setRefundConfirmModal({ show: false, booking: null, sending: false })}
+                  className="w-7 h-7 rounded-md bg-ocean-ice text-neutral hover:bg-ocean-light/20 hover:text-textPrimary transition-all duration-200 flex items-center justify-center"
+                >
+                  <i className="fas fa-times" />
+                </button>
               </div>
-              <h3 className="text-lg font-bold text-textPrimary mb-2">Send Non-Refundable Payment Notice</h3>
-              <p className="text-textSecondary text-sm">
+            </div>
+
+            <div className="px-6 py-5 space-y-4">
+              <p className="text-sm text-gray-600">
                 Are you sure you want to send a non-refundable payment notice to{" "}
-                <strong>{refundConfirmModal.booking.guestInfo?.firstName} {refundConfirmModal.booking.guestInfo?.lastName}</strong>?
+                <span className="font-semibold text-textPrimary">{refundConfirmModal.booking.guestInfo?.firstName} {refundConfirmModal.booking.guestInfo?.lastName}</span>?
               </p>
-              <p className="text-xs text-neutral mt-2">
+              <p className="text-xs text-gray-500">
                 This will send an email regarding the cancellation and non-refundable down payment.
               </p>
             </div>
-            <div className="flex gap-3 justify-center">
+
+            <div className="flex items-center justify-end gap-2 border-t border-gray-100 bg-gray-50 px-4 py-2.5">
               <button
                 onClick={() => setRefundConfirmModal({ show: false, booking: null, sending: false })}
-                className="px-4 py-2 border border-ocean-light/20 rounded-xl text-textSecondary text-sm font-medium hover:bg-ocean-ice transition-all duration-300"
+                className="flex h-10 items-center justify-center rounded-xl border border-slate-200 bg-white px-4 text-sm font-medium text-slate-600 shadow-sm transition-all duration-200 hover:bg-slate-50 disabled:opacity-50"
                 disabled={refundConfirmModal.sending}
               >
                 Cancel
@@ -3290,12 +3394,12 @@ export default function AdminReservations() {
               <button
                 onClick={() => handleRefundNotify(refundConfirmModal.booking)}
                 disabled={refundConfirmModal.sending}
-                className="px-4 py-2 bg-gradient-to-r from-green-500 to-green-600 rounded-xl text-white text-sm font-medium hover:shadow-lg hover:-translate-y-0.5 transition-all duration-300 disabled:opacity-50 flex items-center gap-2"
+                className="flex h-10 items-center justify-center gap-1.5 rounded-xl bg-yellow-500/10 px-4 text-sm font-semibold text-yellow-600 shadow-sm transition-all duration-200 hover:bg-yellow-600 hover:text-white disabled:opacity-50"
               >
                 {refundConfirmModal.sending ? (
                   <><i className="fas fa-spinner fa-spin"></i> Sending...</>
                 ) : (
-                  <><i className="fas fa-check"></i> Yes, Send Non-Refund Notification</>
+                  'Yes, Send Non-Refund Notice'
                 )}
               </button>
             </div>
@@ -3305,25 +3409,40 @@ export default function AdminReservations() {
 
       {/* Confirm Check-In Modal */}
       {checkInConfirmModal.show && checkInConfirmModal.booking && (
-        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-[70] p-4">
-          <div className="bg-white rounded-2xl w-full max-w-sm p-6 shadow-2xl animate-scaleIn">
-            <div className="text-center mb-5">
-              <div className="w-14 h-14 mx-auto mb-3 rounded-full bg-blue-100 flex items-center justify-center">
-                <i className="fas fa-door-open text-blue-500 text-2xl"></i>
+        <div className="fixed inset-0 z-[70] flex items-center justify-center p-4">
+          <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" onClick={() => setCheckInConfirmModal({ show: false, booking: null, loading: false })} />
+          <div className="relative z-10 w-full max-w-md overflow-hidden rounded-2xl bg-white shadow-2xl animate-[fadeIn_0.2s_ease-out]">
+            <div className="border-b border-blue-100 bg-gradient-to-r from-blue-50 to-white px-6 py-5">
+              <div className="flex items-start gap-4">
+                <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-full bg-blue-100">
+                  <i className="fas fa-door-open text-blue-600 text-lg" />
+                </div>
+                <div className="flex-1">
+                  <h3 className="text-xl font-bold text-blue-900">Confirm Check-In</h3>
+                  <p className="mt-1 text-sm text-blue-600">
+                    Booking ID: <span className="font-mono font-semibold">{checkInConfirmModal.booking.bookingId}</span>
+                  </p>
+                </div>
+                <button
+                  onClick={() => setCheckInConfirmModal({ show: false, booking: null, loading: false })}
+                  className="w-7 h-7 rounded-md bg-ocean-ice text-neutral hover:bg-ocean-light/20 hover:text-textPrimary transition-all duration-200 flex items-center justify-center"
+                >
+                  <i className="fas fa-times" />
+                </button>
               </div>
-              <h3 className="text-lg font-bold text-textPrimary mb-2">Confirm Check-In</h3>
-              <p className="text-textSecondary text-sm">
+            </div>
+
+            <div className="px-6 py-5 space-y-4">
+              <p className="text-sm text-gray-600">
                 Are you sure you want to confirm check-in for{" "}
-                <strong>{checkInConfirmModal.booking.guestInfo?.firstName} {checkInConfirmModal.booking.guestInfo?.lastName}</strong>?
-              </p>
-              <p className="text-xs text-neutral mt-2">
-                Booking ID: {checkInConfirmModal.booking.bookingId}
+                <span className="font-semibold text-textPrimary">{checkInConfirmModal.booking.guestInfo?.firstName} {checkInConfirmModal.booking.guestInfo?.lastName}</span>?
               </p>
             </div>
-            <div className="flex gap-3 justify-center">
+
+            <div className="flex items-center justify-end gap-2 border-t border-gray-100 bg-gray-50 px-4 py-2.5">
               <button
                 onClick={() => setCheckInConfirmModal({ show: false, booking: null, loading: false })}
-                className="px-4 py-2 border border-ocean-light/20 rounded-xl text-textSecondary text-sm font-medium hover:bg-ocean-ice transition-all duration-300"
+                className="flex h-10 items-center justify-center rounded-xl border border-slate-200 bg-white px-4 text-sm font-medium text-slate-600 shadow-sm transition-all duration-200 hover:bg-slate-50 disabled:opacity-50"
                 disabled={checkInConfirmModal.loading}
               >
                 Cancel
@@ -3331,12 +3450,12 @@ export default function AdminReservations() {
               <button
                 onClick={handleConfirmCheckIn}
                 disabled={checkInConfirmModal.loading}
-                className="px-4 py-2 bg-gradient-to-r from-blue-500 to-blue-600 rounded-xl text-white text-sm font-medium hover:shadow-lg hover:-translate-y-0.5 transition-all duration-300 disabled:opacity-50 flex items-center gap-2"
+                className="flex h-10 items-center justify-center gap-1.5 rounded-xl bg-blue-500/10 px-4 text-sm font-semibold text-blue-600 shadow-sm transition-all duration-200 hover:bg-blue-600 hover:text-white disabled:opacity-50"
               >
                 {checkInConfirmModal.loading ? (
                   <><i className="fas fa-spinner fa-spin"></i> Processing...</>
                 ) : (
-                  <><i className="fas fa-check"></i> Yes, Confirm Check-In</>
+                  'Confirm Check-In'
                 )}
               </button>
             </div>
@@ -3344,91 +3463,77 @@ export default function AdminReservations() {
         </div>
       )}
 
-  {moveDateConfirmModal.show && moveDateConfirmModal.booking && (
-  <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-[70] p-4">
-    <div className="bg-white rounded-2xl w-full max-w-sm p-6 shadow-2xl animate-scaleIn">
-      <div className="text-center mb-5">
-        <div className="w-14 h-14 mx-auto mb-3 rounded-full bg-yellow-100 flex items-center justify-center">
-          <i className="fas fa-wallet text-yellow-500 text-2xl"></i>
+      {/* Confirm Refund Notification Confirmation Modal with Loading State */}
+      {moveDateConfirmModal.show && moveDateConfirmModal.booking && (
+        <div className="fixed inset-0 z-[70] flex items-center justify-center p-4">
+          <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" onClick={() => setMoveDateConfirmModal({ show: false, booking: null, message: '', sending: false })} />
+          <div className="relative z-10 w-full max-w-md overflow-hidden rounded-2xl bg-white shadow-2xl animate-[fadeIn_0.2s_ease-out]">
+            <div className="border-b border-yellow-100 bg-gradient-to-r from-yellow-50 to-white px-6 py-5">
+              <div className="flex items-start gap-4">
+                <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-full bg-yellow-100">
+                  <i className="fas fa-wallet text-yellow-600 text-lg" />
+                </div>
+                <div className="flex-1">
+                  <h3 className="text-xl font-bold text-yellow-900">Confirm Refund Notification</h3>
+                  <p className="mt-1 text-sm text-yellow-600">
+                    Booking ID: <span className="font-mono font-semibold">{moveDateConfirmModal.booking.bookingId}</span>
+                  </p>
+                </div>
+                <button
+                  onClick={() => setMoveDateConfirmModal({ show: false, booking: null, message: '', sending: false })}
+                  className="w-7 h-7 rounded-md bg-ocean-ice text-neutral hover:bg-ocean-light/20 hover:text-textPrimary transition-all duration-200 flex items-center justify-center"
+                >
+                  <i className="fas fa-times" />
+                </button>
+              </div>
+            </div>
+
+            <div className="px-6 py-5 space-y-4">
+              <p className="text-sm text-gray-600">
+                Are you sure you want to send a refund notification to{" "}
+                <span className="font-semibold text-textPrimary">{moveDateConfirmModal.booking.guestInfo?.firstName} {moveDateConfirmModal.booking.guestInfo?.lastName}</span>?
+              </p>
+              <p className="text-xs text-gray-500">
+                This will send an email informing the guest that their down payment will be refunded by the resort management.
+              </p>
+
+              <div>
+                <label className="block text-sm font-semibold text-textPrimary mb-1.5">
+                  Message to Guest (Optional)
+                </label>
+                <textarea
+                  value={moveDateConfirmModal.message}
+                  onChange={(e) => setMoveDateConfirmModal(prev => ({ ...prev, message: e.target.value }))}
+                  placeholder="Add a custom message to include in the email..."
+                  rows="3"
+                  className="w-full px-3 py-2 border border-ocean-light/20 rounded-xl text-sm focus:outline-none focus:border-blue-300 focus:ring-2 focus:ring-blue-200 transition-all duration-300 bg-white resize-none"
+                />
+              </div>
+            </div>
+
+            <div className="flex items-center justify-end gap-2 border-t border-gray-100 bg-gray-50 px-4 py-2.5">
+              <button
+                onClick={() => setMoveDateConfirmModal({ show: false, booking: null, message: '', sending: false })}
+                className="flex h-10 items-center justify-center rounded-xl border border-slate-200 bg-white px-4 text-sm font-medium text-slate-600 shadow-sm transition-all duration-200 hover:bg-slate-50 disabled:opacity-50"
+                disabled={moveDateConfirmModal.sending}
+              >
+                Cancel
+              </button>
+              <button
+                onClick={() => handleMoveDateNotify(moveDateConfirmModal.booking, moveDateConfirmModal.message)}
+                disabled={moveDateConfirmModal.sending}
+                className="flex h-10 items-center justify-center gap-1.5 rounded-xl bg-yellow-500/10 px-4 text-sm font-semibold text-yellow-600 shadow-sm transition-all duration-200 hover:bg-yellow-600 hover:text-white disabled:opacity-50"
+              >
+                {moveDateConfirmModal.sending ? (
+                  <><i className="fas fa-spinner fa-spin"></i> Sending...</>
+                ) : (
+                  'Yes, Send Refund Notice'
+                )}
+              </button>
+            </div>
+          </div>
         </div>
-
-        <h3 className="text-lg font-bold text-textPrimary mb-2">
-          Confirm Refund Notification
-        </h3>
-
-        <p className="text-textSecondary text-sm">
-          Are you sure you want to send a refund notification to{" "}
-          <strong>
-            {moveDateConfirmModal.booking.guestInfo?.firstName}{" "}
-            {moveDateConfirmModal.booking.guestInfo?.lastName}
-          </strong>
-          ?
-        </p>
-
-        <p className="text-xs text-neutral mt-2">
-          This will send an email informing the guest that their down payment
-          will be refunded by the resort management.
-        </p>
-      </div>
-
-      <div className="mb-5">
-        <label className="block text-sm font-semibold text-textPrimary mb-2">
-          Message to Guest (Optional)
-        </label>
-
-        <textarea
-          value={moveDateConfirmModal.message}
-          onChange={(e) =>
-            setMoveDateConfirmModal((prev) => ({
-              ...prev,
-              message: e.target.value,
-            }))
-          }
-          placeholder="Add a custom message to include in the email (e.g., 'Your down payment refund is currently being processed.')"
-          rows="3"
-          className="w-full px-3 py-2 border border-ocean-light/20 rounded-xl text-sm focus:outline-none focus:border-blue-300 focus:ring-2 focus:ring-blue-200 transition-all duration-300 bg-white resize-none"
-        ></textarea>
-      </div>
-
-      <div className="flex gap-3 justify-center">
-        <button
-          onClick={() =>
-            setMoveDateConfirmModal({
-              show: false,
-              booking: null,
-              sending: false,
-            })
-          }
-          className="px-4 py-2 border border-ocean-light/20 rounded-xl text-textSecondary text-sm font-medium hover:bg-ocean-ice transition-all duration-300"
-          disabled={moveDateConfirmModal.sending}
-        >
-          Cancel
-        </button>
-
-        <button
-          onClick={() =>
-            handleMoveDateNotify(
-              moveDateConfirmModal.booking,
-              moveDateConfirmModal.message
-            )
-          }
-          disabled={moveDateConfirmModal.sending}
-          className="px-4 py-2 bg-gradient-to-r from-blue-500 to-blue-600 rounded-xl text-white text-sm font-medium hover:shadow-lg hover:-translate-y-0.5 transition-all duration-300 disabled:opacity-50 flex items-center gap-2"
-        >
-          {moveDateConfirmModal.sending ? (
-            <>
-              <i className="fas fa-spinner fa-spin"></i> Sending...
-            </>
-          ) : (
-            <>
-              <i className="fas fa-paper-plane"></i> Yes, Send Refund Notification
-            </>
-          )}
-        </button>
-      </div>
-    </div>
-  </div>
-)}
+      )}
 
       <style jsx>{`
         @keyframes slideInRight {
