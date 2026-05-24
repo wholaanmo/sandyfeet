@@ -387,12 +387,11 @@ function FeedbackPageContent() {
     }
   };
 
-  const messageClassName =
-    message.type === 'error'
-      ? 'border-red-200 bg-red-50 text-red-700 shadow-[0_2px_12px_rgba(239,68,68,0.08)]'
-      : message.type === 'success'
-      ? 'border-emerald-200 bg-emerald-50 text-emerald-700 shadow-[0_2px_12px_rgba(16,185,129,0.08)]'
-      : 'border-blue-200 bg-blue-50 text-blue-700 shadow-[0_2px_12px_rgba(59,130,246,0.08)]';
+  const messageConfig = {
+    error:   { bg: 'from-red-50 to-white',     border: 'border-red-100',     stripe: 'bg-red-400',     iconBg: 'bg-red-100 text-red-500',     label: 'text-red-700',     body: 'text-red-600/80',     icon: 'fa-exclamation-triangle', labelText: 'Error'   },
+    success: { bg: 'from-emerald-50 to-white',  border: 'border-emerald-100', stripe: 'bg-emerald-400', iconBg: 'bg-emerald-100 text-emerald-600', label: 'text-emerald-700', body: 'text-emerald-700/80', icon: 'fa-check-circle',      labelText: ''        },
+    info:    { bg: 'from-blue-50 to-white',     border: 'border-blue-100',    stripe: 'bg-blue-400',    iconBg: 'bg-blue-100 text-blue-500',    label: 'text-blue-700',    body: 'text-blue-600/80',    icon: 'fa-info-circle',       labelText: 'Notice'  },
+  };
 
   return (
     <GuestLayout>
@@ -880,9 +879,9 @@ function FeedbackPageContent() {
                       message.type === 'success' ? 'fa-check-circle' : 'fa-info-circle'
                     }`} />
                     {message.text}
-                  </div>
+                    </div>
                 </div>
-              )}
+                      )}
 
               <div className="mt-12 flex flex-col items-center justify-center gap-4 text-center">
                 <div className="h-px w-20 bg-slate-200" />

@@ -36,6 +36,10 @@ function GuestAccountContent() {
   const [profileSaving, setProfileSaving] = useState(false);
   const [profileNotice, setProfileNotice] = useState('');
 
+  // NEW: local validation errors for first/last name
+  const [firstNameError, setFirstNameError] = useState('');
+  const [lastNameError, setLastNameError] = useState('');
+
   const [isEditingValidId, setIsEditingValidId] = useState(false);
   const [validIdForm, setValidIdForm] = useState({
     validIdType: 'Passport',
@@ -79,6 +83,9 @@ function GuestAccountContent() {
 
   const handleProfileChange = (field, value) => {
     setProfileForm((prev) => ({ ...prev, [field]: value }));
+    // Clear validation errors when user starts typing
+    if (field === 'firstName') setFirstNameError('');
+    if (field === 'lastName') setLastNameError('');
   };
 
   const handleAddressChange = (field, value) => {
@@ -95,11 +102,16 @@ function GuestAccountContent() {
   const handleEditClick = () => {
     setOriginalProfile({ ...profileForm });
     setIsEditing(true);
+    // Clear any previous validation errors
+    setFirstNameError('');
+    setLastNameError('');
   };
 
   const handleCancelEdit = () => {
     setProfileForm(originalProfile);
     setIsEditing(false);
+    setFirstNameError('');
+    setLastNameError('');
   };
 
   const handleValidIdFileChange = async (e) => {
@@ -190,12 +202,35 @@ function GuestAccountContent() {
       setIsAuthOpen(true);
       return;
     }
+
+    const trimmedFirstName = profileForm.firstName.trim();
+    const trimmedLastName = profileForm.lastName.trim();
+
+    let hasError = false;
+    if (!trimmedFirstName) {
+      setFirstNameError('First name is required.');
+      hasError = true;
+    } else {
+      setFirstNameError('');
+    }
+    if (!trimmedLastName) {
+      setLastNameError('Last name is required.');
+      hasError = true;
+    } else {
+      setLastNameError('');
+    }
+
+    if (hasError) {
+      setProfileNotice('Please fill in all required fields (First Name, Last Name).');
+      return;
+    }
+
     setProfileSaving(true);
     setProfileNotice('');
     try {
       await updateGuestProfile({
-        firstName: profileForm.firstName.trim(),
-        lastName: profileForm.lastName.trim(),
+        firstName: trimmedFirstName,
+        lastName: trimmedLastName,
         mobileNumber: profileForm.mobileNumber || '',
         address: {
           houseNumber: profileForm.address.houseNumber.trim(),
@@ -218,19 +253,42 @@ function GuestAccountContent() {
   return (
     <>
       <div className="min-h-screen bg-[#F8FCFF] px-4 pb-20 pt-28 sm:px-6 sm:pt-32 lg:px-8">
-        {profileNotice && (
-          <div className="pointer-events-none fixed right-6 top-24 z-50 w-[calc(100%-1.5rem)] max-w-md sm:w-[360px]">
-            <div className="flex items-center gap-3 rounded-xl border-l-4 border-[#4D8CF5] bg-white px-4 py-3 text-sm font-semibold text-[#1E3A8A] shadow-lg">
-              <i className="fas fa-check-circle text-emerald-500"></i>
-              {profileNotice}
+        {/* ✅ UPDATED: Removed left border and "Error" label, kept icon and background */}
+        {profileNotice && (() => {
+          const isSuccess = /saved|updated/i.test(profileNotice);
+          return (
+            <div className="pointer-events-none fixed right-4 top-24 z-50 w-[calc(100%-2rem)] max-w-sm sm:right-6 sm:w-[360px]">
+              <div className={`flex items-center gap-3 overflow-hidden rounded-2xl shadow-[0_8px_30px_rgba(0,0,0,0.12)] animate-[fadeInUp_0.3s_ease-out] ${
+                isSuccess
+                  ? 'bg-gradient-to-r from-emerald-50 to-white border border-emerald-100'
+                  : 'bg-gradient-to-r from-red-50 to-white border border-red-100'
+              }`}>
+                {/* Icon - centered */}
+                <div className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-xl ml-3 ${
+                  isSuccess ? 'bg-emerald-100 text-emerald-600' : 'bg-red-100 text-red-600'
+                }`}>
+                  <i className={`fas ${
+                    isSuccess ? 'fa-check' : 'fa-exclamation-triangle'
+                  } text-xs`} />
+                </div>
+                {/* Text - no "Error" label */}
+                <div className="flex-1 py-3.5 pr-4">
+                  <p className={`text-sm font-medium ${
+                    isSuccess ? 'text-emerald-900' : 'text-red-900'
+                  }`}>
+                    {profileNotice}
+                  </p>
+                </div>
+              </div>
             </div>
-          </div>
-        )}
+          );
+        })()}
 
         <div className="mx-auto max-w-7xl">
           <div className="grid gap-5 lg:grid-cols-[360px_minmax(0,1fr)]">
-            {/* Left Sidebar */}
+            {/* Left Sidebar (unchanged) */}
             <aside className="space-y-4">
+              {/* ... (sidebar remains identical, omitted for brevity) ... */}
               <div className="relative overflow-hidden rounded-2xl border border-[#4D8CF5]/15 bg-white p-4 shadow-[0_8px_24px_rgba(77,140,245,0.08)] transition-all duration-300">
                 <div className="absolute -right-8 -top-8 h-24 w-24 rounded-full bg-[#4D8CF5]/5 blur-2xl"></div>
                 <div className="absolute -bottom-10 -left-10 h-28 w-28 rounded-full bg-[#1E3A8A]/5 blur-3xl"></div>
@@ -349,19 +407,27 @@ function GuestAccountContent() {
                   {user ? (
                     <div className="space-y-6 px-6 py-6">
                       <div className="grid gap-6 sm:grid-cols-2">
-                        {/* First Name */}
+                        {/* First Name with error display */}
                         <div className="space-y-1">
                           <label className="flex items-center gap-2 text-sm font-semibold text-[#1E3A8A]">
                             <i className="fas fa-user text-[#4D8CF5] text-xs"></i>
-                            First Name
+                            First Name <span className="text-red-500">*</span>
                           </label>
                           {isEditing ? (
-                            <input
-                              type="text"
-                              value={profileForm.firstName}
-                              onChange={(e) => handleProfileChange('firstName', e.target.value)}
-                              className="w-full rounded-xl border border-[#4D8CF5]/20 bg-white px-4 py-2.5 text-sm text-gray-900 transition-all focus:border-[#4D8CF5] focus:bg-white focus:outline-none focus:ring-2 focus:ring-[#4D8CF5]/20"
-                            />
+                            <>
+                              <input
+                                type="text"
+                                value={profileForm.firstName}
+                                onChange={(e) => handleProfileChange('firstName', e.target.value)}
+                                className={`w-full rounded-xl border ${firstNameError ? 'border-red-300 focus:border-red-500' : 'border-[#4D8CF5]/20'} bg-white px-4 py-2.5 text-sm text-gray-900 transition-all focus:outline-none focus:ring-2 ${firstNameError ? 'focus:ring-red-100' : 'focus:ring-[#4D8CF5]/20'}`}
+                              />
+                              {firstNameError && (
+                                <p className="mt-1 text-xs text-red-600 flex items-center gap-1">
+                                  <i className="fas fa-exclamation-circle text-[10px]"></i>
+                                  {firstNameError}
+                                </p>
+                              )}
+                            </>
                           ) : (
                             <div className="flex items-center gap-2 rounded-xl border border-[#4D8CF5]/20 bg-[#F9FCFF] px-4 py-2.5 text-sm text-gray-700">
                               <i className="fas fa-user text-slate-400 text-xs"></i>
@@ -370,19 +436,27 @@ function GuestAccountContent() {
                           )}
                         </div>
 
-                        {/* Last Name */}
+                        {/* Last Name with error display */}
                         <div className="space-y-1">
                           <label className="flex items-center gap-2 text-sm font-semibold text-[#1E3A8A]">
                             <i className="fas fa-user-tag text-[#4D8CF5] text-xs"></i>
-                            Last Name
+                            Last Name <span className="text-red-500">*</span>
                           </label>
                           {isEditing ? (
-                            <input
-                              type="text"
-                              value={profileForm.lastName}
-                              onChange={(e) => handleProfileChange('lastName', e.target.value)}
-                              className="w-full rounded-xl border border-[#4D8CF5]/20 bg-white px-4 py-2.5 text-sm text-gray-900 transition-all focus:border-[#4D8CF5] focus:bg-white focus:outline-none focus:ring-2 focus:ring-[#4D8CF5]/20"
-                            />
+                            <>
+                              <input
+                                type="text"
+                                value={profileForm.lastName}
+                                onChange={(e) => handleProfileChange('lastName', e.target.value)}
+                                className={`w-full rounded-xl border ${lastNameError ? 'border-red-300 focus:border-red-500' : 'border-[#4D8CF5]/20'} bg-white px-4 py-2.5 text-sm text-gray-900 transition-all focus:outline-none focus:ring-2 ${lastNameError ? 'focus:ring-red-100' : 'focus:ring-[#4D8CF5]/20'}`}
+                              />
+                              {lastNameError && (
+                                <p className="mt-1 text-xs text-red-600 flex items-center gap-1">
+                                  <i className="fas fa-exclamation-circle text-[10px]"></i>
+                                  {lastNameError}
+                                </p>
+                              )}
+                            </>
                           ) : (
                             <div className="flex items-center gap-2 rounded-xl border border-[#4D8CF5]/20 bg-[#F9FCFF] px-4 py-2.5 text-sm text-gray-700">
                               <i className="fas fa-user-tag text-slate-400 text-xs"></i>
@@ -395,10 +469,10 @@ function GuestAccountContent() {
                       <div className="grid gap-6 sm:grid-cols-2">
                         {/* Mobile Number */}
                         <div className="space-y-1">
-     <label className="flex items-center gap-2 text-sm font-semibold text-[#1E3A8A]">
-  <i className="fas fa-phone-alt text-[#4D8CF5] text-xs"></i>
-  Mobile Number <span className="text-red-500">(Required for Booking)</span>
-</label>
+                          <label className="flex items-center gap-2 text-sm font-semibold text-[#1E3A8A]">
+                            <i className="fas fa-phone-alt text-[#4D8CF5] text-xs"></i>
+                            Mobile Number <span className="text-red-500">(Required for Booking)</span>
+                          </label>
                           {isEditing ? (
                             <input
                               type="tel"
@@ -432,9 +506,9 @@ function GuestAccountContent() {
                       <div className="space-y-4 border-t border-[#4D8CF5]/10 pt-6">
                         <div>
                           <h3 className="text-sm font-semibold text-[#1E3A8A]">Home Address</h3>
-<p className="mt-1 text-xs text-red-500">
-  Required for booking confirmation and verification. If your address does not have a street name, you may leave it blank.
-</p>
+                          <p className="mt-1 text-xs text-red-500">
+                            Required for booking confirmation and verification. If your address does not have a street name, you may leave it blank.
+                          </p>
                         </div>
                         <div className="grid gap-6 sm:grid-cols-2">
                           {[
@@ -512,6 +586,7 @@ function GuestAccountContent() {
                   )}
                 </div>
 
+                {/* VALID ID section (unchanged) */}
                 <div id="photo-details" className="overflow-hidden rounded-2xl border border-[#4D8CF5]/20 bg-white shadow-md transition-all duration-300">
                   <div className="border-b border-[#4D8CF5]/10 bg-gradient-to-r from-[#4D8CF5]/5 to-white px-6 py-5">
                     <div className="flex flex-wrap items-center justify-between gap-3">
@@ -566,9 +641,13 @@ function GuestAccountContent() {
 
                       {isEditingValidId && (
                         <div className="space-y-4">
-                          <div className="rounded-xl border border-blue-100 bg-blue-50/60 p-4 text-sm text-blue-800">
-                            <i className="fas fa-info-circle mr-2"></i>
-                            The uploaded valid ID will automatically be used for future room or day tour reservations.
+                          <div className="flex items-start gap-3 rounded-2xl border border-[#4D8CF5]/20 bg-[#EEF5FF]/60 p-4">
+                            <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-[#4D8CF5]/15 text-[#4D8CF5]">
+                              <i className="fas fa-info-circle text-xs" />
+                            </div>
+                            <p className="text-sm leading-relaxed text-[#1E3A8A]/80">
+                              The uploaded valid ID will automatically be used for future room or day tour reservations.
+                            </p>
                           </div>
                           <div className="space-y-1">
                             <label className="flex items-center gap-2 text-sm font-semibold text-[#1E3A8A]">

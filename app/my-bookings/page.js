@@ -469,11 +469,19 @@ function MyBookingsPageContent() {
                         <p className="mt-4 text-sm font-medium text-blue-600/50">Loading your reservations…</p>
                       </div>
                     ) : bookingsError ? (
-                      <div className="flex flex-col items-center rounded-2xl border border-red-200 bg-red-50 px-6 py-12 text-center">
-                        <div className="flex h-12 w-12 items-center justify-center rounded-full bg-red-100">
-                          <i className="fas fa-exclamation-triangle text-lg text-red-500" />
+                      <div className="flex items-start gap-4 overflow-hidden rounded-2xl border border-red-100 bg-gradient-to-r from-red-50 to-white px-5 py-5 shadow-sm animate-[fadeIn_0.3s_ease-out]">
+                        {/* Left accent */}
+                        <div className="w-1 self-stretch rounded-full shrink-0 bg-red-400" />
+                        {/* Icon */}
+                        <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-red-100 text-red-500">
+                          <i className="fas fa-exclamation-triangle text-sm" />
                         </div>
-                        <p className="mt-4 text-sm font-medium text-red-700">{bookingsError}</p>
+                        {/* Text */}
+                        <div className="flex-1 min-w-0">
+                          <p className="text-sm font-bold text-red-700">Unable to load bookings</p>
+                          <p className="mt-0.5 text-xs text-red-600/80">{bookingsError}</p>
+                          <p className="mt-2 text-xs text-red-500/70">Please check your connection and try refreshing the page.</p>
+                        </div>
                       </div>
                     ) : activeTab === 'pending_payment' ? (
                       <PendingPaymentList user={user} bookings={bookings} />
