@@ -418,7 +418,7 @@ function MyBookingsPageContent() {
                   </div>
 
                   {/* Tab Navigation (including All tab) */}
-                  <div className="mb-6 flex gap-2 overflow-x-auto pt-1.5 pb-2 px-1">
+                  <div className="mb-6 flex flex-wrap gap-2 pt-1.5 pb-2 px-1">
                     {TAB_OPTIONS.map((tab) => {
                       const isActive = activeTab === tab.id;
                       const count = counts[tab.id] || 0;
@@ -437,16 +437,16 @@ function MyBookingsPageContent() {
                           key={tab.id}
                           type="button"
                           onClick={() => setActiveTab(tab.id)}
-                          className={`group relative flex items-center gap-2 whitespace-nowrap rounded-2xl px-5 py-2.5 text-sm font-bold transition-all duration-300 ${
+                          className={`group relative flex items-center gap-1.5 rounded-2xl px-3 py-2 text-xs font-bold transition-all duration-300 sm:gap-2 sm:px-4 sm:py-2.5 sm:text-sm ${
                             isActive
                               ? activeColor
                               : 'bg-white text-slate-600 shadow-sm ring-1 ring-slate-200 hover:bg-slate-50 hover:text-slate-800'
                           }`}
                         >
-                          <i className={`fas ${tab.icon} text-xs ${isActive ? '' : 'text-slate-400 group-hover:text-slate-500'}`} />
+                          <i className={`fas ${tab.icon} text-[10px] sm:text-xs ${isActive ? '' : 'text-slate-400 group-hover:text-slate-500'}`} />
                           {tab.label}
                           {count > 0 && (
-                            <span className={`ml-0.5 inline-flex h-5 min-w-[20px] items-center justify-center rounded-full px-1.5 text-[10px] font-bold ${
+                            <span className={`ml-0.5 inline-flex h-4 min-w-[16px] items-center justify-center rounded-full px-1 text-[9px] font-bold sm:h-5 sm:min-w-[20px] sm:px-1.5 sm:text-[10px] ${
                               isActive
                                 ? activeBadgeStyles[tab.color]
                                 : 'bg-slate-100 text-slate-600'

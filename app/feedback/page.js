@@ -398,7 +398,7 @@ function FeedbackPageContent() {
     <GuestLayout>
       <div className="min-h-screen bg-[#F8FCFF] px-4 pb-20 pt-28 sm:px-6 sm:pt-32 lg:px-8">
         <div className="mx-auto max-w-7xl">
-          <div className="grid gap-5 lg:grid-cols-[360px_minmax(0,1fr)]">
+          <div className="grid grid-cols-1 gap-5 lg:grid-cols-[360px_minmax(0,1fr)]">
             {/* Left Sidebar */}
             <aside className="space-y-4">
               <div className="relative overflow-hidden rounded-2xl border border-[#4D8CF5]/15 bg-white p-4 shadow-[0_8px_24px_rgba(77,140,245,0.08)] transition-all duration-300">
@@ -567,20 +567,20 @@ function FeedbackPageContent() {
                                 <button
                                   key={booking.key}
                                   onClick={() => handleSelectBooking(booking, false)}
-                                  className="group flex items-center justify-between gap-4 rounded-2xl border border-blue-100 bg-white p-4 text-left transition-all hover:-translate-y-0.5 hover:border-blue-300 hover:shadow-lg"
+                                  className="group flex items-center justify-between gap-3 rounded-2xl border border-blue-100 bg-white p-3 text-left transition-all hover:-translate-y-0.5 hover:border-blue-300 hover:shadow-lg sm:gap-4 sm:p-4"
                                 >
                                   <div className="min-w-0 flex-1">
-                                    <div className="mb-1.5 flex flex-wrap items-center gap-2">
+                                    <div className="mb-1.5 flex flex-wrap items-center gap-1.5">
                                       <span className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[9px] font-bold uppercase tracking-wider shadow-sm ${typeInfo.color}`}>
                                         <i className={`fas ${typeInfo.icon} text-[8px]`} />
                                         {typeInfo.label}
                                       </span>
-                                      <span className="text-[10px] font-mono text-slate-400">{booking.bookingId}</span>
+                                      <span className="text-[10px] font-mono text-slate-400 break-all">{booking.bookingId}</span>
                                     </div>
-                                    <h3 className="font-bold text-slate-900 truncate">{title}</h3>
-                                    <p className="mt-0.5 text-xs text-slate-500">{dateLine}</p>
+                                    <h3 className="font-bold text-slate-900 truncate text-sm sm:text-base">{title}</h3>
+                                    <p className="mt-0.5 text-xs text-slate-500 break-words">{dateLine}</p>
                                   </div>
-                                  <div className="flex h-10 w-10 items-center justify-center rounded-full bg-blue-50 text-blue-400 transition-all duration-300 group-hover:scale-110 group-hover:bg-blue-100 group-hover:text-blue-600">
+                                  <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-blue-50 text-blue-400 transition-all duration-300 group-hover:scale-110 group-hover:bg-blue-100 group-hover:text-blue-600 sm:h-10 sm:w-10">
                                     <i className="fas fa-chevron-right text-xs" />
                                   </div>
                                 </button>
@@ -649,10 +649,10 @@ function FeedbackPageContent() {
                                 <button
                                   key={`reviewed-${booking.key}`}
                                   onClick={() => handleSelectBooking(booking, true)}
-                                  className="group flex items-center justify-between gap-4 rounded-2xl border border-slate-200 bg-white p-4 text-left transition-all hover:border-slate-300 hover:shadow-md"
+                                  className="group flex items-center justify-between gap-3 rounded-2xl border border-slate-200 bg-white p-3 text-left transition-all hover:border-slate-300 hover:shadow-md sm:gap-4 sm:p-4"
                                 >
                                   <div className="min-w-0 flex-1">
-                                    <div className="mb-1.5 flex flex-wrap items-center gap-2">
+                                    <div className="mb-1.5 flex flex-wrap items-center gap-1.5">
                                       <span className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[9px] font-bold uppercase tracking-wider shadow-sm ${typeInfo.color}`}>
                                         <i className={`fas ${typeInfo.icon} text-[8px]`} />
                                         {typeInfo.label}
@@ -661,10 +661,10 @@ function FeedbackPageContent() {
                                         <i className="fas fa-check text-[8px]" />
                                         Submitted
                                       </span>
-                                      <span className="text-[10px] font-mono text-slate-400">{booking.bookingId}</span>
+                                      <span className="text-[10px] font-mono text-slate-400 break-all">{booking.bookingId}</span>
                                     </div>
-                                    <h3 className="font-bold text-slate-800 truncate">{title}</h3>
-                                    <p className="mt-0.5 text-xs text-slate-500">{dateLine}</p>
+                                    <h3 className="font-bold text-slate-800 truncate text-sm sm:text-base">{title}</h3>
+                                    <p className="mt-0.5 text-xs text-slate-500 break-words">{dateLine}</p>
                                     {submitted?.rating && (
                                       <div className="mt-2 flex items-center gap-1 text-xs font-semibold text-amber-500">
                                         <div className="flex items-center">
@@ -713,20 +713,20 @@ function FeedbackPageContent() {
               {/* Feedback Form (Shared) */}
               {verifiedBooking && (
                 <div className="overflow-hidden rounded-3xl border border-blue-100 bg-white shadow-[0_8px_30px_rgba(0,0,0,0.04)] transition-all duration-300">
-                  <div className="px-6 py-8 sm:px-8 animate-[fadeIn_0.3s_ease-out]">
-                    <div className="mb-6 flex flex-col items-center justify-between gap-4 border-b border-blue-50 pb-5 sm:flex-row">
-                      <div>
-                        <h2 className="text-lg font-bold text-blue-900">
+                  <div className="px-4 py-6 sm:px-6 sm:py-8 md:px-8 animate-[fadeIn_0.3s_ease-out]">
+                    <div className="mb-6 flex flex-col gap-3 border-b border-blue-50 pb-5 sm:flex-row sm:items-start sm:justify-between sm:gap-4">
+                      <div className="min-w-0">
+                        <h2 className="text-base font-bold text-blue-900 sm:text-lg">
                           {verifiedBooking.displayTitle || 'Your Stay at Sandyfeet'}
                         </h2>
-                        <p className="mt-0.5 text-xs text-blue-600/60">
+                        <p className="mt-0.5 text-xs text-blue-600/60 break-words">
                           {verifiedBooking.bookingType === 'daytour' ? (
                             <>Stay Date: <span className="font-bold text-blue-600">{verifiedBooking.displayDate}</span></>
                           ) : (
                             <>{verifiedBooking.displayDate}</>
                           )}
                           {' • '}
-                          Booking: <span className="font-mono font-bold text-blue-900">{verifiedBooking.bookingId}</span>
+                          Booking: <span className="font-mono font-bold text-blue-900 break-all">{verifiedBooking.bookingId}</span>
                         </p>
                       </div>
                       <button
@@ -739,7 +739,7 @@ function FeedbackPageContent() {
                           setIsAnonymous(false);
                           setMessage({ text: '', type: '' });
                         }}
-                        className="rounded-xl bg-blue-50 px-4 py-2 text-xs font-bold text-blue-600 transition-all hover:bg-blue-100 hover:text-blue-700"
+                        className="self-start rounded-xl bg-blue-50 px-3 py-2 text-xs font-bold text-blue-600 transition-all hover:bg-blue-100 hover:text-blue-700 sm:px-4 sm:shrink-0"
                       >
                         {user ? (
                           <span className="flex items-center gap-2"><i className="fas fa-arrow-left" /> Back to List</span>
