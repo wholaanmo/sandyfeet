@@ -188,6 +188,10 @@ export default function AdminDayTourCalendar() {
     return bookedCount + unavailableGuestCount >= dayTour.maxCapacity;
   };
 
+  const hasExclusiveResortBookingOnDate = (date) => {
+    return Boolean(exclusiveResortBlockedDates[toLocalDateKey(date)]);
+  };
+
   const getBookedGuestsCount = (date) => {
     if (!dayTour?.maxCapacity) return 0;
     const dateKey = toLocalDateKey(date);
@@ -426,6 +430,7 @@ export default function AdminDayTourCalendar() {
                   if (!day) return <div key={idx} className="aspect-square"></div>;
                   
                   const status = getDateStatus(day);
+                  const hasExclusive = hasExclusiveResortBookingOnDate(day);
                   let bgColor = 'bg-white';
                   let textColor = 'text-textPrimary';
                   let borderClass = 'border border-gray-200';
@@ -461,12 +466,17 @@ export default function AdminDayTourCalendar() {
                       key={idx}
                       onClick={() => (status !== 'past' && status !== 'fullyBooked') && handleDateSelect(day)}
                       disabled={status === 'past' || status === 'fullyBooked'}
-                      title={titleText}
-                      className={`relative w-full pt-[100%] rounded-lg transition-all duration-200 ${bgColor} ${borderClass} ${cursorClass}`}
+                      title={hasExclusive ? `${titleText} • Includes Entire Resort booking` : titleText}
+                      className={`relative w-full pt-[100%] rounded-lg transition-all duration-200 ${bgColor} ${borderClass} ${cursorClass} ${hasExclusive ? 'ring-2 ring-amber-300' : ''}`}
                     >
                       <span className={`absolute inset-0 flex items-center justify-center text-sm font-medium ${textColor}`}>
                         {day.getDate()}
                       </span>
+                      {hasExclusive && (
+                        <span className="absolute top-1 right-1 px-1 py-0.5 rounded bg-amber-100 text-amber-700 text-[8px] font-bold leading-none border border-amber-200">
+                          ER
+                        </span>
+                      )}
                     </button>
                   );
                 })}
@@ -476,6 +486,7 @@ export default function AdminDayTourCalendar() {
               <div className="mt-6 pt-4 border-t border-ocean-light/10 flex justify-center gap-6 text-xs flex-wrap">
                 <div className="flex items-center gap-1.5"><div className="w-3 h-3 bg-white border border-gray-300 rounded"></div><span>Available</span></div>
                 <div className="flex items-center gap-1.5"><div className="w-3 h-3 bg-red-100 border border-red-200 rounded"></div><span>Fully Booked</span></div>
+                <div className="flex items-center gap-1.5"><div className="w-3 h-3 rounded bg-rose-100 border border-amber-400 ring-1 ring-amber-300"></div><span>Entire Resort Booked</span></div>
                 <div className="flex items-center gap-1.5"><div className="w-3 h-3 bg-gray-100 border border-gray-200 rounded"></div><span>Past Dates</span></div>
                 <div className="flex items-center gap-1.5"><div className="w-3 h-3 bg-ocean-mid rounded"></div><span>Selected</span></div>
               </div>

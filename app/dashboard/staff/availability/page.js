@@ -227,6 +227,7 @@ export default function StaffRoomStatus() {
 
   // Check if day tour is fully booked on a date
   const isDayTourFullyBooked = (date) => {
+    if (isExclusiveResortDate(date)) return true;
     if (!dayTourCapacity) return false;
     return getRemainingDayTourCapacity(date) === 0;
   };
@@ -576,10 +577,11 @@ export default function StaffRoomStatus() {
                 if (!day) return <div key={idx} className="min-h-[80px] sm:min-h-[100px]"></div>;
                 
                 const isPast = isDatePast(day);
+                const isExclusiveDate = isExclusiveResortDate(day);
                 const bookedGuests = getBookedGuestsCount(day);
                 const unavailableSlots = getUnavailableSlotsCount(day);
-                const remainingCapacity = getRemainingDayTourCapacity(day);
-                const isFullyBooked = remainingCapacity === 0 && dayTourCapacity > 0;
+                const remainingCapacity = isExclusiveDate ? 0 : getRemainingDayTourCapacity(day);
+                const isFullyBooked = isDayTourFullyBooked(day);
                 
                 let bgColor = isPast ? 'bg-gray-50/80' : (isFullyBooked && !isPast ? 'bg-rose-50/30' : 'bg-white');
                 let borderClass = isFullyBooked && !isPast ? 'border-rose-100' : 'border-gray-100';

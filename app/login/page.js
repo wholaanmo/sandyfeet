@@ -41,6 +41,19 @@ const [pendingDeviceEmail, setPendingDeviceEmail] = useState('');
 useEffect(() => {
     setIsClient(true);
 
+    const clearSessionData = () => {
+      localStorage.removeItem('userType');
+      localStorage.removeItem('userEmail');
+      localStorage.removeItem('userName');
+      localStorage.removeItem('uid');
+      localStorage.removeItem('sessionToken');
+      localStorage.removeItem('sessionExpiry');
+      localStorage.removeItem('rememberMe');
+      document.cookie = 'sessionToken=; path=/; expires=Thu, 01 Jan 1970 00:00:01 GMT';
+      document.cookie = 'userType=; path=/; expires=Thu, 01 Jan 1970 00:00:01 GMT';
+      document.cookie = 'sessionExpiry=; path=/; expires=Thu, 01 Jan 1970 00:00:01 GMT';
+    };
+
     // 1. Check existing session
     const checkAuth = async () => {
         const userType = localStorage.getItem('userType');
@@ -50,18 +63,15 @@ useEffect(() => {
         if (userType && sessionToken && sessionExpiry) {
             const now = Date.now();
             if (now < parseInt(sessionExpiry)) {
-                router.push(userType === 'admin' ? '/dashboard/admin/overview' : '/dashboard/staff/overview');
+                if (userType === 'admin') {
+                    router.push('/dashboard/admin/overview');
+                } else if (userType === 'staff') {
+                    router.push('/dashboard/staff/overview');
+                } else {
+                    clearSessionData();
+                }
             } else {
-                // Clear expired data
-                localStorage.removeItem('userType');
-                localStorage.removeItem('userEmail');
-                localStorage.removeItem('uid');
-                localStorage.removeItem('sessionToken');
-                localStorage.removeItem('sessionExpiry');
-                localStorage.removeItem('rememberMe');
-                document.cookie = 'sessionToken=; path=/; expires=Thu, 01 Jan 1970 00:00:01 GMT';
-                document.cookie = 'userType=; path=/; expires=Thu, 01 Jan 1970 00:00:01 GMT';
-                document.cookie = 'sessionExpiry=; path=/; expires=Thu, 01 Jan 1970 00:00:01 GMT';
+                clearSessionData();
             }
         }
     };

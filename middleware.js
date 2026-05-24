@@ -74,10 +74,16 @@ export function middleware(request) {
     return NextResponse.redirect(loginUrl);
   }
   
-  // For staff routes, verify user has staff or admin role
-  if (isStaffRoute && userType !== 'admin' && userType !== 'staff') {
-    const loginUrl = new URL('/login', request.url);
-    return NextResponse.redirect(loginUrl);
+  // For staff routes, enforce staff-only access
+  if (isStaffRoute) {
+    if (userType === 'admin') {
+      const adminDashboard = new URL('/dashboard/admin/overview', request.url);
+      return NextResponse.redirect(adminDashboard);
+    }
+    if (userType !== 'staff') {
+      const loginUrl = new URL('/login', request.url);
+      return NextResponse.redirect(loginUrl);
+    }
   }
   
   // Session is valid, allow access
