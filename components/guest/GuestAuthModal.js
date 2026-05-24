@@ -18,7 +18,7 @@ function GoogleMark() {
   );
 }
 
-// Enhanced password strength checker
+// Enhanced password strength checker (unchanged)
 function getPasswordStrength(password) {
   if (!password) return { level: 'too-weak', message: 'Too Weak', color: 'text-red-500' };
   
@@ -30,17 +30,12 @@ function getPasswordStrength(password) {
   
   const typesCount = [hasUpper, hasLower, hasNumber, hasSpecial].filter(Boolean).length;
   
-  // Too Weak: very short or missing multiple character types
   if (length < 6 || typesCount <= 2) {
     return { level: 'too-weak', message: 'Too Weak', color: 'text-red-500' };
   }
-  
-  // Weak Password: length >=6 but missing at least one required type
   if (typesCount < 4) {
     return { level: 'weak', message: 'Weak Password', color: 'text-orange-500' };
   }
-  
-  // All four types present – evaluate length
   if (length >= 12) {
     return { level: 'very-strong', message: 'Very Strong Password', color: 'text-emerald-600' };
   }
@@ -50,9 +45,18 @@ function getPasswordStrength(password) {
   if (length >= 8) {
     return { level: 'good', message: 'Good Password', color: 'text-teal-600' };
   }
-  
-  // Fallback (length 6-7 with all types)
   return { level: 'good', message: 'Good Password', color: 'text-teal-600' };
+}
+
+// Helper to get detailed password requirements
+function getPasswordChecks(password) {
+  return {
+    minLength: password.length >= 8,
+    hasUppercase: /[A-Z]/.test(password),
+    hasLowercase: /[a-z]/.test(password),
+    hasNumber: /[0-9]/.test(password),
+    hasSpecial: /[!@#$%^&*(),.?":{}|<>]/.test(password),
+  };
 }
 
 export default function GuestAuthModal({ isOpen, onClose, prefillEmail = '' }) {
@@ -69,6 +73,7 @@ export default function GuestAuthModal({ isOpen, onClose, prefillEmail = '' }) {
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [passwordStrength, setPasswordStrength] = useState({ level: 'too-weak', message: '', color: '' });
+  const [passwordChecks, setPasswordChecks] = useState(getPasswordChecks(''));
   
   // Terms & Privacy state
   const [termsAccepted, setTermsAccepted] = useState(false);
@@ -110,6 +115,7 @@ export default function GuestAuthModal({ isOpen, onClose, prefillEmail = '' }) {
   // Evaluate password strength when password changes
   useEffect(() => {
     setPasswordStrength(getPasswordStrength(password));
+    setPasswordChecks(getPasswordChecks(password));
   }, [password]);
 
   const isGoogleGuestUser = profile?.provider === 'google';
@@ -145,7 +151,6 @@ export default function GuestAuthModal({ isOpen, onClose, prefillEmail = '' }) {
     setSignUpError('');
     clearAuthError?.();
     
-    // Enforce Terms & Conditions when in signup mode
     if (mode === 'signup' && !termsAccepted) {
       setNotice('You must agree to the Terms and Conditions and Privacy Policy to create an account.');
       return;
@@ -173,7 +178,6 @@ export default function GuestAuthModal({ isOpen, onClose, prefillEmail = '' }) {
       return;
     }
 
-    // Reject weak passwords (too-weak or weak)
     if (passwordStrength.level === 'too-weak' || passwordStrength.level === 'weak') {
       setNotice(`Please choose a stronger password. Current: ${passwordStrength.message}`);
       return;
@@ -184,7 +188,6 @@ export default function GuestAuthModal({ isOpen, onClose, prefillEmail = '' }) {
       return;
     }
     
-    // Terms & Conditions validation
     if (!termsAccepted) {
       setNotice('You must agree to the Terms and Conditions and Privacy Policy to create an account.');
       return;
@@ -197,7 +200,7 @@ export default function GuestAuthModal({ isOpen, onClose, prefillEmail = '' }) {
       setConfirmPassword('');
       setSignUpError('');
       setNotice('Verification email sent! Please check your inbox and verify your email before signing in.');
-      setTermsAccepted(false); // reset after successful signup
+      setTermsAccepted(false);
     } catch (err) {
       setSignUpError(mapFirebaseAuthError(err, 'signup'));
     }
@@ -223,9 +226,8 @@ export default function GuestAuthModal({ isOpen, onClose, prefillEmail = '' }) {
     }
   };
 
-  // Forgot Password handlers
   const handleForgotPasswordOpen = () => {
-    setForgotEmail(email); // prefill with current email if any
+    setForgotEmail(email);
     setForgotMessage('');
     setForgotError('');
     if (isGoogleGuestUser) {
@@ -331,7 +333,6 @@ export default function GuestAuthModal({ isOpen, onClose, prefillEmail = '' }) {
               className="group relative flex h-12 w-full items-center justify-center gap-3 overflow-hidden rounded-2xl border border-white/10 bg-gradient-to-br from-[#111111] via-[#1a1a1a] to-[#0d0d0d] px-4 text-[14px] font-semibold text-white shadow-[0_6px_20px_rgba(0,0,0,0.35)] transition-all duration-300 hover:-translate-y-[2px] hover:border-white/20 hover:shadow-[0_10px_30px_rgba(0,0,0,0.45)] active:scale-[0.985] disabled:cursor-not-allowed disabled:opacity-50"
             >
               <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/5 to-transparent opacity-0 transition-opacity duration-300 group-hover:opacity-100" />
-
               <div className="relative flex items-center gap-3">
                 {actionLoading ? (
                   <>
@@ -442,25 +443,23 @@ export default function GuestAuthModal({ isOpen, onClose, prefillEmail = '' }) {
                     Sign Up
                   </button>
                 </p>
-<div className="mt-3 flex items-center justify-center text-xs">
-  <button
-    type="button"
-    onClick={() => setShowTermsModal(true)}
-    className="font-semibold text-[#2563EB] transition-all duration-200 hover:underline hover:underline-offset-2 hover:text-[#1D4ED8]"
-  >
-    Terms & Conditions
-  </button>
-
-  <span className="mx-3 select-none text-slate-400">and</span>
-
-  <button
-    type="button"
-    onClick={() => setShowPrivacyModal(true)}
-    className="font-semibold text-[#2563EB] transition-all duration-200 hover:underline hover:underline-offset-2 hover:text-[#1D4ED8]"
-  >
-    Privacy Policy
-  </button>
-</div>
+                <div className="mt-3 flex items-center justify-center text-xs">
+                  <button
+                    type="button"
+                    onClick={() => setShowTermsModal(true)}
+                    className="font-semibold text-[#2563EB] transition-all duration-200 hover:underline hover:underline-offset-2 hover:text-[#1D4ED8]"
+                  >
+                    Terms & Conditions
+                  </button>
+                  <span className="mx-3 select-none text-slate-400">and</span>
+                  <button
+                    type="button"
+                    onClick={() => setShowPrivacyModal(true)}
+                    className="font-semibold text-[#2563EB] transition-all duration-200 hover:underline hover:underline-offset-2 hover:text-[#1D4ED8]"
+                  >
+                    Privacy Policy
+                  </button>
+                </div>
               </form>
             ) : (
               <form onSubmit={handleSignUp} className="space-y-3">
@@ -530,41 +529,63 @@ export default function GuestAuthModal({ isOpen, onClose, prefillEmail = '' }) {
                     />
                   </div>
                 </div>
-                <div>
-                  <label className="mb-1 block text-xs font-semibold text-slate-500 uppercase tracking-wider">
-                    Password
-                  </label>
-                  <div className="relative">
-                    <span className="absolute inset-y-0 left-0 flex items-center pl-3.5 pointer-events-none text-slate-400/85">
-                      <i className="fas fa-lock text-xs"></i>
-                    </span>
-                    <input
-                      type={showPassword ? "text" : "password"}
-                      value={password}
-                      onChange={(event) => {
-                        setPassword(event.target.value);
-                        setNotice('');
-                      }}
-                      placeholder="Must have A-Z, a-z, 0-9, special"
-                      className="h-10.5 w-full rounded-xl border border-slate-200/80 bg-slate-50/40 pl-10 pr-11 text-sm text-slate-900 outline-none transition-all placeholder:text-slate-400 hover:bg-slate-50/60 focus:bg-white focus:border-[#2563EB] focus:ring-4 focus:ring-blue-100/50"
-                      required
-                    />
-                    <button
-                      type="button"
-                      onClick={() => setShowPassword(!showPassword)}
-                      className="absolute inset-y-0 right-0 flex items-center pr-3 text-slate-400 hover:text-slate-600 transition-colors"
-                      tabIndex={-1}
-                    >
-                      <i className={`fas ${showPassword ? 'fa-eye-slash' : 'fa-eye'} text-xs`}></i>
-                    </button>
-                  </div>
-                  {password && (
-                    <div className="mt-1 flex justify-between items-center text-[10.5px] font-bold uppercase tracking-wider select-none">
-                      <span className="text-slate-400">Password Strength</span>
-                      <span className={`${passwordStrength.color} transition-colors duration-200`}>{passwordStrength.message}</span>
-                    </div>
-                  )}
-                </div>
+<div>
+  <label className="mb-1 block text-xs font-semibold text-slate-500 uppercase tracking-wider">
+    Password
+  </label>
+  <div className="relative">
+    <span className="absolute inset-y-0 left-0 flex items-center pl-3.5 pointer-events-none text-slate-400/85">
+      <i className="fas fa-lock text-xs"></i>
+    </span>
+    <input
+      type={showPassword ? "text" : "password"}
+      value={password}
+      onChange={(event) => {
+        setPassword(event.target.value);
+        setNotice('');
+      }}
+      placeholder="Must have A-Z, a-z, 0-9, special"
+      className="h-10.5 w-full rounded-xl border border-slate-200/80 bg-slate-50/40 pl-10 pr-11 text-sm text-slate-900 outline-none transition-all placeholder:text-slate-400 hover:bg-slate-50/60 focus:bg-white focus:border-[#2563EB] focus:ring-4 focus:ring-blue-100/50"
+      required
+    />
+    <button
+      type="button"
+      onClick={() => setShowPassword(!showPassword)}
+      className="absolute inset-y-0 right-0 flex items-center pr-3 text-slate-400 hover:text-slate-600 transition-colors"
+      tabIndex={-1}
+    >
+      <i className={`fas ${showPassword ? 'fa-eye-slash' : 'fa-eye'} text-xs`}></i>
+    </button>
+  </div>
+
+  {/* Dynamic sentence for password requirements */}
+  {password.length > 0 && (
+    <div className="mt-1.5 text-[10.5px] leading-relaxed text-slate-500">
+      {(() => {
+        const missing = [];
+        if (!passwordChecks.minLength) missing.push('at least 8 characters');
+        if (!passwordChecks.hasUppercase) missing.push('one uppercase letter');
+        if (!passwordChecks.hasLowercase) missing.push('one lowercase letter');
+        if (!passwordChecks.hasNumber) missing.push('one number');
+        if (!passwordChecks.hasSpecial) missing.push('one special character');
+        
+        if (missing.length === 0) {
+          return <span className="text-emerald-600"></span>;
+        } else {
+          const sentence = `Password must contain ${missing.join(', ')}.`;
+          return <span className="text-amber-600">{sentence}</span>;
+        }
+      })()}
+    </div>
+  )}
+  
+  {password && (
+    <div className="mt-1 flex justify-between items-center text-[10.5px] font-bold uppercase tracking-wider select-none">
+      <span className="text-slate-400">Password Strength</span>
+      <span className={`${passwordStrength.color} transition-colors duration-200`}>{passwordStrength.message}</span>
+    </div>
+  )}
+</div>
                 <div>
                   <label className="mb-1 block text-xs font-semibold text-slate-500 uppercase tracking-wider">
                     Confirm password
