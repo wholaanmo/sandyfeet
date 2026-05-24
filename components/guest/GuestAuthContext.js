@@ -460,25 +460,45 @@ export function GuestAuthProvider({ children }) {
     }
   }, []);
 
-  const updateGuestProfile = useCallback(async (updates) => {
-    if (!user) {
-      throw new Error('Guest must be signed in to update profile.');
+ const updateGuestProfile = useCallback(async (updates) => {
+  if (!user) {
+    throw new Error('Guest must be signed in to update profile.');
+  }
+
+  const profileRef = doc(db, 'guestProfiles', user.uid);
+  
+  // Compute new displayName if firstName or lastName are updated
+  let newDisplayName = null;
+  if (updates.firstName !== undefined || updates.lastName !== undefined) {
+    const currentFirstName = updates.firstName !== undefined ? updates.firstName : profile?.firstName || '';
+    const currentLastName = updates.lastName !== undefined ? updates.lastName : profile?.lastName || '';
+    newDisplayName = `${currentFirstName} ${currentLastName}`.trim();
+    updates.displayName = newDisplayName;
+  }
+
+  await setDoc(profileRef, {
+    ...updates,
+    updatedAt: serverTimestamp()
+  }, { merge: true });
+
+  // Optimistically update local profile state
+  setProfile((prev) => ({
+    ...(prev || {}),
+    ...updates,
+    uid: user.uid,
+    email: (prev?.email || user.email || ''),
+    displayName: updates.displayName || prev?.displayName || user.displayName || '',
+  }));
+
+  // Optionally sync displayName to Firebase Auth user (useful for other services)
+  if (newDisplayName && user) {
+    try {
+      await updateProfile(user, { displayName: newDisplayName });
+    } catch (err) {
+      console.warn('Failed to update Firebase Auth displayName:', err);
     }
-
-    const profileRef = doc(db, 'guestProfiles', user.uid);
-    await setDoc(profileRef, {
-      ...updates,
-      updatedAt: serverTimestamp()
-    }, { merge: true });
-
-    setProfile((prev) => ({
-      ...(prev || {}),
-      ...updates,
-      uid: user.uid,
-      email: (prev?.email || user.email || ''),
-      displayName: (prev?.displayName || user.displayName || '')
-    }));
-  }, [user]);
+  }
+}, [user, profile]);
 
   const logout = useCallback(async () => {
     setActionLoading(true);
