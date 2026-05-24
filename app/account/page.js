@@ -432,9 +432,9 @@ function GuestAccountContent() {
                       <div className="space-y-4 border-t border-[#4D8CF5]/10 pt-6">
                         <div>
                           <h3 className="text-sm font-semibold text-[#1E3A8A]">Home Address</h3>
-                          <p className="mt-1 text-xs text-[#4D6FA8]">
-                            Required for booking confirmation and verification.
-                          </p>
+<p className="mt-1 text-xs text-red-500">
+  Required for booking confirmation and verification. If your address does not have a street name, you may leave it blank.
+</p>
                         </div>
                         <div className="grid gap-6 sm:grid-cols-2">
                           {[

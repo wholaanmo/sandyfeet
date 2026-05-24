@@ -46,6 +46,8 @@ function RoomsPageContent() {
   const [isAuthOpen, setIsAuthOpen] = useState(false);
   const calendarPopoverRef = useRef(null);
   const calendarTriggerRef = useRef(null);
+  // NEW: state for exclusive info modal
+  const [showExclusiveInfoModal, setShowExclusiveInfoModal] = useState(false);
 
   const CHECK_IN_OPTIONS = [14, 15, 16];
   const CHECK_OUT_OPTIONS = [10, 11, 12, 13];
@@ -1489,6 +1491,13 @@ function RoomsPageContent() {
                       {isExclusiveResortBooking ? 'Remove Exclusive' : 'Select Exclusive'}
                     </button>
                   </div>
+                  {/* NEW: Small informational button below the main button */}
+                  <button
+                    onClick={() => setShowExclusiveInfoModal(true)}
+                    className="mt-2 text-[11px] font-medium text-blue-700 hover:text-blue-900 flex items-center gap-1"
+                  >
+                    <i className="fas fa-info-circle text-[10px]"></i> What does Exclusive mean?
+                  </button>
                   {!canBookExclusiveResort && !isExclusiveResortBooking && (
                     <p className="mt-2 text-[11px] font-medium text-amber-700">
                       Select stay dates first, then choose dates where all room units are fully available.
@@ -1779,6 +1788,84 @@ function RoomsPageContent() {
         isOpen={isAuthOpen}
         onClose={() => setIsAuthOpen(false)}
       />
+
+      {/* NEW: Exclusive Information Modal */}
+      {showExclusiveInfoModal && (
+        <div
+          className="fixed inset-0 z-[100] flex items-center justify-center bg-slate-950/60 px-4 py-6 backdrop-blur-[5px] transition-all duration-300"
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="exclusive-info-title"
+          onClick={() => setShowExclusiveInfoModal(false)}
+        >
+          <div
+            className="relative w-full max-w-2xl max-h-[85vh] flex flex-col overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-2xl transition-all duration-300 ease-out"
+            onClick={(e) => e.stopPropagation()}
+          >
+            {/* Header */}
+            <div className="flex items-center justify-between border-b border-slate-200 bg-white px-6 py-4 flex-none sticky top-0 z-10">
+              <div className="flex items-center gap-3">
+                <div className="flex h-9 w-9 items-center justify-center rounded-full bg-blue-50 text-blue-600">
+                  <i className="fas fa-crown text-base"></i>
+                </div>
+                <div>
+                  <h3 id="exclusive-info-title" className="text-xl font-bold tracking-tight text-slate-900">
+                    Exclusive Resort Booking
+                  </h3>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setShowExclusiveInfoModal(false)}
+                className="flex h-8 w-8 items-center justify-center rounded-full border border-slate-200 bg-white text-slate-400 hover:text-slate-700 hover:border-slate-300 transition-all shadow-sm active:scale-95"
+                aria-label="Close"
+              >
+                <i className="fas fa-times text-sm"></i>
+              </button>
+            </div>
+
+            {/* Content */}
+            <div className="flex-1 overflow-y-auto px-6 py-6 space-y-5 text-sm text-slate-700 leading-relaxed">
+              <div className="bg-blue-50 p-4 rounded-xl text-blue-800 border border-blue-100">
+                <p className="text-sm font-semibold">What does Exclusive mean?</p>
+                <p className="text-sm mt-1">Exclusive booking means the guest will have the entire resort exclusively for themselves. No other guests or visitors will be in the resort during their stay.</p>
+              </div>
+
+              <section className="space-y-2">
+                <h4 className="font-bold text-slate-800 text-base border-b border-slate-200 pb-1">Included Rooms</h4>
+                <ul className="list-disc pl-6 space-y-1 text-slate-600">
+                  <li>1 Group Room</li>
+                  <li>1 Couple Room</li>
+                  <li>3 Ground Floor Rooms</li>
+                </ul>
+              </section>
+
+              <section className="space-y-2">
+                <h4 className="font-bold text-slate-800 text-base border-b border-slate-200 pb-1">Pricing</h4>
+                <p className="text-slate-700">Base package price: <strong className="text-blue-600">₱22,500 per night</strong></p>
+                <p className="text-slate-700">Additional tent: <strong>₱1,500 per tent per night</strong></p>
+                <p className="text-sm text-slate-500 mt-1">(Tents can be added during the booking process)</p>
+              </section>
+
+              <section className="space-y-2">
+                <h4 className="font-bold text-slate-800 text-base border-b border-slate-200 pb-1">Contact</h4>
+                <p className="text-slate-600">If you have any questions, please contact <a href="mailto:sandyfeetreservation@gmail.com" className="text-blue-600 hover:underline">sandyfeetreservation@gmail.com</a></p>
+              </section>
+            </div>
+
+            {/* Footer with Close button */}
+            <div className="border-t border-slate-200 px-6 py-4 bg-white flex justify-end flex-none sticky bottom-0">
+              <button
+                type="button"
+                onClick={() => setShowExclusiveInfoModal(false)}
+                className="rounded-xl bg-slate-100 px-6 py-2.5 text-sm font-semibold text-slate-700 hover:bg-slate-200 transition-all active:scale-[0.98] shadow-sm"
+              >
+                Close
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </GuestLayout>
   );
 }

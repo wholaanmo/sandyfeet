@@ -4,7 +4,7 @@
 import { useState, useEffect } from 'react';
 import { db } from '@/lib/firebase';
 import { collection, query, orderBy, onSnapshot, updateDoc, doc } from 'firebase/firestore';
-import { logAdminAction } from '@/lib/auditLogger';  // 👈 added audit logger
+import { logAdminAction } from '@/lib/auditLogger';
 
 export default function AdminFeedback() {
   const [feedbacks, setFeedbacks] = useState([]);
@@ -59,7 +59,6 @@ export default function AdminFeedback() {
         publishedAt: new Date().toISOString(),
         updatedAt: new Date().toISOString()
       });
-      // 👇 audit log for publish
       await logAdminAction({
         action: 'Published Feedback',
         module: 'Feedback Management',
@@ -84,7 +83,6 @@ export default function AdminFeedback() {
         status: 'Not Published',
         updatedAt: new Date().toISOString()
       });
-      // 👇 audit log for "Don't publish" (unpublish)
       await logAdminAction({
         action: 'Marked Feedback as Not Published',
         module: 'Feedback Management',
@@ -110,7 +108,6 @@ export default function AdminFeedback() {
         archivedAt: new Date().toISOString(),
         updatedAt: new Date().toISOString()
       });
-      // 👇 audit log for archive
       await logAdminAction({
         action: 'Archived Feedback',
         module: 'Feedback Management',
@@ -248,6 +245,7 @@ export default function AdminFeedback() {
               <thead>
                 <tr className="bg-ocean-pale/50 border-b border-ocean-light/20">
                   <th className="px-4 py-3 text-left text-sm font-semibold text-textPrimary">Guest</th>
+                  <th className="px-4 py-3 text-left text-sm font-semibold text-textPrimary">Anonymous?</th>
                   <th className="px-4 py-3 text-left text-sm font-semibold text-textPrimary">Booking ID</th>
                   <th className="px-4 py-3 text-left text-sm font-semibold text-textPrimary">Rating</th>
                   <th className="px-4 py-3 text-left text-sm font-semibold text-textPrimary">Feedback</th>
@@ -258,11 +256,20 @@ export default function AdminFeedback() {
               </thead>
               <tbody>
                 {filteredFeedbacks.length === 0 ? (
-                  <tr><td colSpan="7" className="px-4 py-12 text-center text-neutral"><i className="fas fa-comment-dots text-5xl mb-3 opacity-50 block"></i><p className="text-lg">No feedback submissions found</p><p className="text-sm">Guest feedback will appear here once submitted</p></td></tr>
+                  <tr><td colSpan="8" className="px-4 py-12 text-center text-neutral"><i className="fas fa-comment-dots text-5xl mb-3 opacity-50 block"></i><p className="text-lg">No feedback submissions found</p><p className="text-sm">Guest feedback will appear here once submitted</p></td></tr>
                 ) : (
                   filteredFeedbacks.map((feedback) => (
                     <tr key={feedback.id} className="border-b border-ocean-light/10 hover:bg-ocean-ice/30 transition-colors">
                       <td className="px-4 py-3"><div className="font-medium text-textPrimary text-sm">{feedback.guestName || 'Guest'}</div><div className="text-[10px] text-neutral">{feedback.guestEmail}</div></td>
+                      <td className="px-4 py-3">
+                        {feedback.isAnonymous === true ? (
+                          <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-gray-100 text-gray-600">
+                            <i className="fas fa-user-secret mr-1 text-xs"></i> Anonymous
+                          </span>
+                        ) : (
+                          <span className="text-xs text-gray-400">—</span>
+                        )}
+                      </td>
                       <td className="px-4 py-3"><span className="font-mono text-xs">{feedback.bookingId}</span></td>
                       <td className="px-4 py-3">{renderStars(feedback.rating)}</td>
                       <td className="px-4 py-3"><p className="text-xs text-textSecondary line-clamp-2 max-w-[250px]">{feedback.comment}</p></td>
@@ -275,10 +282,9 @@ export default function AdminFeedback() {
                       <td className="px-4 py-3">
                         <div className="flex gap-2">
                           <button onClick={() => { setSelectedFeedback(feedback); setIsViewModalOpen(true); }} className="w-8 h-8 rounded-lg bg-[#7AAAF8]/10 text-[#1E3A8A] hover:bg-[#7AAAF8] hover:text-white transition-all duration-200 flex items-center justify-center" title="View Details"><i className="fas fa-eye text-sm"></i></button>
-                          <button onClick={() => openArchiveConfirm(feedback)} disabled={actionLoading[feedback.id]} className="w-8 h-8 rounded-lg bg-[#F59E0B]/10 text-[#C2410C] border border-[#F59E0B]/20 hover:bg-[#F59E0B] hover:text-white hover:border-[#F59E0B] transition-all duration-200 flex items-center justify-center disabled:opacity-50"
-title="Archive"><i className="fas fa-archive text-sm"></i></button>
+                          <button onClick={() => openArchiveConfirm(feedback)} disabled={actionLoading[feedback.id]} className="w-8 h-8 rounded-lg bg-[#F59E0B]/10 text-[#C2410C] border border-[#F59E0B]/20 hover:bg-[#F59E0B] hover:text-white hover:border-[#F59E0B] transition-all duration-200 flex items-center justify-center disabled:opacity-50" title="Archive"><i className="fas fa-archive text-sm"></i></button>
                         </div>
-                       </td>
+                      </td>
                     </tr>
                   ))
                 )}
@@ -314,6 +320,10 @@ title="Archive"><i className="fas fa-archive text-sm"></i></button>
                   <p className="text-sm font-medium text-gray-800">{selectedFeedback.guestEmail}</p>
                 </div>
                 <div className="bg-gray-50 rounded-lg p-3">
+                  <p className="text-xs text-gray-500 mb-1">Anonymous</p>
+                  <p className="text-sm font-medium text-gray-800">{selectedFeedback.isAnonymous === true ? 'Yes' : 'No'}</p>
+                </div>
+                <div className="bg-gray-50 rounded-lg p-3">
                   <p className="text-xs text-gray-500 mb-1">Booking ID</p>
                   <p className="text-sm font-medium text-gray-800 font-mono">{selectedFeedback.bookingId}</p>
                 </div>
@@ -341,24 +351,24 @@ title="Archive"><i className="fas fa-archive text-sm"></i></button>
               <button
                 onClick={() => openPublishConfirm(selectedFeedback)}
                 disabled={actionLoading[selectedFeedback.id]}
-className="px-4 py-2 rounded-lg bg-green-500/10 text-green-600 hover:bg-green-600/80 hover:text-white transition-all duration-200 flex items-center gap-2 text-sm disabled:opacity-50 disabled:cursor-not-allowed"
->
+                className="px-4 py-2 rounded-lg bg-green-500/10 text-green-600 hover:bg-green-600/80 hover:text-white transition-all duration-200 flex items-center gap-2 text-sm disabled:opacity-50 disabled:cursor-not-allowed"
+              >
                 <i className="fas fa-check text-sm"></i>
                 <span>Publish</span>
               </button>
               <button
                 onClick={() => openDontPublishConfirm(selectedFeedback)}
                 disabled={actionLoading[selectedFeedback.id]}
-className="px-4 py-2 rounded-lg bg-red-500/10 text-red-600 hover:bg-red-600/80 hover:text-white transition-all duration-200 flex items-center gap-2 text-sm disabled:opacity-50 disabled:cursor-not-allowed"
->
+                className="px-4 py-2 rounded-lg bg-red-500/10 text-red-600 hover:bg-red-600/80 hover:text-white transition-all duration-200 flex items-center gap-2 text-sm disabled:opacity-50 disabled:cursor-not-allowed"
+              >
                 <i className="fas fa-times text-sm"></i>
                 <span>Don't Publish</span>
               </button>
               <button
                 onClick={() => openArchiveConfirm(selectedFeedback)}
                 disabled={actionLoading[selectedFeedback.id]}
-className="px-4 py-1.5 rounded-lg bg-[#F59E0B]/10 text-[#C2410C] hover:bg-[#F59E0B]/80 hover:text-white transition-all duration-200 flex items-center gap-2 text-sm disabled:opacity-50 disabled:cursor-not-allowed"
->
+                className="px-4 py-1.5 rounded-lg bg-[#F59E0B]/10 text-[#C2410C] hover:bg-[#F59E0B]/80 hover:text-white transition-all duration-200 flex items-center gap-2 text-sm disabled:opacity-50 disabled:cursor-not-allowed"
+              >
                 <i className="fas fa-archive text-sm"></i>
                 <span>Archive</span>
               </button>

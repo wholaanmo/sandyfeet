@@ -11,6 +11,8 @@ import { addDoc, collection, getDocs, limit, onSnapshot, query, serverTimestamp,
 import ChatBot from '@/components/guest/ChatBot';
 import dynamic from 'next/dynamic';
 import { MagnifyingGlassIcon, SunIcon, CpuChipIcon } from '@heroicons/react/24/outline';
+import PrivacyPolicyModal from '@/components/guest/PrivacyPolicyModal';
+import TermsConditionsReadOnlyModal from '@/components/guest/TermsConditionsReadOnlyModal';
 
 const AIRoomRecommendationModal = dynamic(
   () => import('@/components/AIRoomRecommendationModal'),
@@ -25,8 +27,6 @@ const galleryImages = [
   { src: '/assets/Tent/Tents.jpg', alt: 'Camping tents' },
   { src: '/assets/Facilities/Bonfire.jpg', alt: 'Bonfire night setup' },
 ];
-
-
 
 const toRoomSlug = (value) => {
   return String(value || '')
@@ -104,21 +104,20 @@ function HomePageContent() {
   const [verifyingBooking, setVerifyingBooking] = useState(false);
   const [submittingFeedback, setSubmittingFeedback] = useState(false);
   const [publishedFeedbacks, setPublishedFeedbacks] = useState([]);
-  const [showAIRecommendation, setShowAIRecommendation] = useState(false); 
+  const [showAIRecommendation, setShowAIRecommendation] = useState(false);
+  const [showPrivacyModal, setShowPrivacyModal] = useState(false);
+  const [showTermsModal, setShowTermsModal] = useState(false);
 
   // Fetch published feedbacks for testimonials with real-time updates
   useEffect(() => {
     const feedbacksRef = collection(db, 'feedbacks');
-    // Only filter by status in the query; archived filtering will be done in memory
     const q = query(feedbacksRef, where('status', '==', 'Published'));
 
     const unsubscribe = onSnapshot(q, (querySnapshot) => {
       const feedbacksList = [];
       querySnapshot.forEach((doc) => {
         const data = doc.data();
-        // Filter out archived feedbacks
         if (data.archived === true) return;
-        // Only include feedbacks that have a comment
         if (data.comment && data.comment.trim().length > 0) {
           feedbacksList.push({
             id: doc.id,
@@ -127,7 +126,6 @@ function HomePageContent() {
           });
         }
       });
-      // Sort by creation date (newest first)
       feedbacksList.sort((a, b) => b.createdAt - a.createdAt);
       setPublishedFeedbacks(feedbacksList);
     }, (error) => {
@@ -232,15 +230,12 @@ function HomePageContent() {
 
   const fetchBookingByReference = async (collectionName, bookingId) => {
     const bookingsRef = collection(db, collectionName);
-    // 1) Search by bookingId field
     const bookingQuery = query(bookingsRef, where('bookingId', '==', bookingId), limit(1));
     let bookingSnapshot = await getDocs(bookingQuery);
 
     if (!bookingSnapshot.empty) {
       const bookingData = bookingSnapshot.docs[0].data();
-      // Check if it's a multi-room child booking (has parentBookingId)
       if (bookingData.isMultiRoomBooking && bookingData.parentBookingId) {
-        // For child bookings, fetch the parent to get consolidated status
         const parentQuery = query(bookingsRef, where('bookingId', '==', bookingData.parentBookingId), limit(1));
         const parentSnapshot = await getDocs(parentQuery);
         if (!parentSnapshot.empty) {
@@ -255,7 +250,6 @@ function HomePageContent() {
           };
         }
       }
-      // Normal booking (single room or parent booking)
       return {
         docId: bookingSnapshot.docs[0].id,
         collectionName,
@@ -263,31 +257,22 @@ function HomePageContent() {
       };
     }
 
-    // 2) Not found by bookingId → try to find multi‑room group by parentBookingId
     const groupQuery = query(bookingsRef, where('parentBookingId', '==', bookingId));
     const groupSnapshot = await getDocs(groupQuery);
 
     if (!groupSnapshot.empty) {
-      // Take the first child as representative (all share same parentBookingId, guestInfo, dates, and status)
       const representativeDoc = groupSnapshot.docs[0];
       const representativeData = representativeDoc.data();
-
-      // For a multi‑room group, all children have the same status (updated together by admin)
-      // Use the status from the first child
       const groupStatus = representativeData.status;
-
-      // Build a synthetic booking object that mimics a normal booking for verification
       const syntheticBooking = {
         ...representativeData,
-        bookingId: bookingId,                     // the reference the guest entered
-        isMultiRoomGroup: true,                  // flag for downstream logic
+        bookingId: bookingId,
+        isMultiRoomGroup: true,
         originalChildBookings: groupSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })),
-        // Keep the status from the children
         status: groupStatus,
       };
-
       return {
-        docId: representativeDoc.id,             // any child ID is fine for reference
+        docId: representativeDoc.id,
         collectionName,
         data: syntheticBooking,
       };
@@ -296,7 +281,6 @@ function HomePageContent() {
     return null;
   };
 
-  // Updated handleVerifyFeedbackBooking function with status validation
   const handleVerifyFeedbackBooking = async (event) => {
     event.preventDefault();
 
@@ -312,11 +296,9 @@ function HomePageContent() {
     setFeedbackMessage({ text: '', type: '' });
 
     try {
-      // First try to find the booking in 'bookings' collection (rooms)
       let booking = await fetchBookingByReference('bookings', normalizedReference);
       let isDayTour = false;
 
-      // If not found in rooms, try dayTourBookings
       if (!booking) {
         booking = await fetchBookingByReference('dayTourBookings', normalizedReference);
         isDayTour = true;
@@ -334,31 +316,11 @@ function HomePageContent() {
       }
 
       const bookingStatus = String(booking.data?.status || '').toLowerCase().trim();
-      console.log(`[DEBUG] Booking status: "${bookingStatus}", isDayTour: ${isDayTour}`); // You can remove this later
 
-      // Define allowed statuses for feedback submission
       const allowedStatuses = new Set(['check-in', 'check-out', 'completed']);
       const restrictedStatuses = new Set(['pending', 'confirmed', 'cancelled', 'cancelled-by-guest']);
 
-      // Check if status is restricted (not allowed at all)
       if (restrictedStatuses.has(bookingStatus)) {
-        let statusMessage = '';
-        switch (bookingStatus) {
-          case 'pending':
-            statusMessage = 'Pending - Your booking is still being reviewed.';
-            break;
-          case 'confirmed':
-            statusMessage = 'Confirmed - Your booking has been confirmed but the stay hasn\'t started yet.';
-            break;
-          case 'cancelled':
-            statusMessage = 'Cancelled - This booking has been cancelled by the admin.';
-            break;
-          case 'cancelled-by-guest':
-            statusMessage = 'Cancelled - This booking has been cancelled by the guest.';
-            break;
-          default:
-            statusMessage = 'This booking status does not allow feedback submission.';
-        }
         setFeedbackMessage({
           text: `You may submit feedback only after experiencing your stay at our resort. Feedback becomes available once your stay has started or been completed.`,
           type: 'error'
@@ -366,7 +328,6 @@ function HomePageContent() {
         return;
       }
 
-      // DAY TOUR: allow only 'completed' or 'check-in'
       if (isDayTour && !['completed', 'check-in'].includes(bookingStatus)) {
         setFeedbackMessage({
           text: 'Only completed or ongoing (Check-In) day tour bookings can submit feedback.',
@@ -375,7 +336,6 @@ function HomePageContent() {
         return;
       }
 
-      // ROOM BOOKING: allow check-in, check-out, completed
       if (!isDayTour && !allowedStatuses.has(bookingStatus)) {
         setFeedbackMessage({
           text: 'Only bookings with status Check-In, Check-Out, or Completed can submit feedback.',
@@ -384,7 +344,6 @@ function HomePageContent() {
         return;
       }
 
-      // Check for duplicate feedback
       const duplicateQuery = query(collection(db, 'feedbacks'), where('bookingId', '==', normalizedReference), limit(1));
       const duplicateSnapshot = await getDocs(duplicateQuery);
       if (!duplicateSnapshot.empty) {
@@ -411,7 +370,6 @@ function HomePageContent() {
       setVerifyingBooking(false);
     }
   };
-
 
   const handleFeedbackSubmit = async (event) => {
     event.preventDefault();
@@ -441,7 +399,7 @@ function HomePageContent() {
         sourceCollection: verifiedFeedbackBooking.sourceCollection,
         sourceDocId: verifiedFeedbackBooking.sourceDocId,
         createdAt: serverTimestamp(),
-        status: 'Pending', // Default status when newly submitted
+        status: 'Pending',
       });
 
       setFeedbackMessage({ text: 'Thank you. Your feedback has been submitted.', type: 'success' });
@@ -488,7 +446,6 @@ function HomePageContent() {
                 Reserve rooms and day tours in minutes. Enjoy a quick and smooth booking flow from search to confirmation.
               </p>
               <div className="flex flex-col gap-3 w-full max-w-[420px]">
-                {/* Explore & Book Row */}
                 <div className="grid grid-cols-2 gap-3.5 w-full">
                   <Link
                     href="/rooms"
@@ -505,8 +462,6 @@ function HomePageContent() {
                     <span>Book a Day Tour</span>
                   </Link>
                 </div>
-
-                {/* AI Recommendation Row */}
                 <button
                   onClick={() => setShowAIRecommendation(true)}
                   className="w-full inline-flex items-center justify-center gap-2.5 rounded-full bg-slate-900 border border-slate-800 text-indigo-100 hover:text-white hover:bg-slate-800 hover:border-indigo-500/50 hover:-translate-y-0.5 hover:shadow-md hover:shadow-indigo-500/10 px-5 py-2.5 text-xs sm:text-sm font-semibold transition-all duration-300 ease-out group"
@@ -522,7 +477,6 @@ function HomePageContent() {
 
             {/* Right Images (Collage) */}
             <div className="relative mt-10 grid w-full max-w-3xl grid-cols-2 gap-3 sm:mx-auto sm:gap-4 lg:mt-12 xl:mx-0 xl:mt-2 xl:block xl:h-[520px] xl:w-7/12 xl:max-w-none">
-              {/* Main Center Image */}
               <div className="relative col-span-2 aspect-[4/3] overflow-hidden rounded-[2rem] border-4 border-white shadow-2xl transition-transform duration-500 hover:rotate-0 sm:border-6 xl:absolute xl:right-6 xl:top-16 xl:z-20 xl:h-[320px] xl:w-[470px] xl:-rotate-2 xl:border-8 xl:transform-gpu">
                 <Image
                   src="/assets/View/IMG3.jpg"
@@ -533,7 +487,6 @@ function HomePageContent() {
                   className="object-cover"
                 />
               </div>
-              {/* Top Left Smaller Image */}
               <div className="relative aspect-square overflow-hidden rounded-3xl border-4 border-white shadow-xl transition-transform duration-500 hover:-rotate-6 sm:border-6 xl:absolute xl:left-8 xl:top-4 xl:z-30 xl:h-[205px] xl:w-[205px] xl:-rotate-[11deg] xl:border-8 xl:transform-gpu">
                 <Image
                   src="/assets/View/Banner.jpg"
@@ -544,7 +497,6 @@ function HomePageContent() {
                   className="object-cover"
                 />
               </div>
-              {/* Top Right Image */}
               <div className="relative aspect-square overflow-hidden rounded-2xl border-4 border-white shadow-xl transition-transform duration-500 hover:rotate-6 sm:border-6 xl:absolute xl:right-14 xl:top-6 xl:z-30 xl:h-[150px] xl:w-[150px] xl:rotate-[9deg] xl:border-[6px] xl:transform-gpu">
                 <Image
                   src="/assets/GroupRoom/GroupRoom1.1.jpg"
@@ -555,7 +507,6 @@ function HomePageContent() {
                   className="object-cover"
                 />
               </div>
-              {/* Bottom Left Image */}
               <div className="relative aspect-[4/3] overflow-hidden rounded-3xl border-4 border-white shadow-xl transition-transform duration-500 hover:rotate-6 sm:border-6 xl:absolute xl:left-0 xl:bottom-6 xl:z-30 xl:h-[175px] xl:w-[270px] xl:rotate-[2deg] xl:border-8 xl:transform-gpu">
                 <Image
                   src="/assets/GroundFloor/Ground floor room.jpg"
@@ -565,7 +516,6 @@ function HomePageContent() {
                   className="object-cover"
                 />
               </div>
-              {/* Bottom Right Image */}
               <div className="relative aspect-[4/3] overflow-hidden rounded-3xl border-4 border-white shadow-xl transition-transform duration-500 hover:rotate-12 sm:border-6 xl:absolute xl:right-3 xl:bottom-2 xl:z-40 xl:h-[150px] xl:w-[150px] xl:rotate-[7deg] xl:border-8 xl:transform-gpu">
                 <Image
                   src="/assets/View/Front view.jpg"
@@ -617,7 +567,6 @@ function HomePageContent() {
         <section className="py-16 relative">
           <div className="max-w-7xl mx-auto px-6">
             <div className="text-center mb-12 relative">
-              {/* Decorative sandals */}
               <div className="absolute -left-10 top-0 hidden h-24 w-24 rotate-[15deg] opacity-70 md:block">
                 <Image src="/assets/Icon/Sadals.png" alt="Sandals icon" fill className="object-contain" />
               </div>
@@ -690,7 +639,6 @@ function HomePageContent() {
               )}
             </div>
 
-            {/* Explore All Rooms Button */}
             <div className="text-center mt-8">
               <Link href="/rooms" className="inline-block bg-white hover:bg-gray-50 text-gray-800 border border-gray-200 px-8 py-3.5 rounded-full text-sm font-semibold shadow-sm transition-all hover:-translate-y-0.5">
                 Explore All Rooms
@@ -702,7 +650,6 @@ function HomePageContent() {
         {/* --- WHY GUESTS LOVE IT & STATS --- */}
         <section className="py-16 relative bg-gray-50/50">
           <div className="max-w-7xl mx-auto px-6 grid grid-cols-1 lg:grid-cols-2 gap-16 items-center">
-            {/* Left side texts */}
             <div>
               <span className="text-gray-500 font-bold text-[10px] tracking-[0.2em] uppercase mb-4 block">
                 WHY GUESTS LOVE IT
@@ -726,7 +673,6 @@ function HomePageContent() {
               </div>
             </div>
 
-            {/* Right side stats blocks */}
             <div className="flex flex-col gap-6">
               <div className="bg-[#4285F4] rounded-3xl p-8 text-white relative overflow-hidden shadow-lg shadow-blue-500/20">
                 <span className="text-white/80 font-bold text-[10px] tracking-widest uppercase mb-4 block relative z-10">HAPPY GUESTS</span>
@@ -745,7 +691,7 @@ function HomePageContent() {
           </div>
         </section>
 
-        {/* --- TESTIMONIALS --- */}
+        {/* --- TESTIMONIALS (UPDATED to respect anonymity) --- */}
         <section className="py-16 bg-white border-t border-gray-50 pb-24">
           <div className="max-w-7xl mx-auto px-6">
             <div className="mb-12 text-center">
@@ -758,7 +704,6 @@ function HomePageContent() {
             </div>
 
             <div className="relative">
-              {/* Decorative palm tree */}
               <div className="absolute -left-12 -top-12 z-0 opacity-80 decoration-clip hidden md:block">
                 <Image src="/assets/Icon/Coconut tree.png" alt="Palm tree" width={100} height={100} />
               </div>
@@ -772,38 +717,42 @@ function HomePageContent() {
                     {(publishedFeedbacks.length <= 2
                       ? [...publishedFeedbacks, ...publishedFeedbacks, ...publishedFeedbacks, ...publishedFeedbacks]
                       : [...publishedFeedbacks, ...publishedFeedbacks]
-                    ).map((item, index) => (
-                      <div
-                        key={`${item.id}-${index}`}
-                        className="w-[320px] flex-none rounded-3xl border border-slate-100 bg-white p-8 shadow-[0_10px_35px_rgba(0,0,0,0.03)] transition-all duration-300 hover:shadow-[0_15px_45px_rgba(0,0,0,0.06)] md:w-[360px]"
-                      >
-                        <div className="mb-6 flex items-center justify-between">
-                          <div className="flex items-center gap-4">
-                            <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-gradient-to-br from-blue-50 to-white border border-blue-100 text-lg font-bold text-[#3B82F6] shadow-sm">
-                              {(item.guestName || 'Guest').charAt(0).toUpperCase()}
-                            </div>
-                            <div>
-                              <h4 className="font-bold text-[#0f2824]">
-                                {item.guestName ? item.guestName.split(' ')[0] : 'Guest'}
-                              </h4>
-                              <div className="mt-1">
-                                <StarRating rating={item.rating} />
+                    ).map((item, index) => {
+                      // Check anonymity flag
+                      const isAnonymous = item.isAnonymous === true;
+                      const displayName = isAnonymous ? 'Anonymous' : (item.guestName ? item.guestName.split(' ')[0] : 'Guest');
+                      const avatarInitial = isAnonymous ? 'A' : (item.guestName || 'Guest').charAt(0).toUpperCase();
+                      return (
+                        <div
+                          key={`${item.id}-${index}`}
+                          className="w-[320px] flex-none rounded-3xl border border-slate-100 bg-white p-8 shadow-[0_10px_35px_rgba(0,0,0,0.03)] transition-all duration-300 hover:shadow-[0_15px_45px_rgba(0,0,0,0.06)] md:w-[360px]"
+                        >
+                          <div className="mb-6 flex items-center justify-between">
+                            <div className="flex items-center gap-4">
+                              <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-gradient-to-br from-blue-50 to-white border border-blue-100 text-lg font-bold text-[#3B82F6] shadow-sm">
+                                {avatarInitial}
+                              </div>
+                              <div>
+                                <h4 className="font-bold text-[#0f2824]">
+                                  {displayName}
+                                </h4>
+                                <div className="mt-1">
+                                  <StarRating rating={item.rating} />
+                                </div>
                               </div>
                             </div>
+                            <div className="text-[#3B82F6]/20 text-4xl font-serif">
+                              &rdquo;
+                            </div>
                           </div>
-                          {/* Quote Icon */}
-                          <div className="text-[#3B82F6]/20 text-4xl font-serif">
-                            &rdquo;
-                          </div>
+                          <p className="text-[15px] leading-relaxed text-gray-600 italic">
+                            &quot;{item.comment}&quot;
+                          </p>
                         </div>
-                        <p className="text-[15px] leading-relaxed text-gray-600 italic">
-                          &quot;{item.comment}&quot;
-                        </p>
-                      </div>
-                    ))}
+                      );
+                    })}
                   </div>
                 ) : (
-                  // Show empty state centered within the viewable area
                   <div className="flex items-center justify-center min-h-[400px] w-full">
                     <div className="text-center">
                       <div className="flex justify-center mb-4">
@@ -813,7 +762,6 @@ function HomePageContent() {
                           </span>
                         </div>
                       </div>
-
                       <p className="text-gray-500 text-lg font-semibold">
                         No testimonials available yet
                       </p>
@@ -828,6 +776,7 @@ function HomePageContent() {
           </div>
         </section>
 
+        {/* --- FEEDBACK MODAL (unchanged) --- */}
         {showFeedbackModal ? (
           <div
             className="fixed inset-0 z-[80] flex items-end justify-center bg-black/45 p-3 sm:items-center sm:p-6"
@@ -923,8 +872,6 @@ function HomePageContent() {
                   </form>
                 ) : (
                   <form onSubmit={handleFeedbackSubmit} className="space-y-4">
-
-
                     <div>
                       <label htmlFor="feedback-rating" className="mb-2 block text-sm font-semibold text-[#0f2824]">
                         Rating
@@ -1002,10 +949,8 @@ function HomePageContent() {
             </h2>
 
             <div className="grid grid-cols-1 md:grid-cols-4 gap-12 relative">
-              {/* Connecting Line */}
               <div className="hidden md:block absolute top-[44px] left-[15%] right-[15%] h-[1px] bg-gray-200 z-0"></div>
 
-              {/* Step 1 */}
               <div className="relative z-10 flex flex-col items-center">
                 <div className="w-24 h-24 bg-white border border-gray-100 rounded-full flex items-center justify-center mb-6 relative">
                   <span className="absolute -top-2 -right-2 w-6 h-6 bg-[#3B82F6] rounded-full text-white text-xs font-bold flex items-center justify-center">1</span>
@@ -1017,7 +962,6 @@ function HomePageContent() {
                 <p className="text-gray-500 text-sm">Select a room or day tour package.</p>
               </div>
 
-              {/* Step 2 */}
               <div className="relative z-10 flex flex-col items-center">
                 <div className="w-24 h-24 bg-white border border-gray-100 rounded-full flex items-center justify-center mb-6 relative">
                   <span className="absolute -top-2 -right-2 w-6 h-6 bg-[#3B82F6] rounded-full text-white text-xs font-bold flex items-center justify-center">2</span>
@@ -1029,7 +973,6 @@ function HomePageContent() {
                 <p className="text-gray-500 text-sm">Enter your booking dates and information.</p>
               </div>
 
-              {/* Step 3 */}
               <div className="relative z-10 flex flex-col items-center">
                 <div className="w-24 h-24 bg-white border border-gray-100 rounded-full flex items-center justify-center mb-6 relative">
                   <span className="absolute -top-2 -right-2 w-6 h-6 bg-[#3B82F6] rounded-full text-white text-xs font-bold flex items-center justify-center">3</span>
@@ -1041,7 +984,6 @@ function HomePageContent() {
                 <p className="text-gray-500 text-sm">Transfer 50% deposit and upload proof.</p>
               </div>
 
-              {/* Step 4 */}
               <div className="relative z-10 flex flex-col items-center">
                 <div className="w-24 h-24 bg-white border border-gray-100 rounded-full flex items-center justify-center mb-6 relative">
                   <span className="absolute -top-2 -right-2 w-6 h-6 bg-[#3B82F6] rounded-full text-white text-xs font-bold flex items-center justify-center">4</span>
@@ -1059,7 +1001,6 @@ function HomePageContent() {
         {/* --- MAP / FIND US SECTION --- */}
         <section className="py-16 bg-[#FAFAFA] border-t border-gray-100">
           <div className="max-w-[70rem] mx-auto px-6 grid grid-cols-1 items-center gap-10 rounded-3xl border border-gray-50 bg-white p-4 shadow-[0_8px_30px_rgb(0,0,0,0.03)] sm:p-6 md:grid-cols-2 md:p-8">
-            {/* Left Texts */}
             <div>
               <span className="text-gray-500 font-bold text-[10px] tracking-widest uppercase mb-4 block">FIND US</span>
               <h2 className="font-playfair text-4xl md:text-5xl text-[#0f2824] mb-8">
@@ -1109,7 +1050,6 @@ function HomePageContent() {
         <footer className="py-14 bg-white border-t border-gray-100">
           <div className="max-w-7xl mx-auto px-6 grid grid-cols-1 md:grid-cols-3 gap-12 mb-10">
 
-            {/* Column 1: Brand & Info */}
             <div className="flex flex-col">
               <Link href="/" className="flex items-center gap-3 group mb-6">
                 <div className="relative w-12 h-12">
@@ -1134,7 +1074,6 @@ function HomePageContent() {
               </div>
             </div>
 
-            {/* Column 2: Explore Links */}
             <div>
               <h4 className="font-bold text-[#0f2824] uppercase text-xs tracking-wider mb-8">Explore</h4>
               <ul className="flex flex-col gap-5 text-sm text-gray-500">
@@ -1144,7 +1083,6 @@ function HomePageContent() {
               </ul>
             </div>
 
-            {/* Column 3: Contact Info */}
             <div>
               <h4 className="font-bold text-[#0f2824] uppercase text-xs tracking-wider mb-8">Need to Know</h4>
               <div className="flex flex-col gap-6 text-sm">
@@ -1170,8 +1108,18 @@ function HomePageContent() {
           <div className="max-w-7xl mx-auto px-6 pt-6 border-t border-gray-100 flex flex-col md:flex-row justify-between items-center gap-4 text-xs text-gray-400">
             <p>© 2026 Sandyfeet Camp & Event Site. All rights reserved.</p>
             <div className="flex gap-6">
-              <Link href="#" className="hover:text-gray-600 transition-colors">Privacy Policy</Link>
-              <Link href="#" className="hover:text-gray-600 transition-colors">Terms of Service</Link>
+              <button
+                onClick={() => setShowPrivacyModal(true)}
+                className="hover:text-gray-600 transition-colors cursor-pointer"
+              >
+                Privacy Policy
+              </button>
+              <button
+                onClick={() => setShowTermsModal(true)}
+                className="hover:text-gray-600 transition-colors cursor-pointer"
+              >
+                Terms and Conditions
+              </button>
             </div>
           </div>
         </footer>
@@ -1201,9 +1149,15 @@ function HomePageContent() {
       </div>
       <ChatBot />
       <AIRoomRecommendationModal
-  isOpen={showAIRecommendation}
-  onClose={() => setShowAIRecommendation(false)}
-/>
+        isOpen={showAIRecommendation}
+        onClose={() => setShowAIRecommendation(false)}
+      />
+      {showPrivacyModal && (
+        <PrivacyPolicyModal onClose={() => setShowPrivacyModal(false)} />
+      )}
+      {showTermsModal && (
+        <TermsConditionsReadOnlyModal onClose={() => setShowTermsModal(false)} />
+      )}
     </GuestLayout>
   );
 }

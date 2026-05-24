@@ -51,6 +51,9 @@ function FeedbackPageContent() {
   const [message, setMessage] = useState({ text: '', type: '' });
   const [hoverRating, setHoverRating] = useState(0);
 
+  // New state for anonymous preference
+  const [isAnonymous, setIsAnonymous] = useState(false);
+
   // For logged-in users
   const [eligibleBookings, setEligibleBookings] = useState([]);
   const [reviewedBookings, setReviewedBookings] = useState([]);
@@ -192,6 +195,8 @@ function FeedbackPageContent() {
         rating: Number(existing.rating) || 5,
         comment: existing.comment || '',
       });
+      // Set anonymous preference from existing feedback (if exists)
+      setIsAnonymous(existing.isAnonymous === true);
     }
   }, [feedbackByBookingId, selectedBookingId, isReadOnlyView]);
 
@@ -217,8 +222,10 @@ function FeedbackPageContent() {
         rating: Number(existing?.rating) || 5,
         comment: existing?.comment || '',
       });
+      setIsAnonymous(existing?.isAnonymous === true);
     } else {
       setFeedback({ rating: 5, comment: '' });
+      setIsAnonymous(false); // reset for new feedback
     }
 
     const title = getBookingTitle(booking);
@@ -363,12 +370,14 @@ function FeedbackPageContent() {
         sourceCollection: verifiedBooking.sourceCollection,
         sourceDocId: verifiedBooking.sourceDocId,
         createdAt: serverTimestamp(),
+        isAnonymous: isAnonymous, // store preference
       });
 
       setFeedback({ rating: 5, comment: '' });
       setVerifiedBooking(null);
       setSelectedBookingId(null);
       setIsReadOnlyView(false);
+      setIsAnonymous(false);
       showMessage('Thank you! Your feedback has been submitted successfully.', 'success');
     } catch (error) {
       console.error('Error submitting feedback:', error);
@@ -727,6 +736,7 @@ function FeedbackPageContent() {
                           setSelectedBookingId(null);
                           setIsReadOnlyView(false);
                           setFeedback({ rating: 5, comment: '' });
+                          setIsAnonymous(false);
                           setMessage({ text: '', type: '' });
                         }}
                         className="rounded-xl bg-blue-50 px-4 py-2 text-xs font-bold text-blue-600 transition-all hover:bg-blue-100 hover:text-blue-700"
@@ -776,6 +786,42 @@ function FeedbackPageContent() {
                           {feedback.rating === 3 && 'Good'}
                           {feedback.rating === 2 && 'Fair'}
                           {feedback.rating === 1 && 'Poor'}
+                        </p>
+                      </div>
+
+                      {/* NEW: Visibility choice */}
+                      <div className="space-y-3">
+                        <p className="text-[11px] font-bold uppercase tracking-widest text-slate-400 text-center">
+                          How would you like to appear?
+                        </p>
+                        <div className="flex justify-center gap-6">
+                          <label className="flex items-center gap-2 cursor-pointer">
+                            <input
+                              type="radio"
+                              name="visibility"
+                              checked={!isAnonymous}
+                              onChange={() => setIsAnonymous(false)}
+                              disabled={isReadOnlyView}
+                              className="w-4 h-4 text-blue-600 focus:ring-blue-500"
+                            />
+                            <span className="text-sm font-medium text-slate-700">Show my first name</span>
+                          </label>
+                          <label className="flex items-center gap-2 cursor-pointer">
+                            <input
+                              type="radio"
+                              name="visibility"
+                              checked={isAnonymous}
+                              onChange={() => setIsAnonymous(true)}
+                              disabled={isReadOnlyView}
+                              className="w-4 h-4 text-blue-600 focus:ring-blue-500"
+                            />
+                            <span className="text-sm font-medium text-slate-700">Submit anonymously</span>
+                          </label>
+                        </div>
+                        <p className="text-[10px] text-center text-slate-500">
+                          {isAnonymous
+                            ? "Your feedback will be displayed as 'Anonymous'."
+                            : `Your first name (“${verifiedBooking?.guestName?.split(' ')[0] || 'Guest'}”) will be shown.`}
                         </p>
                       </div>
 
