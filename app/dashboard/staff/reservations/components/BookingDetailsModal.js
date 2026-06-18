@@ -10,6 +10,8 @@ import {
   calcNights,
   getTypeDisplay,
   getGuestTotal,
+  getRatePerNight,
+  getExtraGuestCharges,
 } from '@/app/my-bookings/utils';
 
 const BASE_EXCLUSIVE_PRICE = 22500;
@@ -299,6 +301,23 @@ className="w-7 h-7 rounded-md bg-ocean-ice text-neutral hover:bg-ocean-light/20 
             {/* Payment Information */}
             <DetailSection title="Payment Information" icon="fa-credit-card" iconColor="text-[#4D8CF5]">
               <div className="grid grid-cols-2 gap-3 sm:gap-4">
+                {booking.type !== 'daytour' && (
+                  <div className="col-span-2 rounded-xl border border-[#4D8CF5]/20 bg-white p-4 shadow-sm">
+                    <p className="text-[10px] font-bold uppercase tracking-wider text-[#1E3A8A]/70 mb-2">Rate Breakdown</p>
+                    <div className="space-y-2 text-sm">
+                      <div className="flex justify-between">
+                        <span className="text-slate-600">Rate per Night</span>
+                        <span className="font-semibold text-slate-800">₱{getRatePerNight(booking).toLocaleString()}</span>
+                      </div>
+                      {getExtraGuestCharges(booking) > 0 && (
+                        <div className="flex justify-between">
+                          <span className="text-slate-600">Extra Guest Charges</span>
+                          <span className="font-semibold text-slate-800">₱{getExtraGuestCharges(booking).toLocaleString()}</span>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                )}
                 <div className="rounded-xl border border-[#4D8CF5]/20 bg-[#4D8CF5]/5 p-4 transition-all hover:bg-[#4D8CF5]/10">
                   <p className="text-[10px] font-bold uppercase tracking-wider text-[#1E3A8A]/70 mb-1">Total Amount</p>
                   <p className="font-black text-[#1E3A8A] text-xl">₱{paymentDisplay.totalAmount.toLocaleString()}</p>

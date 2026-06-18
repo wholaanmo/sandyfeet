@@ -6,8 +6,11 @@ import { db } from '@/lib/firebase';
 import { collection, query, where, doc, onSnapshot, addDoc, deleteDoc, updateDoc } from 'firebase/firestore';
 import { logAdminAction } from '@/lib/auditLogger';
 import Link from 'next/link';
+import { usePhilippineTimeSync } from '@/hooks/usePhilippineTimeSync';
+import { isPhilippineCalendarDatePast, getPhilippineNowIsoString } from '@/lib/reservationScheduleStatus';
 
 export default function AdminCalendar() {
+  const { ready: phTimeReady, nowMs } = usePhilippineTimeSync();
   const [rooms, setRooms] = useState([]);
   const [selectedRoomId, setSelectedRoomId] = useState('');
   const [roomDetails, setRoomDetails] = useState(null);
@@ -341,9 +344,8 @@ export default function AdminCalendar() {
   };
 
   const isDatePast = (date) => {
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
-    return date < today;
+    if (!phTimeReady) return true;
+    return isPhilippineCalendarDatePast(date, nowMs);
   };
 
   const getAvailableUnitsForDate = (date) => {
@@ -428,7 +430,7 @@ export default function AdminCalendar() {
         await updateDoc(doc(db, 'unavailableSlots', editingBlockEntry.id), {
           reason: reason.trim(),
           unitsBlocked: nBlock,
-          updatedAt: new Date().toISOString()
+          updatedAt: getPhilippineNowIsoString(nowMs)
         });
 
         await logAdminAction({
@@ -445,8 +447,8 @@ export default function AdminCalendar() {
           endHour: 24,
           reason: reason.trim(),
           unitsBlocked: nBlock,
-          createdAt: new Date().toISOString(),
-          updatedAt: new Date().toISOString()
+          createdAt: getPhilippineNowIsoString(nowMs),
+          updatedAt: getPhilippineNowIsoString(nowMs)
         });
 
         await logAdminAction({

@@ -36,6 +36,7 @@ export default function AdminRooms() {
     capacityMax: '',
     inclusions: [],
     price: '',
+    additionalGuestCharge: '',
     availability: 'available',
     description: '',
     images: []
@@ -132,15 +133,30 @@ export default function AdminRooms() {
     const { name, value } = e.target;
     
     // Validate numeric fields to prevent negative numbers
-    if (name === 'totalRooms' || name === 'maintenanceRooms' || name === 'capacityMin' || name === 'capacityMax' || name === 'price') {
+    if (['totalRooms', 'maintenanceRooms', 'capacityMin', 'capacityMax'].includes(name)) {
       if (value === '') {
         setFormData(prev => ({
           ...prev,
           [name]: value
         }));
       } else {
-        const numValue = parseInt(value);
-        if (numValue >= 0 || (name === 'price' && parseFloat(value) >= 0)) {
+        const numValue = parseInt(value, 10);
+        if (!Number.isNaN(numValue) && numValue >= 0) {
+          setFormData(prev => ({
+            ...prev,
+            [name]: value
+          }));
+        }
+      }
+    } else if (['price', 'additionalGuestCharge'].includes(name)) {
+      if (value === '') {
+        setFormData(prev => ({
+          ...prev,
+          [name]: value
+        }));
+      } else {
+        const numValue = parseFloat(value);
+        if (!Number.isNaN(numValue) && numValue >= 0) {
           setFormData(prev => ({
             ...prev,
             [name]: value
@@ -333,8 +349,8 @@ export default function AdminRooms() {
       errors.price = 'Price cannot be negative';
     }
     
-    if (!formData.description.trim()) {
-      errors.description = 'Description is required';
+    if (formData.additionalGuestCharge !== '' && parseFloat(formData.additionalGuestCharge) < 0) {
+      errors.additionalGuestCharge = 'Additional guest charge cannot be negative';
     }
     
     return errors;
@@ -381,6 +397,7 @@ export default function AdminRooms() {
         capacityMax: parseInt(formData.capacityMax) || 0,
         capacity: `${formData.capacityMin || 0}–${formData.capacityMax || 0}`,
         price: parseFloat(formData.price) || 0,
+        additionalGuestCharge: parseFloat(formData.additionalGuestCharge) || 0,
         availability: finalAvailability,
         archived: false,
         createdAt: new Date().toISOString(),
@@ -444,7 +461,8 @@ export default function AdminRooms() {
         availability: selectedRoom.availability,
         description: selectedRoom.description,
         inclusions: selectedRoom.inclusions || [],
-        imagesCount: selectedRoom.images?.length || 0
+        imagesCount: selectedRoom.images?.length || 0,
+        additionalGuestCharge: selectedRoom.additionalGuestCharge || 0
       };
       
       const newData = {
@@ -454,6 +472,7 @@ export default function AdminRooms() {
         capacityMin: parseInt(formData.capacityMin) || 0,
         capacityMax: parseInt(formData.capacityMax) || 0,
         price: parseFloat(formData.price) || 0,
+        additionalGuestCharge: parseFloat(formData.additionalGuestCharge) || 0,
         availability: finalAvailability,
         description: formData.description,
         inclusions: formData.inclusions,
@@ -469,6 +488,7 @@ export default function AdminRooms() {
         capacityMax: parseInt(formData.capacityMax) || 0,
         capacity: `${formData.capacityMin || 0}–${formData.capacityMax || 0}`,
         price: parseFloat(formData.price) || 0,
+        additionalGuestCharge: parseFloat(formData.additionalGuestCharge) || 0,
         availability: finalAvailability,
         updatedAt: new Date().toISOString()
       });
@@ -481,6 +501,7 @@ export default function AdminRooms() {
       if (previousData.capacityMin !== newData.capacityMin || previousData.capacityMax !== newData.capacityMax) 
         changes.push(`capacity from ${previousData.capacityMin}–${previousData.capacityMax} to ${newData.capacityMin}–${newData.capacityMax} guests`);
       if (previousData.price !== newData.price) changes.push(`price from ₱${previousData.price.toLocaleString()} to ₱${newData.price.toLocaleString()}`);
+      if (previousData.additionalGuestCharge !== newData.additionalGuestCharge) changes.push(`additional guest charge from ₱${previousData.additionalGuestCharge.toLocaleString()} to ₱${newData.additionalGuestCharge.toLocaleString()} per guest`);
       if (previousData.availability !== newData.availability) changes.push(`availability from "${previousData.availability}" to "${newData.availability}"`);
       if (previousData.description !== newData.description) changes.push(`updated the description`);
       if (previousData.imagesCount !== newData.imagesCount) changes.push(`images count from ${previousData.imagesCount} to ${newData.imagesCount}`);
@@ -563,6 +584,7 @@ export default function AdminRooms() {
       capacityMax: room.capacityMax || '',
       inclusions: room.inclusions || [],
       price: room.price || '',
+      additionalGuestCharge: room.additionalGuestCharge || '',
       availability: room.availability || 'available',
       description: room.description || '',
       images: room.images || []
@@ -598,6 +620,7 @@ export default function AdminRooms() {
       capacityMax: '',
       inclusions: [],
       price: '',
+      additionalGuestCharge: '',
       availability: 'available',
       description: '',
       images: []
@@ -620,6 +643,7 @@ export default function AdminRooms() {
     const hasCapacityMinChanged = parseInt(formData.capacityMin) !== (selectedRoom.capacityMin || '');
     const hasCapacityMaxChanged = parseInt(formData.capacityMax) !== (selectedRoom.capacityMax || '');
     const hasPriceChanged = parseFloat(formData.price) !== (selectedRoom.price || '');
+    const hasAdditionalGuestChargeChanged = parseFloat(formData.additionalGuestCharge) !== (selectedRoom.additionalGuestCharge || 0);
     const hasAvailabilityChanged = formData.availability !== (selectedRoom.availability || 'available');
     const hasDescriptionChanged = formData.description !== (selectedRoom.description || '');
     
@@ -630,8 +654,8 @@ export default function AdminRooms() {
                             JSON.stringify(selectedRoom.images || []);
     
     return hasTypeChanged || hasTotalRoomsChanged || hasMaintenanceRoomsChanged ||
-           hasCapacityMinChanged || hasCapacityMaxChanged || hasPriceChanged || 
-           hasAvailabilityChanged || hasDescriptionChanged || hasInclusionsChanged || 
+           hasCapacityMinChanged || hasCapacityMaxChanged || hasPriceChanged ||
+           hasAdditionalGuestChargeChanged || hasAvailabilityChanged || hasDescriptionChanged || hasInclusionsChanged ||
            hasImagesChanged;
   };
   
@@ -995,6 +1019,15 @@ export default function AdminRooms() {
                 </p>
               </div>
 
+              <div>
+                <label className="block text-[10px] font-bold text-[#1E3A8A]/50 uppercase tracking-widest mb-1">Additional Guest Charge</label>
+                <p className="text-sm font-semibold text-[#1E3A8A]">
+                  {selectedRoom.additionalGuestCharge > 0
+                    ? `₱${selectedRoom.additionalGuestCharge.toLocaleString()} per guest per night`
+                    : 'No additional guest charge'}
+                </p>
+              </div>
+
               <div className="grid grid-cols-2 gap-4 col-span-1 md:col-span-2">
                 <div>
                   <label className="block text-[10px] font-bold text-[#1E3A8A]/50 uppercase tracking-widest mb-1">Room Counts</label>
@@ -1154,7 +1187,7 @@ export default function AdminRooms() {
               <div className="bg-gray-50 rounded-xl p-4 mb-4 border border-gray-100">
                 <div className="grid grid-cols-2 gap-4 mb-4">
                   <div>
-                    <label className="block mb-1.5 text-xs font-bold text-[#1E3A8A]/60 uppercase tracking-widest">Min Guests *</label>
+                    <label className="block mb-1.5 text-xs font-bold text-[#1E3A8A]/60 uppercase tracking-widest">Included Guests *</label>
                     <input
                       type="number"
                       name="capacityMin"
@@ -1198,6 +1231,23 @@ export default function AdminRooms() {
                     {formErrors.price && <p className="text-red-500 text-[10px] mt-1 font-medium ml-1">{formErrors.price}</p>}
                   </div>
                   
+                  <div>
+                    <label className="block mb-1.5 text-xs font-bold text-[#1E3A8A]/60 uppercase tracking-widest">Extra Pax Fee (₱/guest)</label>
+                    <input
+                      type="number"
+                      name="additionalGuestCharge"
+                      value={formData.additionalGuestCharge}
+                      onChange={handleInputChange}
+                      placeholder="Extra guest charge"
+                      min="0"
+                      step="0.01"
+                      className={`w-full px-4 py-2.5 border-2 ${formErrors.additionalGuestCharge ? 'border-red-500' : 'border-[#4D8CF5]/20'} rounded-xl text-sm focus:outline-none focus:border-[#4D8CF5] transition-all`}
+                    />
+                    {formErrors.additionalGuestCharge && <p className="text-red-500 text-[10px] mt-1 font-medium ml-1">{formErrors.additionalGuestCharge}</p>}
+                  </div>
+                </div>
+                
+                <div className="grid grid-cols-2 gap-4">
                   <div>
                     <label className="block mb-1.5 text-xs font-bold text-[#1E3A8A]/60 uppercase tracking-widest">Initial Status *</label>
                     <select
@@ -1388,7 +1438,8 @@ export default function AdminRooms() {
                     setSelectedRoom(null);
                     setShowInclusionDropdown(false);
                   }}
-className="px-6 py-2.5 border border-ocean-light/20 rounded-xl text-textSecondary text-sm font-medium hover:bg-ocean-ice transition-all duration-300">
+                  className="px-6 py-2.5 border border-ocean-light/20 rounded-xl text-textSecondary text-sm font-medium hover:bg-ocean-ice transition-all duration-300"
+                >
                   Cancel
                 </button>
                 <button

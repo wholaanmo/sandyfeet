@@ -4,6 +4,7 @@
 import { useState, useEffect } from 'react';
 import { doc, updateDoc, getDoc, onSnapshot } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
+import { getPhilippineNowIsoString } from '@/lib/philippineTime';
 
 const pickChangeRequest = (requests) => {
   const list = requests.filter(Boolean);
@@ -89,7 +90,7 @@ export default function RequestChangesModal({ isOpen, booking, onClose, onReques
       const changeRequestData = {
         changeRequest: {
           text: requestText.trim(),
-          submittedAt: new Date().toISOString(),
+          submittedAt: getPhilippineNowIsoString(),
           status: 'pending'
         }
       };
@@ -235,10 +236,16 @@ export default function RequestChangesModal({ isOpen, booking, onClose, onReques
                     <p className="mt-2">Please describe your request clearly below.</p>
                   </div>
                 ) : (
-                  <span>
-                    Change requests should only be used for <strong>adding rooms</strong> or <strong>adding additional nights</strong> to your reservation.
-                    Please describe your request clearly below.
-                  </span>
+                  <div className="flex-1">
+                    <p className="font-semibold mb-1">Change requests should only be used for:</p>
+                    <ul className="list-disc pl-5 space-y-0.5">
+                      <li>Adding rooms</li>
+                      <li>Adding additional nights</li>
+                      <li>Rescheduling the reservation</li>
+                      <li>Changing the number of guests per room</li>
+                    </ul>
+                    <p className="mt-2">Please describe your request clearly below.</p>
+                  </div>
                 )}
               </div>
 

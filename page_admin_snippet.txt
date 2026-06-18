@@ -1,0 +1,323 @@
+                  </button>
+                </>
+              )}
+            </div>
+          </div>
+        </>
+      )}
+
+      {/* Original Payment Modal - Kept for backward compatibility but hidden via CSS when sidebar is open */}
+      {showPaymentModal && selectedBooking && !isSidebarOpen && (
+        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4" onClick={() => setShowPaymentModal(false)}>
+          <div className="bg-white rounded-xl w-full max-w-md max-h-[85vh] overflow-auto shadow-2xl" onClick={(e) => e.stopPropagation()}>
+            {/* Header */}
+            <div className="sticky top-0 bg-gradient-to-r from-ocean-mid to-ocean-light px-5 py-3 rounded-t-xl flex justify-between items-center">
+              <h2 className="text-base font-bold text-white">
+                Booking Details - {selectedBooking.bookingId}
+              </h2>
+              <button
+                onClick={() => setShowPaymentModal(false)}
+                className="w-7 h-7 rounded-full bg-white/20 hover:bg-white/30 text-white transition-all duration-200 flex items-center justify-center"
+              >
+                <i className="fas fa-times text-sm"></i>
+              </button>
+            </div>
+
+            <div className="p-5 space-y-4">
+              {/* Guest Information */}
+              <div className="bg-ocean-ice rounded-lg p-3">
+                <h3 className="text-xs font-semibold text-ocean-mid uppercase tracking-wide mb-2">Guest Information</h3>
+                <p className="text-sm font-medium text-textPrimary">
+                  {selectedBooking.guestInfo?.firstName} {selectedBooking.guestInfo?.lastName}
+                </p>
+                <p className="text-xs text-textSecondary">{selectedBooking.guestInfo?.email}</p>
+                <p className="text-xs text-textSecondary">{selectedBooking.guestInfo?.phone}</p>
+              </div>
+
+              {/* Room/Tour Details */}
+              {activeTab === 'rooms' ? (
+                <>
+                  <div className="bg-ocean-ice rounded-lg p-3">
+                    <h3 className="text-xs font-semibold text-ocean-mid uppercase tracking-wide mb-2">Room Details</h3>
+                    {selectedBooking.isExclusiveResortBooking && (
+                      <>
+                        <p className="text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded-lg px-2 py-1 mb-2 font-semibold">
+                          Entire Resort Package: all room types are booked for this schedule.
+                        </p>
+                        {selectedBooking.tentCount > 0 && (
+                          <p className="text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded-lg px-2 py-1 mb-2 font-semibold">
+                            Tents Added: {selectedBooking.tentCount} tent(s)
+                          </p>
+                        )}
+                      </>
+                    )}
+
+                    {/* Multi-Room Detailed Display - without guest counts */}
+                    {selectedBooking.isMultiRoomGroup && selectedBooking.roomTypesArray && selectedBooking.roomTypesArray.length > 0 ? (
+                      <div className="space-y-1">
+                        {selectedBooking.roomTypesArray.map((room, idx) => (
+                          <div key={idx} className="flex items-center text-sm">
+                            <span className="text-textSecondary">{room.quantity} × {room.type}</span>
+                          </div>
+                        ))}
+                      </div>
+                    ) : (
+                      <>
+                        <p className="text-sm">
+                          <span className="text-textSecondary">Room Type:</span>{' '}
+                          <span className="font-medium text-textPrimary">{selectedBooking.roomType}</span>
+                        </p>
+                        <p className="text-sm mt-1">
+                          <span className="text-textSecondary">Number of Rooms:</span>{' '}
+                          <span className="font-medium text-textPrimary">{selectedBooking.numberOfRooms || 1}</span>
+                        </p>
+                      </>
+                    )}
+                  </div>
+
+                  {/* Guest Count Display for Exclusive Booking - reflects exact values from multi-room-booking */}
+                  {selectedBooking.isExclusiveResortBooking && (
+                    <div className="bg-ocean-ice rounded-lg p-3">
+                      <h3 className="text-xs font-semibold text-ocean-mid uppercase tracking-wide mb-2">Guest Count</h3>
+                      <p className="text-sm">
+                        <span className="text-textSecondary">Adults:</span>{' '}
+                        <span className="font-medium text-textPrimary">{selectedBooking.exclusiveAdults || 0}</span>
+                      </p>
+                      <p className="text-sm mt-1">
+                        <span className="text-textSecondary">Kids:</span>{' '}
+                        <span className="font-medium text-textPrimary">{selectedBooking.exclusiveKids || 0}</span>
+                      </p>
+                      <p className="text-sm mt-1 pt-2 border-t border-ocean-light/20">
+                        <span className="font-semibold text-textPrimary">Total Guests:</span>{' '}
+                        <span className="font-bold text-ocean-mid">{selectedBooking.exclusiveTotalGuests || (selectedBooking.exclusiveAdults + selectedBooking.exclusiveKids)}</span>
+                      </p>
+                    </div>
+                  )}
+
+                  {/* Guest Count for Non-Exclusive Single/Multi Room */}
+                  {!selectedBooking.isExclusiveResortBooking && (
+                    <div className="bg-ocean-ice rounded-lg p-3">
+                      <h3 className="text-xs font-semibold text-ocean-mid uppercase tracking-wide mb-2">Guest Count</h3>
+                      {selectedBooking.isMultiRoomGroup && selectedBooking.childBookings && selectedBooking.childBookings.length > 0 ? (
+                        <div className="space-y-2">
+                          {selectedBooking.childBookings.map((child, idx) => {
+                            const roomTypeInfo = selectedBooking.roomTypesArray?.find(r => r.type === child.roomType);
+                            const quantity = roomTypeInfo?.quantity || 1;
+                            return (
+                              <div key={idx} className="border-b border-ocean-light/20 last:border-b-0 pb-2 last:pb-0">
+                                <p className="text-xs font-medium text-textPrimary">{quantity} × {child.roomType}</p>
+                                <div className="flex gap-3 mt-1 text-xs">
+                                  <span className="text-textSecondary">Adults: <span className="font-medium text-textPrimary">{child.adults || child.guests || 1}</span></span>
+                                  <span className="text-textSecondary">Kids: <span className="font-medium text-textPrimary">{child.kids || 0}</span></span>
+                                </div>
+                              </div>
+                            );
+                          })}
+                          <div className="pt-2 mt-1 border-t border-ocean-light/20">
+                            <p className="text-sm">
+                              <span className="font-semibold text-textPrimary">Total Guests:</span>{' '}
+                              <span className="font-bold text-ocean-mid">{selectedBooking.totalGuests || 0}</span>
+                            </p>
+                          </div>
+                        </div>
+                      ) : (
+                        <div>
+                          <p className="text-sm">
+                            <span className="text-textSecondary">Adults:</span>{' '}
+                            <span className="font-medium text-textPrimary">{selectedBooking.adults || selectedBooking.guests || 1}</span>
+                          </p>
+                          <p className="text-sm mt-1">
+                            <span className="text-textSecondary">Kids:</span>{' '}
+                            <span className="font-medium text-textPrimary">{selectedBooking.kids || 0}</span>
+                          </p>
+                          <p className="text-sm mt-1 pt-2 border-t border-ocean-light/20">
+                            <span className="font-semibold text-textPrimary">Total Guests:</span>{' '}
+                            <span className="font-bold text-ocean-mid">{selectedBooking.guests || (selectedBooking.adults + selectedBooking.kids) || 1}</span>
+                          </p>
+                        </div>
+                      )}
+                    </div>
+                  )}
+
+                  <div className="bg-ocean-ice rounded-lg p-3">
+                    <h3 className="text-xs font-semibold text-ocean-mid uppercase tracking-wide mb-2">Schedule</h3>
+                    <p className="text-sm">
+                      <span className="text-textSecondary">Check-in:</span>{' '}
+                      <span className="font-medium text-textPrimary">{formatDateWithTime(selectedBooking.checkIn, 'check-in')}</span>
+                    </p>
+                    <p className="text-sm mt-1">
+                      <span className="text-textSecondary">Check-out:</span>{' '}
+                      <span className="font-medium text-textPrimary">{formatDateWithTime(selectedBooking.checkOut, 'check-out')}</span>
+                    </p>
+                  </div>
+                </>
+              ) : (
+                <>
+                  <div className="bg-ocean-ice rounded-lg p-3">
+                    <h3 className="text-xs font-semibold text-ocean-mid uppercase tracking-wide mb-2">Tour Details</h3>
+                    <p className="text-sm">
+                      <span className="text-textSecondary">Tour Date:</span>{' '}
+                      <span className="font-medium text-textPrimary">{formatDateOnly(selectedBooking.selectedDate)}</span>
+                    </p>
+                    <p className="text-sm mt-1">
+                      <span className="text-textSecondary">Guest Breakdown:</span>{' '}
+                      <span className="font-medium text-textPrimary">
+                        Adult: {selectedBooking.adults || 0} | Kid: {selectedBooking.kids || 0}
+                      </span>
+                    </p>
+                    <p className="text-sm mt-1">
+                      <span className="text-textSecondary">Total Guests:</span>{' '}
+                      <span className="font-medium text-textPrimary">{getTotalGuests(selectedBooking)}</span>
+                    </p>
+                  </div>
+                </>
+              )}
+
+              <div className="bg-ocean-ice rounded-lg p-3">
+                <p className="text-sm">
+                  <span className="text-textSecondary">Total Amount:</span>{' '}
+                  <span className="font-bold text-ocean-mid">?{Number(selectedBooking.totalPrice).toLocaleString()}</span>
+                </p>
+                <p className="text-sm mt-1">
+                  <span className="text-textSecondary">50% Down Payment:</span>{' '}
+                  <span className="font-bold text-amber-600">?{calculateDownPayment(selectedBooking.totalPrice).toLocaleString()}</span>
+                </p>
+                <p className="text-sm mt-1">
+                  <span className="text-textSecondary">Balance:</span>{' '}
+                  <span className={`font-bold ${selectedBooking.status === 'confirmed' ? 'text-ocean-mid' : 'text-neutral'}`}>
+                    {calculateBalance(selectedBooking)}
+                  </span>
+                </p>
+                <p className="text-sm mt-1">
+                  <span className="text-textSecondary">Status:</span>{' '}
+                  <span className={`px-2 py-0.5 rounded-full text-[10px] font-medium ${getStatusColor(selectedBooking.status)}`}>
+                    {selectedBooking.status?.charAt(0).toUpperCase() + selectedBooking.status?.slice(1)}
+                  </span>
+                </p>
+              </div>
+
+
+
+              {/* Payment Proof Image - Clickable */}
+              {selectedBooking.paymentProofUrl && (
+                <div className="bg-ocean-ice rounded-lg p-3">
+                  <h3 className="text-xs font-semibold text-ocean-mid uppercase tracking-wide mb-2">Payment Proof</h3>
+                  <div
+                    className="relative bg-ocean-pale/30 rounded-lg overflow-hidden cursor-pointer hover:opacity-90 transition-opacity duration-200"
+                    onClick={() => setImageZoomModal({ show: true, imageUrl: selectedBooking.paymentProofUrl, title: 'Payment Proof' })}
+                  >
+                    <img
+                      src={selectedBooking.paymentProofUrl}
+                      alt="Payment Proof"
+                      className="w-full h-auto max-h-[200px] object-contain"
+                      onError={(e) => {
+                        console.error('Error loading image:', e);
+                        e.target.style.display = 'none';
+                        e.target.parentElement.innerHTML = '<div class="p-4 text-center"><i class="fas fa-image text-3xl text-neutral mb-2 block"></i><p class="text-textSecondary">Error loading payment proof image</p></div>';
+                      }}
+                    />
+                    <div className="absolute inset-0 bg-black/0 hover:bg-black/20 transition-all duration-200 flex items-center justify-center">
+                      <i className="fas fa-search-plus text-white text-xl opacity-0 hover:opacity-100 transition-opacity duration-200"></i>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {/* Valid ID - Clickable */}
+              {selectedBooking.validIdUrl && (
+                <div className="bg-ocean-ice rounded-lg p-3">
+                  <h3 className="text-xs font-semibold text-ocean-mid uppercase tracking-wide mb-2">Valid ID</h3>
+                  {selectedBooking.validIdType && (
+                    <p className="text-xs text-textSecondary mb-2">ID Type: <span className="font-medium text-textPrimary">{selectedBooking.validIdType}</span></p>
+                  )}
+                  <div
+                    className="relative bg-ocean-pale/30 rounded-lg overflow-hidden cursor-pointer hover:opacity-90 transition-opacity duration-200"
+                    onClick={() => setImageZoomModal({ show: true, imageUrl: selectedBooking.validIdUrl, title: `Valid ID - ${selectedBooking.validIdType || 'ID'}` })}
+                  >
+                    <img
+                      src={selectedBooking.validIdUrl}
+                      alt="Valid ID"
+                      className="w-full h-auto max-h-[150px] object-contain bg-white"
+                      onError={(e) => {
+                        console.error('Error loading valid ID image:', e);
+                        e.target.style.display = 'none';
+                        e.target.parentElement.innerHTML = '<div class="p-4 text-center"><i class="fas fa-id-card text-3xl text-neutral mb-2 block"></i><p class="text-textSecondary">Error loading valid ID image</p></div>';
+                      }}
+                    />
+                    <div className="absolute inset-0 bg-black/0 hover:bg-black/20 transition-all duration-200 flex items-center justify-center">
+                      <i className="fas fa-search-plus text-white text-xl opacity-0 hover:opacity-100 transition-opacity duration-200"></i>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {/* Special Request */}
+              <div className="bg-amber-50 rounded-lg p-3 border border-amber-200">
+                <h3 className="text-xs font-semibold text-amber-700 uppercase tracking-wide mb-2">Special Request</h3>
+                {selectedBooking.specialRequest ? (
+                  <p className="text-sm text-amber-800">{selectedBooking.specialRequest}</p>
+                ) : (
+                  <p className="text-sm text-amber-600 italic">No special requests from guest</p>
+                )}
+              </div>
+            </div>
+
+            {/* Footer Actions with loading states */}
+            <div className="sticky bottom-0 bg-white border-t border-ocean-light/20 px-5 py-3 rounded-b-xl flex gap-2 justify-end">
+              <button
+                onClick={() => setShowPaymentModal(false)}
+                className="px-4 py-1.5 border border-ocean-light/20 rounded-lg text-textSecondary text-sm font-medium hover:bg-ocean-ice transition-all duration-300"
+              >
+                Close
+              </button>
+              {selectedBooking.status === 'pending' && (
+                <>
+                  <button
+                    onClick={() => {
+                      setShowPaymentModal(false);
+                      setConfirmModal({ show: true, booking: selectedBooking, type: activeTab === 'rooms' ? 'room' : 'daytour', note: '', loading: false });
+                    }}
+                    disabled={actionLoading[selectedBooking.id] || confirmModal.loading}
+                    className="px-4 py-1.5 bg-gradient-to-r from-green-500 to-green-600 rounded-lg text-white text-sm font-medium hover:shadow-lg transition-all duration-300 flex items-center gap-1 disabled:opacity-50"
+                  >
+                    {confirmModal.loading ? (
+                      <><i className="fas fa-spinner fa-spin text-xs"></i> Processing...</>
+                    ) : (
+                      <><i className="fas fa-check text-xs"></i> Confirm</>
+                    )}
+                  </button>
+                  <button
+                    onClick={() => {
+                      setShowPaymentModal(false);
+                      setCancelModal({ show: true, booking: selectedBooking, reason: '', loading: false });
+                    }}
+                    disabled={actionLoading[selectedBooking.id] || cancelModal.loading}
+                    className="px-4 py-1.5 bg-gradient-to-r from-red-500 to-red-600 rounded-lg text-white text-sm font-medium hover:shadow-lg transition-all duration-300 flex items-center gap-1 disabled:opacity-50"
+                  >
+                    {cancelModal.loading ? (
+                      <><i className="fas fa-spinner fa-spin text-xs"></i> Processing...</>
+                    ) : (
+                      <><i className="fas fa-times text-xs"></i> Decline</>
+                    )}
+                  </button>
+                </>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Image Zoom Modal - Minimalist */}
+      {imageZoomModal.show && (
+        <div
+          className="fixed inset-0 bg-black/90 flex items-center justify-center p-6"
+          style={{ zIndex: 9999 }}
+          onClick={() => setImageZoomModal({ show: false, imageUrl: '', title: '' })}
+        >
+          {/* Close button */}
+          <button
+            onClick={() => setImageZoomModal({ show: false, imageUrl: '', title: '' })}
+            className="absolute top-5 right-5 w-10 h-10 flex items-center justify-center rounded-full bg-white/10 text-white/80 hover:bg-white/20 hover:text-white transition-all duration-200"
+          >
+            <i className="fas fa-times text-lg"></i>
+          </button>

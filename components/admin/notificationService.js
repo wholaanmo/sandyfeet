@@ -5,6 +5,12 @@ import { useState } from 'react';
 import { createPortal } from 'react-dom';
 import { db } from '../../lib/firebase';
 import { collection, query, orderBy, onSnapshot, updateDoc, writeBatch, getDocs, doc, where, setDoc, getDoc, deleteDoc } from 'firebase/firestore';
+import {
+  syncPhilippineTime,
+  getTrustedNowMs,
+  getPhilippineNowIsoString,
+  isWithinOneHourBeforePhilippineCheckIn,
+} from '@/lib/reservationScheduleStatus';
 
 export const asDate = (value) => {
   if (!value) return new Date(0);
@@ -200,7 +206,7 @@ const saveNotification = async (notification) => {
     const notificationRef = doc(db, 'notifications', notificationId);
     await setDoc(notificationRef, {
       ...notification,
-      savedAt: new Date().toISOString()
+      savedAt: getPhilippineNowIsoString()
     }, { merge: true });
   } catch (error) {
     console.error('Error saving notification:', error);
@@ -232,7 +238,7 @@ const markNotificationDismissed = async (type, id) => {
   await setDoc(doc(db, 'dismissedNotifications', key), {
     type,
     id,
-    dismissedAt: new Date().toISOString(),
+    dismissedAt: getPhilippineNowIsoString(),
   });
 };
 
@@ -382,7 +388,7 @@ const setUserReadStatus = async (userId, notificationId, type, read = true) => {
       notificationId,
       type,
       read,
-      updatedAt: new Date().toISOString()
+      updatedAt: getPhilippineNowIsoString()
     });
     readStatusCache.set(getReadStatusCacheKey(type, notificationId), read);
   } catch (error) {
@@ -452,36 +458,20 @@ const startRealTimeCheckInChecker = (onUpdate) => {
   
   realTimeInterval = setInterval(async () => {
     if (currentBookings.size === 0) return;
-    
-    const now = new Date();
+
+    await syncPhilippineTime({ force: true });
+    const nowMs = getTrustedNowMs();
     const userId = getCurrentUserId();
     let newNotifications = [];
-    
+
     for (const [bookingKey, data] of currentBookings.entries()) {
       if (isCancelledBookingStatus(data.status)) continue;
 
       // Skip if check-in notification already generated for this booking
       if (generatedRoomCheckIns.has(bookingKey)) continue;
-      
-      let checkInDate = null;
-      if (data.checkIn) {
-        if (data.checkIn && typeof data.checkIn.toDate === 'function') {
-          checkInDate = data.checkIn.toDate();
-        } else if (data.checkIn && typeof data.checkIn === 'object' && data.checkIn.seconds) {
-          checkInDate = new Date(data.checkIn.seconds * 1000);
-        } else {
-          checkInDate = new Date(data.checkIn);
-        }
-      }
-      
-      if (checkInDate && !isNaN(checkInDate.getTime())) {
-        checkInDate.setHours(14, 0, 0, 0);
-      }
-      
-      const oneHourBeforeCheckIn = checkInDate ? new Date(checkInDate.getTime() - 60 * 60 * 1000) : null;
-      
-      // Check if current time is at or after the 1-hour threshold but before check-in time
-      if (oneHourBeforeCheckIn && now >= oneHourBeforeCheckIn && now < checkInDate) {
+
+      // Check if current Philippine time is at or after the 1-hour threshold but before check-in time
+      if (isWithinOneHourBeforePhilippineCheckIn(data.checkIn, nowMs)) {
         // Determine room type label
         let roomTypeLabel = 'Single Room Type';
         if (data.isExclusiveResortBooking) {
@@ -500,7 +490,7 @@ const startRealTimeCheckInChecker = (onUpdate) => {
           bookingId: bookingKey,
           roomType: roomTypeLabel,
           eventDate: formatDateTimeForDisplay(data.checkIn),
-          createdAt: new Date().toISOString(),
+          createdAt: getPhilippineNowIsoString(),
           isMultiRoom: !!(data.isMultiRoomBooking && data.parentBookingId),
           isEarlyTrigger: true
         };
@@ -568,8 +558,6 @@ export const setupRoomStatusListener = (onUpdate) => {
   };
 
   const unsubscribeRoom = onSnapshot(roomQuery, async (querySnapshot) => {
-    const now = new Date();
-    
     // Clear and repopulate currentBookings
     currentBookings.clear();
     
@@ -616,7 +604,7 @@ export const setupRoomStatusListener = (onUpdate) => {
           bookingId: bookingKey,
           roomType: roomTypeLabel,
           eventDate: formatDateTimeForDisplay(data.checkOut),
-          createdAt: data.updatedAt || data.createdAt || new Date().toISOString(),
+          createdAt: data.updatedAt || data.createdAt || getPhilippineNowIsoString(),
           isMultiRoom: !!(data.isMultiRoomBooking && data.parentBookingId)
         };
         generatedRoomCheckOuts.set(checkOutNotificationKey, notification);
@@ -658,7 +646,7 @@ export const setupRoomStatusListener = (onUpdate) => {
           bookingId: bookingKey,
           roomType: 'Day Tour',
           eventDate: formatDateForDisplay(data.selectedDate),
-          createdAt: data.updatedAt || data.createdAt || new Date().toISOString(),
+          createdAt: data.updatedAt || data.createdAt || getPhilippineNowIsoString(),
           isMultiRoom: false
         };
         generatedDayTourCheckIns.set(bookingKey, notification);
@@ -1105,11 +1093,11 @@ let generatedGuestChangeRequests = new Map();
 let guestBookingActivitySeeded = false;
 
 const toIsoTimestamp = (value) => {
-  if (!value) return new Date().toISOString();
+  if (!value) return getPhilippineNowIsoString();
   if (typeof value?.toDate === 'function') return value.toDate().toISOString();
   if (value?.seconds) return new Date(value.seconds * 1000).toISOString();
   const parsed = new Date(value);
-  return Number.isNaN(parsed.getTime()) ? new Date().toISOString() : parsed.toISOString();
+  return Number.isNaN(parsed.getTime()) ? getPhilippineNowIsoString() : parsed.toISOString();
 };
 
 const getGuestFullName = (data) =>

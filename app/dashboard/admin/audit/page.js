@@ -238,7 +238,7 @@ export default function AuditLogs() {
                   <tr>
                     <td colSpan="5" className="px-6 py-12 text-center text-neutral">
                       <i className="fas fa-history text-4xl mb-3 block"></i>
-                      {searchTerm ? 'No matching audit logs found' : 'No audit logs found'}
+                      {searchTerm ? ' No matching audit logs found' : ' No audit logs found'}
                     </td>
                   </tr>
                 ) : (

@@ -11,10 +11,17 @@ import ChatBot from '@/components/guest/ChatBot';
 import GuestAuthModal from '@/components/guest/GuestAuthModal';
 import { useGuestAuth } from '@/components/guest/GuestAuthContext';
 import { normalizeDayTourDateKey, toLocalDateKey } from '@/lib/reservationAvailability';
+import { usePhilippineTimeSync } from '@/hooks/usePhilippineTimeSync';
+import {
+  isPhilippineCalendarDatePast,
+  isPhilippineCalendarDateTooSoon,
+  isPhilippineCalendarDateBeforeLeadTime,
+} from '@/lib/philippineTime';
 
 function RoomsPageContent() {
   const router = useRouter();
   const { user } = useGuestAuth();
+  const { ready: phTimeReady, nowMs } = usePhilippineTimeSync();
   const [availableRoomTypes, setAvailableRoomTypes] = useState([]);
   const [selectedRooms, setSelectedRooms] = useState({});
   // Per‑room guest arrays: perRoomGuests[roomType] = [{ adults, kids }, ...]
@@ -152,6 +159,7 @@ function RoomsPageContent() {
             id: doc.id,
             type: roomType,
             price: roomData.price,
+            additionalGuestCharge: roomData.additionalGuestCharge || 0,
             capacityMin: roomData.capacityMin,
             capacityMax: roomData.capacityMax,
             description: roomData.description,
@@ -280,10 +288,7 @@ function RoomsPageContent() {
     for (let i = 0; i < newGuests.length; i++) {
       let { adults, kids } = newGuests[i];
       const total = adults + kids;
-      if (total < minPerUnit) {
-        adults = minPerUnit - kids;
-        if (adults < 1) adults = 1;
-      } else if (total > maxPerUnit) {
+      if (total > maxPerUnit) {
         const diff = total - maxPerUnit;
         if (kids >= diff) kids -= diff;
         else {
@@ -353,7 +358,6 @@ function RoomsPageContent() {
     const total = adults + kids;
     let error = '';
     if (adults < 1) error = 'At least 1 adult per room.';
-    else if (total < minPerUnit) error = `Minimum ${minPerUnit} guests per room.`;
     else if (total > maxPerUnit) error = `Maximum ${maxPerUnit} guests per room.`;
 
     if (!error) {
@@ -793,13 +797,9 @@ function RoomsPageContent() {
   }, [checkInDate, checkOutDate, numberOfNights, selectedRooms, availableRoomTypes, bookedDates, blockedSlots, roomDetailsMap, checkInHour]);
 
   const handleDateSelect = (date) => {
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
-    const minBookableDate = new Date();
-    minBookableDate.setDate(minBookableDate.getDate() + 2);
-    minBookableDate.setHours(0, 0, 0, 0);
-    if (date < today) return;
-    if (date < minBookableDate) return;
+    if (!phTimeReady) return;
+    if (isPhilippineCalendarDatePast(date, nowMs)) return;
+    if (isPhilippineCalendarDateBeforeLeadTime(date, 2, nowMs)) return;
     const selected = new Date(date);
     selected.setHours(checkInHour, 0, 0, 0);
     setCheckInDate(selected);
@@ -959,6 +959,16 @@ function RoomsPageContent() {
     return total;
   };
 
+  const calculateRoomTypeExtraGuestCharge = (typeData, quantity, totalGuests) => {
+    if (!typeData || quantity <= 0) return { extraGuests: 0, extraGuestCharges: 0 };
+    const minPerUnit = Math.max(0, Number(typeData.capacityMin || 0));
+    const additionalGuestCharge = Number(typeData.additionalGuestCharge || 0);
+    const includedGuests = minPerUnit * quantity;
+    const extraGuests = Math.max(0, totalGuests - includedGuests);
+    const extraGuestCharges = extraGuests * additionalGuestCharge * numberOfNights;
+    return { extraGuests, extraGuestCharges };
+  };
+
   const getTotalPrice = () => {
     if (isExclusiveResortBooking) {
       return getExclusivePackagePrice() * numberOfNights;
@@ -967,7 +977,9 @@ function RoomsPageContent() {
     for (const [roomType, quantity] of Object.entries(selectedRooms)) {
       const typeData = availableRoomTypes.find(t => t.type === roomType);
       if (typeData && quantity > 0) {
-        total += typeData.price * quantity * numberOfNights;
+        const totalGuests = getAggregatedGuestCounts(roomType).totalGuests;
+        const extraInfo = calculateRoomTypeExtraGuestCharge(typeData, quantity, totalGuests);
+        total += typeData.price * quantity * numberOfNights + extraInfo.extraGuestCharges;
       }
     }
     return total;
@@ -1076,15 +1088,22 @@ function RoomsPageContent() {
       isExclusiveResortBooking,
       exclusivePackagePrice: isExclusiveResortBooking ? computedTotalPrice : null,
       tentCount: tentCount,
-      roomTypes: availableRoomTypes.filter(t => selectedRooms[t.type] > 0).map(t => ({
-        type: t.type,
-        quantity: selectedRooms[t.type],
-        totalGuests: getAggregatedGuestCounts(t.type).totalGuests,
-        price: t.price,
-        roomIds: t.roomIds,
-        capacityMin: t.capacityMin,
-        capacityMax: t.capacityMax
-      }))
+      roomTypes: availableRoomTypes.filter(t => selectedRooms[t.type] > 0).map(t => {
+        const totalGuests = getAggregatedGuestCounts(t.type).totalGuests;
+        const extraInfo = calculateRoomTypeExtraGuestCharge(t, selectedRooms[t.type], totalGuests);
+        return {
+          type: t.type,
+          quantity: selectedRooms[t.type],
+          totalGuests,
+          price: t.price,
+          roomIds: t.roomIds,
+          capacityMin: t.capacityMin,
+          capacityMax: t.capacityMax,
+          additionalGuestCharge: Number(t.additionalGuestCharge || 0),
+          extraGuests: extraInfo.extraGuests,
+          extraGuestCharges: extraInfo.extraGuestCharges
+        };
+      })
     };
     // Add aggregated counts for compatibility
     for (const roomType of Object.keys(selectedRooms)) {
@@ -1118,18 +1137,13 @@ function RoomsPageContent() {
   // REMOVED the duplicate toLocalDateKey definition from here
 
   const isDatePast = (date) => {
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
-    return date < today;
+    if (!phTimeReady) return true;
+    return isPhilippineCalendarDatePast(date, nowMs);
   };
 
   const isDateTooSoon = (date) => {
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
-    const minBookableDate = new Date();
-    minBookableDate.setDate(minBookableDate.getDate() + 2);
-    minBookableDate.setHours(0, 0, 0, 0);
-    return date < minBookableDate && date >= today;
+    if (!phTimeReady) return true;
+    return isPhilippineCalendarDateTooSoon(date, 2, nowMs);
   };
 
   const isDateFullyBooked = (date) => {
@@ -1360,6 +1374,11 @@ function RoomsPageContent() {
                                 </span>
                               )}
                             </div>
+                            {room.additionalGuestCharge > 0 && (
+                              <p className="text-xs text-amber-700 font-semibold mb-4">
+                                Extra guests above {room.capacityMin} per unit are charged ₱{room.additionalGuestCharge.toLocaleString()} per guest per night.
+                              </p>
+                            )}
                           </div>
 
                           <div className="flex flex-col gap-2 relative z-10 w-full mb-0 mt-auto">

@@ -19,6 +19,8 @@ import {
   getAddressBlockerMessage,
   isProfileAddressComplete,
 } from '@/lib/guestAddress';
+import { usePhilippineTimeSync } from '@/hooks/usePhilippineTimeSync';
+import { getPhilippineNowIsoString, getTrustedNowMs } from '@/lib/philippineTime';
 
 // Storage keys for persisting data
 const MULTI_ROOM_STORAGE_KEY = 'multi_room_booking_data';
@@ -28,6 +30,7 @@ function MultiRoomBookingPageContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const { user, profile, loading: authLoading } = useGuestAuth();
+  const { ready: phTimeReady, nowMs } = usePhilippineTimeSync();
   const [bookingData, setBookingData] = useState(null);
   const [loading, setLoading] = useState(true);
   const [step, setStep] = useState(2);
@@ -211,15 +214,15 @@ function MultiRoomBookingPageContent() {
 
   // Generate booking reference
   const generateBookingReference = () => {
-    const timestamp = Date.now();
+    const timestamp = phTimeReady ? nowMs : getTrustedNowMs();
     const randomNum = Math.floor(Math.random() * 900) + 100;
     return `BOOK-${timestamp}-${randomNum}`;
   };
 
   useEffect(() => {
-    if (generatedBookingId) return;
+    if (generatedBookingId || !phTimeReady) return;
     setGeneratedBookingId(generateBookingReference());
-  }, [generatedBookingId]);
+  }, [generatedBookingId, phTimeReady, nowMs]);
 
   // Copy to clipboard function
   const copyToClipboard = async (text) => {
@@ -409,7 +412,7 @@ function MultiRoomBookingPageContent() {
         bankName: selectedBankAccount.bankName,
         accountName: selectedBankAccount.accountName,
         accountNumber: selectedBankAccount.accountNumber,
-        requestedAt: new Date().toISOString()
+        requestedAt: getPhilippineNowIsoString(nowMs)
       });
 
       let pendingBookingDraft = null;
@@ -448,13 +451,13 @@ function MultiRoomBookingPageContent() {
           qrCodeUrl: selectedBankAccount.qrCodeUrl || ''
         },
         status: 'pending',
-        createdAt: new Date().toISOString(),
+        createdAt: getPhilippineNowIsoString(nowMs),
         read: false,
         isMultiRoom: isMultiRoomRequest,
         isExclusiveResortBooking,
         exclusivePackagePrice: isExclusiveResortBooking ? exclusivePackagePrice : null,
         pendingBookingDraft,
-        draftSavedAt: new Date().toISOString(),
+        draftSavedAt: getPhilippineNowIsoString(nowMs),
       });
 
       setBankRequestId(docRef.id);
@@ -545,67 +548,80 @@ function MultiRoomBookingPageContent() {
       // Store created booking IDs for email
       const createdBookings = [];
 
-      if (allRoomIds.length <= 1) {
-        const roomTypeObj = bookingData.roomTypes?.[0];
-        const singleRoomId = allRoomIds[0] || roomTypeObj?.roomIds?.[0];
+if (allRoomIds.length <= 1) {
+  const roomTypeObj = bookingData.roomTypes?.[0];
+  const singleRoomId = allRoomIds[0] || roomTypeObj?.roomIds?.[0];
 
-        // --- Get per‑room guest counts from perRoomGuests if available ---
-        let adultsCount = 0, kidsCount = 0;
-        if (isExclusiveResortBooking) {
-          adultsCount = bookingData.exclusiveAdults || 0;
-          kidsCount = bookingData.exclusiveKids || 0;
-        } else if (bookingData.perRoomGuests && bookingData.perRoomGuests[roomTypeObj.type]?.length > 0) {
-          const perRoom = bookingData.perRoomGuests[roomTypeObj.type][0]; // only one unit
-          adultsCount = perRoom.adults;
-          kidsCount = perRoom.kids;
-        } else {
-          // Fallback to aggregated values
-          adultsCount = (bookingData.adultsPerType?.[roomTypeObj.type] || 1);
-          kidsCount = (bookingData.kidsPerType?.[roomTypeObj.type] || 0);
-        }
+  // --- Get per‑room guest counts ---
+  let adultsCount = 0, kidsCount = 0;
+  if (isExclusiveResortBooking) {
+    adultsCount = bookingData.exclusiveAdults || 0;
+    kidsCount = bookingData.exclusiveKids || 0;
+  } else if (bookingData.perRoomGuests && bookingData.perRoomGuests[roomTypeObj.type]?.length > 0) {
+    const perRoom = bookingData.perRoomGuests[roomTypeObj.type][0]; // only one unit
+    adultsCount = perRoom.adults;
+    kidsCount = perRoom.kids;
+  } else {
+    // Fallback to aggregated values
+    adultsCount = (bookingData.adultsPerType?.[roomTypeObj.type] || 1);
+    kidsCount = (bookingData.kidsPerType?.[roomTypeObj.type] || 0);
+  }
 
-        const booking = {
-          bookingId,
-          roomId: singleRoomId,
-          roomType: roomTypeObj?.type || 'Room',
-          price: roomTypeObj?.price || 0,
-          nights: 1,
-          guests: adultsCount + kidsCount,
-          adults: adultsCount,
-          kids: kidsCount,
-          totalPrice: packageTotalPrice,
-          downPayment: packageDownPayment,
-          remainingBalance: packageRemainingBalance,
-          checkIn: bookingData.checkIn,
-          checkOut: bookingData.checkOut,
-          guestInfo,
-          status: 'pending',
-          paymentMethod: paymentMethod,
-          balancePaymentMethod: balancePaymentMethod,
-          paymentProofUrl: bookingData.paymentProofUrl,
-          validIdType: accountValidIdType || null,
-          validIdUrl: accountValidIdUrl || null,
-          createdAt: serverTimestamp(),
-          updatedAt: serverTimestamp(),
-          type: 'room',
-          numberOfRooms: 1,
-          specialRequest: bookingData.specialRequest || null,
-          isExclusiveResortBooking,
-          exclusivePackagePrice: isExclusiveResortBooking ? exclusivePackagePrice : null,
-          ...(isExclusiveResortBooking && {
-            exclusiveAdults: bookingData.exclusiveAdults || 0,
-            exclusiveKids: bookingData.exclusiveKids || 0,
-            tentCount: bookingData.tentCount || 0
-          })
-        };
+  // --- Compute extra guest charges for single room ---
+  const unitCapacity = Math.max(0, Number(roomTypeObj.capacityMin || 0));
+  const extraGuestChargeRate = Number(roomTypeObj.additionalGuestCharge || 0);
+  const unitGuests = adultsCount + kidsCount;
+  const unitExtraGuests = Math.max(0, unitGuests - unitCapacity);
+  const unitExtraGuestCharges = unitExtraGuests * extraGuestChargeRate * stayNights;
 
-        if (bankDetailsProvided) {
-          booking.bankDetailsProvided = bankDetailsProvided;
-        }
+  const booking = {
+    bookingId,
+    roomId: singleRoomId,
+    roomType: roomTypeObj?.type || 'Room',
+    price: roomTypeObj?.price || 0,
+    nights: stayNights,
+    guests: adultsCount + kidsCount,
+    adults: adultsCount,
+    kids: kidsCount,
+    totalPrice: packageTotalPrice,
+    downPayment: packageDownPayment,
+    remainingBalance: packageRemainingBalance,
+    checkIn: bookingData.checkIn,
+    checkOut: bookingData.checkOut,
+    guestInfo,
+    status: 'pending',
+    paymentMethod: paymentMethod,
+    balancePaymentMethod: balancePaymentMethod,
+    paymentProofUrl: bookingData.paymentProofUrl,
+    validIdType: accountValidIdType || null,
+    validIdUrl: accountValidIdUrl || null,
+    createdAt: serverTimestamp(),
+    updatedAt: serverTimestamp(),
+    type: 'room',
+    numberOfRooms: 1,
+    specialRequest: bookingData.specialRequest || null,
+    // ----- NEW: extra guest charge breakdown -----
+    extraGuests: unitExtraGuests,
+    additionalGuestCharge: extraGuestChargeRate,
+    extraGuestCharges: unitExtraGuestCharges,
+    totalExtraGuestCharge: unitExtraGuestCharges,
+    // --------------------------------------------
+    isExclusiveResortBooking,
+    exclusivePackagePrice: isExclusiveResortBooking ? exclusivePackagePrice : null,
+    ...(isExclusiveResortBooking && {
+      exclusiveAdults: bookingData.exclusiveAdults || 0,
+      exclusiveKids: bookingData.exclusiveKids || 0,
+      tentCount: bookingData.tentCount || 0
+    })
+  };
 
-        const docRef = await addDoc(collection(db, 'bookings'), booking);
-        createdBookings.push({ ...booking, id: docRef.id });
-      } else {
+  if (bankDetailsProvided) {
+    booking.bankDetailsProvided = bankDetailsProvided;
+  }
+
+  const docRef = await addDoc(collection(db, 'bookings'), booking);
+  createdBookings.push({ ...booking, id: docRef.id });
+} else {
         // Create individual bookings for each room
         let unitIndex = 0;
         for (const roomType of bookingData.roomTypes) {
@@ -630,18 +646,24 @@ function MultiRoomBookingPageContent() {
               kidsCount = Math.floor(totalKids / roomType.quantity);
             }
 
+            const unitCapacity = Math.max(0, Number(roomTypeObj.capacityMin || 0));
+            const extraGuestChargeRate = Number(roomTypeObj.additionalGuestCharge || 0);
+            const unitGuests = adultsCount + kidsCount;
+            const unitExtraGuests = Math.max(0, unitGuests - unitCapacity);
+            const unitExtraGuestCharges = unitExtraGuests * extraGuestChargeRate * stayNights;
+            const unitTotalPrice = (Number(roomTypeObj.price || 0) * stayNights) + unitExtraGuestCharges;
             const booking = {
               bookingId: `${bookingId}-${unitIndex + 1}`,
               roomId: roomId,
               roomType: roomTypeObj.type,
               price: roomTypeObj.price,
-              nights: 1,
-              guests: adultsCount + kidsCount,
+              nights: stayNights,
+              guests: unitGuests,
               adults: adultsCount,
               kids: kidsCount,
-              totalPrice: roomTypeObj.price,
-              downPayment: roomTypeObj.price * 0.5,
-              remainingBalance: roomTypeObj.price * 0.5,
+              totalPrice: unitTotalPrice,
+              downPayment: unitTotalPrice * 0.5,
+              remainingBalance: unitTotalPrice * 0.5,
               checkIn: bookingData.checkIn,
               checkOut: bookingData.checkOut,
               guestInfo,
@@ -663,6 +685,10 @@ function MultiRoomBookingPageContent() {
               parentTotalPrice: isExclusiveResortBooking ? packageTotalPrice : null,
               parentDownPayment: isExclusiveResortBooking ? packageDownPayment : null,
               parentRemainingBalance: isExclusiveResortBooking ? packageRemainingBalance : null,
+              extraGuests: unitExtraGuests,
+              additionalGuestCharge: extraGuestChargeRate,
+              extraGuestCharges: unitExtraGuestCharges,
+              totalExtraGuestCharge: unitExtraGuestCharges,
               ...(isExclusiveResortBooking && {
                 exclusiveAdults: bookingData.exclusiveAdults || 0,
                 exclusiveKids: bookingData.exclusiveKids || 0,
@@ -814,6 +840,7 @@ function MultiRoomBookingPageContent() {
 
   const isExclusiveBooking = Boolean(bookingData.isExclusiveResortBooking);
   const stayNights = Math.max(1, Number(bookingData.numberOfNights || 1));
+  const totalExtraGuestCharges = Number((bookingData.totalExtraGuestCharge ?? bookingData.roomTypes?.reduce((sum, rt) => sum + Number(rt.extraGuestCharges || 0), 0)) || 0);
   const derivedNightlyRate = stayNights > 0 ? (totalPrice / stayNights) : totalPrice;
   const visibleGuestQrBank = paymentSettings.bankAccounts.find(
     (account) => account.qrCodeUrl && account.showToGuest === true
@@ -1683,6 +1710,18 @@ function MultiRoomBookingPageContent() {
                                     Total Guests: {bookingData.totalGuestsPerType[roomType.type]}
                                   </div>
                                 )}
+                                {roomType.extraGuests > 0 && (
+                                  <div className="mt-1 text-[10px] text-gray-500 flex justify-between pl-2">
+                                    <span>Extra guests:</span>
+                                    <span>{roomType.extraGuests} × ₱{Number(roomType.additionalGuestCharge || 0).toLocaleString()} × {stayNights}</span>
+                                  </div>
+                                )}
+                                {roomType.extraGuestCharges > 0 && (
+                                  <div className="mt-1 text-[10px] text-amber-700 flex justify-between pl-2 font-semibold">
+                                    <span>Extra guest charge:</span>
+                                    <span>₱{Number(roomType.extraGuestCharges || 0).toLocaleString()}</span>
+                                  </div>
+                                )}
                               </div>
                             );
                           })
@@ -1726,6 +1765,12 @@ function MultiRoomBookingPageContent() {
                         <span className="text-gray-500">Nights:</span>
                         <span className="font-semibold text-gray-800">{stayNights}</span>
                       </div>
+                      {totalExtraGuestCharges > 0 && (
+                        <div className="flex justify-between text-sm text-amber-700">
+                          <span className="text-gray-500">Extra guest charges:</span>
+                          <span className="font-semibold text-amber-700">₱{totalExtraGuestCharges.toLocaleString()}</span>
+                        </div>
+                      )}
                       <div className="flex justify-between text-sm pt-2 border-t border-dashed border-gray-200">
                         <span className="text-gray-500">Stay Total:</span>
                         <span className="font-semibold text-gray-800">₱{totalPrice.toLocaleString()}</span>

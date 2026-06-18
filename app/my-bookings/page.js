@@ -21,6 +21,7 @@ import {
 } from './utils';
 import PendingPaymentList from './PendingPaymentList';
 import { isPendingBankPaymentRequest } from '@/lib/pendingBankPayments';
+import { useReservationScheduleSync } from '@/hooks/useReservationScheduleSync';
 
 // Updated TAB_OPTIONS with "All" tab as the first option
 const TAB_OPTIONS = [
@@ -34,6 +35,7 @@ const TAB_OPTIONS = [
 
 function MyBookingsPageContent() {
   const { user, profile, loading, logout, updateGuestProfile } = useGuestAuth();
+  useReservationScheduleSync();
   const [isAuthOpen, setIsAuthOpen] = useState(false);
   const [showSignOutModal, setShowSignOutModal] = useState(false);
   const [activeTab, setActiveTab] = useState('pending');

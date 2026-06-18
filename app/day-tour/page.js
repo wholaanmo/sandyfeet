@@ -13,11 +13,17 @@ import ActivityCard from '@/components/guest/ActivityCard';
 import ChatBot from '@/components/guest/ChatBot';
 import { useGuestAuth } from '@/components/guest/GuestAuthContext';
 import GuestAuthModal from '@/components/guest/GuestAuthModal';
+import { usePhilippineTimeSync } from '@/hooks/usePhilippineTimeSync';
+import {
+  isPhilippineCalendarDatePast,
+  isPhilippineCalendarDateTooSoon,
+} from '@/lib/philippineTime';
 
 // Rename the main component so it can be wrapped with Suspense
 function DayTourPageContent() {
   const router = useRouter();
   const { user } = useGuestAuth();
+  const { ready: phTimeReady, nowMs } = usePhilippineTimeSync();
   const [isAuthModalOpen, setIsAuthModalOpen] = useState(false);
   const [date, setDate] = useState('');
   const [adults, setAdults] = useState('1');
@@ -125,17 +131,13 @@ function DayTourPageContent() {
   };
 
   const isDatePast = (targetDate) => {
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
-    return targetDate < today;
+    if (!phTimeReady) return true;
+    return isPhilippineCalendarDatePast(targetDate, nowMs);
   };
 
   const isDateTooSoon = (targetDate) => {
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
-    const minBookableDate = new Date(today);
-    minBookableDate.setDate(minBookableDate.getDate() + 2);
-    return targetDate < minBookableDate && targetDate >= today;
+    if (!phTimeReady) return true;
+    return isPhilippineCalendarDateTooSoon(targetDate, 2, nowMs);
   };
 
   const getRemainingCapacity = (targetDate) => {

@@ -7,10 +7,18 @@ import GuestLayout from '@/app/guest/layout';
 import { db } from '@/lib/firebase';
 import { collection, query, where, getDocs, onSnapshot, doc } from 'firebase/firestore';
 import { buildExclusiveResortBlockedDateMap } from '@/lib/exclusiveResortDayTourBlocks';
+import { usePhilippineTimeSync } from '@/hooks/usePhilippineTimeSync';
+import {
+  isPhilippineCalendarDatePast,
+  isPhilippineCalendarDateTooSoon,
+  isPhilippineCalendarDateBeforeLeadTime,
+  getPhilippineDateParts,
+} from '@/lib/philippineTime';
 
 function DayTourCalendarContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
+  const { ready: phTimeReady, nowMs } = usePhilippineTimeSync();
   const HARD_MAX_PACKS = 38;
   const CALENDAR_CACHE_KEY = 'dayTourCalendarState';
   
@@ -206,38 +214,22 @@ function DayTourCalendarContent() {
     return dayTour.maxCapacity - (bookedCount + unavailableGuestCount);
   };
 
-  // Check if date is selectable (not past, not fully booked, and at least 1 day in advance)
   const isDateSelectable = (date) => {
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
-    
-    // Cannot book past dates
-    if (date < today) return false;
-    
-    // Cannot book for next day (must be at least 1 day in advance)
-    const minBookableDate = new Date();
-    minBookableDate.setDate(minBookableDate.getDate() + 2);
-    minBookableDate.setHours(0, 0, 0, 0);
-    if (date < minBookableDate) return false;
-    
-    // Check if remaining capacity can fit selected guests
+    if (!phTimeReady) return false;
+    if (isPhilippineCalendarDatePast(date, nowMs)) return false;
+    if (isPhilippineCalendarDateBeforeLeadTime(date, 2, nowMs)) return false;
     const remainingCapacity = getRemainingCapacity(date);
     return remainingCapacity >= requestedGuests;
   };
 
   const isDatePast = (date) => {
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
-    return date < today;
+    if (!phTimeReady) return true;
+    return isPhilippineCalendarDatePast(date, nowMs);
   };
-  
-  // Check if date is within lead-time window (not bookable yet)
+
   const isDateTooSoon = (date) => {
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
-    const minBookableDate = new Date(today);
-    minBookableDate.setDate(minBookableDate.getDate() + 2);
-    return date < minBookableDate && date >= today;
+    if (!phTimeReady) return true;
+    return isPhilippineCalendarDateTooSoon(date, 2, nowMs);
   };
 
   // Format selected date for display
@@ -267,9 +259,10 @@ function DayTourCalendarContent() {
   };
 
   const handleGoToday = () => {
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
-    setCurrentDate(new Date(today.getFullYear(), today.getMonth(), 1));
+    if (!phTimeReady) return;
+    const parts = getPhilippineDateParts(new Date(nowMs));
+    const today = new Date(parts.year, parts.month - 1, parts.day);
+    setCurrentDate(new Date(parts.year, parts.month - 1, 1));
     if (isDateSelectable(today)) {
       setSelectedDate(today);
     }

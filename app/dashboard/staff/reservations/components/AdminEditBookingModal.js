@@ -5,13 +5,15 @@ import { useState, useEffect, useRef, useMemo, useCallback } from 'react';
 import { doc, updateDoc, getDocs, collection, query, where } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 import { normalizeDayTourDateKey } from '@/lib/reservationAvailability';
-import { toDateValue } from '@/app/my-bookings/utils';
+import { toDateValue, getRatePerNight, getExtraGuestCharges } from '@/app/my-bookings/utils';
 import { logAdminAction } from '../../../../../lib/auditLogger';
-import { getScheduleStatusUpdateOnEdit } from '@/lib/reservationScheduleStatus';
+import { getScheduleStatusUpdateOnEdit, isPhilippineCalendarDatePast, getPhilippineNowIsoString } from '@/lib/reservationScheduleStatus';
+import { usePhilippineTimeSync } from '@/hooks/usePhilippineTimeSync';
 
 const CHECK_IN_HOUR = 14;
 const CHECK_OUT_HOUR = 12;
 const BASE_EXCLUSIVE_PRICE = 22500;
+const EMPTY_CHILD_BOOKINGS = [];
 
 const buildCheckInDateTime = (dateStr) => {
   const d = new Date(`${dateStr}T00:00:00`);
@@ -82,6 +84,7 @@ export function canAdminEditBooking(booking) {
 }
 
 export default function AdminEditBookingModal({ isOpen, booking, onClose, onSuccess }) {
+  const { ready: phTimeReady, nowMs } = usePhilippineTimeSync();
   const [checkIn, setCheckIn] = useState('');
   const [checkOut, setCheckOut] = useState('');
   const [originalNights, setOriginalNights] = useState(0);
@@ -93,6 +96,8 @@ export default function AdminEditBookingModal({ isOpen, booking, onClose, onSucc
   const [exclusiveGuestError, setExclusiveGuestError] = useState('');
   const [balance, setBalance] = useState('');
   const [fixedDownPayment, setFixedDownPayment] = useState(0);
+  const [ratePerNight, setRatePerNight] = useState('');
+  const [extraGuestCharges, setExtraGuestCharges] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState('');
   const [availabilityError, setAvailabilityError] = useState('');
@@ -113,8 +118,9 @@ export default function AdminEditBookingModal({ isOpen, booking, onClose, onSucc
 
   const isExclusive = booking?.isExclusiveResortBooking || false;
   const isMultiRoom = booking?.isMultiRoomGroup || false;
-  const childBookings = booking?.originalChildBookings || [];
-  const roomTypesArray = booking?.roomTypesArray || [];
+  const childBookings = booking?.originalChildBookings ?? EMPTY_CHILD_BOOKINGS;
+  const roomTypesArray = booking?.roomTypesArray ?? EMPTY_CHILD_BOOKINGS;
+  const bookingId = booking?.id ?? null;
 
   const stayNights = useMemo(() => {
     if (!checkIn || !checkOut) return originalNights || 1;
@@ -349,6 +355,8 @@ export default function AdminEditBookingModal({ isOpen, booking, onClose, onSucc
           })();
     setBalance(String(currentBalance));
     setFixedDownPayment(resolveFixedDownPayment(booking));
+    setRatePerNight(String(getRatePerNight(booking)));
+    setExtraGuestCharges(String(getExtraGuestCharges(booking)));
 
     if (isExclusive) {
       setExclusiveAdults(booking.exclusiveAdults ?? booking.adults ?? 1);
@@ -390,7 +398,7 @@ export default function AdminEditBookingModal({ isOpen, booking, onClose, onSucc
     setError('');
     setAvailabilityError('');
     setGuestErrors({});
-  }, [booking, isOpen, isExclusive, isMultiRoom, childBookings, roomCapacitiesMap]);
+  }, [bookingId, isOpen, isExclusive, isMultiRoom, roomCapacitiesMap]);
 
   useEffect(() => {
     if (!isCalendarOpen) return;
@@ -560,11 +568,9 @@ export default function AdminEditBookingModal({ isOpen, booking, onClose, onSucc
   const restrictPastDates = ['pending', 'confirmed'].includes(booking?.status);
 
   const isDatePast = useCallback((date) => {
-    if (!restrictPastDates) return false;
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
-    return date < today;
-  }, [restrictPastDates]);
+    if (!restrictPastDates || !phTimeReady) return false;
+    return isPhilippineCalendarDatePast(date, nowMs);
+  }, [restrictPastDates, phTimeReady, nowMs]);
 
   const isDateSelectable = useCallback((date) => {
     if (isDatePast(date)) return false;
@@ -819,9 +825,11 @@ export default function AdminEditBookingModal({ isOpen, booking, onClose, onSucc
         checkIn: checkInDt,
         checkOut: checkOutDt,
         nights: calculatedNights,
+        ratePerNight: parseFloat(ratePerNight) || 0,
+        extraGuestCharges: parseFloat(extraGuestCharges) || 0,
         ...buildPaymentFields(),
         ...statusUpdate,
-        updatedAt: new Date().toISOString(),
+        updatedAt: getPhilippineNowIsoString(nowMs),
       };
 
       let totalAdults = 0;
@@ -867,7 +875,7 @@ export default function AdminEditBookingModal({ isOpen, booking, onClose, onSucc
             omitUndefinedDeep({
               ...exclusiveUpdates,
               ...buildPaymentFields(childDown, exclusiveChildTotal),
-              updatedAt: new Date().toISOString(),
+              updatedAt: getPhilippineNowIsoString(nowMs),
             })
           );
         }
@@ -901,9 +909,11 @@ export default function AdminEditBookingModal({ isOpen, booking, onClose, onSucc
               adults: childAdults,
               kids: childKids,
               guests: childAdults + childKids,
+              ratePerNight: parseFloat(ratePerNight) || 0,
+              extraGuestCharges: parseFloat(extraGuestCharges) || 0,
               ...buildPaymentFields(childDown, scaledTotal),
               ...statusUpdate,
-              updatedAt: new Date().toISOString(),
+              updatedAt: getPhilippineNowIsoString(nowMs),
             })
           );
         }
@@ -953,6 +963,8 @@ export default function AdminEditBookingModal({ isOpen, booking, onClose, onSucc
         manualBalance: parsedBalanceNum,
         manualDownPayment: fixedDownPayment,
         manualTotalPrice: paymentTotal,
+        ratePerNight: parseFloat(ratePerNight) || 0,
+        extraGuestCharges: parseFloat(extraGuestCharges) || 0,
         childBookings: isMultiRoom
           ? childBookings.map((child, i) => ({
               ...child,
@@ -960,6 +972,8 @@ export default function AdminEditBookingModal({ isOpen, booking, onClose, onSucc
               kids: guestCounts[i]?.kids ?? child.kids,
               checkIn: checkInDt,
               checkOut: checkOutDt,
+              ratePerNight: parseFloat(ratePerNight) || 0,
+              extraGuestCharges: parseFloat(extraGuestCharges) || 0,
             }))
           : undefined,
         originalChildBookings: isMultiRoom
@@ -969,6 +983,8 @@ export default function AdminEditBookingModal({ isOpen, booking, onClose, onSucc
               kids: guestCounts[i]?.kids ?? child.kids,
               checkIn: checkInDt,
               checkOut: checkOutDt,
+              ratePerNight: parseFloat(ratePerNight) || 0,
+              extraGuestCharges: parseFloat(extraGuestCharges) || 0,
             }))
           : undefined,
       });
@@ -978,7 +994,7 @@ export default function AdminEditBookingModal({ isOpen, booking, onClose, onSucc
     } finally {
       setIsLoading(false);
     }
-  }, [checkIn, checkOut, isExclusive, validateExclusiveGuests, validateGuestCounts, parsedBalanceNum, checkAvailability, exclusiveGuestError, fixedDownPayment, stayNights, booking, exclusiveTentCount, exclusiveAdults, exclusiveKids, childBookings, isMultiRoom, guestCounts, onSuccess]);
+  }, [checkIn, checkOut, isExclusive, validateExclusiveGuests, validateGuestCounts, parsedBalanceNum, checkAvailability, exclusiveGuestError, fixedDownPayment, stayNights, booking, exclusiveTentCount, exclusiveAdults, exclusiveKids, childBookings, isMultiRoom, guestCounts, onSuccess, ratePerNight, extraGuestCharges]);
 
   if (!isOpen || !booking) return null;
 
@@ -1200,6 +1216,30 @@ className="w-7 h-7 rounded-md bg-ocean-ice text-neutral hover:bg-ocean-light/20 
               </h4>
               
               <div className="space-y-3">
+                <div className="grid grid-cols-2 gap-3">
+                  <label className="flex flex-col gap-1">
+                    <span className="text-xs font-medium text-gray-600">Rate per Night (₱)</span>
+                    <input
+                      type="number"
+                      min={0}
+                      step="0.01"
+                      value={ratePerNight}
+                      onChange={(e) => setRatePerNight(e.target.value)}
+                      className="w-full rounded-xl border border-gray-200 px-4 py-2.5 text-sm focus:border-[#4D8CF5] focus:outline-none focus:ring-2 focus:ring-[#4D8CF5]/20"
+                    />
+                  </label>
+                  <label className="flex flex-col gap-1">
+                    <span className="text-xs font-medium text-gray-600">Extra Guest Charges (₱)</span>
+                    <input
+                      type="number"
+                      min={0}
+                      step="0.01"
+                      value={extraGuestCharges}
+                      onChange={(e) => setExtraGuestCharges(e.target.value)}
+                      className="w-full rounded-xl border border-gray-200 px-4 py-2.5 text-sm focus:border-[#4D8CF5] focus:outline-none focus:ring-2 focus:ring-[#4D8CF5]/20"
+                    />
+                  </label>
+                </div>
                 <label className="flex flex-col gap-1">
                   <span className="text-xs font-medium text-gray-600">Balance (₱)</span>
                   <input

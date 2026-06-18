@@ -18,6 +18,13 @@ import {
   getAddressBlockerMessage,
   isProfileAddressComplete,
 } from '@/lib/guestAddress';
+import { usePhilippineTimeSync } from '@/hooks/usePhilippineTimeSync';
+import {
+  isPhilippineCalendarDateBeforeLeadTime,
+  getPhilippineNowIsoString,
+  getTrustedNowMs,
+  syncPhilippineTime,
+} from '@/lib/philippineTime';
 
 // Storage key for persisting payment‑related data
 const STORAGE_KEY = 'daytour_booking_data';
@@ -27,6 +34,7 @@ function DayTourBookingContent() {
   const searchParams = useSearchParams();
   const router = useRouter();
   const { user, profile, loading: authLoading } = useGuestAuth();
+  const { ready: phTimeReady, nowMs } = usePhilippineTimeSync();
   const [isAuthModalOpen, setIsAuthModalOpen] = useState(false);
   const HARD_MAX_PACKS = 38;
   const LEAD_TIME_DAYS = 2;
@@ -206,28 +214,22 @@ function DayTourBookingContent() {
   };
 
   const isDateBeforeLeadTime = (targetDate) => {
-    if (!targetDate) return true;
+    if (!targetDate || !phTimeReady) return true;
     const normalizedTarget = new Date(targetDate);
     normalizedTarget.setHours(0, 0, 0, 0);
-
-    const minBookableDate = new Date();
-    minBookableDate.setHours(0, 0, 0, 0);
-    minBookableDate.setDate(minBookableDate.getDate() + LEAD_TIME_DAYS);
-
-    return normalizedTarget < minBookableDate;
+    return isPhilippineCalendarDateBeforeLeadTime(normalizedTarget, LEAD_TIME_DAYS, nowMs);
   };
 
-  // Generate unique booking reference number
   const generateBookingReference = () => {
-    const timestamp = Date.now();
+    const timestamp = phTimeReady ? nowMs : getTrustedNowMs();
     const randomNum = Math.floor(Math.random() * 900) + 100;
     return `DAYTOUR-${timestamp}-${randomNum}`;
   };
 
   useEffect(() => {
-    const newBookingId = generateBookingReference();
-    setGeneratedBookingId(newBookingId);
-  }, []);
+    if (!phTimeReady) return;
+    setGeneratedBookingId(generateBookingReference());
+  }, [phTimeReady, nowMs]);
 
   // Fetch payment settings
   useEffect(() => {
@@ -570,7 +572,7 @@ function DayTourBookingContent() {
           qrCodeUrl: selectedBankAccount.qrCodeUrl || ''
         },
         status: 'pending',
-        createdAt: new Date().toISOString(),
+        createdAt: getPhilippineNowIsoString(nowMs),
         read: false,
         pendingBookingDraft: {
           adults: bookingData.adults,
@@ -579,7 +581,7 @@ function DayTourBookingContent() {
           paymentProof: bookingData.paymentProof,
           paymentMethod,
         },
-        draftSavedAt: new Date().toISOString(),
+        draftSavedAt: getPhilippineNowIsoString(nowMs),
       });
       
       setBankRequestId(docRef.id);

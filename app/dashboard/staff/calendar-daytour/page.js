@@ -7,8 +7,11 @@ import { collection, query, where, doc, onSnapshot, addDoc, deleteDoc, getDocs, 
 import { logAdminAction } from '@/lib/auditLogger';
 import { buildExclusiveResortBlockedDateMap } from '@/lib/exclusiveResortDayTourBlocks';
 import Link from 'next/link';
+import { usePhilippineTimeSync } from '@/hooks/usePhilippineTimeSync';
+import { isPhilippineCalendarDatePast, getPhilippineNowIsoString } from '@/lib/reservationScheduleStatus';
 
 export default function AdminDayTourCalendar() {
+  const { ready: phTimeReady, nowMs } = usePhilippineTimeSync();
   const [currentDate, setCurrentDate] = useState(new Date());
   const [selectedDate, setSelectedDate] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -164,9 +167,8 @@ export default function AdminDayTourCalendar() {
   };
 
   const isDatePast = (date) => {
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
-    return date < today;
+    if (!phTimeReady) return true;
+    return isPhilippineCalendarDatePast(date, nowMs);
   };
 
   const isDateUnavailable = (date) => {
@@ -247,7 +249,7 @@ export default function AdminDayTourCalendar() {
         await updateDoc(doc(db, 'daytour_unavailable_dates', editingEntry.id), {
           reason: reason.trim(),
           unavailableGuests: unavailableGuestsNumber,
-          updatedAt: new Date().toISOString()
+          updatedAt: getPhilippineNowIsoString(nowMs)
         });
         await logAdminAction({
           action: 'Updated Day Tour Unavailable Entry',
@@ -259,8 +261,8 @@ export default function AdminDayTourCalendar() {
           date: dateKey,
           reason: reason.trim(),
           unavailableGuests: unavailableGuestsNumber,
-          createdAt: new Date().toISOString(),
-          updatedAt: new Date().toISOString()
+          createdAt: getPhilippineNowIsoString(nowMs),
+          updatedAt: getPhilippineNowIsoString(nowMs)
         });
         await logAdminAction({
           action: 'Marked Day Tour Date Unavailable',

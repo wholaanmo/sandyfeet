@@ -1,4 +1,4 @@
-// app/dashboard/admin/reservations/page.js
+// app/dashboard/staff/reservations/page.js
 'use client';
 
 import { useState, useEffect, useRef, useCallback, useMemo } from 'react';
@@ -13,8 +13,14 @@ import AdminActionReasonModal from './components/AdminActionReasonModal';
 import AdminEditBookingModal, { canAdminEditBooking } from './components/AdminEditBookingModal';
 import AdminEditDayTourModal, { canAdminEditDayTour } from './components/AdminEditDayTourModal';
 import { formatBalancePaymentMethodLabel } from '@/lib/balancePaymentMethod';
+import { getRatePerNight, getExtraGuestCharges, sumSavedExtraGuestCharges } from '@/app/my-bookings/utils';
+import { getPhilippineNowIsoString } from '@/lib/reservationScheduleStatus';
+import { usePhilippineTimeSync } from '@/hooks/usePhilippineTimeSync';
+import { useReservationScheduleSync } from '@/hooks/useReservationScheduleSync';
 
 export default function AdminReservations() {
+  usePhilippineTimeSync();
+  useReservationScheduleSync();
   const router = useRouter();
   const searchParams = useSearchParams(); // <-- ADDED
   const checkinToken = searchParams.get('checkinToken');
@@ -70,6 +76,8 @@ export default function AdminReservations() {
   const FIXED_CHECK_OUT_DISPLAY = '12:00 PM';
 
   const [editingPayment, setEditingPayment] = useState(false);
+  const [editingDownPayment, setEditingDownPayment] = useState(false);
+  const [tempDownPayment, setTempDownPayment] = useState('');
   const [tempBalance, setTempBalance] = useState('');
   const [tempNote, setTempNote] = useState('');
   const [savingPayment, setSavingPayment] = useState(false);
@@ -397,6 +405,10 @@ export default function AdminReservations() {
         }
       }
 
+      const firstWithRate = group.bookings.find((child) => child.ratePerNight !== undefined && child.ratePerNight !== null);
+      const groupRatePerNight = firstWithRate ? Number(firstWithRate.ratePerNight) : undefined;
+      const totalExtraGuestCharge = sumSavedExtraGuestCharges(group.bookings);
+
       consolidatedGroups.push({
         id: parentId,
         bookingId: parentId,
@@ -438,6 +450,9 @@ export default function AdminReservations() {
         // NEW: aggregated notification flags
         refundNotificationSent: hasRefundNotification,
         moveDateNotificationSent: hasMoveDateNotification,
+        totalExtraGuestCharge,
+        extraGuestCharges: totalExtraGuestCharge,
+        ratePerNight: groupRatePerNight,
         manualDownPayment: group.manualDownPayment
       });
     }
@@ -466,8 +481,8 @@ export default function AdminReservations() {
             'changeRequest.status': decision === 'approve' ? 'approved' : 'rejected',
             'changeRequest.adminReason': reason,
             'changeRequest.adminNote': reason,
-            'changeRequest.processedAt': new Date().toISOString(),
-            updatedAt: new Date().toISOString()
+            'changeRequest.processedAt': getPhilippineNowIsoString(),
+            updatedAt: getPhilippineNowIsoString()
           });
         }
       } else {
@@ -479,8 +494,8 @@ export default function AdminReservations() {
           'changeRequest.status': decision === 'approve' ? 'approved' : 'rejected',
           'changeRequest.adminReason': reason,
           'changeRequest.adminNote': reason,
-          'changeRequest.processedAt': new Date().toISOString(),
-          updatedAt: new Date().toISOString()
+          'changeRequest.processedAt': getPhilippineNowIsoString(),
+          updatedAt: getPhilippineNowIsoString()
         });
       }
 
@@ -562,7 +577,7 @@ export default function AdminReservations() {
           const bookingRef = doc(db, 'bookings', childBooking.id);
           await updateDoc(bookingRef, {
             status: 'check-in',
-            updatedAt: new Date().toISOString(),
+            updatedAt: getPhilippineNowIsoString(),
           });
         }
       } else {
@@ -570,7 +585,7 @@ export default function AdminReservations() {
         const bookingRef = doc(db, collectionName, booking.id);
         await updateDoc(bookingRef, {
           status: 'check-in',
-          updatedAt: new Date().toISOString(),
+          updatedAt: getPhilippineNowIsoString(),
         });
       }
       await logAdminAction({
@@ -620,117 +635,6 @@ export default function AdminReservations() {
 
     return () => unsubscribe();
   }, []);
-
-  useEffect(() => {
-    if (!groupedBookings.length) return;
-    let isProcessing = false;
-    const tick = async () => {
-      if (isProcessing) return;
-      isProcessing = true;
-      try {
-        const now = new Date();
-        for (const booking of groupedBookings) {
-          if (!booking?.id || !booking?.status) continue;
-          if (['pending', 'cancelled', 'cancelled-by-guest', 'completed'].includes(booking.status)) continue;
-
-          let checkInRaw, checkOutRaw;
-
-          if (booking.isMultiRoomGroup && booking.originalChildBookings) {
-            const firstChild = booking.originalChildBookings[0];
-            checkInRaw = firstChild.checkIn?.toDate ? firstChild.checkIn.toDate() : new Date(firstChild.checkIn);
-            checkOutRaw = firstChild.checkOut?.toDate ? firstChild.checkOut.toDate() : new Date(firstChild.checkOut);
-          } else {
-            checkInRaw = booking.checkIn?.toDate ? booking.checkIn.toDate() : new Date(booking.checkIn);
-            checkOutRaw = booking.checkOut?.toDate ? booking.checkOut.toDate() : new Date(booking.checkOut);
-          }
-
-          if (isNaN(checkInRaw?.getTime?.()) || isNaN(checkOutRaw?.getTime?.())) continue;
-
-          const checkOutDateObj = new Date(checkOutRaw);
-          const checkOutDay = new Date(checkOutDateObj.getFullYear(), checkOutDateObj.getMonth(), checkOutDateObj.getDate());
-          const checkOutTime = new Date(checkOutDay);
-          checkOutTime.setHours(12, 0, 0, 0);
-          const completedTime = new Date(checkOutDay);
-          completedTime.setHours(13, 0, 0, 0);
-
-          let targetStatus = null;
-          if (now >= completedTime) {
-            targetStatus = 'completed';
-          } else if (now >= checkOutTime && now < completedTime) {
-            targetStatus = 'check-out';
-          } else if (now < checkOutTime && booking.status === 'check-out') {
-            targetStatus = 'check-in';
-          }
-          // No automatic 'check-in' transition (except reverting extended check-out schedules)
-
-          if (targetStatus && booking.status !== targetStatus) {
-            if (booking.isMultiRoomGroup && booking.originalChildBookings) {
-              for (const childBooking of booking.originalChildBookings) {
-                await updateDoc(doc(db, 'bookings', childBooking.id), {
-                  status: targetStatus,
-                  updatedAt: new Date().toISOString(),
-                });
-              }
-            } else {
-              await updateDoc(doc(db, 'bookings', booking.id), {
-                status: targetStatus,
-                updatedAt: new Date().toISOString(),
-              });
-            }
-          }
-        }
-      } catch (error) {
-        console.error('Error auto-updating room reservation statuses:', error);
-      } finally {
-        isProcessing = false;
-      }
-    };
-    tick();
-    const id = setInterval(tick, 1000);
-    return () => clearInterval(id);
-  }, [groupedBookings]);
-
-  // Automatic day-tour status transitions:
-  // confirmed -> check-in when selected day starts
-  // check-in/confirmed -> completed after selected day ends
-  useEffect(() => {
-    if (!dayTours.length) return;
-    let isProcessing = false;
-    const tick = async () => {
-      if (isProcessing) return;
-      isProcessing = true;
-      try {
-        const now = new Date();
-        for (const tour of dayTours) {
-          if (!tour?.id || !tour?.status) continue;
-          if (['pending', 'cancelled', 'cancelled-by-guest', 'completed'].includes(tour.status)) continue;
-          if (!tour.selectedDate) continue;
-          const dateKey = String(tour.selectedDate);
-          if (!/^\d{4}-\d{2}-\d{2}$/.test(dateKey)) continue;
-          const [y, m, d] = dateKey.split('-').map(Number);
-          const dayStart = new Date(y, m - 1, d, 0, 0, 0, 0);
-          const dayEnd = new Date(y, m - 1, d, 23, 59, 59, 999);
-          let targetStatus = null;
-          if (now > dayEnd) {
-            targetStatus = 'completed';
-          }
-          if (targetStatus && tour.status !== targetStatus) {
-            await updateDoc(doc(db, 'dayTourBookings', tour.id), {
-              status: targetStatus,
-              updatedAt: new Date().toISOString()
-            });
-          }
-        }
-      } catch (error) {
-        console.error('Error auto-updating day tour reservation statuses:', error);
-      } finally {
-        isProcessing = false;
-      }
-    };
-    tick();
-    const id = setInterval(tick, 1000);
-    return () => clearInterval(id);
-  }, [dayTours]);
 
   // Real-time listener for day tour bookings
   useEffect(() => {
@@ -800,9 +704,9 @@ export default function AdminReservations() {
           const bookingRef = doc(db, 'bookings', childBooking.id);
           await updateDoc(bookingRef, {
             refundProcessed: true,
-            refundProcessedAt: new Date().toISOString(),
+            refundProcessedAt: getPhilippineNowIsoString(),
             balance: 0,
-            updatedAt: new Date().toISOString()
+            updatedAt: getPhilippineNowIsoString()
           });
         }
       } else {
@@ -810,9 +714,9 @@ export default function AdminReservations() {
         const bookingRef = doc(db, collectionName, booking.id);
         await updateDoc(bookingRef, {
           refundProcessed: true,
-          refundProcessedAt: new Date().toISOString(),
+          refundProcessedAt: getPhilippineNowIsoString(),
           balance: 0,
-          updatedAt: new Date().toISOString()
+          updatedAt: getPhilippineNowIsoString()
         });
       }
 
@@ -846,8 +750,8 @@ export default function AdminReservations() {
             const bookingRef = doc(db, 'bookings', childBooking.id);
             await updateDoc(bookingRef, {
               refundNotificationSent: true,
-              refundNotificationSentAt: new Date().toISOString(),
-              updatedAt: new Date().toISOString()
+              refundNotificationSentAt: getPhilippineNowIsoString(),
+              updatedAt: getPhilippineNowIsoString()
             });
           }
         } else {
@@ -855,8 +759,8 @@ export default function AdminReservations() {
           const bookingRef = doc(db, collectionName, booking.id);
           await updateDoc(bookingRef, {
             refundNotificationSent: true,
-            refundNotificationSentAt: new Date().toISOString(),
-            updatedAt: new Date().toISOString()
+            refundNotificationSentAt: getPhilippineNowIsoString(),
+            updatedAt: getPhilippineNowIsoString()
           });
         }
 
@@ -902,9 +806,9 @@ export default function AdminReservations() {
             const bookingRef = doc(db, 'bookings', childBooking.id);
             await updateDoc(bookingRef, {
               moveDateNotificationSent: true,
-              moveDateNotificationSentAt: new Date().toISOString(),
+              moveDateNotificationSentAt: getPhilippineNowIsoString(),
               balance: 0,
-              updatedAt: new Date().toISOString()
+              updatedAt: getPhilippineNowIsoString()
             });
           }
         } else {
@@ -912,9 +816,9 @@ export default function AdminReservations() {
           const bookingRef = doc(db, collectionName, booking.id);
           await updateDoc(bookingRef, {
             moveDateNotificationSent: true,
-            moveDateNotificationSentAt: new Date().toISOString(),
+            moveDateNotificationSentAt: getPhilippineNowIsoString(),
             balance: 0,
-            updatedAt: new Date().toISOString()
+            updatedAt: getPhilippineNowIsoString()
           });
         }
 
@@ -1000,13 +904,15 @@ export default function AdminReservations() {
         return;
       }
 
-      const downPayment = getFixedDownPayment(sidebarBooking);
+      const downPayment = sidebarBooking.manualDownPayment !== undefined && sidebarBooking.manualDownPayment !== null
+        ? Number(sidebarBooking.manualDownPayment)
+        : getFixedDownPayment(sidebarBooking);
       const newTotalAmount = newBalance + downPayment;
       const updateData = {
         manualBalance: newBalance,
         adminNote: tempNote.trim() || null,
         manualTotalPrice: newTotalAmount,
-        updatedAt: new Date().toISOString()
+        updatedAt: getPhilippineNowIsoString()
       };
 
       // Handle multi‑room groups
@@ -1050,13 +956,75 @@ export default function AdminReservations() {
     }
   };
 
+  const handleSaveDownPaymentInfo = async () => {
+    if (!sidebarBooking) return;
+    setSavingPayment(true);
+    try {
+      const newDownPayment = parseFloat(tempDownPayment);
+      const totalAmount = sidebarBooking.manualTotalPrice ?? Number(sidebarBooking.totalPrice ?? 0);
+      if (isNaN(newDownPayment) || newDownPayment < 0 || newDownPayment > totalAmount) {
+        showNotification('Please enter a valid down payment amount.', 'error');
+        setSavingPayment(false);
+        return;
+      }
+
+      const newBalance = Math.max(0, totalAmount - newDownPayment);
+      const updateData = {
+        manualDownPayment: newDownPayment,
+        manualBalance: newBalance,
+        manualTotalPrice: totalAmount,
+        adminNote: tempNote.trim() || null,
+        updatedAt: getPhilippineNowIsoString()
+      };
+
+      if (sidebarBooking.isMultiRoomGroup && sidebarBooking.originalChildBookings) {
+        for (const childBooking of sidebarBooking.originalChildBookings) {
+          const bookingRef = doc(db, 'bookings', childBooking.id);
+          await updateDoc(bookingRef, updateData);
+        }
+        setSidebarBooking(prev => ({
+          ...prev,
+          manualDownPayment: newDownPayment,
+          manualBalance: newBalance,
+          manualTotalPrice: totalAmount,
+          adminNote: tempNote.trim() || null
+        }));
+      } else {
+        const collectionName = sidebarBooking.type === 'room' ? 'bookings' : 'dayTourBookings';
+        const bookingRef = doc(db, collectionName, sidebarBooking.id);
+        await updateDoc(bookingRef, updateData);
+        setSidebarBooking(prev => ({
+          ...prev,
+          manualDownPayment: newDownPayment,
+          manualBalance: newBalance,
+          manualTotalPrice: totalAmount,
+          adminNote: tempNote.trim() || null
+        }));
+      }
+
+      await logAdminAction({
+        action: 'Updated Down Payment',
+        module: 'Reservations',
+        details: `Updated down payment to ₱${newDownPayment.toLocaleString()} and balance to ₱${newBalance.toLocaleString()} for booking ${sidebarBooking.bookingId}`
+      });
+
+      showNotification('Down payment updated successfully.', 'success');
+      setEditingDownPayment(false);
+    } catch (error) {
+      console.error('Error saving down payment info:', error);
+      showNotification('Failed to update down payment information.', 'error');
+    } finally {
+      setSavingPayment(false);
+    }
+  };
+
   const handleSaveNote = async () => {
     if (!sidebarBooking) return;
     setSavingNote(true);
     try {
       const updateData = {
         adminNote: tempNoteForEdit.trim() || null,
-        updatedAt: new Date().toISOString()
+        updatedAt: getPhilippineNowIsoString()
       };
 
       // Handle multi‑room groups
@@ -1213,7 +1181,7 @@ export default function AdminReservations() {
       await updateDoc(bookingRef, {
         status: 'confirmed',
         confirmationNote: confirmModal.note?.trim() || null,
-        updatedAt: new Date().toISOString()
+        updatedAt: getPhilippineNowIsoString()
       });
 
       const { sendDayTourConfirmationEmail } = await import('../../../../lib/emailService');
@@ -1264,10 +1232,10 @@ export default function AdminReservations() {
       const bookingRef = doc(db, 'dayTourBookings', booking.id);
       await updateDoc(bookingRef, {
         status: 'cancelled',
-        cancelledAt: new Date().toISOString(),
+        cancelledAt: getPhilippineNowIsoString(),
         cancellationReason: reason,
         cancelledBy: 'admin',
-        updatedAt: new Date().toISOString()
+        updatedAt: getPhilippineNowIsoString()
       });
 
       const { sendDayTourCancellationEmail } = await import('../../../../lib/emailService');
@@ -1315,7 +1283,7 @@ export default function AdminReservations() {
           await updateDoc(bookingRef, {
             status: 'confirmed',
             confirmationNote: confirmModal.note?.trim() || null,
-            updatedAt: new Date().toISOString()
+            updatedAt: getPhilippineNowIsoString()
           });
         }
       } else {
@@ -1323,7 +1291,7 @@ export default function AdminReservations() {
         await updateDoc(bookingRef, {
           status: 'confirmed',
           confirmationNote: confirmModal.note?.trim() || null,
-          updatedAt: new Date().toISOString()
+          updatedAt: getPhilippineNowIsoString()
         });
       }
 
@@ -1377,20 +1345,20 @@ export default function AdminReservations() {
           const bookingRef = doc(db, 'bookings', childBooking.id);
           await updateDoc(bookingRef, {
             status: 'cancelled',
-            cancelledAt: new Date().toISOString(),
+            cancelledAt: getPhilippineNowIsoString(),
             cancellationReason: reason,
             cancelledBy: 'admin',
-            updatedAt: new Date().toISOString()
+            updatedAt: getPhilippineNowIsoString()
           });
         }
       } else {
         const bookingRef = doc(db, 'bookings', booking.id);
         await updateDoc(bookingRef, {
           status: 'cancelled',
-          cancelledAt: new Date().toISOString(),
+          cancelledAt: getPhilippineNowIsoString(),
           cancellationReason: reason,
           cancelledBy: 'admin',
-          updatedAt: new Date().toISOString()
+          updatedAt: getPhilippineNowIsoString()
         });
       }
 
@@ -1465,6 +1433,9 @@ export default function AdminReservations() {
   };
 
   const getFixedDownPayment = (booking) => {
+    if (booking.manualDownPayment !== undefined && booking.manualDownPayment !== null) {
+      return Number(booking.manualDownPayment);
+    }
     if (booking.downPayment !== undefined && booking.downPayment !== null) {
       return Number(booking.downPayment);
     }
@@ -1532,6 +1503,25 @@ export default function AdminReservations() {
     }
     return booking.guests || 1;
   };
+
+  const parseBookingDate = (value) => {
+  if (!value) return null;
+  if (typeof value.toDate === 'function') return value.toDate();
+  if (value && typeof value === 'object' && value.seconds) return new Date(value.seconds * 1000);
+  const date = new Date(value);
+  return Number.isNaN(date.getTime()) ? null : date;
+};
+
+const getBookingNights = (booking) => {
+  if (!booking) return 0;
+  if (typeof booking.nights === 'number' && booking.nights > 0) return booking.nights;
+  const checkIn = parseBookingDate(booking.checkIn);
+  const checkOut = parseBookingDate(booking.checkOut);
+  if (!checkIn || !checkOut) return 0;
+  const start = new Date(checkIn.getFullYear(), checkIn.getMonth(), checkIn.getDate());
+  const end = new Date(checkOut.getFullYear(), checkOut.getMonth(), checkOut.getDate());
+  return Math.max(1, Math.round((end - start) / 864e5));
+};
 
   const filteredBookings = groupedBookings.filter(booking => {
     const normalizedSearch = searchTerm.toLowerCase();
@@ -2401,10 +2391,63 @@ export default function AdminReservations() {
                   </div>
                 )}
 
+                {!editingNote && editingDownPayment && (
+                  <div className="space-y-3">
+                    <div>
+                      <label className="block text-xs font-medium text-[#1E3A8A]/70 mb-1">Down Payment (₱)</label>
+                      <input
+                        type="number"
+                        min="0"
+                        step="0.01"
+                        value={tempDownPayment}
+                        onChange={(e) => {
+                          const value = e.target.value;
+                          setTempDownPayment(value);
+                          const parsed = parseFloat(value);
+                          const totalAmount = sidebarBooking.manualTotalPrice ?? Number(sidebarBooking.totalPrice ?? 0);
+                          if (!isNaN(parsed)) {
+                            setTempBalance(Math.max(0, totalAmount - parsed).toString());
+                          } else {
+                            setTempBalance(totalAmount.toString());
+                          }
+                        }}
+                        className="w-full px-2 py-1.5 text-sm border border-[#4D8CF5]/30 rounded-lg focus:outline-none focus:border-ocean-mid"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-xs font-medium text-[#1E3A8A]/70 mb-1">Balance (₱)</label>
+                      <input
+                        type="number"
+                        min="0"
+                        step="0.01"
+                        value={tempBalance}
+                        readOnly
+                        className="w-full px-2 py-1.5 text-sm border border-slate-200 rounded-lg bg-slate-50 text-slate-700"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-xs font-medium text-[#1E3A8A]/70 mb-1">Note</label>
+                      <textarea
+                        value={tempNote}
+                        onChange={(e) => setTempNote(e.target.value)}
+                        rows={2}
+                        placeholder="Add internal note about payment adjustments..."
+                        className="w-full px-2 py-1.5 text-sm border border-[#4D8CF5]/30 rounded-lg focus:outline-none focus:border-ocean-mid resize-none"
+                      />
+                    </div>
+                    <div className="flex gap-2 justify-end">
+                      <button onClick={() => setEditingDownPayment(false)} className="px-3 py-1.5 text-xs rounded-lg border border-gray-300 text-gray-700 hover:bg-gray-100">Cancel</button>
+                      <button onClick={handleSaveDownPaymentInfo} disabled={savingPayment} className="px-3 py-1.5 text-xs rounded-lg bg-ocean-mid text-white hover:bg-ocean-dark disabled:opacity-50">
+                        {savingPayment ? 'Saving...' : 'Save Changes'}
+                      </button>
+                    </div>
+                  </div>
+                )}
+
 
 
                 {/* Display Mode */}
-                {!editingNote && !editingPayment && (
+                {!editingNote && !editingPayment && !editingDownPayment && (
                   <div className="space-y-3">
                     {(() => {
                       const isCancelled = ['cancelled', 'cancelled-by-guest'].includes(sidebarBooking.status);
@@ -2445,26 +2488,70 @@ export default function AdminReservations() {
                       }
 
                       return (
-                        <div className="grid grid-cols-2 gap-4">
-                          <div className="bg-slate-50/80 p-3 rounded-lg border border-slate-100">
-                            <p className="text-xs text-[#1E3A8A]/70 mb-1">Total Amount</p>
-                            <p className="font-bold text-[#1E3A8A] text-lg">₱{totalAmount.toLocaleString()}</p>
-                          </div>
+                        <div className="space-y-3">
+                          {sidebarBooking.type !== 'daytour' && (
+                            <>
+                              <div className="bg-white border border-slate-200/60 p-3 rounded-lg">
+                                <p className="text-xs text-[#1E3A8A]/70 mb-2">Rate Breakdown</p>
+                                <div className="space-y-2 text-sm">
+                                  <div className="flex justify-between">
+                                    <span className="text-slate-600">Rate per Night</span>
+                                    <span className="font-semibold text-slate-800">₱{getRatePerNight(sidebarBooking).toLocaleString()}</span>
+                                  </div>
+                                  {getExtraGuestCharges(sidebarBooking) > 0 && (
+                                    <div className="flex justify-between">
+                                      <span className="text-slate-600">Extra Guest Charges</span>
+                                      <span className="font-semibold text-slate-800">₱{getExtraGuestCharges(sidebarBooking).toLocaleString()}</span>
+                                    </div>
+                                  )}
+                                </div>
+                              </div>
+                            </>
+                          )}
+                          <div className="grid grid-cols-2 gap-4">
+                            <div className="bg-slate-50/80 p-3 rounded-lg border border-slate-100">
+                              <p className="text-xs text-[#1E3A8A]/70 mb-1">Total Amount</p>
+                              <p className="font-bold text-[#1E3A8A] text-lg">₱{totalAmount.toLocaleString()}</p>
+                            </div>
                           <div className={`p-3 rounded-lg border transition-all ${balance > 0 ? 'bg-amber-50/30 border-amber-200' : 'bg-emerald-50/30 border-emerald-200'}`}>
                             <p className={`text-xs mb-1 ${balance > 0 ? 'text-amber-700/70' : 'text-emerald-700/70'}`}>Balance</p>
                             <p className={`font-bold text-lg ${balance > 0 ? 'text-amber-700' : 'text-emerald-700'}`}>₱{balance.toLocaleString()}</p>
                           </div>
-                          <div className="col-span-2 flex justify-between items-center bg-white border border-slate-200/60 p-3 rounded-lg shadow-sm">
-                            <p className="text-sm">
-                              <span className="text-[#1E3A8A]/70">50% Down:</span>{' '}
-                              <span className="font-bold text-amber-600">₱{downPayment.toLocaleString()}</span>
-                            </p>
-                            <p className="text-sm flex items-center">
-                              <span className="text-[#1E3A8A]/70 mr-2">Status:</span>
-                              <span className={`px-2 py-0.5 rounded-full text-[10px] font-medium ${getStatusColor(sidebarBooking.status)}`}>
-                                {sidebarBooking.status?.charAt(0).toUpperCase() + sidebarBooking.status?.slice(1)}
-                              </span>
-                            </p>
+                          <div className="col-span-2 bg-white border border-slate-200/60 p-3 rounded-lg shadow-sm">
+                            <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                              <div className="flex items-center gap-2">
+                                <p className="text-sm">
+                                  <span className="text-[#1E3A8A]/70">50% Down:</span>{' '}
+                                  <span className="font-bold text-amber-600">₱{downPayment.toLocaleString()}</span>
+                                </p>
+                                {sidebarBooking.status === 'pending' && !editingPayment && !editingDownPayment && (
+                                  <button
+                                    onClick={() => {
+                                      const currentTotal = (sidebarBooking.manualTotalPrice !== undefined && sidebarBooking.manualTotalPrice !== null)
+                                        ? Number(sidebarBooking.manualTotalPrice)
+                                        : (Number(sidebarBooking.totalPrice) || 0);
+                                      const currentDown = sidebarBooking.manualDownPayment !== undefined && sidebarBooking.manualDownPayment !== null
+                                        ? Number(sidebarBooking.manualDownPayment)
+                                        : getFixedDownPayment(sidebarBooking);
+                                      setTempDownPayment(currentDown.toString());
+                                      setTempBalance(Math.max(0, currentTotal - currentDown).toString());
+                                      setTempNote(sidebarBooking.adminNote || '');
+                                      setEditingDownPayment(true);
+                                      setEditingPayment(false);
+                                    }}
+                                    className="inline-flex items-center gap-1.5 rounded-md border border-[#4D8CF5]/20 px-2.5 py-1 text-[10px] font-bold uppercase tracking-wider text-[#4D8CF5] hover:bg-[#4D8CF5]/10"
+                                  >
+                                    <i className="fas fa-edit"></i> Edit
+                                  </button>
+                                )}
+                              </div>
+                              <p className="text-sm flex items-center">
+                                <span className="text-[#1E3A8A]/70 mr-2">Status:</span>
+                                <span className={`px-2 py-0.5 rounded-full text-[10px] font-medium ${getStatusColor(sidebarBooking.status)}`}>
+                                  {sidebarBooking.status?.charAt(0).toUpperCase() + sidebarBooking.status?.slice(1)}
+                                </span>
+                              </p>
+                            </div>
                           </div>
                           {formatBalancePaymentMethodLabel(sidebarBooking.balancePaymentMethod) && (
                             <div className="col-span-2 rounded-lg border border-slate-100 bg-slate-50/80 p-3">
@@ -2482,6 +2569,7 @@ export default function AdminReservations() {
                             </div>
                           )}
                         </div>
+                      </div>
                       );
                     })()}
 
@@ -2827,7 +2915,24 @@ export default function AdminReservations() {
               {/* Payment Information */}
               <div className="bg-ocean-ice rounded-lg p-3">
                 <h3 className="text-xs font-semibold text-ocean-mid uppercase tracking-wide mb-2">Payment Information</h3>
-                <p className="text-sm">
+                {selectedBooking.type !== 'daytour' && (
+                  <div className="rounded-xl border border-slate-200/70 bg-white p-3 mb-3">
+                    <p className="text-[10px] font-bold uppercase tracking-wider text-[#1E3A8A]/70 mb-2">Rate Breakdown</p>
+                    <div className="space-y-2 text-sm">
+                      <div className="flex justify-between text-slate-600">
+                        <span>Rate per Night</span>
+                        <span className="font-semibold text-slate-800">₱{getRatePerNight(selectedBooking).toLocaleString()}</span>
+                      </div>
+                      {getExtraGuestCharges(selectedBooking) > 0 && (
+                        <div className="flex justify-between text-slate-600">
+                          <span>Extra Guest Charges</span>
+                          <span className="font-semibold text-slate-800">₱{getExtraGuestCharges(selectedBooking).toLocaleString()}</span>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                )}
+                <p className="text-sm mt-1">
                   <span className="text-textSecondary">Total Amount:</span>{' '}
                   <span className="font-bold text-ocean-mid">₱{Number(selectedBooking.totalPrice).toLocaleString()}</span>
                 </p>

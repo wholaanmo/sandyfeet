@@ -10,7 +10,7 @@ import DayTourRequestChangesModal from './DayTourRequestChangesModal';
 import {
   formatDateOnly, formatDateTime, formatAddress, calcNights,
   getStatusBadge, getTypeDisplay, getBookingTitle, getGuestTotal,
-  getDownPayment, getBalance, getRoomTypes, canCancel,
+  getDownPayment, getBalance, getRoomTypes, getRatePerNight, getExtraGuestCharges, canCancel,
 } from './utils';
 import { formatBalancePaymentMethodLabel } from '@/lib/balancePaymentMethod';
 import { QRCodeSVG } from 'qrcode.react';
@@ -44,6 +44,8 @@ export default function BookingCard({ booking, onCancel, onEditSuccess }) {
   const primaryDate = booking.type === 'daytour' ? formatDateOnly(booking.selectedDate) : formatDateOnly(booking.checkIn);
   const balance = getBalance(booking);
   const dp = getDownPayment(booking);
+  const ratePerNight = getRatePerNight(booking);
+  const extraGuestCharges = getExtraGuestCharges(booking);
   const roomTypes = getRoomTypes(booking);
   const address = formatAddress(booking.guestInfo?.guestAddress || booking.guestInfo?.address);
   const checkinToken = booking.checkinToken || booking.children?.[0]?.checkinToken;
@@ -81,8 +83,15 @@ export default function BookingCard({ booking, onCancel, onEditSuccess }) {
     const tentCount = booking.tentCount || 0;
     const nightlyTotal = BASE_EXCLUSIVE_PRICE + (tentCount * 1500);
     exclusiveTotalPrice = nightlyTotal * nights;
-    exclusiveDownPayment = exclusiveTotalPrice * 0.5;
-    exclusiveRemainingBalance = exclusiveTotalPrice - exclusiveDownPayment;
+    if (booking.manualDownPayment !== undefined && booking.manualDownPayment !== null) {
+      exclusiveDownPayment = Number(booking.manualDownPayment);
+      exclusiveRemainingBalance = booking.manualBalance !== undefined && booking.manualBalance !== null
+        ? Number(booking.manualBalance)
+        : Math.max(0, exclusiveTotalPrice - exclusiveDownPayment);
+    } else {
+      exclusiveDownPayment = exclusiveTotalPrice * 0.5;
+      exclusiveRemainingBalance = exclusiveTotalPrice - exclusiveDownPayment;
+    }
   }
 
   const handleEditSuccess = () => {
@@ -341,80 +350,92 @@ export default function BookingCard({ booking, onCancel, onEditSuccess }) {
                 </div>
               )}
 
-              {/* Payment Summary - UPDATED for Entire Resort */}
-              <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
-                <h4 className="flex items-center gap-2 text-xs font-semibold uppercase tracking-wider text-slate-500">
-                  <span className="flex h-6 w-6 items-center justify-center rounded-full bg-slate-100 text-slate-600">
-                    <i className="fas fa-credit-card text-xs" />
-                  </span>
-                  Payment Summary
-                </h4>
-                <div className="mt-3 space-y-2 text-sm">
-                  {booking.isExclusiveResortBooking && exclusiveTotalPrice !== null ? (
-                    // Entire Resort: use recomputed values that match multi-room-booking
-                    <>
-                      <div className="flex justify-between">
-                        <span className="text-slate-600">Base Rate (per night)</span>
-                        <span className="font-semibold text-slate-800">₱{BASE_EXCLUSIVE_PRICE.toLocaleString()}</span>
-                      </div>
-                      {booking.tentCount > 0 && (
-                        <div className="flex justify-between">
-                          <span className="text-slate-600">Tent Charge (₱1,500/tent/night)</span>
-                          <span className="font-semibold text-slate-800">₱{(booking.tentCount * 1500).toLocaleString()}</span>
-                        </div>
-                      )}
-                      <div className="flex justify-between">
-                        <span className="text-slate-600">Nights</span>
-                        <span className="font-semibold text-slate-800">{nights}</span>
-                      </div>
-                      <div className="flex justify-between pt-2 border-t border-slate-100">
-                        <span className="text-slate-600">Total Price</span>
-                        <span className="font-bold text-slate-800">₱{exclusiveTotalPrice.toLocaleString()}</span>
-                      </div>
-                      <div className="flex justify-between">
-                        <span className="text-slate-600">Down Payment (50%)</span>
-                        <span className="font-semibold text-emerald-600">₱{exclusiveDownPayment.toLocaleString()}</span>
-                      </div>
-                      <div className="flex justify-between">
-                        <span className="text-slate-600">Remaining Balance</span>
-                        <span className="font-bold text-slate-800">₱{exclusiveRemainingBalance.toLocaleString()}</span>
-                      </div>
-                      {booking.paymentMethod && (
-                        <p className="text-xs text-slate-500">Down payment via {booking.paymentMethod}</p>
-                      )}
-                      {formatBalancePaymentMethodLabel(booking.balancePaymentMethod) && (
-                        <p className="text-xs text-slate-500">
-                          Balance at check-in: {formatBalancePaymentMethodLabel(booking.balancePaymentMethod)}
-                        </p>
-                      )}
-                    </>
-                  ) : (
-                    // Regular room or day tour: use stored values and helper functions
-                    <>
-                      <div className="flex justify-between text-slate-600">
-                        <span>Total Price</span>
-                        <span className="font-bold text-slate-800">₱{booking.totalPrice.toLocaleString()}</span>
-                      </div>
-                      <div className="flex justify-between text-slate-600">
-                        <span>Down Payment (50%)</span>
-                        <span className="font-semibold text-emerald-600">₱{dp.toLocaleString()}</span>
-                      </div>
-                      <div className="flex justify-between border-t border-slate-100 pt-2 text-slate-600">
-                        <span>Remaining Balance</span>
-                        <span className="font-bold text-slate-800">₱{balance.toLocaleString()}</span>
-                      </div>
-                      {booking.paymentMethod && (
-                        <p className="text-xs text-slate-500">Down payment via {booking.paymentMethod}</p>
-                      )}
-                      {formatBalancePaymentMethodLabel(booking.balancePaymentMethod) && (
-                        <p className="text-xs text-slate-500">
-                          Balance at check-in: {formatBalancePaymentMethodLabel(booking.balancePaymentMethod)}
-                        </p>
-                      )}
-                    </>
-                  )}
-                </div>
-              </div>
+{/* Payment Summary - UPDATED for Entire Resort */}
+<div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
+  <h4 className="flex items-center gap-2 text-xs font-semibold uppercase tracking-wider text-slate-500">
+    <span className="flex h-6 w-6 items-center justify-center rounded-full bg-slate-100 text-slate-600">
+      <i className="fas fa-credit-card text-xs" />
+    </span>
+    Payment Summary
+  </h4>
+  <div className="mt-3 space-y-2 text-sm">
+    {booking.isExclusiveResortBooking && exclusiveTotalPrice !== null ? (
+      // Entire Resort: use recomputed values that match multi-room-booking
+      <>
+        <div className="flex justify-between">
+          <span className="text-slate-600">Base Rate (per night)</span>
+          <span className="font-semibold text-slate-800">₱{BASE_EXCLUSIVE_PRICE.toLocaleString()}</span>
+        </div>
+        {booking.tentCount > 0 && (
+          <div className="flex justify-between">
+            <span className="text-slate-600">Tent Charge (₱1,500/tent/night)</span>
+            <span className="font-semibold text-slate-800">₱{(booking.tentCount * 1500).toLocaleString()}</span>
+          </div>
+        )}
+        <div className="flex justify-between">
+          <span className="text-slate-600">Nights</span>
+          <span className="font-semibold text-slate-800">{nights}</span>
+        </div>
+        <div className="flex justify-between pt-2 border-t border-slate-100">
+          <span className="text-slate-600">Total Price</span>
+          <span className="font-bold text-slate-800">₱{exclusiveTotalPrice.toLocaleString()}</span>
+        </div>
+        <div className="flex justify-between">
+          <span className="text-slate-600">Down Payment (50%)</span>
+          <span className="font-semibold text-emerald-600">₱{exclusiveDownPayment.toLocaleString()}</span>
+        </div>
+        <div className="flex justify-between">
+          <span className="text-slate-600">Remaining Balance</span>
+          <span className="font-bold text-slate-800">₱{exclusiveRemainingBalance.toLocaleString()}</span>
+        </div>
+        {booking.paymentMethod && (
+          <p className="text-xs text-slate-500">Down payment via {booking.paymentMethod}</p>
+        )}
+        {formatBalancePaymentMethodLabel(booking.balancePaymentMethod) && (
+          <p className="text-xs text-slate-500">
+            Balance at check-in: {formatBalancePaymentMethodLabel(booking.balancePaymentMethod)}
+          </p>
+        )}
+      </>
+    ) : (
+      // Regular room or day tour: use stored values and helper functions
+      <>
+        {booking.type !== 'daytour' && (
+          <>
+            <div className="flex justify-between text-slate-600">
+              <span>Rate per Night</span>
+              <span className="font-bold text-slate-800">₱{ratePerNight.toLocaleString()}</span>
+            </div>
+            <div className="flex justify-between text-slate-600 mt-1">
+              <span>Extra Guest Charges</span>
+              <span className="font-bold text-slate-800">₱{extraGuestCharges.toLocaleString()}</span>
+            </div>
+          </>
+        )}
+        <div className="flex justify-between text-slate-600">
+          <span>Total Price</span>
+          <span className="font-bold text-slate-800">₱{booking.totalPrice.toLocaleString()}</span>
+        </div>
+        <div className="flex justify-between text-slate-600">
+          <span>Down Payment (50%)</span>
+          <span className="font-semibold text-emerald-600">₱{dp.toLocaleString()}</span>
+        </div>
+        <div className="flex justify-between border-t border-slate-100 pt-2 text-slate-600">
+          <span>Remaining Balance</span>
+          <span className="font-bold text-slate-800">₱{balance.toLocaleString()}</span>
+        </div>
+        {booking.paymentMethod && (
+          <p className="text-xs text-slate-500">Down payment via {booking.paymentMethod}</p>
+        )}
+        {formatBalancePaymentMethodLabel(booking.balancePaymentMethod) && (
+          <p className="text-xs text-slate-500">
+            Balance at check-in: {formatBalancePaymentMethodLabel(booking.balancePaymentMethod)}
+          </p>
+        )}
+      </>
+    )}
+  </div>
+</div>
 
      {canShowQr && (
   <div className="relative overflow-hidden rounded-2xl border border-slate-200 bg-gradient-to-br from-white via-slate-50 to-slate-100 p-5 shadow-sm md:col-span-2">
@@ -545,20 +566,7 @@ export default function BookingCard({ booking, onCancel, onEditSuccess }) {
                 Booked on {formatDateTime(booking.createdAt)}
               </p>
               <div className="flex gap-3">
-                {isPending && (isRoomBooking || isDayTour) && (
-                  <button
-                    type="button"
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      if (isRoomBooking) setShowEditModal(true);
-                      else setShowDayTourEditModal(true);
-                    }}
-                    className="inline-flex items-center gap-2 rounded-lg border border-blue-200 bg-white px-4 py-2 text-sm font-semibold text-blue-600 transition-all hover:bg-blue-50 hover:border-blue-300 hover:shadow-sm"
-                  >
-                    <i className="fas fa-pen text-xs" />
-                    Edit Reservation
-                  </button>
-                )}
+
 
                 {/* Request Changes button for room bookings with CONFIRMED status */}
                 {isRoomBooking && booking.status === 'confirmed' && (

@@ -6,8 +6,17 @@ import { db, auth } from '@/lib/firebase';
 import { collection, query, where, onSnapshot, Timestamp, orderBy, limit, doc, getDoc } from 'firebase/firestore';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
+import { usePhilippineTimeSync } from '@/hooks/usePhilippineTimeSync';
+import { useReservationScheduleSync } from '@/hooks/useReservationScheduleSync';
+import {
+  getPhilippineTodayRange,
+  getPhilippineDateKeyFromInstant,
+  isTimestampWithinPhilippineToday,
+} from '@/lib/philippineTime';
 
 export default function AdminOverview() {
+  const { ready: phTimeReady, nowMs } = usePhilippineTimeSync();
+  useReservationScheduleSync();
   const [adminName, setAdminName] = useState('Admin');
   const [roomCheckInsToday, setRoomCheckInsToday] = useState(0);
   const [dayTourGuestsToday, setDayTourGuestsToday] = useState(0);
@@ -18,14 +27,9 @@ export default function AdminOverview() {
   const [loading, setLoading] = useState(true);
   const router = useRouter();
 
-  // Get today's date range (start of day to end of day)
   const getTodayRange = () => {
-    const today = new Date();
-    const startOfDay = new Date(today);
-    startOfDay.setHours(0, 0, 0, 0);
-    const endOfDay = new Date(today);
-    endOfDay.setHours(23, 59, 59, 999);
-    return { startOfDay, endOfDay };
+    const { startMs, endMs } = getPhilippineTodayRange(nowMs);
+    return { startOfDay: new Date(startMs), endOfDay: new Date(endMs) };
   };
 
   // Fetch admin name from Firebase Auth and Firestore
@@ -47,21 +51,20 @@ useEffect(() => {
 
   // Fetch room check-ins today (status 'check-in' for today)
   useEffect(() => {
-    const { startOfDay, endOfDay } = getTodayRange();
-    
+    if (!phTimeReady) return;
+
+    const todayKey = getPhilippineTodayRange(nowMs).dateKey;
     const bookingsRef = collection(db, 'bookings');
     const q = query(
       bookingsRef,
       where('status', '==', 'check-in')
     );
-    
+
     const unsubscribe = onSnapshot(q, (snapshot) => {
       let count = 0;
       snapshot.forEach((doc) => {
         const booking = doc.data();
-        const checkInDate = booking.checkIn?.toDate ? booking.checkIn.toDate() : new Date(booking.checkIn);
-        
-        if (checkInDate >= startOfDay && checkInDate <= endOfDay) {
+        if (getPhilippineDateKeyFromInstant(booking.checkIn, nowMs) === todayKey) {
           count++;
         }
       });
@@ -69,93 +72,88 @@ useEffect(() => {
     }, (error) => {
       console.error('Error fetching room check-ins:', error);
     });
-    
-    return () => unsubscribe();
-  }, []);
 
-  // Fetch day tour guests today (bookings with selectedDate = today and status check-in or confirmed)
-useEffect(() => {
-  const today = new Date();
-  const year = today.getFullYear();
-  const month = String(today.getMonth() + 1).padStart(2, '0');
-  const day = String(today.getDate()).padStart(2, '0');
-  const todayStr = `${year}-${month}-${day}`;
-  
-  const dayTourBookingsRef = collection(db, 'dayTourBookings');
-  const q = query(
-    dayTourBookingsRef,
-    where('selectedDate', '==', todayStr),
-    where('status', '==', 'check-in')
-  );
-  
-  const unsubscribe = onSnapshot(q, (snapshot) => {
-    let totalGuests = 0;
-    snapshot.forEach((doc) => {
-      const booking = doc.data();
-      const seniors = booking.seniors || 0;
-      const adults = booking.adults || 0;
-      const kids = booking.kids || 0;
-      totalGuests += seniors + adults + kids;
+    return () => unsubscribe();
+  }, [phTimeReady, nowMs]);
+
+  // Fetch day tour guests today (bookings with selectedDate = today and status check-in)
+  useEffect(() => {
+    if (!phTimeReady) return;
+
+    const todayStr = getPhilippineTodayRange(nowMs).dateKey;
+
+    const dayTourBookingsRef = collection(db, 'dayTourBookings');
+    const q = query(
+      dayTourBookingsRef,
+      where('selectedDate', '==', todayStr),
+      where('status', '==', 'check-in')
+    );
+
+    const unsubscribe = onSnapshot(q, (snapshot) => {
+      let totalGuests = 0;
+      snapshot.forEach((doc) => {
+        const booking = doc.data();
+        const seniors = booking.seniors || 0;
+        const adults = booking.adults || 0;
+        const kids = booking.kids || 0;
+        totalGuests += seniors + adults + kids;
+      });
+      setDayTourGuestsToday(totalGuests);
+    }, (error) => {
+      console.error('Error fetching day tour guests:', error);
     });
-    setDayTourGuestsToday(totalGuests);
-  }, (error) => {
-    console.error('Error fetching day tour guests:', error);
-  });
-  
-  return () => unsubscribe();
-}, []);
+
+    return () => unsubscribe();
+  }, [phTimeReady, nowMs]);
 
   // Fetch day tour bookings today (bookings with selectedDate = today)
-useEffect(() => {
-  const { startOfDay, endOfDay } = getTodayRange();
-  
-  const dayTourBookingsRef = collection(db, 'dayTourBookings');
-  
-  const unsubscribe = onSnapshot(dayTourBookingsRef, (snapshot) => {
-    let count = 0;
-    snapshot.forEach((doc) => {
-      const booking = doc.data();
-      const createdAt = booking.createdAt?.toDate ? booking.createdAt.toDate() : new Date(booking.createdAt);
-      if (createdAt >= startOfDay && createdAt <= endOfDay) {
-        count++;
-      }
+  useEffect(() => {
+    if (!phTimeReady) return;
+
+    const dayTourBookingsRef = collection(db, 'dayTourBookings');
+
+    const unsubscribe = onSnapshot(dayTourBookingsRef, (snapshot) => {
+      let count = 0;
+      snapshot.forEach((doc) => {
+        const booking = doc.data();
+        if (isTimestampWithinPhilippineToday(booking.createdAt, nowMs)) {
+          count++;
+        }
+      });
+      setDayTourBookingsToday(count);
+    }, (error) => {
+      console.error('Error fetching day tour bookings:', error);
     });
-    setDayTourBookingsToday(count);
-  }, (error) => {
-    console.error('Error fetching day tour bookings:', error);
-  });
-  
-  return () => unsubscribe();
-}, []);
+
+    return () => unsubscribe();
+  }, [phTimeReady, nowMs]);
 
   // Fetch room bookings today - TOTAL NUMBER OF ROOM RESERVATIONS MADE TODAY (by createdAt)
-useEffect(() => {
-  const { startOfDay, endOfDay } = getTodayRange();
-  
-  const bookingsRef = collection(db, 'bookings');
-  
-  const unsubscribe = onSnapshot(bookingsRef, (snapshot) => {
-    const uniqueBookingIds = new Set();
-    
-    snapshot.forEach((doc) => {
-      const booking = doc.data();
-      if (booking.type === 'room') {
-        const createdAt = booking.createdAt?.toDate ? booking.createdAt.toDate() : new Date(booking.createdAt);
-        if (createdAt >= startOfDay && createdAt <= endOfDay) {
-          // For multi-room bookings, use parentBookingId; otherwise use bookingId
-          const bookingKey = booking.parentBookingId || booking.bookingId;
-          uniqueBookingIds.add(bookingKey);
+  useEffect(() => {
+    if (!phTimeReady) return;
+
+    const bookingsRef = collection(db, 'bookings');
+
+    const unsubscribe = onSnapshot(bookingsRef, (snapshot) => {
+      const uniqueBookingIds = new Set();
+
+      snapshot.forEach((doc) => {
+        const booking = doc.data();
+        if (booking.type === 'room') {
+          if (isTimestampWithinPhilippineToday(booking.createdAt, nowMs)) {
+            const bookingKey = booking.parentBookingId || booking.bookingId;
+            uniqueBookingIds.add(bookingKey);
+          }
         }
-      }
+      });
+
+      setRoomBookingsToday(uniqueBookingIds.size);
+    }, (error) => {
+      console.error('Error fetching room bookings:', error);
     });
-    
-    setRoomBookingsToday(uniqueBookingIds.size);
-  }, (error) => {
-    console.error('Error fetching room bookings:', error);
-  });
-  
-  return () => unsubscribe();
-}, []);
+
+    return () => unsubscribe();
+  }, [phTimeReady, nowMs]);
 
   // Function to get booking display type (matches reservations page logic)
   const getBookingDisplayType = (booking) => {

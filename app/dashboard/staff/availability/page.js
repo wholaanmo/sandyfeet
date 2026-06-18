@@ -9,8 +9,14 @@ import {
   aggregateRoomAvailabilityFromBookings,
   toLocalDateKey,
 } from '@/lib/reservationAvailability';
+import { usePhilippineTimeSync } from '@/hooks/usePhilippineTimeSync';
+import {
+  getPhilippineTodayDateKey,
+  isPhilippineCalendarDatePast,
+} from '@/lib/philippineTime';
 
 export default function StaffRoomStatus() {
+  const { ready: phTimeReady, nowMs } = usePhilippineTimeSync();
   const [rooms, setRooms] = useState([]);
   const [loading, setLoading] = useState(true);
   const [roomDetails, setRoomDetails] = useState({});
@@ -26,10 +32,7 @@ export default function StaffRoomStatus() {
   const [selectedTab, setSelectedTab] = useState('rooms');
   const [calendarViewDate, setCalendarViewDate] = useState(new Date());
 
-  // Get today date
-  const today = new Date();
-  today.setHours(0, 0, 0, 0);
-  const todayKey = toLocalDateKey(today);
+  const todayKey = phTimeReady ? getPhilippineTodayDateKey(nowMs) : '';
 
   // Fetch rooms list (only non-archived and available)
   useEffect(() => {
@@ -247,9 +250,8 @@ export default function StaffRoomStatus() {
   };
 
   const isDatePast = (date) => {
-    const todayDate = new Date();
-    todayDate.setHours(0, 0, 0, 0);
-    return date < todayDate;
+    if (!phTimeReady) return true;
+    return isPhilippineCalendarDatePast(date, nowMs);
   };
 
   const monthNames = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];

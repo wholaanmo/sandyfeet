@@ -4,6 +4,7 @@
 import { useState, useEffect } from 'react';
 import { doc, getDoc, updateDoc } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
+import { getPhilippineNowIsoString } from '@/lib/philippineTime';
 
 export default function DayTourRequestChangesModal({ isOpen, booking, onClose, onRequestSubmitted }) {
   const [requestText, setRequestText] = useState('');
@@ -75,7 +76,7 @@ export default function DayTourRequestChangesModal({ isOpen, booking, onClose, o
       await updateDoc(bookingRef, {
         changeRequest: {
           text: requestText.trim(),
-          submittedAt: new Date().toISOString(),
+          submittedAt: getPhilippineNowIsoString(),
           status: 'pending'
         }
       });

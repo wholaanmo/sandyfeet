@@ -11,11 +11,18 @@ import ChatBot from '@/components/guest/ChatBot';
 // +++ NEW IMPORTS +++
 import { useGuestAuth } from '@/components/guest/GuestAuthContext';
 import GuestAuthModal from '@/components/guest/GuestAuthModal';
+import { usePhilippineTimeSync } from '@/hooks/usePhilippineTimeSync';
+import {
+  isPhilippineCalendarDatePast,
+  isPhilippineCalendarDateBeforeLeadTime,
+  isPhilippineTomorrow,
+  getPhilippineMinBookableDateKey,
+} from '@/lib/philippineTime';
 
 const formatHour = (hour) => {
   const period = hour >= 12 ? 'PM' : 'AM';
   const normalized = hour % 12 === 0 ? 12 : hour % 12;
-  return `${String(normalized).padStart(2, '0')}:00 ${period}`;
+  return `${String(normalized).padStart(2, '00')}:00 ${period}`;
 };
 
 const toRoomSlug = (value) => {
@@ -63,6 +70,7 @@ export default function RoomDetailsPage({ params }) {
 
   // +++ AUTHENTICATION HOOKS +++
   const { user, loading: authLoading } = useGuestAuth();
+  const { ready: phTimeReady, nowMs } = usePhilippineTimeSync();
   const [isAuthModalOpen, setIsAuthModalOpen] = useState(false);
   const [pendingBooking, setPendingBooking] = useState(false);
 
@@ -101,20 +109,15 @@ export default function RoomDetailsPage({ params }) {
     return defaultGallery;
   }, [roomData]);
 
-  // Helper: check if a given date is tomorrow (the immediate next calendar day after today)
   const isTomorrow = (date) => {
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
-    const tomorrow = new Date(today);
-    tomorrow.setDate(today.getDate() + 1);
-    return date.toDateString() === tomorrow.toDateString();
+    if (!phTimeReady) return false;
+    return isPhilippineTomorrow(date, nowMs);
   };
 
   const minBookableDate = useMemo(() => {
-    const d = new Date();
-    d.setDate(d.getDate() + 2);
-    return d.toISOString().split('T')[0];
-  }, []);
+    if (!phTimeReady) return '';
+    return getPhilippineMinBookableDateKey(2, nowMs);
+  }, [phTimeReady, nowMs]);
 
   const checkOutDate = useMemo(() => {
     if (!checkInDate) return null;
@@ -143,15 +146,13 @@ export default function RoomDetailsPage({ params }) {
   }, [currentMonth]);
 
   const isDatePast = (date) => {
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
-    return date < today;
+    if (!phTimeReady) return true;
+    return isPhilippineCalendarDatePast(date, nowMs);
   };
 
   const isDateTooSoon = (date) => {
-    const minDate = new Date(minBookableDate);
-    minDate.setHours(0, 0, 0, 0);
-    return date < minDate;
+    if (!phTimeReady || !minBookableDate) return true;
+    return isPhilippineCalendarDateBeforeLeadTime(date, 2, nowMs);
   };
 
   // Check if a given date is fully booked for THIS room type
@@ -572,14 +573,13 @@ export default function RoomDetailsPage({ params }) {
     const totalAdults = perRoomAdults.reduce((s, a) => s + a, 0);
     const totalKids = perRoomKids.reduce((s, k) => s + k, 0);
     const totalGuests = totalAdults + totalKids;
-    const minTotalGuests = roomQuantity * capacityMin;
     const maxTotalGuests = roomQuantity * capacityMax;
 
     // Validate each room individually
     let roomError = false;
     for (let i = 0; i < roomQuantity; i++) {
       const roomTotal = perRoomAdults[i] + perRoomKids[i];
-      if (roomTotal < capacityMin || roomTotal > capacityMax) {
+      if (roomTotal > capacityMax) {
         roomError = true;
         break;
       }
@@ -589,12 +589,12 @@ export default function RoomDetailsPage({ params }) {
       }
     }
     if (roomError) {
-      setActionError(`Each room must have between ${capacityMin} and ${capacityMax} guests, with at least 1 adult.`);
+      setActionError(`Each room must have no more than ${capacityMax} guests and at least 1 adult.`);
       return;
     }
 
-    if (totalGuests < minTotalGuests || totalGuests > maxTotalGuests) {
-      setActionError(`Total guests must be between ${minTotalGuests} and ${maxTotalGuests} for ${roomQuantity} room(s).`);
+    if (totalGuests > maxTotalGuests) {
+      setActionError(`Total guests cannot exceed ${maxTotalGuests} for ${roomQuantity} room(s).`);
       return;
     }
 
@@ -603,7 +603,11 @@ export default function RoomDetailsPage({ params }) {
     const checkOut = new Date(checkIn);
     checkOut.setDate(checkOut.getDate() + numberOfNights);
     checkOut.setHours(checkOutHour, 0, 0, 0);
-    const totalPrice = (roomData.price || 0) * roomQuantity * numberOfNights;
+    const basePrice = (roomData.price || 0) * roomQuantity * numberOfNights;
+    const extraGuests = Math.max(0, totalGuests - (capacityMin * roomQuantity));
+    const extraGuestCharge = Number(roomData.additionalGuestCharge || 0);
+    const extraGuestCharges = extraGuests * extraGuestCharge * numberOfNights;
+    const totalPrice = basePrice + extraGuestCharges;
 
     // Build per‑room guest array for the multi‑room booking page
     const perRoomGuests = [];
@@ -630,6 +634,7 @@ export default function RoomDetailsPage({ params }) {
       specialRequest: '',
       totalPrice,
       totalGuests,
+      totalExtraGuestCharge: extraGuestCharges,
       roomTypes: [{
         type: roomData.type,
         quantity: roomQuantity,
@@ -637,7 +642,10 @@ export default function RoomDetailsPage({ params }) {
         price: roomData.price,
         roomIds: roomData.roomIds || [roomData.id],
         capacityMin,
-        capacityMax
+        capacityMax,
+        additionalGuestCharge: Number(roomData.additionalGuestCharge || 0),
+        extraGuests,
+        extraGuestCharges
       }]
     };
 
@@ -713,9 +721,15 @@ export default function RoomDetailsPage({ params }) {
   const totalAdults = perRoomAdults.reduce((s, a) => s + a, 0);
   const totalKids = perRoomKids.reduce((s, k) => s + k, 0);
   const totalGuests = totalAdults + totalKids;
-  const minTotalGuests = roomQuantity * capacityMin;
   const maxTotalGuests = roomQuantity * capacityMax;
-  const totalPricePreview = (roomData.price || 0) * roomQuantity * numberOfNights;
+
+  // +++ FIX: Calculate total price including Extra Guest Charge +++
+  const baseTotal = (roomData.price || 0) * roomQuantity * numberOfNights;
+  const includedGuests = capacityMin * roomQuantity;
+  const extraGuests = Math.max(0, totalGuests - includedGuests);
+  const extraGuestCharge = Number(roomData.additionalGuestCharge || 0);
+  const extraGuestCharges = extraGuests * extraGuestCharge * numberOfNights;
+  const totalPricePreview = baseTotal + extraGuestCharges;
 
   // ─── MAIN RENDER ───
   return (
@@ -838,6 +852,11 @@ export default function RoomDetailsPage({ params }) {
                       </span>
                     )}
                   </div>
+                  {roomData.additionalGuestCharge > 0 && (
+                    <p className="mt-4 text-sm font-semibold text-amber-700">
+                      Extra guests above {capacityMin} per unit are charged ₱{Number(roomData.additionalGuestCharge || 0).toLocaleString()} per guest per night.
+                    </p>
+                  )}
                 </section>
 
                 {/* Gallery thumbnails */}
@@ -1108,7 +1127,7 @@ export default function RoomDetailsPage({ params }) {
                   })}
                 </div>
 
-                {/* Total Guests Summary & Min/Max Info */}
+                {/* Total Guests Summary & Capacity Info */}
                 <div className="grid grid-cols-2 gap-2.5">
                   <div className="bg-gray-50/50 rounded-xl p-2 text-left">
                     <p className="text-xs font-semibold text-gray-700">
@@ -1117,7 +1136,7 @@ export default function RoomDetailsPage({ params }) {
                   </div>
                   <div className="bg-gray-50/50 rounded-xl p-2 text-center">
                     <p className="text-xs font-semibold text-gray-700">
-                      Min {minTotalGuests} · Max {maxTotalGuests} guests for {roomQuantity} room{roomQuantity > 1 ? 's' : ''}
+                      At least 1 adult per room · Max {maxTotalGuests} guests total for {roomQuantity} room{roomQuantity > 1 ? 's' : ''}
                     </p>
                   </div>
                 </div>
@@ -1133,7 +1152,13 @@ export default function RoomDetailsPage({ params }) {
                   <p className="text-xl font-extrabold text-gray-900 tracking-tight mt-1">₱{totalPricePreview.toLocaleString()}</p>
                   <p className="text-[10px] text-gray-500 mt-1">
                     ₱{Number(roomData.price || 0).toLocaleString()} × {roomQuantity} × {numberOfNights} night{numberOfNights > 1 ? 's' : ''}
+                    {extraGuests > 0 && ` + ₱${extraGuestCharge.toLocaleString()} × ${extraGuests} extra guest${extraGuests > 1 ? 's' : ''} × ${numberOfNights} night${numberOfNights > 1 ? 's' : ''}`}
                   </p>
+                  {extraGuests > 0 && (
+                    <p className="text-[10px] font-semibold text-amber-700 mt-0.5">
+                      Extra Guest Charge: ₱{extraGuestCharges.toLocaleString()}
+                    </p>
+                  )}
                 </div>
 
                 {/* Error */}

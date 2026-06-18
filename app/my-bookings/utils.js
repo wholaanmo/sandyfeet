@@ -2,6 +2,9 @@
 import { collection, getDocs, query, where, updateDoc, doc, addDoc, onSnapshot } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 import { sendCancellationEmail, sendDayTourCancellationEmail } from '@/lib/emailService';
+import { getPhilippineNowIsoString, getTrustedNowMs, syncPhilippineTime } from '@/lib/philippineTime';
+
+const BASE_EXCLUSIVE_PRICE = 22500;
 
 // ─── Date Helpers ────────────────────────────────────────
 export const toDateValue = (value) => {
@@ -103,14 +106,152 @@ export const getGuestTotal = (b) => {
 };
 
 export const getDownPayment = (b) => {
-  if (typeof b.downPayment === 'number' && !Number.isNaN(b.downPayment) && b.downPayment > 0) return b.downPayment;
+  // Check for manual override first (this is the key fix)
+  if (b.manualDownPayment !== undefined && b.manualDownPayment !== null && !isNaN(b.manualDownPayment)) {
+    return Number(b.manualDownPayment);
+  }
+  
+  // For exclusive resort bookings with manual override in children
+  if (b.isExclusiveResortBooking && b.children && b.children.length > 0) {
+    // Check if any child has manualDownPayment
+    for (const child of b.children) {
+      if (child.manualDownPayment !== undefined && child.manualDownPayment !== null && !isNaN(child.manualDownPayment)) {
+        return Number(child.manualDownPayment);
+      }
+    }
+  }
+  
+  // For multi-room bookings, aggregate children's down payments
+  if (b.isMultiRoom && b.children && b.children.length > 0) {
+    let totalManualDown = 0;
+    let hasManual = false;
+    let totalOriginalDown = 0;
+    for (const child of b.children) {
+      if (child.manualDownPayment !== undefined && child.manualDownPayment !== null && !isNaN(child.manualDownPayment)) {
+        totalManualDown += Number(child.manualDownPayment);
+        hasManual = true;
+      } else {
+        const dp = (typeof child.downPayment === 'number' && !isNaN(child.downPayment)) ? child.downPayment : Number(child.totalPrice || 0) * 0.5;
+        totalOriginalDown += dp;
+      }
+    }
+    if (hasManual) {
+      return totalManualDown;
+    }
+    return totalOriginalDown;
+  }
+  
+  // Check stored downPayment field
+  if (typeof b.downPayment === 'number' && !isNaN(b.downPayment) && b.downPayment > 0) {
+    return b.downPayment;
+  }
+  
+  // Fallback to 50% of total
   return Number(b.totalPrice || 0) * 0.5;
 };
 
 export const getBalance = (b) => {
+  // Cancelled bookings always have 0 balance
   if (['cancelled', 'cancelled-by-guest'].includes(b.status)) return 0;
-  if (typeof b.remainingBalance === 'number' && b.remainingBalance >= 0) return b.remainingBalance;
+  
+  // Check for manual override first (this is the key fix)
+  if (b.manualBalance !== undefined && b.manualBalance !== null && !isNaN(b.manualBalance)) {
+    return Number(b.manualBalance);
+  }
+  
+  // For exclusive resort bookings with manual override in children
+  if (b.isExclusiveResortBooking && b.children && b.children.length > 0) {
+    // Check if any child has manualBalance
+    for (const child of b.children) {
+      if (child.manualBalance !== undefined && child.manualBalance !== null && !isNaN(child.manualBalance)) {
+        return Number(child.manualBalance);
+      }
+    }
+  }
+  
+  // For multi-room bookings, aggregate children's balances
+  if (b.isMultiRoom && b.children && b.children.length > 0) {
+    let totalManualBalance = 0;
+    let hasManual = false;
+    let totalOriginalBalance = 0;
+    for (const child of b.children) {
+      if (child.manualBalance !== undefined && child.manualBalance !== null && !isNaN(child.manualBalance)) {
+        totalManualBalance += Number(child.manualBalance);
+        hasManual = true;
+      } else {
+        const dp = getDownPayment(child);
+        totalOriginalBalance += Math.max(0, Number(child.totalPrice || 0) - dp);
+      }
+    }
+    if (hasManual) {
+      return totalManualBalance;
+    }
+    return totalOriginalBalance;
+  }
+  
+  // Check stored remainingBalance field
+  if (typeof b.remainingBalance === 'number' && b.remainingBalance >= 0) {
+    return b.remainingBalance;
+  }
+  
+  // Calculate from total and down payment
   return Math.max(0, Number(b.totalPrice || 0) - getDownPayment(b));
+};
+
+
+export const getBookingNights = (booking) => {
+  if (!booking) return 0;
+  if (typeof booking.nights === 'number' && booking.nights > 0) return booking.nights;
+  return calcNights(booking.checkIn, booking.checkOut) || 0;
+};
+
+export const getRatePerNight = (booking) => {
+  if (!booking) return 0;
+  if (booking.ratePerNight !== undefined && booking.ratePerNight !== null) {
+    return Number(booking.ratePerNight) || 0;
+  }
+  if (booking.isExclusiveResortBooking) {
+    const tentCount = Number(booking.tentCount || 0);
+    return BASE_EXCLUSIVE_PRICE + tentCount * 1500;
+  }
+  const nights = getBookingNights(booking);
+  const total = Number(booking.manualTotalPrice ?? booking.totalPrice ?? 0);
+  if (nights > 0) return total / nights;
+  return total;
+};
+
+export const sumSavedExtraGuestCharges = (items) => {
+  if (!Array.isArray(items) || items.length === 0) return 0;
+  return items.reduce(
+    (sum, item) => sum + Number(item.totalExtraGuestCharge ?? item.extraGuestCharges ?? 0),
+    0
+  );
+};
+
+export const getExtraGuestCharges = (booking) => {
+  if (!booking) return 0;
+
+  const childList = booking.originalChildBookings || booking.children;
+  const isMultiRoomBooking = Boolean(
+    booking.isMultiRoomGroup || booking.isMultiRoom || (Array.isArray(childList) && childList.length > 1)
+  );
+
+  if (isMultiRoomBooking) {
+    if (booking.totalExtraGuestCharge !== undefined && booking.totalExtraGuestCharge !== null) {
+      return Number(booking.totalExtraGuestCharge) || 0;
+    }
+    if (Array.isArray(childList) && childList.length > 0) {
+      return sumSavedExtraGuestCharges(childList);
+    }
+  }
+
+  if (booking.totalExtraGuestCharge !== undefined && booking.totalExtraGuestCharge !== null) {
+    return Number(booking.totalExtraGuestCharge) || 0;
+  }
+  if (booking.extraGuestCharges !== undefined && booking.extraGuestCharges !== null) {
+    return Number(booking.extraGuestCharges) || 0;
+  }
+  return 0;
 };
 
 export const getRoomTypes = (b) => {
@@ -135,6 +276,11 @@ export const normalizeBooking = (docSnap, type) => {
     status: d.status || 'pending', createdAt: d.createdAt,
     totalPrice: Number(d.totalPrice || 0), downPayment: Number(d.downPayment || 0),
     remainingBalance: Number(d.remainingBalance || 0),
+    // --- NEW: manual payment fields ---
+    manualDownPayment: d.manualDownPayment !== undefined && d.manualDownPayment !== null ? Number(d.manualDownPayment) : undefined,
+    manualBalance: d.manualBalance !== undefined && d.manualBalance !== null ? Number(d.manualBalance) : undefined,
+    manualTotalPrice: d.manualTotalPrice !== undefined && d.manualTotalPrice !== null ? Number(d.manualTotalPrice) : undefined,
+    // --- end new ---
     guestInfo: d.guestInfo || {}, adminNote: d.adminNote || null,
     cancelledBy: d.cancelledBy || null, cancellationReason: d.cancellationReason || null,
     isExclusiveResortBooking: Boolean(d.isExclusiveResortBooking),
@@ -150,6 +296,10 @@ export const normalizeBooking = (docSnap, type) => {
     paymentProof: d.paymentProof || null,
     paymentProofUrl: d.paymentProofUrl || null,
     roomTypesArray: Array.isArray(d.roomTypes) ? d.roomTypes : d.roomTypesArray || null,
+    totalExtraGuestCharge: Number(d.totalExtraGuestCharge || 0),
+    extraGuestCharges: Number(d.extraGuestCharges || 0),
+    ratePerNight: d.ratePerNight !== undefined && d.ratePerNight !== null ? Number(d.ratePerNight) : undefined,
+    price: d.price !== undefined && d.price !== null ? Number(d.price) : undefined,
     guestUid: d.guestUid || null,
     checkinToken: d.checkinToken || null,
   };
@@ -174,23 +324,68 @@ export const buildMultiRoomGroup = (children, parentId) => {
     acc[t] = (acc[t] || 0) + 1;
     return acc;
   }, {});
-  const roomTypesArray = Object.entries(roomTypeCounts).map(([type, quantity]) => ({ type, quantity }));
+  const roomTypeExtra = children.reduce((acc, c) => {
+    const t = c.roomType || 'Room';
+    if (acc[t] !== undefined) return acc;
+    acc[t] = Number(c.totalExtraGuestCharge || c.extraGuestCharges || 0);
+    return acc;
+  }, {});
+  const roomTypesArray = Object.entries(roomTypeCounts).map(([type, quantity]) => ({
+    type,
+    quantity,
+    extraGuestCharges: roomTypeExtra[type] || 0,
+  }));
   const totalPrice = children.reduce((s, c) => s + Number(c.totalPrice || 0), 0);
   const tentCount = base.isExclusiveResortBooking
-  ? (base.tentCount || 0)  // Use the first child's tentCount (all children share the same value)
-  : children.reduce((s, c) => s + Number(c.tentCount || 0), 0);
+    ? (base.tentCount || 0)
+    : children.reduce((s, c) => s + Number(c.tentCount || 0), 0);
   const downPayment = children.reduce((s, c) => {
     const dp = (typeof c.downPayment === 'number' && !Number.isNaN(c.downPayment)) ? c.downPayment : Number(c.totalPrice || 0) * 0.5;
     return s + dp;
   }, 0);
   const totalGuests = children.reduce((s, c) => s + Number(c.guests || 0), 0);
-  // Determine if truly multi-room: more than one distinct room type
+
+  const firstWithRate = children.find((c) => c.ratePerNight !== undefined && c.ratePerNight !== null);
+  const ratePerNight = firstWithRate ? Number(firstWithRate.ratePerNight) : undefined;
+
+  const totalExtraGuestCharge = sumSavedExtraGuestCharges(children);
+
+  // --- NEW: aggregate manual payment fields ---
+  const firstWithManualDown = children.find((c) => c.manualDownPayment !== undefined && c.manualDownPayment !== null);
+  const manualDownPayment = firstWithManualDown ? Number(firstWithManualDown.manualDownPayment) : undefined;
+
+  const firstWithManualBalance = children.find((c) => c.manualBalance !== undefined && c.manualBalance !== null);
+  const manualBalance = firstWithManualBalance ? Number(firstWithManualBalance.manualBalance) : undefined;
+
+  const firstWithManualTotal = children.find((c) => c.manualTotalPrice !== undefined && c.manualTotalPrice !== null);
+  const manualTotalPrice = firstWithManualTotal ? Number(firstWithManualTotal.manualTotalPrice) : undefined;
+  // --- end new ---
+
   const isMultiRoom = roomTypesArray.length > 1;
   return {
-    ...base, key: `room-${parentId}`, id: parentId, bookingId: parentId,
-    isMultiRoom, isMultiRoomBooking: true, status: deriveGroupStatus(children),
-    children, roomTypesArray, totalRooms: children.length, totalPrice, downPayment,
-    remainingBalance: Math.max(totalPrice - downPayment, 0), totalGuests, tentCount, roomType: null,
+    ...base,
+    key: `room-${parentId}`,
+    id: parentId,
+    bookingId: parentId,
+    isMultiRoom,
+    isMultiRoomBooking: true,
+    status: deriveGroupStatus(children),
+    children,
+    roomTypesArray,
+    totalRooms: children.length,
+    totalPrice,
+    downPayment,
+    remainingBalance: Math.max(totalPrice - downPayment, 0),
+    totalGuests,
+    tentCount,
+    roomType: null,
+    totalExtraGuestCharge,
+    extraGuestCharges: totalExtraGuestCharge,
+    ratePerNight,
+    // --- NEW: include manual payment fields ---
+    manualDownPayment,
+    manualBalance,
+    manualTotalPrice,
   };
 };
 
@@ -302,7 +497,8 @@ export const lookupByReference = async (email, refNumber) => {
 
 // ─── Cancellation ────────────────────────────────────────
 export const cancelBooking = async (booking, reason) => {
-  const now = new Date().toISOString();
+  await syncPhilippineTime({ force: true });
+  const now = getPhilippineNowIsoString(getTrustedNowMs());
   const cancelData = { status: 'cancelled-by-guest', cancelledAt: now, cancelledBy: 'guest', cancellationReason: reason, updatedAt: now };
 
   if (booking.isMultiRoom && booking.children) {

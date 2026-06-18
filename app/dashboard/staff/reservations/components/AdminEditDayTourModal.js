@@ -7,6 +7,8 @@ import { db } from '@/lib/firebase';
 import { buildExclusiveResortBlockedDateMap, toLocalDateKey } from '@/lib/exclusiveResortDayTourBlocks';
 import { toDateValue } from '@/app/my-bookings/utils';
 import { logAdminAction } from '../../../../../lib/auditLogger';
+import { usePhilippineTimeSync } from '@/hooks/usePhilippineTimeSync';
+import { isPhilippineCalendarDatePast, getPhilippineNowIsoString } from '@/lib/reservationScheduleStatus';
 
 const toDateInputStr = (value) => {
   const d = toDateValue(value);
@@ -22,6 +24,7 @@ export function canAdminEditDayTour(booking) {
 }
 
 export default function AdminEditDayTourModal({ isOpen, booking, onClose, onSuccess }) {
+  const { ready: phTimeReady, nowMs } = usePhilippineTimeSync();
   const [selectedDate, setSelectedDate] = useState('');
   const [adults, setAdults] = useState(0);
   const [kids, setKids] = useState(0);
@@ -171,9 +174,8 @@ export default function AdminEditDayTourModal({ isOpen, booking, onClose, onSucc
   }, [isCalendarOpen]);
 
   const isDatePast = (date) => {
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
-    return date < today;
+    if (!phTimeReady) return true;
+    return isPhilippineCalendarDatePast(date, nowMs);
   };
 
   const isDateSelectable = (date) => {
@@ -236,7 +238,7 @@ export default function AdminEditDayTourModal({ isOpen, booking, onClose, onSucc
         manualBalance: computedBalance,
         manualTotalPrice: computedTotalPrice,
         manualDownPayment: fixedDownPayment,
-        updatedAt: new Date().toISOString(),
+        updatedAt: getPhilippineNowIsoString(nowMs),
       };
 
       await updateDoc(doc(db, 'dayTourBookings', booking.id), updates);

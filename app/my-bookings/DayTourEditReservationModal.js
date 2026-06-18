@@ -4,8 +4,15 @@
 import { useState, useEffect, useRef } from 'react';
 import { db } from '@/lib/firebase';
 import { doc, updateDoc, collection, query, where, onSnapshot, getDoc } from 'firebase/firestore';
+import { usePhilippineTimeSync } from '@/hooks/usePhilippineTimeSync';
+import {
+  isPhilippineCalendarDatePast,
+  isPhilippineCalendarDateTooSoon,
+  getPhilippineNowIsoString,
+} from '@/lib/philippineTime';
 
 export default function DayTourEditReservationModal({ isOpen, booking, onClose, onSuccess }) {
+  const { ready: phTimeReady, nowMs } = usePhilippineTimeSync();
   // Form state
   const [selectedDate, setSelectedDate] = useState(booking.selectedDate || '');
   const [adults, setAdults] = useState(String(booking.adults || 1));
@@ -256,17 +263,13 @@ export default function DayTourEditReservationModal({ isOpen, booking, onClose, 
 
   // Date availability rules (same as day-tour page)
   const isDatePast = (date) => {
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
-    return date < today;
+    if (!phTimeReady) return true;
+    return isPhilippineCalendarDatePast(date, nowMs);
   };
 
   const isDateTooSoon = (date) => {
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
-    const minBookable = new Date(today);
-    minBookable.setDate(minBookable.getDate() + 2);
-    return date < minBookable && date >= today;
+    if (!phTimeReady) return true;
+    return isPhilippineCalendarDateTooSoon(date, 2, nowMs);
   };
 
   // Date selectable if effective remaining capacity > 0 (so current date remains selectable)
@@ -377,7 +380,7 @@ export default function DayTourEditReservationModal({ isOpen, booking, onClose, 
         kids: parseInt(kids, 10),
         totalPrice: newTotal,
         remainingBalance: newRemainingBalance,
-        updatedAt: new Date().toISOString(),
+        updatedAt: getPhilippineNowIsoString(nowMs),
         hasBeenEdited: true  // Mark as edited
       };
       await updateDoc(bookingRef, updateData);

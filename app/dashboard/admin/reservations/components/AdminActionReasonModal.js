@@ -8,6 +8,7 @@ import {
   resolveChangeRequestFromBooking,
   resolveBookingTypeLabel,
 } from './AdminRequestChangesModal';
+import { getPhilippineNowIsoString } from '@/lib/reservationScheduleStatus';
 
 function resolveBaseUrl() {
   if (typeof window !== 'undefined') {
@@ -203,7 +204,7 @@ export default function AdminActionReasonModal({ isOpen, action, booking, onClos
     submitLockRef.current = true;
     setLoading(true);
 
-    const processedAt = new Date().toISOString();
+    const processedAt = getPhilippineNowIsoString();
     const changeRequest = resolveChangeRequestFromBooking(booking);
     const requestedChanges = changeRequest?.text || '';
 

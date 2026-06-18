@@ -5,8 +5,15 @@ import { useState, useEffect, useRef } from 'react';
 import { doc, updateDoc, getDocs, collection, query, where, getDoc, onSnapshot } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 import { toDateValue } from './utils';
+import { usePhilippineTimeSync } from '@/hooks/usePhilippineTimeSync';
+import {
+  isPhilippineCalendarDatePast,
+  isPhilippineCalendarDateTooSoon,
+  getPhilippineNowIsoString,
+} from '@/lib/philippineTime';
 
 export default function EditReservationModal({ isOpen, booking, onClose, onSuccess }) {
+  const { ready: phTimeReady, nowMs } = usePhilippineTimeSync();
   const [checkIn, setCheckIn] = useState('');
   const [checkOut, setCheckOut] = useState('');
   const [originalNights, setOriginalNights] = useState(0);
@@ -557,18 +564,13 @@ export default function EditReservationModal({ isOpen, booking, onClose, onSucce
   };
 
   const isDatePast = (date) => {
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
-    return date < today;
+    if (!phTimeReady) return true;
+    return isPhilippineCalendarDatePast(date, nowMs);
   };
 
   const isDateTooSoon = (date) => {
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
-    const minBookableDate = new Date();
-    minBookableDate.setDate(minBookableDate.getDate() + 2);
-    minBookableDate.setHours(0, 0, 0, 0);
-    return date < minBookableDate && date >= today;
+    if (!phTimeReady) return true;
+    return isPhilippineCalendarDateTooSoon(date, 2, nowMs);
   };
 
   const isDateSelectable = (date) => {
@@ -818,10 +820,8 @@ export default function EditReservationModal({ isOpen, booking, onClose, onSucce
     
     const checkInDate = new Date(checkIn);
     const checkOutDate = new Date(checkOut);
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
-    
-    if (checkInDate < today) {
+
+    if (isPhilippineCalendarDatePast(checkInDate, nowMs)) {
       setError('Check-in date cannot be in the past');
       return;
     }
@@ -873,7 +873,7 @@ export default function EditReservationModal({ isOpen, booking, onClose, onSucce
         checkIn: checkInDate,
         checkOut: checkOutDate,
         nights: originalNights,
-        updatedAt: new Date(),
+        updatedAt: getPhilippineNowIsoString(nowMs),
         hasBeenEdited: true  // Mark as edited
       };
       
@@ -903,7 +903,7 @@ export default function EditReservationModal({ isOpen, booking, onClose, onSucce
               exclusiveAdults,
               exclusiveKids,
               tentCount: exclusiveTentCount,
-              updatedAt: new Date(),
+              updatedAt: getPhilippineNowIsoString(nowMs),
               hasBeenEdited: true
             }));
           }
@@ -919,7 +919,7 @@ export default function EditReservationModal({ isOpen, booking, onClose, onSucce
               adults: guestData.adults,
               kids: guestData.kids,
               guests: guestData.adults + guestData.kids,
-              updatedAt: new Date(),
+              updatedAt: getPhilippineNowIsoString(nowMs),
               hasBeenEdited: true
             }));
             totalAdults += guestData.adults;
@@ -949,7 +949,7 @@ export default function EditReservationModal({ isOpen, booking, onClose, onSucce
             checkIn: checkInDate,
             checkOut: checkOutDate,
             nights: originalNights,
-            updatedAt: new Date(),
+            updatedAt: getPhilippineNowIsoString(nowMs),
             hasBeenEdited: true
           }));
         }

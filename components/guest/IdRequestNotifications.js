@@ -15,6 +15,8 @@ import {
 } from '@/lib/idRequestUtils';
 import { formatDateTime, getTypeDisplay, getBookingTitle } from '@/app/my-bookings/utils';
 import IdRequestViewModal from '@/components/guest/IdRequestViewModal';
+import { usePhilippineTimeSync } from '@/hooks/usePhilippineTimeSync';
+import { getTrustedNowMs, getPhilippineNowIsoString } from '@/lib/philippineTime';
 
 const DISMISSED_STORAGE_KEY = 'sandyfeet-guest-notification-dismissed';
 const ALLOWED_BOOKING_TYPE_LABELS = new Set([
@@ -25,11 +27,11 @@ const ALLOWED_BOOKING_TYPE_LABELS = new Set([
 ]);
 const RECENT_NOTIFICATION_DAYS = 30;
 
-function isRecentTimestamp(value) {
+function isRecentTimestamp(value, nowMs = getTrustedNowMs()) {
   if (!value) return false;
   const timestamp = new Date(value).getTime();
   if (Number.isNaN(timestamp)) return false;
-  const ageMs = Date.now() - timestamp;
+  const ageMs = nowMs - timestamp;
   return ageMs >= 0 && ageMs <= RECENT_NOTIFICATION_DAYS * 24 * 60 * 60 * 1000;
 }
 
@@ -201,7 +203,7 @@ function detectTransitionNotifications(docSnap, bookingType, previousState) {
       kind: 'reservation_confirmed',
       notificationType: 'Booking Confirmed',
       adminNote: getConfirmationAdminNote(data),
-      timestamp: data.updatedAt || new Date().toISOString(),
+      timestamp: data.updatedAt || getPhilippineNowIsoString(),
       key: `confirmed-${bookingType}-${dedupeKey}`,
     });
   }
@@ -216,7 +218,7 @@ function detectTransitionNotifications(docSnap, bookingType, previousState) {
       kind: 'reservation_cancelled',
       notificationType: 'Booking Cancelled',
       adminNote: data.cancellationReason?.trim() || 'No reason provided',
-      timestamp: data.cancelledAt || data.updatedAt || new Date().toISOString(),
+      timestamp: data.cancelledAt || data.updatedAt || getPhilippineNowIsoString(),
       key: `cancelled-${bookingType}-${dedupeKey}`,
     });
   }
@@ -236,7 +238,7 @@ function detectTransitionNotifications(docSnap, bookingType, previousState) {
         data.changeRequest?.adminNote?.trim() ||
         data.changeRequest?.adminReason?.trim() ||
         'No response provided',
-      timestamp: data.changeRequest?.processedAt || data.updatedAt || new Date().toISOString(),
+      timestamp: data.changeRequest?.processedAt || data.updatedAt || getPhilippineNowIsoString(),
       key: `change-${currentChangeStatus}-${bookingType}-${dedupeKey}`,
     });
   }
@@ -394,6 +396,7 @@ function useBankPaymentNotifications(collectionName, requestType, email, rawBook
 
 export default function IdRequestNotifications() {
   const { user } = useGuestAuth();
+  usePhilippineTimeSync();
   const [selectedNotification, setSelectedNotification] = useState(null);
   const [modalOpen, setModalOpen] = useState(false);
   const [dismissedKeys, setDismissedKeys] = useState(() => readDismissedKeys());
