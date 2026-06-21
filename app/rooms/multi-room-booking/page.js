@@ -13,7 +13,7 @@ import { sendRoomPendingEmail } from '@/lib/emailService';
 import ChatBot from '@/components/guest/ChatBot';
 import { QRCodeSVG } from 'qrcode.react';
 import { useGuestAuth } from '@/components/guest/GuestAuthContext';
-import { getDisplayValidIdType, hasAccountValidId, hasAccountMobileNumber } from '@/lib/guestValidId';
+import { getDisplayValidIdType, hasAccountValidIdVerification, hasAccountMobileNumber } from '@/lib/guestValidId';
 import {
   buildGuestInfoWithAddress,
   getAddressBlockerMessage,
@@ -481,8 +481,8 @@ function MultiRoomBookingPageContent() {
     } else {
       setMobileNumberError('');
     }
-    if (!hasAccountValidId(profile)) {
-      setValidIdError('A valid ID photo is required. Please upload your valid ID in your account profile.');
+    if (!hasAccountValidIdVerification(profile)) {
+      setValidIdError('A valid ID photo and selfie holding the same ID are required. Please upload both in your account profile.');
       valid = false;
     } else {
       setValidIdError('');
@@ -865,7 +865,7 @@ if (allRoomIds.length <= 1) {
     !submitting &&
     (paymentMethod !== 'bank_transfer' || bankDetailsProvided || visibleGuestQrBank) &&
     userMobileNumber &&
-    hasAccountValidId(profile) &&
+    hasAccountValidIdVerification(profile) &&
     ['digital', 'cash'].includes(balancePaymentMethod) &&
     hasCompleteAddress
   );
@@ -880,8 +880,8 @@ if (allRoomIds.length <= 1) {
   if (!userMobileNumber) {
     confirmBookingBlockers.push('Add a mobile number in your account profile.');
   }
-  if (!hasAccountValidId(profile)) {
-    confirmBookingBlockers.push('Upload a valid ID in your account profile.');
+  if (!hasAccountValidIdVerification(profile)) {
+    confirmBookingBlockers.push('Upload both your valid ID photo and selfie holding the same ID in your account profile.');
   }
   if (!['digital', 'cash'].includes(balancePaymentMethod)) {
     confirmBookingBlockers.push('Select how you will pay your remaining balance at check-in (Digital or Cash).');
@@ -1128,7 +1128,7 @@ if (allRoomIds.length <= 1) {
                             Required for booking verification.
                           </p>
                           <div className="relative">
-                            {hasAccountValidId(profile) ? (
+                            {hasAccountValidIdVerification(profile) ? (
                               <button
                                 type="button"
                                 onClick={() => router.push('/account#photo-details')}
@@ -1146,7 +1146,7 @@ if (allRoomIds.length <= 1) {
                               </button>
                             )}
                           </div>
-                          {hasAccountValidId(profile) ? (
+                          {hasAccountValidIdVerification(profile) ? (
                             <p className="mt-2.5 text-[11px] text-emerald-600 flex items-center gap-1.5">
                               <i className="fas fa-check-circle text-emerald-500"></i>
                               On file — used for this reservation ({accountValidIdType})
@@ -1154,7 +1154,7 @@ if (allRoomIds.length <= 1) {
                           ) : (
                             <p className="mt-2.5 text-[11px] text-amber-600 flex items-center gap-1.5">
                               <i className="fas fa-exclamation-circle text-amber-500"></i>
-                              No valid ID on file. Required to confirm booking.
+                              Not uploaded or incomplete. Required to confirm booking.
                             </p>
                           )}
                         </div>
@@ -1312,7 +1312,7 @@ if (allRoomIds.length <= 1) {
                                   ))}
                                 </select>
                               ) : (
-                                <p className="text-xs text-amber-600">No bank accounts are available right now.</p>
+                                <p className="text-xs text-amber-600">No other bank accounts are available right now.</p>
                               )}
                             </div>
                           ) : (
@@ -1373,7 +1373,7 @@ if (allRoomIds.length <= 1) {
                             Required for booking verification.
                           </p>
                           <div className="relative">
-                            {hasAccountValidId(profile) ? (
+                            {hasAccountValidIdVerification(profile) ? (
                               <button
                                 type="button"
                                 onClick={() => router.push('/account#photo-details')}
@@ -1391,7 +1391,7 @@ if (allRoomIds.length <= 1) {
                               </button>
                             )}
                           </div>
-                          {hasAccountValidId(profile) ? (
+                          {hasAccountValidIdVerification(profile) ? (
                             <p className="mt-2.5 text-[11px] text-emerald-600 flex items-center gap-1.5">
                               <i className="fas fa-check-circle text-emerald-500"></i>
                               On file — used for this reservation ({accountValidIdType})
@@ -1399,7 +1399,7 @@ if (allRoomIds.length <= 1) {
                           ) : (
                             <p className="mt-2.5 text-[11px] text-amber-600 flex items-center gap-1.5">
                               <i className="fas fa-exclamation-circle text-amber-500"></i>
-                              Not uploaded. Required to confirm booking.
+                              Not uploaded or incomplete. Required to confirm booking.
                             </p>
                           )}
                         </div>

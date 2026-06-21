@@ -12,7 +12,7 @@ import ChatBot from '@/components/guest/ChatBot';
 import { QRCodeSVG } from 'qrcode.react';
 import { useGuestAuth } from '@/components/guest/GuestAuthContext';
 import GuestAuthModal from '@/components/guest/GuestAuthModal';
-import { getDisplayValidIdType, hasAccountValidId, hasAccountMobileNumber } from '@/lib/guestValidId';
+import { getDisplayValidIdType, hasAccountValidIdVerification, hasAccountMobileNumber } from '@/lib/guestValidId';
 import {
   buildGuestInfoWithAddress,
   getAddressBlockerMessage,
@@ -361,6 +361,9 @@ function DayTourBookingContent() {
 
   // Parse selected date from URL params
   useEffect(() => {
+    // Wait for Philippine time to sync before validating the date
+    if (!phTimeReady) return;
+    
     if (dateParam) {
       const date = new Date(dateParam);
       if (!isNaN(date.getTime()) && !isDateBeforeLeadTime(date)) {
@@ -371,7 +374,7 @@ function DayTourBookingContent() {
     } else {
       router.push('/day-tour');
     }
-  }, [dateParam, router]);
+  }, [dateParam, router, phTimeReady]);
 
   useEffect(() => {
     if (!authLoading && !user) {
@@ -428,7 +431,7 @@ function DayTourBookingContent() {
     bookingData.paymentProof &&
     !submitting &&
     hasMobileNumber &&
-    hasAccountValidId(profile) &&
+    hasAccountValidIdVerification(profile) &&
     (paymentMethod !== 'bank_transfer' || bankDetailsProvided || visibleGuestQrBank) &&
     ['digital', 'cash'].includes(balancePaymentMethod) &&
     hasCompleteAddress
@@ -615,9 +618,9 @@ function DayTourBookingContent() {
       return;
     }
     setMobileNumberError('');
-    if (!hasAccountValidId(profile)) {
-      setValidIdError('Please upload a valid ID in your account profile before booking.');
-      setModalNotification({ message: 'A valid ID photo is required. Upload it in your account profile.', type: 'error' });
+    if (!hasAccountValidIdVerification(profile)) {
+      setValidIdError('Please upload both your valid ID photo and a selfie holding the same ID in your account profile.');
+      setModalNotification({ message: 'A valid ID photo and a selfie holding the same ID are required. Upload both in your account profile.', type: 'error' });
       return;
     }
     setValidIdError('');
@@ -802,10 +805,10 @@ function DayTourBookingContent() {
     {
       icon: 'fa-id-card',
       label: 'Valid ID on File',
-      description: hasAccountValidId(profile)
-        ? `${accountValidIdType} from your account.`
-        : 'Upload your valid ID in Account settings.',
-      complete: hasAccountValidId(profile)
+      description: hasAccountValidIdVerification(profile)
+        ? `${accountValidIdType} from your account (with selfie verification).`
+        : 'Upload your valid ID and selfie in Account settings.',
+      complete: hasAccountValidIdVerification(profile)
     },
     {
       icon: 'fa-receipt',
@@ -846,14 +849,14 @@ function DayTourBookingContent() {
   );
 
   const renderAccountValidIdCard = () => {
-    const hasValidId = hasAccountValidId(profile);
+    const hasValidId = hasAccountValidIdVerification(profile);
     return (
       <div className="rounded-2xl border p-5 shadow-sm border-ocean-light/20 bg-white">
         <div className="flex items-start justify-between gap-3 mb-4">
           <div>
             <p className="text-sm font-semibold text-textPrimary">Valid ID (from your account)</p>
             <p className="text-xs text-textSecondary mt-1">
-              Used automatically for this reservation.
+              Required for booking verification.
             </p>
           </div>
           <div className={`flex h-10 w-10 items-center justify-center rounded-full ${hasValidId ? 'bg-green-100 text-green-600' : 'bg-ocean-ice text-ocean-mid'}`}>
@@ -887,7 +890,7 @@ function DayTourBookingContent() {
               </button>
               <p className="mt-3 text-xs text-amber-600 flex items-center gap-1.5">
                 <i className="fas fa-exclamation-circle"></i>
-                No valid ID on file. Required to confirm booking.
+                Not uploaded or incomplete. Required to confirm booking.
               </p>
             </div>
           )}

@@ -45,8 +45,10 @@ function GuestAccountContent() {
     validIdType: 'Passport',
     validIdOther: '',
     validIdUrl: '',
+    validIdSelfieUrl: '',
   });
   const [validIdUploading, setValidIdUploading] = useState(false);
+  const [validIdSelfieUploading, setValidIdSelfieUploading] = useState(false);
   const [validIdSaving, setValidIdSaving] = useState(false);
 
   const handleSignOutClick = () => setShowSignOutModal(true);
@@ -74,6 +76,7 @@ function GuestAccountContent() {
       validIdType: profile?.validIdType || 'Passport',
       validIdOther: profile?.validIdOther || '',
       validIdUrl: profile?.validIdUrl || '',
+      validIdSelfieUrl: profile?.validIdSelfieUrl || '',
     });
   }, [profile, user]);
 
@@ -139,6 +142,31 @@ function GuestAccountContent() {
     }
   };
 
+  const handleValidIdSelfieFileChange = async (e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    if (file.size > 10 * 1024 * 1024) {
+      setProfileNotice('File size exceeds 10MB. Please choose a smaller file.');
+      return;
+    }
+
+    setValidIdSelfieUploading(true);
+    try {
+      const compressedFile = await compressImage(file, {
+        maxSizeMB: 0.05,
+        maxDimension: 900,
+      });
+      const imageUrl = await uploadImage(compressedFile);
+      setValidIdForm((prev) => ({ ...prev, validIdSelfieUrl: imageUrl }));
+    } catch (err) {
+      console.error('Failed to upload selfie with valid ID:', err);
+      setProfileNotice('Unable to upload selfie with valid ID right now.');
+    } finally {
+      setValidIdSelfieUploading(false);
+    }
+  };
+
   const handleStartValidIdUpload = () => {
     setIsEditingValidId(true);
   };
@@ -148,6 +176,7 @@ function GuestAccountContent() {
       validIdType: profile?.validIdType || 'Passport',
       validIdOther: profile?.validIdOther || '',
       validIdUrl: profile?.validIdUrl || '',
+      validIdSelfieUrl: profile?.validIdSelfieUrl || '',
     });
     setIsEditingValidId(true);
   };
@@ -157,6 +186,7 @@ function GuestAccountContent() {
       validIdType: profile?.validIdType || 'Passport',
       validIdOther: profile?.validIdOther || '',
       validIdUrl: profile?.validIdUrl || '',
+      validIdSelfieUrl: profile?.validIdSelfieUrl || '',
     });
     setIsEditingValidId(false);
   };
@@ -168,6 +198,10 @@ function GuestAccountContent() {
     }
     if (!validIdForm.validIdUrl) {
       setProfileNotice('Please upload a valid ID photo.');
+      return;
+    }
+    if (!validIdForm.validIdSelfieUrl) {
+      setProfileNotice('Please upload a selfie with your valid ID.');
       return;
     }
     if (!validIdForm.validIdType) {
@@ -184,6 +218,7 @@ function GuestAccountContent() {
     try {
       await updateGuestProfile({
         validIdUrl: validIdForm.validIdUrl,
+        validIdSelfieUrl: validIdForm.validIdSelfieUrl,
         validIdType: validIdForm.validIdType,
         validIdOther: validIdForm.validIdType === 'Other' ? validIdForm.validIdOther.trim() : '',
       });
@@ -621,9 +656,28 @@ function GuestAccountContent() {
                             <span className="text-[#1E3A8A]/70">ID Type:</span>
                             <span className="font-semibold text-[#1E3A8A]">{getDisplayValidIdType(profile)}</span>
                           </div>
-                          <div className="overflow-hidden rounded-xl border border-[#4D8CF5]/20 bg-[#F9FCFF]">
-                            <img src={profile.validIdUrl} alt="Valid ID" className="max-h-64 w-full object-contain bg-white" />
+                          <div className="grid gap-4 lg:grid-cols-2">
+                            <div className="overflow-hidden rounded-xl border border-[#4D8CF5]/20 bg-[#F9FCFF]">
+                              <img src={profile.validIdUrl} alt="Valid ID" className="max-h-64 w-full object-contain bg-white" />
+                            </div>
+                            <div className="overflow-hidden rounded-xl border border-[#4D8CF5]/20 bg-[#F9FCFF]">
+                              {profile.validIdSelfieUrl ? (
+                                <img src={profile.validIdSelfieUrl} alt="Selfie holding valid ID" className="max-h-64 w-full object-contain bg-white" />
+                              ) : (
+                                <div className="flex min-h-[16rem] items-center justify-center p-6 text-center text-sm text-[#4D6FA8]">
+                                  <div>
+                                    <p className="font-semibold text-[#1E3A8A]">Selfie missing</p>
+                                    <p className="mt-2">Upload a selfie holding the same ID to complete verification.</p>
+                                  </div>
+                                </div>
+                              )}
+                            </div>
                           </div>
+                          {!profile.validIdSelfieUrl && (
+                            <p className="text-sm text-amber-700">
+                              A selfie holding the same valid ID is required for complete booking verification.
+                            </p>
+                          )}
                         </div>
                       ) : !isEditingValidId ? (
                         <div className="flex flex-col items-start gap-4">
@@ -646,7 +700,13 @@ function GuestAccountContent() {
                               <i className="fas fa-info-circle text-xs" />
                             </div>
                             <p className="text-sm leading-relaxed text-[#1E3A8A]/80">
-                              The uploaded valid ID will automatically be used for future room or day tour reservations.
+                              The uploaded valid ID and selfie will automatically be used for future room or day tour reservations.
+                            </p>
+                          </div>
+                          <div className="rounded-xl border border-[#E4E7EB] bg-[#F8FAFC] p-4 text-xs leading-relaxed text-[#516B85]">
+                            <p className="font-semibold text-[#1E3A8A]">Note:</p>
+                            <p className="mt-2">
+                              For security and verification purposes, you are required to upload a photo of your valid ID and a photo of yourself holding the same ID. This helps prevent fraudulent bookings and protects both guests and resort management.
                             </p>
                           </div>
                           <div className="space-y-1">
@@ -679,7 +739,7 @@ function GuestAccountContent() {
                             </div>
                           )}
                           <div className="space-y-2">
-                            <label className="text-sm font-semibold text-[#1E3A8A]">Valid ID Photo</label>
+                            <label className="text-sm font-semibold text-[#1E3A8A]">Photo 1: Valid Government-Issued ID</label>
                             <div className="relative">
                               <input
                                 type="file"
@@ -694,7 +754,29 @@ function GuestAccountContent() {
                                 ) : (
                                   <div className="text-center text-sm text-[#4D6FA8]">
                                     <i className="fas fa-camera mb-2 block text-2xl text-[#4D8CF5]/50"></i>
-                                    {validIdUploading ? ' Uploading...' : ' Click to select a photo'}
+                                    {validIdUploading ? ' Uploading...' : ' Click to select a photo of your valid ID'}
+                                  </div>
+                                )}
+                              </div>
+                            </div>
+                          </div>
+                          <div className="space-y-2">
+                            <label className="text-sm font-semibold text-[#1E3A8A]">Photo 2: Selfie Holding the Same ID</label>
+                            <div className="relative">
+                              <input
+                                type="file"
+                                accept="image/*"
+                                onChange={handleValidIdSelfieFileChange}
+                                className="absolute inset-0 h-full w-full cursor-pointer opacity-0"
+                                disabled={validIdSelfieUploading}
+                              />
+                              <div className={`flex min-h-[11rem] items-center justify-center rounded-xl border-2 border-dashed border-[#4D8CF5]/30 bg-[#F9FCFF] p-4 ${validIdSelfieUploading ? 'opacity-60' : ''}`}>
+                                {validIdForm.validIdSelfieUrl ? (
+                                  <img src={validIdForm.validIdSelfieUrl} alt="Selfie with valid ID preview" className="max-h-52 w-full object-contain" />
+                                ) : (
+                                  <div className="text-center text-sm text-[#4D6FA8]">
+                                    <i className="fas fa-camera-retro mb-2 block text-2xl text-[#4D8CF5]/50"></i>
+                                    {validIdSelfieUploading ? ' Uploading...' : ' Click to select a selfie holding your valid ID'}
                                   </div>
                                 )}
                               </div>
@@ -707,10 +789,10 @@ function GuestAccountContent() {
                             <button
                               type="button"
                               onClick={handleSaveValidId}
-                              disabled={validIdSaving || validIdUploading || !validIdForm.validIdUrl}
+                              disabled={validIdSaving || validIdUploading || validIdSelfieUploading || !validIdForm.validIdUrl || !validIdForm.validIdSelfieUrl}
                               className="inline-flex items-center gap-2 rounded-xl bg-[#4D8CF5] px-5 py-2.5 text-sm font-semibold text-white shadow-md hover:bg-[#3B78E7] disabled:opacity-70"
                             >
-                              {validIdSaving ? <><i className="fas fa-spinner fa-spin"></i> Saving...</> : <><i className="fas fa-save"></i> Save Valid ID</>}
+                              {validIdSaving ? <><i className="fas fa-spinner fa-spin"></i> Saving...</> : <><i className="fas fa-save"></i> Save Verification</>}
                             </button>
                           </div>
                         </div>

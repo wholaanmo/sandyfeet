@@ -131,12 +131,16 @@ function DayTourPageContent() {
   };
 
   const isDatePast = (targetDate) => {
-    if (!phTimeReady) return true;
+    // If Philippine time hasn't synced yet, don't block based on "past"
+    // The validation will run again once time is synced
+    if (!phTimeReady) return false;
     return isPhilippineCalendarDatePast(targetDate, nowMs);
   };
 
   const isDateTooSoon = (targetDate) => {
-    if (!phTimeReady) return true;
+    // If Philippine time hasn't synced yet, don't block based on "too soon"
+    // The validation will run again once time is synced
+    if (!phTimeReady) return false;
     return isPhilippineCalendarDateTooSoon(targetDate, 2, nowMs);
   };
 
@@ -395,7 +399,7 @@ function DayTourPageContent() {
     }
 
     setDateError('');
-  }, [date, adults, kids, adultsCount, kidsCount, dayTour, bookedDates, unavailableDates]);
+  }, [date, adults, kids, adultsCount, kidsCount, dayTour, bookedDates, unavailableDates, phTimeReady, nowMs]);
 
   const handleBookingStart = (e) => {
     e.preventDefault();
