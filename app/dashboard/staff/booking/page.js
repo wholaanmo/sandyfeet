@@ -1217,15 +1217,6 @@ export default function StaffBooking() {
       )}
 
       {/* Header */}
-      <div className="mb-6 rounded-xl border border-[#7AAAF8]/20 bg-[#7AAAF8]/5 px-4 sm:px-5 py-4 shadow-sm">
-        <h1 className="text-2xl sm:text-3xl font-bold text-[#1E3A8A] font-playfair tracking-tight flex items-center gap-3">
-          <i className="fas fa-calendar-plus text-[#4D8CF5]"></i>
-          Create Booking
-        </h1>
-        <p className="text-[#4D6FA8] text-xs sm:text-sm leading-relaxed mt-1">
-          Book rooms for walk-in guests or direct bookings
-        </p>
-      </div>
 
       <div className="flex flex-col lg:flex-row lg:items-end justify-between mb-8 gap-6">
         <div>

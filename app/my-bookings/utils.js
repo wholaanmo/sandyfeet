@@ -231,6 +231,11 @@ export const sumSavedExtraGuestCharges = (items) => {
 export const getExtraGuestCharges = (booking) => {
   if (!booking) return 0;
 
+  // Entire Resort bookings do NOT incur extra guest charges.
+  // Ensure we explicitly return 0 for exclusive resort bookings so the
+  // admin/staff views neither calculate nor display this fee.
+  if (booking.isExclusiveResortBooking) return 0;
+
   const childList = booking.originalChildBookings || booking.children;
   const isMultiRoomBooking = Boolean(
     booking.isMultiRoomGroup || booking.isMultiRoom || (Array.isArray(childList) && childList.length > 1)

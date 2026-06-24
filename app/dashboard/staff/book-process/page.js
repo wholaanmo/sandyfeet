@@ -44,7 +44,7 @@ export default function StaffBookProcess() {
         <p className="text-[#4D6FA8] text-xs sm:text-sm leading-relaxed mt-1">
           {showProcess 
             ? 'Complete the booking process' 
-            : 'Select the type of reservation you want to create.'}
+            : 'Book reservations for walk-in guests or direct bookings'}
         </p>
       </div>
 

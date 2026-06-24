@@ -803,15 +803,6 @@ const handlePreviousStep = () => {
       )}
 
       {/* Header */}
-      <div className="mb-6 rounded-xl border border-[#7AAAF8]/20 bg-[#7AAAF8]/5 px-4 sm:px-5 py-4 shadow-sm">
-        <h1 className="text-2xl sm:text-3xl font-bold text-[#1E3A8A] font-playfair tracking-tight flex items-center gap-3">
-          <i className="fas fa-umbrella-beach text-[#4D8CF5]"></i>
-          Create Day Tour Booking
-        </h1>
-        <p className="text-[#4D6FA8] text-xs sm:text-sm leading-relaxed mt-1">
-          Book a day tour for walk-in guests
-        </p>
-      </div>
 
       {/* Layout - Form on LEFT, Summary on RIGHT */}
       <div className="flex flex-col lg:flex-row gap-6">
@@ -1177,88 +1168,86 @@ const handlePreviousStep = () => {
                 {/* ============================================================
                     NEW: Remaining Balance Payment Method - matches multi-room booking style
                     ============================================================ */}
-                <div className="border-t border-gray-200 pt-6">
-                  <label className="block text-xs sm:text-sm font-semibold text-textPrimary mb-3">
-                    Remaining Balance Payment Method
-                  </label>
+          <div className="border-t border-gray-200 pt-6">
+  <label className="block text-xs sm:text-sm font-semibold text-textPrimary mb-3">
+    Remaining Balance Payment Method
+  </label>
 
-                  <div className="grid grid-cols-2 gap-3 sm:gap-4">
-                    {[
-                      {
-                        value: 'digital',
-                        label: 'Digital Payment',
-                        icon: 'fa-mobile-alt',
-                        description: 'Pay the remaining balance digitally.',
-                      },
-                      {
-                        value: 'cash',
-                        label: 'Cash',
-                        icon: 'fa-money-bill-wave',
-                        description: 'Pay the remaining balance in cash.',
-                      },
-                    ].map((option) => (
-                      <button
-                        key={option.value}
-                        type="button"
-                        onClick={() => setBalancePaymentMethod(option.value)}
-                        className={`rounded-xl border p-3 sm:p-4 text-left transition-all duration-200 ${
-                          balancePaymentMethod === option.value
-                            ? 'border-blue-500 bg-blue-50/50 shadow-sm'
-                            : 'border-gray-200 bg-white hover:border-blue-300 hover:shadow-md'
-                        }`}
-                      >
-                        <div className="flex items-start justify-between gap-2">
-                          <div className="flex items-start gap-2">
-                            <span
-                              className={`mt-1 flex h-3.5 w-3.5 shrink-0 items-center justify-center rounded-full border-2 ${
-                                balancePaymentMethod === option.value
-                                  ? 'border-blue-600'
-                                  : 'border-gray-300'
-                              }`}
-                            >
-                              {balancePaymentMethod === option.value && (
-                                <span className="h-1.5 w-1.5 rounded-full bg-blue-600" />
-                              )}
-                            </span>
+  <div className="grid grid-cols-2 gap-3 sm:gap-4">
+    {[
+      {
+        value: 'digital',
+        label: 'Digital Payment',
+        icon: 'fa-mobile-alt',
+      },
+      {
+        value: 'cash',
+        label: 'Cash',
+        icon: 'fa-money-bill-wave',
+      },
+    ].map((option) => (
+      <button
+        key={option.value}
+        type="button"
+        onClick={() => setBalancePaymentMethod(option.value)}
+        className={`rounded-xl border p-2.5 sm:p-3 text-left transition-all duration-200 ${
+          balancePaymentMethod === option.value
+            ? 'border-blue-500 bg-blue-50/50 shadow-sm'
+            : 'border-gray-200 bg-white hover:border-blue-300 hover:shadow-md'
+        }`}
+      >
+        <div className="flex items-center justify-between gap-2">
+          <div className="flex items-center gap-2">
+            <span
+              className={`flex h-3.5 w-3.5 shrink-0 items-center justify-center rounded-full border-2 ${
+                balancePaymentMethod === option.value
+                  ? 'border-blue-600'
+                  : 'border-gray-300'
+              }`}
+            >
+              {balancePaymentMethod === option.value && (
+                <span className="h-1.5 w-1.5 rounded-full bg-blue-600" />
+              )}
+            </span>
 
-                            <div
-                              className={`flex h-9 w-9 sm:h-10 sm:w-10 items-center justify-center rounded-xl ${
-                                balancePaymentMethod === option.value
-                                  ? 'bg-blue-600 text-white'
-                                  : 'bg-blue-50 text-blue-600'
-                              }`}
-                            >
-                              <i className={`fas ${option.icon} text-xs sm:text-sm`} />
-                            </div>
+            <div
+              className={`flex h-7 w-7 sm:h-8 sm:w-8 items-center justify-center rounded-xl ${
+                balancePaymentMethod === option.value
+                  ? 'bg-blue-600 text-white'
+                  : 'bg-blue-50 text-blue-600'
+              }`}
+            >
+              <i className={`fas ${option.icon} text-xs sm:text-sm`} />
+            </div>
 
-                            <div>
-                              <p
-                                className={`text-xs sm:text-sm font-semibold ${
-                                  balancePaymentMethod === option.value
-                                    ? 'text-blue-600'
-                                    : 'text-textPrimary'
-                                }`}
-                              >
-                                {option.label}
-                              </p>
+            <div>
+              <p
+                className={`text-xs sm:text-sm font-semibold ${
+                  balancePaymentMethod === option.value
+                    ? 'text-blue-600'
+                    : 'text-textPrimary'
+                }`}
+              >
+                {option.label}
+              </p>
 
-                              <p className="mt-0.5 text-[11px] sm:text-xs leading-tight text-textSecondary">
-                                {option.description}
-                              </p>
-                            </div>
-                          </div>
+              <p className="mt-0.5 text-[10px] sm:text-[11px] leading-tight text-textSecondary">
+                {option.description}
+              </p>
+            </div>
+          </div>
 
-                          {balancePaymentMethod === option.value && (
-                            <i className="fas fa-check-circle text-blue-600 text-xs sm:text-sm" />
-                          )}
-                        </div>
-                      </button>
-                    ))}
-                  </div>
-                  {formErrors.balancePaymentMethod && (
-                    <p className="text-red-500 text-[10px] mt-1">{formErrors.balancePaymentMethod}</p>
-                  )}
-                </div>
+          {balancePaymentMethod === option.value && (
+            <i className="fas fa-check-circle text-blue-600 text-xs sm:text-sm" />
+          )}
+        </div>
+      </button>
+    ))}
+  </div>
+  {formErrors.balancePaymentMethod && (
+    <p className="text-red-500 text-[10px] mt-1">{formErrors.balancePaymentMethod}</p>
+  )}
+</div>
 
                 {/* ============================================================
                     Valid ID Section - Now Optional with Preview
@@ -1407,8 +1396,8 @@ const handlePreviousStep = () => {
               </p>
 
               <div className="p-4 bg-ocean-ice rounded-lg mb-4">
-                <div className="flex items-center justify-center gap-2 mt-1">
-                  <strong className="text-lg font-mono">Reference Number: {generatedBookingId}</strong>
+               <div className="flex items-center justify-center gap-2 mt-0.5">
+  <strong className="text-sm sm:text-base font-mono">Reference Number: {generatedBookingId}</strong>
                   <button
                     onClick={() => copyToClipboard(generatedBookingId)}
                     className="p-1.5 rounded-lg bg-white hover:bg-ocean-light/10 text-ocean-mid transition-all duration-200"
@@ -1464,48 +1453,48 @@ const handlePreviousStep = () => {
               )}
 
               <div className="flex flex-col-reverse sm:flex-row gap-3 mt-6">
-                <button
-                  onClick={() => {
-                    setStep(1);
-                    setIsConfirmed(false);
-                    setDate('');
-                    setAdults('1');
-                    setKids('0');
-                    setGuestInfo({
-                      firstName: '',
-                      lastName: '',
-                      email: '',
-                      mobileNumber: '',
-                      houseNumber: '',
-                      street: '',
-                      city: '',
-                      province: ''
-                    });
-                    setValidIdData({
-                      idType: '',
-                      customIdType: '',
-                      idImageUrl: ''
-                    });
-                    setBalancePaymentMethod('');
-                    setSpecialRequest('');
-                    setGeneratedBookingId('');
-                    setQrToken('');
-                    localStorage.removeItem(STAFF_DAYTOUR_STORAGE_KEY);
-                    localStorage.removeItem(STAFF_DAYTOUR_STEP_KEY);
-                    router.push('/dashboard/staff/daytour-book');
-                  }}
-                  className="flex-1 py-3 border border-gray-200 rounded-xl text-gray-600 font-semibold hover:bg-gray-50 transition"
-                >
-                  <i className="fas fa-plus mr-2"></i>
-                  Create Another Booking
-                </button>
-                <button
-                  onClick={() => router.push('/dashboard/staff/reservations')}
-                  className="flex-1 py-3 bg-[#4D8CF5] text-white rounded-xl font-semibold hover:bg-[#3B78E7] shadow-sm transition"
-                >
-                  <i className="fas fa-list mr-2"></i>
-                  View All Reservations
-                </button>
+<button
+  onClick={() => {
+    setStep(1);
+    setIsConfirmed(false);
+    setDate('');
+    setAdults('1');
+    setKids('0');
+    setGuestInfo({
+      firstName: '',
+      lastName: '',
+      email: '',
+      mobileNumber: '',
+      houseNumber: '',
+      street: '',
+      city: '',
+      province: ''
+    });
+    setValidIdData({
+      idType: '',
+      customIdType: '',
+      idImageUrl: ''
+    });
+    setBalancePaymentMethod('');
+    setSpecialRequest('');
+    setGeneratedBookingId('');
+    setQrToken('');
+    localStorage.removeItem(STAFF_DAYTOUR_STORAGE_KEY);
+    localStorage.removeItem(STAFF_DAYTOUR_STEP_KEY);
+    router.push('/dashboard/staff/daytour-book');
+  }}
+  className="flex-1 py-2.5 text-sm border border-gray-200 rounded-xl text-gray-600 font-semibold hover:bg-gray-50 transition"
+>
+  <i className="fas fa-plus mr-1.5 text-xs"></i>
+  Create Another Booking
+</button>
+<button
+  onClick={() => router.push('/dashboard/staff/reservations')}
+  className="flex-1 py-2.5 text-sm bg-[#4D8CF5] text-white rounded-xl font-semibold hover:bg-[#3B78E7] shadow-sm transition"
+>
+  <i className="fas fa-list mr-1.5 text-xs"></i>
+  View All Reservations
+</button>
               </div>
             </div>
           )}
@@ -1617,7 +1606,7 @@ const handlePreviousStep = () => {
                 <textarea
                   value={specialRequest}
                   onChange={(e) => handleSpecialRequestChange(e.target.value)}
-                  placeholder="e.g., dietary requirements, accessibility needs, special occasion, etc."
+                  placeholder="e.g., request to add additional guests, special occasion, PWD/Senior ID, etc."
                   rows="3"
                   readOnly={step === 3}
                   className={`w-full px-3 py-2 border rounded-xl text-sm focus:outline-none resize-none ${step === 3

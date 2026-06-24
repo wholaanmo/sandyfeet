@@ -1797,7 +1797,7 @@ if (allRoomIds.length <= 1) {
                     <textarea
                       value={bookingData.specialRequest || ''}
                       onChange={(e) => setBookingData(prev => ({ ...prev, specialRequest: e.target.value }))}
-                      placeholder="e.g., Request early check-in, room preferences, special occasion, etc."
+                      placeholder="e.g., Request early check-in, room preferences, PWD/Senior ID, etc."
                       rows="3"
                       readOnly={step === 3}
                       className={`w-full px-3 py-2 border rounded-xl text-sm focus:outline-none resize-none ${step === 3

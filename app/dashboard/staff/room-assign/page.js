@@ -1,7 +1,7 @@
 // app/dashboard/staff/room-assign/page.js
 'use client';
 
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useMemo } from 'react';
 import { db } from '@/lib/firebase';
 import {
   collection,
@@ -53,6 +53,21 @@ export default function StaffRoomAssign() {
   const [editingRoom, setEditingRoom] = useState(null);
   const [isSyncing, setIsSyncing] = useState(false);
 
+  // Derive room type statuses based on underlying unit states (e.g., maintenance)
+  const computedRoomTypes = useMemo(() => {
+    if (!Array.isArray(roomTypes) || roomTypes.length === 0) return roomTypes;
+    return roomTypes.map(rt => {
+      const units = (rooms || []).filter(r => r.roomTypeId === rt.id);
+      const allUnitsUnderMaintenance = units.length > 0 && units.every(u => u.status === 'maintenance');
+      // If every unit is under maintenance, mark the type as maintenance for UI purposes
+      return {
+        ...rt,
+        allUnitsUnderMaintenance,
+        availability: allUnitsUnderMaintenance ? 'maintenance' : (rt.availability || 'available')
+      };
+    });
+  }, [roomTypes, rooms]);
+
   // Track if initial sync has been done
   const initialSyncDone = useRef(false);
   // Track room type IDs to detect changes
@@ -96,8 +111,9 @@ export default function StaffRoomAssign() {
         newRoomTypeIds.size !== oldRoomTypeIds.size || 
         ![...newRoomTypeIds].every(id => oldRoomTypeIds.has(id));
 
-      // Update room types state
-      setRoomTypes(types);
+      // Update room types state — keep the full list so we can derive UI-only
+      // availability (e.g., mark a type as maintenance when all its units are).
+      setRoomTypes(allRoomTypes);
 
       // Always sync inventory when room types change
       // This ensures the inventory is always up to date
@@ -606,11 +622,16 @@ export default function StaffRoomAssign() {
 
       {/* Room Type Stats */}
       <div className="mb-6 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-        {roomTypes.map(type => {
+        {computedRoomTypes.map(type => {
           const stat = getRoomTypeStats(type.id);
           return (
             <div key={type.id} className="bg-gradient-to-br from-white to-ocean-light/5 rounded-2xl shadow-md border border-ocean-light/10 p-4 hover:shadow-lg hover:-translate-y-0.5 transition-all duration-300">
-              <p className="text-xs font-bold text-[#1E3A8A]/70 uppercase tracking-wider mb-2">{type.type}</p>
+              <div className="flex items-center gap-2 mb-2">
+                <p className="text-xs font-bold text-[#1E3A8A]/70 uppercase tracking-wider">{type.type}</p>
+                {type.allUnitsUnderMaintenance && (
+                  <span className="text-[10px] font-semibold text-orange-700 bg-orange-50 border border-orange-200 px-2 py-0.5 rounded-full">Maintenance</span>
+                )}
+              </div>
               <div className="flex gap-1.5 mt-1 text-xs flex-wrap">
                 <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-medium bg-green-50 text-green-700 border border-green-200">{stat.available} avail</span>
                 <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-medium bg-purple-50 text-purple-700 border border-purple-200">{stat.reserved} resv</span>
@@ -664,8 +685,8 @@ export default function StaffRoomAssign() {
               className="w-full sm:w-auto px-4 py-2.5 pr-10 border-2 border-[#4D8CF5]/20 rounded-xl text-sm text-textPrimary bg-white shadow-sm focus:outline-none focus:border-[#4D8CF5] focus:ring-2 focus:ring-[#4D8CF5]/20 hover:border-[#4D8CF5]/70 transition-all duration-200 appearance-none cursor-pointer"
             >
               <option value="all">All Types</option>
-              {roomTypes.map(type => (
-                <option key={type.id} value={type.id}>{type.type}</option>
+              {computedRoomTypes.map(type => (
+                <option key={type.id} value={type.id} disabled={type.allUnitsUnderMaintenance}>{type.type}{type.allUnitsUnderMaintenance ? ' (Maintenance)' : ''}</option>
               ))}
             </select>
             <div className="absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none text-[#4D8CF5] text-xs">

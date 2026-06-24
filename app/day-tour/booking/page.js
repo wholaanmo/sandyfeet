@@ -1334,7 +1334,7 @@ function DayTourBookingContent() {
                           value={bookingData.specialRequest}
                           onChange={(e) => setBookingData(prev => ({ ...prev, specialRequest: e.target.value }))}
                           rows={2}
-                          placeholder="e.g., request to add additional guests, etc."
+                          placeholder="e.g., request to add additional guests, special occasion, PWD/Senior ID, etc."
                           className="w-full px-3 py-2.5 h-46 rounded-xl border border-ocean-light/25 bg-white text-sm text-textPrimary focus:outline-none focus:border-ocean-mid focus:ring-2 focus:ring-ocean-light/30 resize-none overflow-hidden"
                         />
                       </div>

@@ -3,7 +3,7 @@
 
 import { useState, useEffect } from 'react';
 import { db } from '../../../../lib/firebase';
-import { collection, addDoc, updateDoc, deleteDoc, doc, getDocs, query, orderBy, onSnapshot, where } from 'firebase/firestore';
+import { collection, addDoc, updateDoc, deleteDoc, doc, getDocs, query, orderBy, onSnapshot, where, writeBatch } from 'firebase/firestore';
 import { uploadImage } from '../../../../lib/cloudinary';
 import { logAdminAction } from '../../../../lib/auditLogger';
 import Image from 'next/image';
@@ -128,6 +128,40 @@ export default function AdminRooms() {
       return 'maintenance';
     }
     return currentAvailability;
+  };
+
+  const propagateRoomInventoryMaintenanceStatus = async (roomTypeId, targetStatus) => {
+    try {
+      const inventoryRef = collection(db, 'roomInventory');
+      const qInv = query(inventoryRef, where('roomTypeId', '==', roomTypeId), where('archived', '!=', true));
+      const invSnap = await getDocs(qInv);
+      if (invSnap.empty) return;
+
+      const batch = writeBatch(db);
+      let hasUpdates = false;
+      invSnap.forEach((docSnap) => {
+        const roomData = docSnap.data();
+        if (targetStatus === 'maintenance' && roomData.status !== 'maintenance') {
+          hasUpdates = true;
+          batch.update(doc(db, 'roomInventory', docSnap.id), {
+            status: 'maintenance',
+            updatedAt: new Date().toISOString()
+          });
+        }
+        if (targetStatus === 'available' && roomData.status === 'maintenance') {
+          hasUpdates = true;
+          batch.update(doc(db, 'roomInventory', docSnap.id), {
+            status: 'available',
+            updatedAt: new Date().toISOString()
+          });
+        }
+      });
+      if (hasUpdates) {
+        await batch.commit();
+      }
+    } catch (error) {
+      console.error('Error propagating room inventory maintenance status:', error);
+    }
   };
   
   const handleInputChange = (e) => {
@@ -411,6 +445,9 @@ export default function AdminRooms() {
     // Create room inventory records for each room
     if (totalRoomsInt > 0) {
       await createRoomInventory(docRef.id, roomData.type, totalRoomsInt);
+      if (finalAvailability === 'maintenance' && maintenanceRoomsInt === totalRoomsInt) {
+        await propagateRoomInventoryMaintenanceStatus(docRef.id, 'maintenance');
+      }
     }
     
     await logAdminAction({
@@ -508,6 +545,15 @@ const handleUpdateRoom = async (e) => {
         newData.totalRooms,
         previousData.totalRooms
       );
+    }
+
+    const previouslyAllMaintenance = previousData.availability === 'maintenance' && previousData.maintenanceRooms === previousData.totalRooms;
+    const currentlyAllMaintenance = finalAvailability === 'maintenance' && maintenanceRoomsInt === totalRoomsInt;
+
+    if (currentlyAllMaintenance) {
+      await propagateRoomInventoryMaintenanceStatus(selectedRoom.id, 'maintenance');
+    } else if (previouslyAllMaintenance && !currentlyAllMaintenance) {
+      await propagateRoomInventoryMaintenanceStatus(selectedRoom.id, 'available');
     }
       
       const changes = [];
