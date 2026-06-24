@@ -75,7 +75,7 @@ export default function GuestNavbar() {
     <>
       <div id="guest-navbar" className="fixed top-0 left-0 right-0 z-50 mt-3 px-3 sm:mt-6 sm:px-6 lg:px-8">
         <div className="relative mx-auto max-w-7xl">
-          <nav className="rounded-[2rem] border border-gray-100/50 bg-white/95 px-4 py-3 shadow-[0_8px_30px_rgb(0,0,0,0.08)] backdrop-blur-md sm:rounded-[2.5rem] sm:px-6 sm:py-3.5 lg:px-8">
+          <nav className="glass-nav rounded-[2rem] px-4 py-3 sm:rounded-[2.5rem] sm:px-6 sm:py-3.5 lg:px-8">
             <div className="flex items-center justify-between gap-4">
               <Link href="/" onClick={() => setIsMenuOpen(false)} className="flex min-w-0 items-center gap-3 group">
                 <div className="relative h-11 w-11 flex-none sm:h-12 sm:w-12">
@@ -101,9 +101,8 @@ export default function GuestNavbar() {
                   <Link
                     key={link.label}
                     href={link.href}
-                    className={`relative group text-[13px] font-bold tracking-wider transition-colors ${
-                      isActive(link.href) ? 'text-[#3B82F6]' : 'text-gray-500 hover:text-[#3B82F6]'
-                    }`}
+                    className={`relative group text-[13px] font-bold tracking-wider transition-colors ${isActive(link.href) ? 'text-[#3B82F6]' : 'text-gray-500 hover:text-[#3B82F6]'
+                      }`}
                   >
                     {link.label}
                     {isActive(link.href) && (
@@ -232,7 +231,7 @@ export default function GuestNavbar() {
                   aria-label={isMenuOpen ? 'Close navigation menu' : 'Open navigation menu'}
                   aria-expanded={isMenuOpen}
                   onClick={() => setIsMenuOpen((prev) => !prev)}
-                  className="flex h-11 w-11 items-center justify-center rounded-full border border-gray-200 bg-white text-[#143B36] shadow-sm transition-colors hover:border-[#3B82F6] hover:text-[#3B82F6]"
+                  className="flex h-11 w-11 items-center justify-center rounded-full border border-gray-200 bg-white text-[var(--color-ocean-deep)] shadow-sm transition-colors hover:border-[rgba(59,130,246,0.9)] hover:text-[var(--color-ocean-mid)]"
                 >
                   <span className="material-icons text-[22px]">{isMenuOpen ? 'close' : 'menu'}</span>
                 </button>
@@ -269,21 +268,19 @@ export default function GuestNavbar() {
                   if (link.label === 'HOME') icon = 'fas fa-home';
                   if (link.label === 'ROOMS') icon = 'fas fa-bed';
                   if (link.label === 'DAYTOUR') icon = 'fas fa-umbrella-beach';
-                  
+
                   return (
                     <Link
                       key={link.label}
                       href={link.href}
                       onClick={() => setIsMenuOpen(false)}
-                      className={`group flex items-center gap-3 rounded-2xl px-3 py-2 text-xs font-semibold tracking-wide transition-colors ${
-                        isActive(link.href)
-                          ? 'bg-blue-50 text-[#2563EB]'
-                          : 'text-gray-600 hover:bg-gray-50 hover:text-[#3B82F6]'
-                      }`}
+                      className={`group flex items-center gap-3 rounded-2xl px-3 py-2 text-xs font-semibold tracking-wide transition-colors ${isActive(link.href)
+                        ? 'bg-blue-50 text-[#2563EB]'
+                        : 'text-gray-600 hover:bg-gray-50 hover:text-[#3B82F6]'
+                        }`}
                     >
-                      <div className={`flex h-7 w-7 items-center justify-center rounded-lg ${
-                        isActive(link.href) ? 'bg-blue-100 text-[#2563EB]' : 'bg-slate-100 text-slate-500 group-hover:bg-blue-100 group-hover:text-[#3B82F6]'
-                      } transition-colors`}>
+                      <div className={`flex h-7 w-7 items-center justify-center rounded-lg ${isActive(link.href) ? 'bg-blue-100 text-[#2563EB]' : 'bg-slate-100 text-slate-500 group-hover:bg-blue-100 group-hover:text-[#3B82F6]'
+                        } transition-colors`}>
                         <i className={`${icon} text-sm`}></i>
                       </div>
                       {link.label}

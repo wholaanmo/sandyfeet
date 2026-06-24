@@ -171,3 +171,76 @@
     animation: none;
   }
 }
+
+/* Modern UI utilities and callouts (reusing brand palette variables only) */
+.glass-card {
+  background: linear-gradient(180deg, rgba(255,255,255,0.72), rgba(255,255,255,0.60));
+  border: 1px solid rgba(33,105,243,0.08);
+  box-shadow: 0 10px 30px rgba(15,40,36,0.06);
+  backdrop-filter: blur(6px) saturate(120%);
+  border-radius: 18px;
+}
+
+.glass-nav {
+  background: linear-gradient(180deg, rgba(255,255,255,0.9), rgba(255,255,255,0.85));
+  border: 1px solid rgba(23,79,204,0.06);
+  box-shadow: 0 8px 26px rgba(15,40,36,0.07);
+  backdrop-filter: blur(8px);
+}
+
+.brand-btn {
+  background-color: var(--color-accent-blue);
+  color: var(--color-white);
+  border-radius: 12px;
+  box-shadow: 0 8px 20px rgba(33,105,243,0.18);
+  transition: transform 220ms cubic-bezier(.2,.9,.2,1), box-shadow 220ms ease;
+}
+.brand-btn:hover { transform: translateY(-3px); box-shadow: 0 12px 28px rgba(33,105,243,0.22); }
+
+.callout-info {
+  display: flex;
+  gap: 12px;
+  align-items: flex-start;
+  padding: 12px 14px;
+  border-radius: 12px;
+  background: linear-gradient(180deg, rgba(122,170,248,0.07), rgba(255,255,255,0.6));
+  border: 1px solid rgba(74,137,245,0.12);
+  color: var(--color-textPrimary);
+}
+.callout-info .icon {
+  min-width: 36px;
+  min-height: 36px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 10px;
+  background: linear-gradient(135deg, var(--color-ocean-mid), var(--color-ocean-light));
+  color: var(--color-white);
+  font-weight: 700;
+  box-shadow: 0 6px 18px rgba(33,105,243,0.18);
+}
+.extra-guest-callout {
+  font-size: 13px;
+  line-height: 1.15;
+  font-weight: 600;
+  color: var(--color-textPrimary);
+}
+.extra-guest-callout small {
+  display:block;
+  margin-top:4px;
+  font-weight:500;
+  color: var(--color-textSecondary);
+}
+
+.badge-pill {
+  display:inline-flex;
+  align-items:center;
+  gap:8px;
+  padding:6px 10px;
+  border-radius:999px;
+  font-size:12px;
+  font-weight:700;
+  background: linear-gradient(90deg, rgba(33,105,243,0.12), rgba(122,170,248,0.08));
+  color: var(--color-ocean-mid);
+  border:1px solid rgba(33,105,243,0.08);
+}

@@ -852,11 +852,6 @@ export default function RoomDetailsPage({ params }) {
                       </span>
                     )}
                   </div>
-                  {roomData.additionalGuestCharge > 0 && (
-                    <p className="mt-4 text-sm font-semibold text-amber-700">
-                      Extra guests above {capacityMin} per unit are charged ₱{Number(roomData.additionalGuestCharge || 0).toLocaleString()} per guest per night.
-                    </p>
-                  )}
                 </section>
 
                 {/* Gallery thumbnails */}
@@ -1140,6 +1135,20 @@ export default function RoomDetailsPage({ params }) {
                     </p>
                   </div>
                 </div>
+
+                {roomData?.additionalGuestCharge > 0 && (
+                  <div className="mt-3 flex items-start gap-3 rounded-2xl bg-amber-50/40 border border-amber-200/50 p-4 text-xs text-amber-800 shadow-2xs">
+                    <div className="flex h-7 w-7 items-center justify-center rounded-xl bg-amber-100 text-amber-600 shrink-0 shadow-3xs">
+                      <i className="fas fa-user-plus text-xs"></i>
+                    </div>
+                    <div>
+                      <p className="font-bold text-amber-900 leading-tight">Extra Guest Policy</p>
+                      <p className="mt-1 text-amber-700/95 font-medium leading-relaxed">
+                        ₱{Number(roomData.additionalGuestCharge || 0).toLocaleString()} per guest per night for extra guests above {roomData.capacityMin} per unit.
+                      </p>
+                    </div>
+                  </div>
+                )}
 
                 {/* ─── TOTAL ─── */}
                 <div className="bg-gradient-to-br from-blue-50 to-blue-100/50 border border-blue-200/50 rounded-2xl p-3">

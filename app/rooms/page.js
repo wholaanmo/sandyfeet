@@ -1319,18 +1319,22 @@ function RoomsPageContent() {
                     return (
                       <div key={room.type} className="bg-white rounded-[1.5rem] border border-gray-100 shadow-sm overflow-hidden flex flex-col transition-all hover:shadow-md h-full">
 
-                        <div className="relative h-56 w-full shrink-0">
+                        {/* Image Container with Zoom & Gradient Overlay */}
+                        <div className="relative h-60 w-full shrink-0 overflow-hidden rounded-t-[2rem]">
                           <img
                             src={room.images?.[0] || 'https://via.placeholder.com/400x300?text=Room'}
                             alt={room.type}
                             className="w-full h-full object-cover"
                           />
-                          <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/20 to-transparent"></div>
-                          <div className="absolute bottom-4 left-4 z-10 w-full pr-14">
-                            <p className="text-white/90 text-[10px] font-bold uppercase tracking-widest mb-1">
+                          <div className="absolute inset-0 bg-gradient-to-t from-gray-950/80 via-gray-950/20 to-transparent z-10"></div>
+                          
+                          <div className="absolute bottom-5 left-5 right-5 z-10">
+                            <span className="inline-block bg-white/15 backdrop-blur-md text-white/95 text-[9px] font-bold uppercase tracking-widest px-2.5 py-1 rounded-md mb-2 border border-white/10">
                               Good for {room.capacityMin === room.capacityMax ? room.capacityMax : `${room.capacityMin} to ${room.capacityMax}`} persons
-                            </p>
-                            <h3 className="text-white text-2xl font-playfair font-bold truncate leading-tight pb-1">{room.type}</h3>
+                            </span>
+                            <h3 className="text-white text-2xl font-playfair font-extrabold tracking-wide leading-tight group-hover/card:text-[#A7C7FB] transition-colors duration-300 drop-shadow-xs">
+                              {room.type}
+                            </h3>
                           </div>
                           <div className="absolute top-4 right-4 z-10">
                             <span className={`inline-flex items-center rounded-full px-2.5 py-1 text-[10px] font-bold uppercase tracking-wider backdrop-blur-sm ${realTimeAvailable > 0
@@ -1346,11 +1350,19 @@ function RoomsPageContent() {
 
                         <div className="p-5 flex-1 flex flex-col justify-between">
                           <div>
-                            <div className="flex justify-between items-baseline mb-4">
-                              <p className="text-xl font-bold tracking-tight text-blue-600">
-                                PHP {room.price.toLocaleString()}
-                              </p>
-                              <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">Per Night</p>
+                            {/* Price / Night Repositioned & Reframed */}
+                            <div className="flex items-center justify-between bg-gray-50/70 border border-gray-100 rounded-2xl p-4 mb-5">
+                              <div className="flex flex-col">
+                                <span className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">Base Rate</span>
+                                <span className="text-2xl font-bold tracking-tight text-[#2169F3]">
+                                  PHP {room.price.toLocaleString()}
+                                </span>
+                              </div>
+                              <div className="text-right">
+                                <span className="inline-block bg-[#EEF4FF] text-[#2169F3] text-[10px] font-extrabold uppercase tracking-wider px-3 py-1.5 rounded-xl border border-[#CFE0FD]">
+                                  Per Night
+                                </span>
+                              </div>
                             </div>
                             <p className="text-[11px] font-semibold text-blue-600 mb-4">
                               {realTimeAvailable} unit{realTimeAvailable !== 1 ? 's' : ''} available
@@ -1369,15 +1381,25 @@ function RoomsPageContent() {
                                 </span>
                               )}
                               {room.inclusions && room.inclusions.length > 3 && (
-                                <span className="px-3 py-1.5 bg-blue-100 border border-blue-200 text-[11px] font-medium text-blue-800 rounded-full">
+                                <span className="px-3 py-2 bg-blue-50/80 border border-blue-100 text-[11px] font-bold text-blue-600 rounded-xl">
                                   +{room.inclusions.length - 3} more
                                 </span>
                               )}
                             </div>
+
+                            {/* Extra Guest Policy Notice Banner */}
                             {room.additionalGuestCharge > 0 && (
-                              <p className="text-xs text-amber-700 font-semibold mb-4">
-                                Extra guests above {room.capacityMin} per unit are charged ₱{room.additionalGuestCharge.toLocaleString()} per guest per night.
-                              </p>
+                              <div className="flex items-start gap-3 rounded-2xl bg-amber-50/40 border border-amber-200/50 p-4 mb-5 text-xs text-amber-800 shadow-2xs">
+                                <div className="flex h-7 w-7 items-center justify-center rounded-xl bg-amber-100 text-amber-600 shrink-0 shadow-3xs">
+                                  <i className="fas fa-user-plus text-xs"></i>
+                                </div>
+                                <div>
+                                  <p className="font-bold text-amber-900 leading-tight">Extra Guest Policy</p>
+                                  <p className="mt-1 text-amber-700/90 font-medium leading-relaxed">
+                                    ₱{room.additionalGuestCharge.toLocaleString()} per guest per night for extra guests above {room.capacityMin} per unit.
+                                  </p>
+                                </div>
+                              </div>
                             )}
                           </div>
 

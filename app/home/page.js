@@ -477,7 +477,7 @@ function HomePageContent() {
 
             {/* Right Images (Collage) */}
             <div className="relative mt-10 grid w-full max-w-3xl grid-cols-2 gap-3 sm:mx-auto sm:gap-4 lg:mt-12 xl:mx-0 xl:mt-2 xl:block xl:h-[520px] xl:w-7/12 xl:max-w-none">
-              <div className="relative col-span-2 aspect-[4/3] overflow-hidden rounded-[2rem] border-4 border-white shadow-2xl transition-transform duration-500 hover:rotate-0 sm:border-6 xl:absolute xl:right-6 xl:top-16 xl:z-20 xl:h-[320px] xl:w-[470px] xl:-rotate-2 xl:border-8 xl:transform-gpu">
+              <div className="relative col-span-2 aspect-[4/3] overflow-hidden rounded-[2rem] border-4 border-white shadow-[0_30px_70px_rgba(15,40,36,0.14)] transition-all duration-700 hover:-translate-y-1 hover:shadow-[0_35px_80px_rgba(15,40,36,0.16)] sm:border-6 xl:absolute xl:right-6 xl:top-16 xl:z-20 xl:h-[320px] xl:w-[470px] xl:-rotate-2 xl:border-8 xl:transform-gpu">
                 <Image
                   src="/assets/View/IMG3.jpg"
                   alt="Pool View"
@@ -553,9 +553,9 @@ function HomePageContent() {
                 {[...galleryImages, ...galleryImages].map((image, index) => (
                   <div
                     key={`${image.src}-${index}`}
-                    className="relative h-[220px] w-[320px] flex-none overflow-hidden rounded-3xl shadow-[0_10px_24px_rgb(0,0,0,0.08)] md:h-[300px] md:w-[430px]"
+                    className="relative h-[220px] w-[320px] flex-none overflow-hidden rounded-3xl border border-gray-100 bg-white shadow-[0_14px_36px_rgba(15,40,36,0.08)] transition-all duration-500 hover:-translate-y-1 hover:shadow-[0_20px_50px_rgba(15,40,36,0.12)] md:h-[300px] md:w-[430px]"
                   >
-                    <Image src={image.src} alt={image.alt} fill className="object-cover" />
+                    <Image src={image.src} alt={image.alt} fill className="object-cover transition-transform duration-700 hover:scale-105" />
                   </div>
                 ))}
               </div>
@@ -596,8 +596,8 @@ function HomePageContent() {
                 ))
               ) : featuredRooms.length > 0 ? (
                 featuredRooms.map((room) => (
-                  <div key={room.slug} className="flex flex-col rounded-[2rem] border border-gray-50 bg-white p-4 shadow-[0_12px_40px_rgb(0,0,0,0.06)] transition-all hover:shadow-[0_12px_40px_rgb(0,0,0,0.1)]">
-                    <div className="relative mb-6 h-[240px] w-full overflow-hidden rounded-3xl">
+                  <div key={room.slug} className="flex flex-col rounded-[2.25rem] border border-gray-100 bg-white p-4 shadow-[0_16px_40px_rgba(15,40,36,0.06)] transition-all duration-500 hover:-translate-y-1 hover:shadow-[0_18px_50px_rgba(15,40,36,0.1)]">
+                    <div className="relative mb-6 h-[240px] w-full overflow-hidden rounded-[1.75rem]">
                       <Image
                         src={room.image}
                         alt={room.type}
@@ -623,7 +623,7 @@ function HomePageContent() {
                         </span>
                         <Link
                           href={`/rooms/${encodeURIComponent(room.slug)}`}
-                          className="rounded-full border border-gray-200 px-5 py-2.5 text-sm font-semibold text-gray-600 transition-colors hover:bg-gray-50"
+                          className="rounded-full border border-blue-100 bg-blue-50/70 px-5 py-2.5 text-sm font-semibold text-blue-700 transition-all duration-300 hover:bg-blue-100 hover:shadow-sm hover:-translate-y-0.5"
                         >
                           View Details
                         </Link>
@@ -924,10 +924,10 @@ function HomePageContent() {
                 {feedbackMessage.text ? (
                   <div
                     className={`mt-4 rounded-xl border px-4 py-3 text-sm ${feedbackMessage.type === 'error'
-                        ? 'border-red-100 bg-red-50 text-red-700'
-                        : feedbackMessage.type === 'success'
-                          ? 'border-emerald-100 bg-emerald-50 text-emerald-700'
-                          : 'border-blue-100 bg-blue-50 text-blue-700'
+                      ? 'border-red-100 bg-red-50 text-red-700'
+                      : feedbackMessage.type === 'success'
+                        ? 'border-emerald-100 bg-emerald-50 text-emerald-700'
+                        : 'border-blue-100 bg-blue-50 text-blue-700'
                       }`}
                   >
                     {feedbackMessage.text}

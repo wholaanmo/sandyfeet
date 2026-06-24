@@ -1316,12 +1316,20 @@ export default function StaffBooking() {
                             </span>
                           )}
                         </div>
-                        {room.additionalGuestCharge > 0 && (
-                          <p className="text-xs text-amber-700 font-semibold mb-4">
-                            Extra guests above {room.capacityMin} per unit are charged ₱{Number(room.additionalGuestCharge || 0).toLocaleString()} per guest per night.
-                          </p>
-                        )}
-                      </div>
+                            {room.additionalGuestCharge > 0 && (
+                              <div className="flex items-start gap-3 rounded-2xl bg-amber-50/40 border border-amber-200/50 p-4 mb-5 text-xs text-amber-800 shadow-2xs">
+                                <div className="flex h-7 w-7 items-center justify-center rounded-xl bg-amber-100 text-amber-600 shrink-0 shadow-3xs">
+                                  <i className="fas fa-user-plus text-xs"></i>
+                                </div>
+                                <div>
+                                  <p className="font-bold text-amber-900 leading-tight">Extra Guest Policy</p>
+                                  <p className="mt-1 text-amber-700/90 font-medium leading-relaxed">
+                                    ₱{room.additionalGuestCharge.toLocaleString()} per guest per night for extra guests above {room.capacityMin} per unit.
+                                  </p>
+                                </div>
+                              </div>
+                            )}
+                          </div>
 
                       <div className="flex flex-col gap-2 relative z-10 w-full mb-0 mt-auto">
                         {quantity === 0 ? (
