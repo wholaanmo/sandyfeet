@@ -33,6 +33,7 @@ export default function StaffRoomStatus() {
   const [calendarViewDate, setCalendarViewDate] = useState(new Date());
 
   const todayKey = phTimeReady ? getPhilippineTodayDateKey(nowMs) : '';
+  const today = phTimeReady ? new Date(nowMs) : new Date();
 
   // Fetch rooms list (only non-archived and available)
   useEffect(() => {

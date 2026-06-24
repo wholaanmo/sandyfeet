@@ -492,6 +492,7 @@ function MultiRoomBookingPageContent() {
 
   const accountValidIdType = getDisplayValidIdType(profile);
   const accountValidIdUrl = profile?.validIdUrl || '';
+  const accountValidIdSelfieUrl = profile?.validIdSelfieUrl || '';
 
   const handleSubmitBooking = async () => {
     if (!checkBookingRequirements()) {
@@ -595,6 +596,7 @@ if (allRoomIds.length <= 1) {
     paymentProofUrl: bookingData.paymentProofUrl,
     validIdType: accountValidIdType || null,
     validIdUrl: accountValidIdUrl || null,
+    validIdSelfieUrl: accountValidIdSelfieUrl || null,
     createdAt: serverTimestamp(),
     updatedAt: serverTimestamp(),
     type: 'room',
@@ -673,6 +675,7 @@ if (allRoomIds.length <= 1) {
               paymentProofUrl: bookingData.paymentProofUrl,
               validIdType: accountValidIdType || null,
               validIdUrl: accountValidIdUrl || null,
+              validIdSelfieUrl: accountValidIdSelfieUrl || null,
               createdAt: serverTimestamp(),
               updatedAt: serverTimestamp(),
               type: 'room',

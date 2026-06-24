@@ -7,6 +7,7 @@ import { collection, addDoc, updateDoc, deleteDoc, doc, getDocs, query, orderBy,
 import { uploadImage } from '../../../../lib/cloudinary';
 import { logAdminAction } from '../../../../lib/auditLogger';
 import Image from 'next/image';
+import { createRoomInventory, updateRoomInventory } from '../../../../lib/roomInventory';
 
 export default function AdminRooms() {
   const [rooms, setRooms] = useState([]);
@@ -367,131 +368,147 @@ export default function AdminRooms() {
   };
   
   const handleAddRoom = async (e) => {
-    e.preventDefault();
-    const errors = validateForm();
+  e.preventDefault();
+  const errors = validateForm();
+  
+  if (Object.keys(errors).length > 0) {
+    setFormErrors(errors);
+    return;
+  }
+  
+  setActionLoading(true);
+  
+  try {
+    const totalRoomsInt = parseInt(formData.totalRooms) || 0;
+    const maintenanceRoomsInt = formData.maintenanceRooms ? parseInt(formData.maintenanceRooms) : 0;
+    const availableRoomsInt = totalRoomsInt - maintenanceRoomsInt;
     
-    if (Object.keys(errors).length > 0) {
-      setFormErrors(errors);
-      return;
+    // Final availability check with manual override consideration
+    let finalAvailability = formData.availability;
+    if (!manualOverride) {
+      finalAvailability = updateAvailabilityBasedOnCounts(totalRoomsInt, maintenanceRoomsInt, formData.availability);
     }
     
-    setActionLoading(true);
+    const roomData = {
+      ...formData,
+      totalRooms: totalRoomsInt,
+      maintenanceRooms: maintenanceRoomsInt,
+      availableRooms: availableRoomsInt,
+      capacityMin: parseInt(formData.capacityMin) || 0,
+      capacityMax: parseInt(formData.capacityMax) || 0,
+      capacity: `${formData.capacityMin || 0}–${formData.capacityMax || 0}`,
+      price: parseFloat(formData.price) || 0,
+      additionalGuestCharge: parseFloat(formData.additionalGuestCharge) || 0,
+      availability: finalAvailability,
+      archived: false,
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString()
+    };
     
-    try {
-      const totalRoomsInt = parseInt(formData.totalRooms) || 0;
-      const maintenanceRoomsInt = formData.maintenanceRooms ? parseInt(formData.maintenanceRooms) : 0;
-      const availableRoomsInt = totalRoomsInt - maintenanceRoomsInt;
-      
-      // Final availability check with manual override consideration
-      let finalAvailability = formData.availability;
-      if (!manualOverride) {
-        finalAvailability = updateAvailabilityBasedOnCounts(totalRoomsInt, maintenanceRoomsInt, formData.availability);
-      }
-      
-      const roomData = {
-        ...formData,
-        totalRooms: totalRoomsInt,
-        maintenanceRooms: maintenanceRoomsInt,
-        availableRooms: availableRoomsInt,
-        capacityMin: parseInt(formData.capacityMin) || 0,
-        capacityMax: parseInt(formData.capacityMax) || 0,
-        capacity: `${formData.capacityMin || 0}–${formData.capacityMax || 0}`,
-        price: parseFloat(formData.price) || 0,
-        additionalGuestCharge: parseFloat(formData.additionalGuestCharge) || 0,
-        availability: finalAvailability,
-        archived: false,
-        createdAt: new Date().toISOString(),
-        updatedAt: new Date().toISOString()
-      };
-      
-      const docRef = await addDoc(collection(db, 'rooms'), roomData);
-      
-      await logAdminAction({
-        action: 'Created Room',
-        module: 'Room Management',
-        details: `Added new room: ${roomData.type} (Capacity: ${roomData.capacityMin}–${roomData.capacityMax} guests, Price: ₱${roomData.price.toLocaleString()}, Total Rooms: ${roomData.totalRooms}, Available Rooms: ${roomData.availableRooms}, Maintenance Rooms: ${roomData.maintenanceRooms}, Status: ${roomData.availability})`
-      });
-      
-      showNotification('Room added successfully!');
-      resetForm();
-      
-      setTimeout(() => {
-        setShowModal(false);
-      }, 2000);
-      
-    } catch (error) {
-      console.error('Error adding room:', error);
-      showNotification('Failed to add room.', 'error');
-    } finally {
-      setActionLoading(false);
+    // Add room type to Firestore
+    const docRef = await addDoc(collection(db, 'rooms'), roomData);
+    
+    // Create room inventory records for each room
+    if (totalRoomsInt > 0) {
+      await createRoomInventory(docRef.id, roomData.type, totalRoomsInt);
     }
-  };
+    
+    await logAdminAction({
+      action: 'Created Room',
+      module: 'Room Management',
+      details: `Added new room: ${roomData.type} (Capacity: ${roomData.capacityMin}–${roomData.capacityMax} guests, Price: ₱${roomData.price.toLocaleString()}, Total Rooms: ${roomData.totalRooms}, Available Rooms: ${roomData.availableRooms}, Maintenance Rooms: ${roomData.maintenanceRooms}, Status: ${roomData.availability})`
+    });
+    
+    showNotification('Room added successfully!');
+    resetForm();
+    
+    setTimeout(() => {
+      setShowModal(false);
+    }, 2000);
+    
+  } catch (error) {
+    console.error('Error adding room:', error);
+    showNotification('Failed to add room.', 'error');
+  } finally {
+    setActionLoading(false);
+  }
+};
 
-  const handleUpdateRoom = async (e) => {
-    e.preventDefault();
-    const errors = validateForm();
+const handleUpdateRoom = async (e) => {
+  e.preventDefault();
+  const errors = validateForm();
+  
+  if (Object.keys(errors).length > 0) {
+    setFormErrors(errors);
+    return;
+  }
+  
+  setActionLoading(true);
+  
+  try {
+    const roomRef = doc(db, 'rooms', selectedRoom.id);
     
-    if (Object.keys(errors).length > 0) {
-      setFormErrors(errors);
-      return;
+    const totalRoomsInt = parseInt(formData.totalRooms) || 0;
+    const maintenanceRoomsInt = formData.maintenanceRooms ? parseInt(formData.maintenanceRooms) : 0;
+    const availableRoomsInt = totalRoomsInt - maintenanceRoomsInt;
+    
+    // Final availability check with manual override consideration
+    let finalAvailability = formData.availability;
+    if (!manualOverride) {
+      finalAvailability = updateAvailabilityBasedOnCounts(totalRoomsInt, maintenanceRoomsInt, formData.availability);
     }
     
-    setActionLoading(true);
+    const previousData = {
+      type: selectedRoom.type,
+      totalRooms: selectedRoom.totalRooms,
+      maintenanceRooms: selectedRoom.maintenanceRooms || 0,
+      capacityMin: selectedRoom.capacityMin,
+      capacityMax: selectedRoom.capacityMax,
+      price: selectedRoom.price,
+      availability: selectedRoom.availability,
+      description: selectedRoom.description,
+      inclusions: selectedRoom.inclusions || [],
+      imagesCount: selectedRoom.images?.length || 0,
+      additionalGuestCharge: selectedRoom.additionalGuestCharge || 0
+    };
     
-    try {
-      const roomRef = doc(db, 'rooms', selectedRoom.id);
-      
-      const totalRoomsInt = parseInt(formData.totalRooms) || 0;
-      const maintenanceRoomsInt = formData.maintenanceRooms ? parseInt(formData.maintenanceRooms) : 0;
-      const availableRoomsInt = totalRoomsInt - maintenanceRoomsInt;
-      
-      // Final availability check with manual override consideration
-      let finalAvailability = formData.availability;
-      if (!manualOverride) {
-        finalAvailability = updateAvailabilityBasedOnCounts(totalRoomsInt, maintenanceRoomsInt, formData.availability);
-      }
-      
-      const previousData = {
-        type: selectedRoom.type,
-        totalRooms: selectedRoom.totalRooms,
-        maintenanceRooms: selectedRoom.maintenanceRooms || 0,
-        capacityMin: selectedRoom.capacityMin,
-        capacityMax: selectedRoom.capacityMax,
-        price: selectedRoom.price,
-        availability: selectedRoom.availability,
-        description: selectedRoom.description,
-        inclusions: selectedRoom.inclusions || [],
-        imagesCount: selectedRoom.images?.length || 0,
-        additionalGuestCharge: selectedRoom.additionalGuestCharge || 0
-      };
-      
-      const newData = {
-        type: formData.type,
-        totalRooms: totalRoomsInt,
-        maintenanceRooms: maintenanceRoomsInt,
-        capacityMin: parseInt(formData.capacityMin) || 0,
-        capacityMax: parseInt(formData.capacityMax) || 0,
-        price: parseFloat(formData.price) || 0,
-        additionalGuestCharge: parseFloat(formData.additionalGuestCharge) || 0,
-        availability: finalAvailability,
-        description: formData.description,
-        inclusions: formData.inclusions,
-        imagesCount: formData.images.length
-      };
-      
-      await updateDoc(roomRef, {
-        ...formData,
-        totalRooms: totalRoomsInt,
-        maintenanceRooms: maintenanceRoomsInt,
-        availableRooms: availableRoomsInt,
-        capacityMin: parseInt(formData.capacityMin) || 0,
-        capacityMax: parseInt(formData.capacityMax) || 0,
-        capacity: `${formData.capacityMin || 0}–${formData.capacityMax || 0}`,
-        price: parseFloat(formData.price) || 0,
-        additionalGuestCharge: parseFloat(formData.additionalGuestCharge) || 0,
-        availability: finalAvailability,
-        updatedAt: new Date().toISOString()
-      });
+    const newData = {
+      type: formData.type,
+      totalRooms: totalRoomsInt,
+      maintenanceRooms: maintenanceRoomsInt,
+      capacityMin: parseInt(formData.capacityMin) || 0,
+      capacityMax: parseInt(formData.capacityMax) || 0,
+      price: parseFloat(formData.price) || 0,
+      additionalGuestCharge: parseFloat(formData.additionalGuestCharge) || 0,
+      availability: finalAvailability,
+      description: formData.description,
+      inclusions: formData.inclusions,
+      imagesCount: formData.images.length
+    };
+    
+    await updateDoc(roomRef, {
+      ...formData,
+      totalRooms: totalRoomsInt,
+      maintenanceRooms: maintenanceRoomsInt,
+      availableRooms: availableRoomsInt,
+      capacityMin: parseInt(formData.capacityMin) || 0,
+      capacityMax: parseInt(formData.capacityMax) || 0,
+      capacity: `${formData.capacityMin || 0}–${formData.capacityMax || 0}`,
+      price: parseFloat(formData.price) || 0,
+      additionalGuestCharge: parseFloat(formData.additionalGuestCharge) || 0,
+      availability: finalAvailability,
+      updatedAt: new Date().toISOString()
+    });
+    
+    // Update room inventory if total rooms changed
+    if (newData.totalRooms !== previousData.totalRooms) {
+      await updateRoomInventory(
+        selectedRoom.id,
+        newData.type,
+        newData.totalRooms,
+        previousData.totalRooms
+      );
+    }
       
       const changes = [];
       
@@ -536,21 +553,21 @@ export default function AdminRooms() {
         details: logDetails
       });
       
-      showNotification('Room updated successfully!');
-      
-      setTimeout(() => {
-        setShowModal(false);
-        setShowViewModal(false);
-        setSelectedRoom(null);
-      }, 2000);
-      
-    } catch (error) {
-      console.error('Error updating room:', error);
-      showNotification('Failed to update room.', 'error');
-    } finally {
-      setActionLoading(false);
-    }
-  };
+    showNotification('Room updated successfully!');
+    
+    setTimeout(() => {
+      setShowModal(false);
+      setShowViewModal(false);
+      setSelectedRoom(null);
+    }, 2000);
+    
+  } catch (error) {
+    console.error('Error updating room:', error);
+    showNotification('Failed to update room.', 'error');
+  } finally {
+    setActionLoading(false);
+  }
+};
   
   const handleArchiveRoom = async (room) => {
     try {

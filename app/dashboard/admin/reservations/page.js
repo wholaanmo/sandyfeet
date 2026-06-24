@@ -25,6 +25,8 @@ export default function AdminReservations() {
   const searchParams = useSearchParams(); // <-- ADDED
   const checkinToken = searchParams.get('checkinToken');
   const restoreGuestProfile = searchParams.get('restoreGuestProfile');
+  const deepLinkBookingId = searchParams.get('bookingId');
+  const deepLinkType = searchParams.get('type');
   const [activeTab, setActiveTab] = useState('rooms');
   const [statusFilter, setStatusFilter] = useState('all');
   const [bookings, setBookings] = useState([]);
@@ -256,6 +258,7 @@ export default function AdminReservations() {
             paymentProofUrl: booking.paymentProofUrl,
             validIdType: booking.validIdType,
             validIdUrl: booking.validIdUrl,
+            validIdSelfieUrl: booking.validIdSelfieUrl || booking.validIdSelfieImage || null,
             specialRequest: booking.specialRequest,
             manualDownPayment: booking.manualDownPayment,
             createdAt: booking.createdAt,
@@ -270,7 +273,9 @@ export default function AdminReservations() {
             manualTotalPrice: booking.manualTotalPrice
           });
         }
-        multiRoomGroups.get(booking.parentBookingId).bookings.push(booking);
+        const group = multiRoomGroups.get(booking.parentBookingId);
+        group.bookings.push(booking);
+        group.validIdSelfieUrl = group.validIdSelfieUrl || booking.validIdSelfieUrl || booking.validIdSelfieImage || null;
       } else if (!booking.isMultiRoomBooking) {
         // Single room booking
         singleBookings.push(booking);
@@ -422,6 +427,7 @@ export default function AdminReservations() {
         paymentProofUrl: group.paymentProofUrl,
         validIdType: group.validIdType,
         validIdUrl: group.validIdUrl,
+        validIdSelfieUrl: group.validIdSelfieUrl || group.validIdSelfieImage || null,
         specialRequest: group.specialRequest,
         manualDownPayment: group.manualDownPayment,
         createdAt: group.createdAt,
@@ -1661,6 +1667,65 @@ export default function AdminReservations() {
   };
 
   useEffect(() => {
+    const openSidebarFromBookingId = async () => {
+      if (!deepLinkBookingId) return;
+
+      try {
+        if (deepLinkType === 'daytour') {
+          const dayTourQuery = query(collection(db, 'dayTourBookings'), where('bookingId', '==', deepLinkBookingId));
+          const dayTourSnapshot = await getDocs(dayTourQuery);
+          if (!dayTourSnapshot.empty) {
+            const tourDoc = dayTourSnapshot.docs[0];
+            const tourData = tourDoc.data();
+            setActiveTab('daytour');
+            openSidebar({
+              id: tourDoc.id,
+              ...tourData,
+              type: 'daytour',
+              bookingId: tourData.bookingId,
+              guestInfo: tourData.guestInfo,
+              selectedDate: tourData.selectedDate,
+              adults: tourData.adults,
+              kids: tourData.kids,
+              seniors: tourData.seniors || 0,
+              totalPrice: tourData.totalPrice,
+              status: tourData.status,
+              paymentProof: tourData.paymentProof,
+              validIdImage: tourData.validIdImage,
+              validIdType: tourData.validIdType,
+              specialRequest: tourData.specialRequest,
+              createdAt: tourData.createdAt
+            });
+            router.replace('/dashboard/admin/reservations');
+            return;
+          }
+        }
+
+        const roomQuery1 = query(collection(db, 'bookings'), where('bookingId', '==', deepLinkBookingId));
+        const roomQuery2 = query(collection(db, 'bookings'), where('parentBookingId', '==', deepLinkBookingId));
+        const [snap1, snap2] = await Promise.all([getDocs(roomQuery1), getDocs(roomQuery2)]);
+        const matchedDocs = [...snap1.docs, ...snap2.docs];
+        if (matchedDocs.length === 0) {
+          console.warn('No room booking found for deep link', deepLinkBookingId);
+          return;
+        }
+
+        const roomBookingsList = matchedDocs.map(docSnap => ({ id: docSnap.id, ...docSnap.data() }));
+        const groupedRooms = groupMultiRoomBookings(roomBookingsList);
+        if (groupedRooms.length > 0) {
+          setActiveTab('rooms');
+          openSidebar(groupedRooms[0]);
+          router.replace('/dashboard/admin/reservations');
+        }
+      } catch (error) {
+        console.error('Error opening booking from deep link:', error);
+      }
+    };
+
+    openSidebarFromBookingId();
+  }, [deepLinkBookingId, deepLinkType]);
+
+  useEffect(() => {
     if (restoreGuestProfile !== '1' || loading) return;
 
     try {
@@ -2657,6 +2722,38 @@ export default function AdminReservations() {
                           console.error('Error loading valid ID image:', e);
                           e.target.style.display = 'none';
                           e.target.parentElement.innerHTML = '<div class="p-6 text-center"><i class="fas fa-id-card text-3xl text-gray-400 mb-2 block"></i><p class="text-sm text-gray-500">Error loading valid ID image</p></div>';
+                        }}
+                      />
+                      <div className="absolute inset-0 bg-[#1E3A8A]/0 group-hover:bg-[#1E3A8A]/20 transition-all duration-300 flex items-center justify-center">
+                        <i className="fas fa-search-plus text-white text-2xl opacity-0 group-hover:opacity-100 transition-opacity duration-300 transform scale-50 group-hover:scale-100"></i>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {/* Selfie Holding the Same ID - Clickable */}
+              {(sidebarBooking.validIdSelfieUrl || sidebarBooking.validIdSelfieImage) && (
+                <div className="bg-white border border-slate-200/60 rounded-xl shadow-[0_2px_8px_-1px_rgba(15,23,42,0.03)] hover:shadow-md transition-all duration-300 overflow-hidden">
+                  <div className="bg-slate-50 px-4 py-3 border-b border-slate-200/60 flex items-center justify-between gap-2">
+                    <h3 className="text-[11px] font-bold text-[#1E3A8A] uppercase tracking-widest flex items-center gap-2">
+                      <i className="fas fa-user text-[#4D8CF5] text-sm"></i>
+                      Selfie Holding the Same ID
+                    </h3>
+                  </div>
+                  <div className="p-4">
+                    <div
+                      className="relative bg-gray-50 rounded-xl border border-gray-100 overflow-hidden cursor-pointer group transition-all duration-300 hover:shadow-md"
+                      onClick={() => setImageZoomModal({ show: true, imageUrl: sidebarBooking.validIdSelfieUrl || sidebarBooking.validIdSelfieImage, title: 'Selfie Holding the Same ID' })}
+                    >
+                      <img
+                        src={sidebarBooking.validIdSelfieUrl || sidebarBooking.validIdSelfieImage}
+                        alt="Selfie Holding the Same ID"
+                        className="w-full h-40 object-cover group-hover:scale-105 transition-transform duration-500"
+                        onError={(e) => {
+                          console.error('Error loading selfie image:', e);
+                          e.target.style.display = 'none';
+                          e.target.parentElement.innerHTML = '<div class="p-6 text-center"><i class="fas fa-user text-3xl text-gray-400 mb-2 block"></i><p class="text-sm text-gray-500">Error loading selfie image</p></div>';
                         }}
                       />
                       <div className="absolute inset-0 bg-[#1E3A8A]/0 group-hover:bg-[#1E3A8A]/20 transition-all duration-300 flex items-center justify-center">

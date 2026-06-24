@@ -63,6 +63,8 @@ export default function StaffSidebar({ isOpen, onToggle, isDesktop }) {
     { path: '/dashboard/staff/overview', icon: 'dashboard', label: 'Overview', materialIcon: 'dashboard' },
     { path: '/dashboard/staff/availability', icon: 'event_available', label: 'Availability', materialIcon: 'event_available' },
     { path: '/dashboard/staff/reservations', icon: 'event', label: 'Reservations', materialIcon: 'event' },
+    { path: '/dashboard/staff/room-assign', icon: 'meeting_room', label: 'Room Management', materialIcon: 'meeting_room' },
+    { path: '/dashboard/staff/book-process', icon: 'fact_check', label: 'Booking', materialIcon: 'fact_check' },
     { path: '/dashboard/staff/calendars', icon: 'calendar_month', label: 'Calendar Management', materialIcon: 'calendar_month' },
     { path: '/dashboard/staff/payment', icon: 'payment', label: 'Payment', materialIcon: 'payment' },
     { path: '/dashboard/staff/scanner', icon: 'qr_code_scanner', label: 'Scanner', materialIcon: 'qr_code_scanner' },

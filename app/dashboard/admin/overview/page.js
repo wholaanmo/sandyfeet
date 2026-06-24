@@ -27,9 +27,59 @@ export default function AdminOverview() {
   const [loading, setLoading] = useState(true);
   const router = useRouter();
 
+  const navigateToReservation = (bookingId, type) => {
+    router.push(`/dashboard/admin/reservations?bookingId=${encodeURIComponent(bookingId)}&type=${type}`);
+  };
+
   const getTodayRange = () => {
     const { startMs, endMs } = getPhilippineTodayRange(nowMs);
     return { startOfDay: new Date(startMs), endOfDay: new Date(endMs) };
+  };
+
+  const getRoomUnitsFromBooking = (booking) => {
+    if (!booking) return 0;
+
+    if (typeof booking.totalRooms === 'number' && booking.totalRooms >= 0) {
+      return booking.totalRooms;
+    }
+
+    if (typeof booking.totalRooms === 'string' && booking.totalRooms.trim() !== '') {
+      const parsed = parseInt(booking.totalRooms, 10);
+      if (!Number.isNaN(parsed)) return parsed;
+    }
+
+    if (typeof booking.numberOfRooms === 'number' && booking.numberOfRooms >= 0) {
+      return booking.numberOfRooms;
+    }
+
+    if (typeof booking.numberOfRooms === 'string' && booking.numberOfRooms.trim() !== '') {
+      const parsed = parseInt(booking.numberOfRooms, 10);
+      if (!Number.isNaN(parsed)) return parsed;
+    }
+
+    if (Array.isArray(booking.roomTypesArray) && booking.roomTypesArray.length > 0) {
+      return booking.roomTypesArray.reduce((sum, roomType) => {
+        const quantity = typeof roomType.quantity === 'number'
+          ? roomType.quantity
+          : parseInt(roomType.quantity, 10) || 0;
+        return sum + quantity;
+      }, 0);
+    }
+
+    if (Array.isArray(booking.roomTypes) && booking.roomTypes.length > 0) {
+      return booking.roomTypes.reduce((sum, roomType) => {
+        const quantity = typeof roomType.quantity === 'number'
+          ? roomType.quantity
+          : parseInt(roomType.quantity, 10) || 0;
+        return sum + quantity;
+      }, 0);
+    }
+
+    if (booking.isExclusiveResortBooking && typeof booking.tentCount === 'number' && booking.tentCount > 0) {
+      return 1 + booking.tentCount;
+    }
+
+    return 1;
   };
 
   // Fetch admin name from Firebase Auth and Firestore
@@ -65,7 +115,7 @@ useEffect(() => {
       snapshot.forEach((doc) => {
         const booking = doc.data();
         if (getPhilippineDateKeyFromInstant(booking.checkIn, nowMs) === todayKey) {
-          count++;
+          count += getRoomUnitsFromBooking(booking);
         }
       });
       setRoomCheckInsToday(count);
@@ -343,7 +393,7 @@ useEffect(() => {
           Dashboard Overview
         </h1>
         <p className="text-[#4D6FA8] text-sm leading-relaxed mt-1">
-          Welcome back, {adminName}! Here's what's happening at SandyFeet today.
+          Welcome back, {adminName}! Here&apos;s what&apos;s happening at SandyFeet today.
         </p>
       </div>
 
@@ -473,7 +523,19 @@ useEffect(() => {
             ) : (
               <div className="space-y-3">
                 {recentPendingRoomBookings.map((booking) => (
-                  <div key={booking.id} className="group border border-[#4D8CF5]/10 rounded-xl p-3 hover:shadow-md hover:border-[#4D8CF5]/20 transition-all duration-200 bg-white h-[110px] flex flex-col justify-center">
+                  <div
+                    key={booking.id}
+                    role="button"
+                    tabIndex={0}
+                    onClick={() => navigateToReservation(booking.bookingId, 'room')}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter' || e.key === ' ') {
+                        e.preventDefault();
+                        navigateToReservation(booking.bookingId, 'room');
+                      }
+                    }}
+                    className="group border border-[#4D8CF5]/10 rounded-xl p-3 hover:shadow-md hover:border-[#4D8CF5]/20 transition-all duration-200 bg-white h-[110px] flex flex-col justify-center cursor-pointer"
+                  >
                     <div className="flex justify-between items-start">
                       <div className="flex-1">
                         <div className="flex items-center gap-2 flex-wrap mb-1">
@@ -553,7 +615,19 @@ useEffect(() => {
             ) : (
               <div className="space-y-3">
                 {recentPendingDayTours.map((booking) => (
-                  <div key={booking.id} className="group border border-[#4D8CF5]/10 rounded-xl p-3 hover:shadow-md hover:border-[#4D8CF5]/20 transition-all duration-200 bg-white h-[110px] flex flex-col justify-center">
+                  <div
+                    key={booking.id}
+                    role="button"
+                    tabIndex={0}
+                    onClick={() => navigateToReservation(booking.bookingId, 'daytour')}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter' || e.key === ' ') {
+                        e.preventDefault();
+                        navigateToReservation(booking.bookingId, 'daytour');
+                      }
+                    }}
+                    className="group border border-[#4D8CF5]/10 rounded-xl p-3 hover:shadow-md hover:border-[#4D8CF5]/20 transition-all duration-200 bg-white h-[110px] flex flex-col justify-center cursor-pointer"
+                  >
                     <div className="flex justify-between items-start">
                       <div className="flex-1">
                         <div className="flex items-center gap-2 flex-wrap mb-1">

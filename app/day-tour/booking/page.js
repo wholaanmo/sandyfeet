@@ -90,6 +90,7 @@ function DayTourBookingContent() {
   const hasMobileNumber = hasAccountMobileNumber(profile);
   const accountValidIdType = getDisplayValidIdType(profile);
   const accountValidIdUrl = profile?.validIdUrl || '';
+  const accountValidIdSelfieUrl = profile?.validIdSelfieUrl || '';
 
   // Restore bank transfer request when returning from Pending Payment
   useEffect(() => {
@@ -693,6 +694,7 @@ function DayTourBookingContent() {
         paymentProof: bookingData.paymentProof,
         validIdType: accountValidIdType || null,
         validIdImage: accountValidIdUrl || null,
+        validIdSelfieUrl: accountValidIdSelfieUrl || null,
         createdAt: serverTimestamp(),
         updatedAt: serverTimestamp(),
         type: 'daytour',
