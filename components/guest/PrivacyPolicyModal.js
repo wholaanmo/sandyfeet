@@ -114,15 +114,27 @@ export default function PrivacyPolicyModal({ onClose }) {
                 </ul>
               </div>
               <div>
-                <p className="font-semibold text-slate-800">2.3 Booking and Transaction Information</p>
+  <p className="font-semibold text-slate-800">
+    2.3 Identity Verification Information
+  </p>
+  <ul className="list-disc pl-6 mt-1 space-y-1 text-slate-600">
+    <li>A clear photo (selfie) of yourself holding the same valid government-issued ID that you uploaded.</li>
+    <li>We require the submission of both a valid government-issued ID and a selfie holding the same ID solely for identity verification purposes.</li>
+    <li>These documents are collected to verify that the identification document belongs to you, confirm that you are the legitimate owner of the ID, and help prevent fraud, identity misrepresentation, and unauthorized bookings.</li>
+    <li>All uploaded identification documents and selfies are handled securely, used exclusively for identity verification purposes, and processed in accordance with this Privacy Policy, Republic Act No. 10173 (Data Privacy Act of 2012), and other applicable data privacy laws and regulations.</li>
+  </ul>
+</div>
+              <div>
+                <p className="font-semibold text-slate-800">2.4 Booking and Transaction Information</p>
                 <ul className="list-disc pl-6 mt-1 space-y-1 text-slate-600">
                   <li>Reservation details (dates, accommodation type, number of guests)</li>
                   <li>Payment records and transaction history</li>
                   <li>Special requests or notes</li>
                 </ul>
               </div>
+              
               <div>
-                <p className="font-semibold text-slate-800">2.4 Technical and Usage Data</p>
+                <p className="font-semibold text-slate-800">2.5 Technical and Usage Data</p>
                 <ul className="list-disc pl-6 mt-1 space-y-1 text-slate-600">
                   <li>IP address and device information</li>
                   <li>Browser type and operating system</li>
@@ -140,7 +152,7 @@ export default function PrivacyPolicyModal({ onClose }) {
             <p>We collect and process your personal data for the following legitimate purposes:</p>
             <ol className="list-decimal pl-6 space-y-1 text-slate-600">
               <li>To process, confirm, and manage your reservation;</li>
-              <li>To verify your identity through the submission of valid identification documents;</li>
+              <li>To verify your identity through the submission of a valid government-issued ID and a selfie of you holding the same ID, for the purpose of confirming ownership of the identification document and preventing fraud and unauthorized bookings;</li>
               <li>To communicate with you regarding your booking, including confirmations, reminders, and updates;</li>
               <li>To process payments and maintain accurate financial records;</li>
               <li>To ensure compliance with applicable laws and regulations;</li>

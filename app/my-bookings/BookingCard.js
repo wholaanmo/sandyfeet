@@ -622,6 +622,33 @@ export default function BookingCard({ booking, onCancel, onEditSuccess }) {
                   )
                 )}
 
+                {/* Request Changes button for day tours with PENDING status */}
+                {isPending && isDayTour && (
+                  (booking.changeRequest && booking.changeRequest.status === 'pending') ? (
+                    <button
+                      type="button"
+                      disabled
+                      className="inline-flex items-center gap-2 rounded-lg border border-gray-200 bg-gray-100 px-4 py-2 text-sm font-semibold text-gray-400 cursor-not-allowed"
+                      title="You have already submitted a change request"
+                    >
+                      <i className="fas fa-exchange-alt text-xs" />
+                      Request Changes
+                    </button>
+                  ) : (
+                    <button
+                      type="button"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setShowDayTourRequestModal(true);
+                      }}
+                      className="inline-flex items-center gap-2 rounded-lg border border-amber-200 bg-white px-4 py-2 text-sm font-semibold text-amber-600 transition-all hover:bg-amber-50 hover:border-amber-300 hover:shadow-sm"
+                    >
+                      <i className="fas fa-exchange-alt text-xs" />
+                      Request Changes
+                    </button>
+                  )
+                )}
+
                 {/* Request Changes button for day tours with CONFIRMED status */}
                 {!isPending && isDayTour && booking.status === 'confirmed' && (
                   (booking.changeRequest && booking.changeRequest.status === 'pending') ? (

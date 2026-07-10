@@ -166,7 +166,7 @@ export default function DayTourRequestChangesModal({ isOpen, booking, onClose, o
               <div className="rounded-lg bg-amber-50 p-3 text-sm text-amber-800 flex items-start gap-2">
                 <i className="fas fa-info-circle mt-0.5 text-amber-600" />
                 <span>
-                  Change requests should only be used for <strong>adding number of guests</strong> (adults or kids) to your day tour.
+                  Change requests should only be used for <strong>adding number of guests</strong> (adults or kids) to your day tour or <strong>requesting a reschedule</strong>.
                   Please describe your request clearly below.
                 </span>
               </div>

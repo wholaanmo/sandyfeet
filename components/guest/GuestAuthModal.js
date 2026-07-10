@@ -77,6 +77,7 @@ export default function GuestAuthModal({ isOpen, onClose, prefillEmail = '' }) {
   
   // Terms & Privacy state
   const [termsAccepted, setTermsAccepted] = useState(false);
+  const [privacyAccepted, setPrivacyAccepted] = useState(false);
   const [showTermsModal, setShowTermsModal] = useState(false);
   const [showPrivacyModal, setShowPrivacyModal] = useState(false);
   
@@ -109,6 +110,7 @@ export default function GuestAuthModal({ isOpen, onClose, prefillEmail = '' }) {
   useEffect(() => {
     if (mode === 'signin') {
       setTermsAccepted(false);
+      setPrivacyAccepted(false);
     }
   }, [mode]);
 
@@ -134,6 +136,7 @@ export default function GuestAuthModal({ isOpen, onClose, prefillEmail = '' }) {
     setShowPassword(false);
     setShowConfirmPassword(false);
     setTermsAccepted(false);
+    setPrivacyAccepted(false);
   };
 
   const renderAuthError = (message) => (
@@ -151,7 +154,7 @@ export default function GuestAuthModal({ isOpen, onClose, prefillEmail = '' }) {
     setSignUpError('');
     clearAuthError?.();
     
-    if (mode === 'signup' && !termsAccepted) {
+    if (mode === 'signup' && (!termsAccepted || !privacyAccepted)) {
       setNotice('You must agree to the Terms and Conditions and Privacy Policy to create an account.');
       return;
     }
@@ -188,7 +191,7 @@ export default function GuestAuthModal({ isOpen, onClose, prefillEmail = '' }) {
       return;
     }
     
-    if (!termsAccepted) {
+    if (!termsAccepted || !privacyAccepted) {
       setNotice('You must agree to the Terms and Conditions and Privacy Policy to create an account.');
       return;
     }
@@ -201,6 +204,7 @@ export default function GuestAuthModal({ isOpen, onClose, prefillEmail = '' }) {
       setSignUpError('');
       setNotice('Verification email sent! Please check your inbox and verify your email before signing in.');
       setTermsAccepted(false);
+      setPrivacyAccepted(false);
     } catch (err) {
       setSignUpError(mapFirebaseAuthError(err, 'signup'));
     }
@@ -259,7 +263,7 @@ export default function GuestAuthModal({ isOpen, onClose, prefillEmail = '' }) {
     setForgotMessage('');
 
     if (isGoogleGuestUser) {
-      setForgotError("You can’t use this feature because your account is signed in using Google.");
+      setForgotError("You can't use this feature because your account is signed in using Google.");
       setForgotLoading(false);
       return;
     }
@@ -288,6 +292,11 @@ export default function GuestAuthModal({ isOpen, onClose, prefillEmail = '' }) {
   const handleAcceptTerms = () => {
     setTermsAccepted(true);
     setShowTermsModal(false);
+  };
+
+  const handleAcceptPrivacy = () => {
+    setPrivacyAccepted(true);
+    setShowPrivacyModal(false);
   };
 
   return (
@@ -325,12 +334,12 @@ export default function GuestAuthModal({ isOpen, onClose, prefillEmail = '' }) {
           </div>
 
           {/* Body Section */}
-          <div className="flex-1 overflow-y-auto px-6 py-5 scrollbar-thin scrollbar-thumb-slate-200">
+          <div className="flex-1 overflow-y-auto px-5 py-4 scrollbar-thin scrollbar-thumb-slate-200">
             <button
               type="button"
               onClick={handleGoogleContinue}
               disabled={actionLoading}
-              className="group relative flex h-12 w-full items-center justify-center gap-3 overflow-hidden rounded-2xl border border-white/10 bg-gradient-to-br from-[#111111] via-[#1a1a1a] to-[#0d0d0d] px-4 text-[14px] font-semibold text-white shadow-[0_6px_20px_rgba(0,0,0,0.35)] transition-all duration-300 hover:-translate-y-[2px] hover:border-white/20 hover:shadow-[0_10px_30px_rgba(0,0,0,0.45)] active:scale-[0.985] disabled:cursor-not-allowed disabled:opacity-50"
+              className="group relative flex h-10.5 w-full items-center justify-center gap-3 overflow-hidden rounded-2xl border border-white/10 bg-gradient-to-br from-[#111111] via-[#1a1a1a] to-[#0d0d0d] px-4 text-[14px] font-semibold text-white shadow-[0_6px_20px_rgba(0,0,0,0.35)] transition-all duration-300 hover:-translate-y-[2px] hover:border-white/20 hover:shadow-[0_10px_30px_rgba(0,0,0,0.45)] active:scale-[0.985] disabled:cursor-not-allowed disabled:opacity-50"
             >
               <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/5 to-transparent opacity-0 transition-opacity duration-300 group-hover:opacity-100" />
               <div className="relative flex items-center gap-3">
@@ -350,7 +359,7 @@ export default function GuestAuthModal({ isOpen, onClose, prefillEmail = '' }) {
               </div>
             </button>
 
-            <div className="my-4.5 flex items-center gap-3">
+            <div className="my-3.5 flex items-center gap-3">
               <div className="h-px flex-1 bg-slate-100" />
               <span className="text-[10px] font-bold uppercase tracking-[0.2em] text-slate-400">or use email</span>
               <div className="h-px flex-1 bg-slate-100" />
@@ -396,7 +405,7 @@ export default function GuestAuthModal({ isOpen, onClose, prefillEmail = '' }) {
                         setNotice('');
                       }}
                       placeholder="••••••••"
-                      className="h-10.5 w-full rounded-xl border border-slate-200/80 bg-slate-50/40 pl-10 pr-11 text-sm text-slate-900 outline-none transition-all placeholder:text-slate-400 hover:bg-slate-50/60 focus:bg-white focus:border-[#2563EB] focus:ring-4 focus:ring-blue-100/50"
+                      className="h-9 w-full rounded-xl border border-slate-200/80 bg-slate-50/40 pl-10 pr-11 text-sm text-slate-900 outline-none transition-all placeholder:text-slate-400 hover:bg-slate-50/60 focus:bg-white focus:border-[#2563EB] focus:ring-4 focus:ring-blue-100/50"
                       required
                     />
                     <button
@@ -427,7 +436,7 @@ export default function GuestAuthModal({ isOpen, onClose, prefillEmail = '' }) {
                   Sign In
                 </button>
                 <p className="text-center text-sm text-slate-500">
-                  Don't have an account?{' '}
+                  Don&apos;t have an account?{' '}
                   <button
                     type="button"
                     onClick={() => {
@@ -437,6 +446,7 @@ export default function GuestAuthModal({ isOpen, onClose, prefillEmail = '' }) {
                       setSignUpError('');
                       clearAuthError?.();
                       setTermsAccepted(false);
+                      setPrivacyAccepted(false);
                     }}
                     className="font-semibold text-[#2563EB] hover:text-blue-700 hover:underline focus:outline-none"
                   >
@@ -462,9 +472,9 @@ export default function GuestAuthModal({ isOpen, onClose, prefillEmail = '' }) {
                 </div>
               </form>
             ) : (
-              <form onSubmit={handleSignUp} className="space-y-3">
+              <form onSubmit={handleSignUp} className="space-y-2.5">
                 {signUpError && renderAuthError(signUpError)}
-                <div className="grid grid-cols-2 gap-3">
+                <div className="grid grid-cols-2 gap-2.5">
                   <div>
                     <label className="mb-1 block text-xs font-semibold text-slate-500 uppercase tracking-wider">
                       First name
@@ -481,7 +491,7 @@ export default function GuestAuthModal({ isOpen, onClose, prefillEmail = '' }) {
                           setNotice('');
                         }}
                         placeholder="John"
-                        className="h-10.5 w-full rounded-xl border border-slate-200/80 bg-slate-50/40 pl-10 pr-4 text-sm text-slate-900 outline-none transition-all placeholder:text-slate-400 hover:bg-slate-50/60 focus:bg-white focus:border-[#2563EB] focus:ring-4 focus:ring-blue-100/50"
+                        className="h-9 w-full rounded-xl border border-slate-200/80 bg-slate-50/40 pl-10 pr-4 text-sm text-slate-900 outline-none transition-all placeholder:text-slate-400 hover:bg-slate-50/60 focus:bg-white focus:border-[#2563EB] focus:ring-4 focus:ring-blue-100/50"
                         required
                       />
                     </div>
@@ -502,7 +512,7 @@ export default function GuestAuthModal({ isOpen, onClose, prefillEmail = '' }) {
                           setNotice('');
                         }}
                         placeholder="Doe"
-                        className="h-10.5 w-full rounded-xl border border-slate-200/80 bg-slate-50/40 pl-10 pr-4 text-sm text-slate-900 outline-none transition-all placeholder:text-slate-400 hover:bg-slate-50/60 focus:bg-white focus:border-[#2563EB] focus:ring-4 focus:ring-blue-100/50"
+                        className="h-9 w-full rounded-xl border border-slate-200/80 bg-slate-50/40 pl-10 pr-4 text-sm text-slate-900 outline-none transition-all placeholder:text-slate-400 hover:bg-slate-50/60 focus:bg-white focus:border-[#2563EB] focus:ring-4 focus:ring-blue-100/50"
                         required
                       />
                     </div>
@@ -524,7 +534,7 @@ export default function GuestAuthModal({ isOpen, onClose, prefillEmail = '' }) {
                         setNotice('');
                       }}
                       placeholder="you@example.com"
-                      className="h-10.5 w-full rounded-xl border border-slate-200/80 bg-slate-50/40 pl-10 pr-4 text-sm text-slate-900 outline-none transition-all placeholder:text-slate-400 hover:bg-slate-50/60 focus:bg-white focus:border-[#2563EB] focus:ring-4 focus:ring-blue-100/50"
+                      className="h-9 w-full rounded-xl border border-slate-200/80 bg-slate-50/40 pl-10 pr-4 text-sm text-slate-900 outline-none transition-all placeholder:text-slate-400 hover:bg-slate-50/60 focus:bg-white focus:border-[#2563EB] focus:ring-4 focus:ring-blue-100/50"
                       required
                     />
                   </div>
@@ -545,7 +555,7 @@ export default function GuestAuthModal({ isOpen, onClose, prefillEmail = '' }) {
         setNotice('');
       }}
       placeholder="Must have A-Z, a-z, 0-9, special"
-      className="h-10.5 w-full rounded-xl border border-slate-200/80 bg-slate-50/40 pl-10 pr-11 text-sm text-slate-900 outline-none transition-all placeholder:text-slate-400 hover:bg-slate-50/60 focus:bg-white focus:border-[#2563EB] focus:ring-4 focus:ring-blue-100/50"
+      className="h-9 w-full rounded-xl border border-slate-200/80 bg-slate-50/40 pl-10 pr-11 text-sm text-slate-900 outline-none transition-all placeholder:text-slate-400 hover:bg-slate-50/60 focus:bg-white focus:border-[#2563EB] focus:ring-4 focus:ring-blue-100/50"
       required
     />
     <button
@@ -560,7 +570,7 @@ export default function GuestAuthModal({ isOpen, onClose, prefillEmail = '' }) {
 
   {/* Dynamic sentence for password requirements */}
   {password.length > 0 && (
-    <div className="mt-1.5 text-[10.5px] leading-relaxed text-slate-500">
+    <div className="mt-1 text-[10.5px] leading-relaxed text-slate-500">
       {(() => {
         const missing = [];
         if (!passwordChecks.minLength) missing.push('at least 8 characters');
@@ -580,7 +590,7 @@ export default function GuestAuthModal({ isOpen, onClose, prefillEmail = '' }) {
   )}
   
   {password && (
-    <div className="mt-1 flex justify-between items-center text-[10.5px] font-bold uppercase tracking-wider select-none">
+    <div className="mt-0.5 flex justify-between items-center text-[10.5px] font-bold uppercase tracking-wider select-none">
       <span className="text-slate-400">Password Strength</span>
       <span className={`${passwordStrength.color} transition-colors duration-200`}>{passwordStrength.message}</span>
     </div>
@@ -602,7 +612,7 @@ export default function GuestAuthModal({ isOpen, onClose, prefillEmail = '' }) {
                         setNotice('');
                       }}
                       placeholder="••••••••"
-                      className="h-10.5 w-full rounded-xl border border-slate-200/80 bg-slate-50/40 pl-10 pr-11 text-sm text-slate-900 outline-none transition-all placeholder:text-slate-400 hover:bg-slate-50/60 focus:bg-white focus:border-[#2563EB] focus:ring-4 focus:ring-blue-100/50"
+                      className="h-9 w-full rounded-xl border border-slate-200/80 bg-slate-50/40 pl-10 pr-11 text-sm text-slate-900 outline-none transition-all placeholder:text-slate-400 hover:bg-slate-50/60 focus:bg-white focus:border-[#2563EB] focus:ring-4 focus:ring-blue-100/50"
                       required
                     />
                     <button
@@ -616,7 +626,7 @@ export default function GuestAuthModal({ isOpen, onClose, prefillEmail = '' }) {
                   </div>
                 </div>
                 
-                {/* Terms & Privacy Checkbox Row */}
+                {/* Terms Checkbox */}
                 <div className="flex items-start gap-2 pt-0.5">
                   <input
                     type="checkbox"
@@ -636,8 +646,24 @@ export default function GuestAuthModal({ isOpen, onClose, prefillEmail = '' }) {
                       className="font-semibold text-[#2563EB] hover:text-blue-700 hover:underline focus:outline-none"
                     >
                       Terms and Conditions
-                    </button>{' '}
-                    and{' '}
+                    </button>
+                  </label>
+                </div>
+
+                {/* Privacy Checkbox */}
+                <div className="flex items-start gap-2 pt-0.5">
+                  <input
+                    type="checkbox"
+                    id="privacyCheckbox"
+                    checked={privacyAccepted}
+                    onChange={(e) => {
+                      setPrivacyAccepted(e.target.checked);
+                      setNotice('');
+                    }}
+                    className="mt-0.5 h-4 w-4 rounded border-slate-300 text-[#2563EB] focus:ring-2 focus:ring-blue-100 transition-colors cursor-pointer"
+                  />
+                  <label htmlFor="privacyCheckbox" className="text-xs text-slate-500 leading-normal select-none cursor-pointer">
+                    I agree to the{' '}
                     <button
                       type="button"
                       onClick={() => setShowPrivacyModal(true)}
@@ -667,6 +693,7 @@ export default function GuestAuthModal({ isOpen, onClose, prefillEmail = '' }) {
                       setSignUpError('');
                       clearAuthError?.();
                       setTermsAccepted(false);
+                      setPrivacyAccepted(false);
                     }}
                     className="font-semibold text-[#2563EB] hover:text-blue-700 hover:underline focus:outline-none"
                   >
@@ -677,7 +704,7 @@ export default function GuestAuthModal({ isOpen, onClose, prefillEmail = '' }) {
             )}
 
             {notice && (
-              <div className={`mt-3.5 rounded-xl border px-4 py-3 text-xs leading-5 transition-all ${
+              <div className={`mt-3 rounded-xl border px-4 py-3 text-xs leading-5 transition-all ${
                 notice?.includes('Verification email') 
                   ? 'border-emerald-100 bg-emerald-50 text-emerald-800' 
                   : 'border-amber-100 bg-amber-50 text-amber-800'
@@ -689,7 +716,7 @@ export default function GuestAuthModal({ isOpen, onClose, prefillEmail = '' }) {
               </div>
             )}
 
-            <p className="mt-4.5 text-center text-[10.5px] leading-relaxed text-slate-400">
+            <p className="mt-3.5 text-center text-[10.5px] leading-relaxed text-slate-400">
               By continuing, you agree to Sandyfeet using this account to identify your bookings and reservation updates.
             </p>
           </div>
@@ -728,7 +755,7 @@ export default function GuestAuthModal({ isOpen, onClose, prefillEmail = '' }) {
               </button>
             </div>
 
-            <div className="flex-1 overflow-y-auto px-6 py-5 scrollbar-thin scrollbar-thumb-slate-200">
+            <div className="flex-1 overflow-y-auto px-5 py-4 scrollbar-thin scrollbar-thumb-slate-200">
               <form onSubmit={handleSendResetEmail} className="space-y-4">
                 <div>
                   <label className="mb-1 block text-xs font-semibold text-slate-500 uppercase tracking-wider">
