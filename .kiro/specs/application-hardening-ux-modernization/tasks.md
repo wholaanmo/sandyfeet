@@ -189,7 +189,7 @@ Implement the approved JavaScript design incrementally, preserving active URLs a
     - _Requirements: 8.1–8.10, 14.1–14.11, 15.10, 15.15_
 
 - [ ] 7. Build P1 accessible, responsive, motion, and async contracts
-  - [ ] 7.1 Create semantic interaction and presentation foundations
+  - [x] 7.1 Create semantic interaction and presentation foundations
     - Add accessible base tokens for focus, contrast, control size, spacing, typography roles, live announcements, and transition timing plus `Button`, `FormField`, `LiveRegion`, `AsyncRegion`, and image contracts.
     - _Requirements: 9.1, 9.2, 9.4, 9.5, 9.6, 9.9, 9.12, 9.13, 9.14, 10.3, 10.9, 11.2, 11.8_
   - [ ] 7.2 Implement accessible overlays, navigation, calendar, and tables
@@ -201,7 +201,7 @@ Implement the approved JavaScript design incrementally, preserving active URLs a
   - [ ] 7.4 Implement the shared motion system
     - Apply 100–300ms duration/easing tokens, continuity-preserving transitions, reduced-motion removal of prohibited effects, immediate non-motion feedback, pause/focus-within controls, stable target positions, and non-blocking progress.
     - _Requirements: 11.1, 11.2, 11.3, 11.4, 11.5, 11.6, 11.7, 11.8_
-  - [ ] 7.5 Implement async reducer, mutation controller, and reconciliation
+  - [x] 7.5 Implement async reducer, mutation controller, and reconciliation
     - Model idle/pending/success/empty/partial/error/reconciling phases, 300ms delayed labels, duplicate-submit prevention, valid-input and primary-data preservation, targeted retry, route error/not-found distinction, persistent idempotency keys, navigation reconciliation, and affected-view invalidation.
     - _Requirements: 13.1, 13.2, 13.3, 13.4, 13.5, 13.6, 13.7, 13.8, 13.9, 13.10_
   - [ ]* 7.6 Write the property test for async phase timing

@@ -1,0 +1,102 @@
+/**
+ * Accessible semantic design tokens for the Sandyfeet Resort shared UI system.
+ *
+ * These tokens define the foundation for focus indicators, contrast-compliant
+ * colors, touch-target sizing, spacing, typography, live-region behavior,
+ * and transition timing across all application surfaces.
+ *
+ * Requirements: 9.1, 9.4, 9.12, 10.3, 11.2, 11.8, 12.1
+ */
+
+:root {
+  /* ─── Focus ─────────────────────────────────────────────────────────── */
+  --focus-ring-width: 2px;
+  --focus-ring-offset: 2px;
+  --focus-ring-color: #1a56db; /* 3:1+ contrast on white backgrounds */
+  --focus-ring-style: solid;
+
+  /* ─── Contrast-compliant text colors ────────────────────────────────── */
+  /* 4.5:1 AA on white (#ffffff) backgrounds */
+  --text-primary: #1f2937;       /* ~13.5:1 contrast on white */
+  --text-secondary: #4b5563;     /* ~7:1 contrast on white */
+  --text-on-primary: #ffffff;    /* used on --action-primary backgrounds */
+  --text-disabled: #9ca3af;      /* informational, not relied upon alone */
+  --text-error: #b91c1c;         /* 4.5:1+ on white */
+  --text-success: #166534;       /* 4.5:1+ on white */
+
+  /* ─── Interactive/action colors ─────────────────────────────────────── */
+  --action-primary: #1a56db;     /* 4.5:1+ against white text */
+  --action-primary-hover: #1648b8;
+  --action-primary-active: #133e9e;
+  --action-secondary: transparent;
+  --action-secondary-hover: #f3f4f6;
+  --action-ghost: transparent;
+  --action-ghost-hover: #f9fafb;
+  --action-danger: #b91c1c;
+  --action-danger-hover: #991b1b;
+  --action-disabled-bg: #e5e7eb;
+  --action-disabled-text: #9ca3af;
+
+  /* ─── Borders and surfaces ──────────────────────────────────────────── */
+  --border-default: #d1d5db;
+  --border-error: #b91c1c;
+  --border-focus: var(--focus-ring-color);
+  --surface-primary: #ffffff;
+  --surface-secondary: #f9fafb;
+  --surface-overlay: #ffffff;
+
+  /* ─── Control sizes (WCAG 2.5.8 / touch targets) ───────────────────── */
+  --control-min-size: 44px;      /* minimum touch target */
+  --control-min-size-sm: 36px;   /* inline small controls with spacing */
+
+  /* ─── Spacing scale ─────────────────────────────────────────────────── */
+  --space-xs: 4px;
+  --space-sm: 8px;
+  --space-md: 12px;
+  --space-lg: 16px;
+  --space-xl: 24px;
+  --space-2xl: 32px;
+  --space-3xl: 48px;
+
+  /* ─── Typography roles ──────────────────────────────────────────────── */
+  --font-body: "Poppins", system-ui, -apple-system, sans-serif;
+  --font-heading: "Playfair Display", Georgia, serif;
+  --font-mono: "JetBrains Mono", "Fira Code", ui-monospace, monospace;
+
+  --text-xs: 0.75rem;    /* 12px */
+  --text-sm: 0.875rem;   /* 14px */
+  --text-base: 1rem;     /* 16px */
+  --text-lg: 1.125rem;   /* 18px */
+  --text-xl: 1.25rem;    /* 20px */
+  --text-2xl: 1.5rem;    /* 24px */
+  --text-3xl: 1.875rem;  /* 30px */
+
+  --leading-tight: 1.25;
+  --leading-normal: 1.5;
+  --leading-relaxed: 1.75;
+
+  --weight-normal: 400;
+  --weight-medium: 500;
+  --weight-semibold: 600;
+  --weight-bold: 700;
+
+  /* ─── Transition timing ─────────────────────────────────────────────── */
+  --transition-fast: 100ms;
+  --transition-normal: 200ms;
+  --transition-slow: 300ms;
+  --easing-default: cubic-bezier(0.4, 0, 0.2, 1);
+  --easing-in: cubic-bezier(0.4, 0, 1, 1);
+  --easing-out: cubic-bezier(0, 0, 0.2, 1);
+
+  /* ─── Live region timing ────────────────────────────────────────────── */
+  --live-debounce: 150ms;
+}
+
+/* ─── Reduced motion override ─────────────────────────────────────────── */
+@media (prefers-reduced-motion: reduce) {
+  :root {
+    --transition-fast: 0ms;
+    --transition-normal: 0ms;
+    --transition-slow: 0ms;
+  }
+}
