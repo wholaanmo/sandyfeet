@@ -1,0 +1,251 @@
+/**
+ * Responsive layout utility classes and contracts.
+ *
+ * Provides consistent responsive behavior across all application surfaces:
+ * - No two-axis overflow at any supported viewport (320-1440px)
+ * - Reflow rules for 200-400% zoom without clipping
+ * - 44×44px minimum touch targets (uses --control-min-size from tokens.css)
+ * - Viewport-contained overlays
+ * - Dashboard nav collapse below 1024px
+ * - Resize-state preservation (CSS-only, no content loss)
+ * - Virtual keyboard reachability
+ * - Table single-axis scroll
+ * - Responsive image sizing
+ *
+ * Requirements: 10.1, 10.2, 10.3, 10.4, 10.5, 10.6, 10.7, 10.8, 10.9
+ */
+
+/* ─── 1. No two-axis overflow ─────────────────────────────────────────────── */
+
+.responsive-layout {
+  overflow-x: hidden;
+  overflow-y: auto;
+  max-width: 100vw;
+  min-width: 0;
+}
+
+.responsive-content {
+  max-width: 100%;
+  overflow-wrap: break-word;
+  word-break: break-word;
+  min-width: 0;
+}
+
+/* ─── 2. Reflow rules for 200-400% zoom ──────────────────────────────────── */
+
+.reflow-safe {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-md, 12px);
+  min-width: 0;
+}
+
+.reflow-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(280px, 100%), 1fr));
+  gap: var(--space-lg, 16px);
+  min-width: 0;
+}
+
+.reflow-text {
+  overflow-wrap: break-word;
+  word-break: break-word;
+  hyphens: auto;
+  max-width: 100%;
+}
+
+/* Prevent text clipping at high zoom levels */
+.reflow-safe *,
+.reflow-grid * {
+  max-width: 100%;
+  min-width: 0;
+}
+
+/* ─── 3. Touch targets (44×44px minimum) ──────────────────────────────────── */
+
+.touch-target {
+  min-height: var(--control-min-size, 44px);
+  min-width: var(--control-min-size, 44px);
+}
+
+.touch-target-spacing {
+  padding: calc((var(--control-min-size, 44px) - 1em) / 2);
+}
+
+/* Inline small controls use spacing to meet target area */
+.touch-target-sm {
+  min-height: var(--control-min-size-sm, 36px);
+  min-width: var(--control-min-size-sm, 36px);
+  padding: var(--space-sm, 8px);
+}
+
+/* ─── 4. Viewport-contained overlays ─────────────────────────────────────── */
+
+.overlay-contained {
+  max-height: 100dvh;
+  max-width: 100vw;
+  overflow-y: auto;
+  overflow-x: hidden;
+  overscroll-behavior: contain;
+}
+
+.overlay-safe-area {
+  max-height: calc(100dvh - env(safe-area-inset-top, 0px) - env(safe-area-inset-bottom, 0px));
+  max-width: calc(100vw - env(safe-area-inset-left, 0px) - env(safe-area-inset-right, 0px));
+  overflow-y: auto;
+  overflow-x: hidden;
+  overscroll-behavior: contain;
+}
+
+/* ─── 5. Dashboard nav collapse below 1024px ──────────────────────────────── */
+
+.dashboard-nav {
+  display: flex;
+  flex-direction: column;
+  width: 260px;
+  flex-shrink: 0;
+  overflow-y: auto;
+  overflow-x: hidden;
+  transition: width var(--transition-normal, 200ms) var(--easing-default, ease);
+}
+
+.dashboard-nav-backdrop {
+  display: none;
+}
+
+@media (max-width: 1023px) {
+  .dashboard-nav {
+    position: fixed;
+    inset-block: 0;
+    inset-inline-start: 0;
+    z-index: 40;
+    width: min(280px, 85vw);
+    transform: translateX(-100%);
+    transition: transform var(--transition-normal, 200ms) var(--easing-default, ease);
+  }
+
+  .dashboard-nav[data-open="true"] {
+    transform: translateX(0);
+  }
+
+  .dashboard-nav-backdrop[data-open="true"] {
+    display: block;
+    position: fixed;
+    inset: 0;
+    z-index: 39;
+    background-color: rgba(0, 0, 0, 0.4);
+  }
+
+  .dashboard-content {
+    width: 100%;
+    min-width: 0;
+  }
+}
+
+@media (min-width: 1024px) {
+  .dashboard-layout {
+    display: flex;
+    min-height: 100dvh;
+  }
+
+  .dashboard-content {
+    flex: 1;
+    min-width: 0;
+    overflow-x: hidden;
+  }
+}
+
+/* ─── 6. Resize-state preservation ────────────────────────────────────────── */
+
+.resize-stable {
+  contain: layout style;
+}
+
+.resize-stable-form {
+  contain: style;
+}
+
+/* ─── 7. Virtual keyboard reachability ────────────────────────────────────── */
+
+.keyboard-reachable {
+  scroll-margin-bottom: 44px;
+  scroll-padding-bottom: 44px;
+}
+
+.keyboard-reachable:focus,
+.keyboard-reachable:focus-within {
+  scroll-margin-bottom: max(44px, env(keyboard-inset-height, 0px));
+}
+
+/* Ensure focused inputs scroll into view above virtual keyboard */
+input:focus,
+textarea:focus,
+select:focus,
+[contenteditable="true"]:focus {
+  scroll-margin-bottom: max(var(--control-min-size, 44px), env(keyboard-inset-height, 0px));
+}
+
+/* ─── 8. Table single-axis scroll ─────────────────────────────────────────── */
+
+.table-scroll-container {
+  overflow-x: auto;
+  overflow-y: visible;
+  -webkit-overflow-scrolling: touch;
+  max-width: 100%;
+}
+
+.table-scroll-container[role="region"] {
+  /* Labelled scroll region requirement */
+  outline: none;
+}
+
+.table-scroll-container:focus-visible {
+  outline: var(--focus-ring-width, 2px) var(--focus-ring-style, solid) var(--focus-ring-color, #1a56db);
+  outline-offset: var(--focus-ring-offset, 2px);
+}
+
+.table-scroll-container table {
+  min-width: max-content;
+}
+
+/* ─── 9. Responsive image sizing ──────────────────────────────────────────── */
+
+.responsive-img {
+  max-width: 100%;
+  height: auto;
+  object-fit: cover;
+}
+
+.responsive-img-contain {
+  max-width: 100%;
+  height: auto;
+  object-fit: contain;
+}
+
+.responsive-img-fixed-ratio {
+  max-width: 100%;
+  height: auto;
+  aspect-ratio: var(--img-aspect-ratio, 16 / 9);
+  object-fit: cover;
+}
+
+/* Reserve dimensions to prevent layout shift */
+img[width][height] {
+  height: auto;
+  max-width: 100%;
+}
+
+/* ─── Reduced motion: disable smooth scrolling ────────────────────────────── */
+
+@media (prefers-reduced-motion: reduce) {
+  .responsive-layout,
+  .overlay-contained,
+  .overlay-safe-area,
+  .table-scroll-container {
+    scroll-behavior: auto;
+  }
+
+  .dashboard-nav {
+    transition: none;
+  }
+}

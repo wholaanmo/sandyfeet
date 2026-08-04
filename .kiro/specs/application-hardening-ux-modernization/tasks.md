@@ -192,13 +192,13 @@ Implement the approved JavaScript design incrementally, preserving active URLs a
   - [x] 7.1 Create semantic interaction and presentation foundations
     - Add accessible base tokens for focus, contrast, control size, spacing, typography roles, live announcements, and transition timing plus `Button`, `FormField`, `LiveRegion`, `AsyncRegion`, and image contracts.
     - _Requirements: 9.1, 9.2, 9.4, 9.5, 9.6, 9.9, 9.12, 9.13, 9.14, 10.3, 10.9, 11.2, 11.8_
-  - [ ] 7.2 Implement accessible overlays, navigation, calendar, and tables
+  - [x] 7.2 Implement accessible overlays, navigation, calendar, and tables
     - Create stack-aware dialog/popover/menu focus containment and restoration, background inertness, Escape behavior, named calendar keyboard navigation/states, `aria-current` navigation, and labeled responsive-table alternatives.
     - _Requirements: 9.2, 9.3, 9.7, 9.8, 9.10, 9.11, 10.4, 10.8_
-  - [ ] 7.3 Implement responsive layout contracts
+  - [x] 7.3 Implement responsive layout contracts
     - Add no-two-axis-overflow/reflow rules, 44×44 targets or spacing, viewport-contained overlays, collapsing dashboard navigation below 1024px, resize-state preservation, virtual-keyboard reachability, table scrolling, and responsive image sizing/dimensions.
     - _Requirements: 10.1, 10.2, 10.3, 10.4, 10.5, 10.6, 10.7, 10.8, 10.9_
-  - [ ] 7.4 Implement the shared motion system
+  - [x] 7.4 Implement the shared motion system
     - Apply 100–300ms duration/easing tokens, continuity-preserving transitions, reduced-motion removal of prohibited effects, immediate non-motion feedback, pause/focus-within controls, stable target positions, and non-blocking progress.
     - _Requirements: 11.1, 11.2, 11.3, 11.4, 11.5, 11.6, 11.7, 11.8_
   - [x] 7.5 Implement async reducer, mutation controller, and reconciliation

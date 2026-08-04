@@ -1,0 +1,280 @@
+/**
+ * Shared motion system for the Sandyfeet Resort application.
+ *
+ * Provides consistent transition classes, continuity-preserving animations,
+ * reduced-motion handling, pause controls, stable layout, and non-blocking progress.
+ *
+ * Requirements: 11.1, 11.2, 11.3, 11.4, 11.5, 11.6, 11.7, 11.8
+ */
+
+/* ─── Transition utility classes ──────────────────────────────────────────── */
+/* Use token durations (--transition-fast: 100ms, --transition-normal: 200ms, --transition-slow: 300ms) */
+
+.transition-fast {
+  transition-duration: var(--transition-fast);
+  transition-timing-function: var(--easing-default);
+}
+
+.transition-normal {
+  transition-duration: var(--transition-normal);
+  transition-timing-function: var(--easing-default);
+}
+
+.transition-slow {
+  transition-duration: var(--transition-slow);
+  transition-timing-function: var(--easing-default);
+}
+
+.transition-opacity {
+  transition-property: opacity;
+  transition-duration: var(--transition-normal);
+  transition-timing-function: var(--easing-default);
+}
+
+.transition-transform {
+  transition-property: transform;
+  transition-duration: var(--transition-normal);
+  transition-timing-function: var(--easing-default);
+}
+
+.transition-all {
+  transition-property: opacity, transform;
+  transition-duration: var(--transition-normal);
+  transition-timing-function: var(--easing-default);
+}
+
+/* ─── Continuity-preserving transitions ───────────────────────────────────── */
+/* Fade: opacity in/out for state changes */
+
+.motion-fade-enter {
+  opacity: 0;
+}
+
+.motion-fade-enter-active {
+  opacity: 1;
+  transition: opacity var(--transition-normal) var(--easing-out);
+}
+
+.motion-fade-exit {
+  opacity: 1;
+}
+
+.motion-fade-exit-active {
+  opacity: 0;
+  transition: opacity var(--transition-fast) var(--easing-in);
+}
+
+/* Slide: small vertical translate for hierarchy */
+
+.motion-slide-enter {
+  opacity: 0;
+  transform: translateY(8px);
+}
+
+.motion-slide-enter-active {
+  opacity: 1;
+  transform: translateY(0);
+  transition: opacity var(--transition-normal) var(--easing-out),
+              transform var(--transition-normal) var(--easing-out);
+}
+
+.motion-slide-exit {
+  opacity: 1;
+  transform: translateY(0);
+}
+
+.motion-slide-exit-active {
+  opacity: 0;
+  transform: translateY(-8px);
+  transition: opacity var(--transition-fast) var(--easing-in),
+              transform var(--transition-fast) var(--easing-in);
+}
+
+/* Scale: subtle scale for emphasis/disclosure */
+
+.motion-scale-enter {
+  opacity: 0;
+  transform: scale(0.95);
+}
+
+.motion-scale-enter-active {
+  opacity: 1;
+  transform: scale(1);
+  transition: opacity var(--transition-normal) var(--easing-out),
+              transform var(--transition-normal) var(--easing-out);
+}
+
+.motion-scale-exit {
+  opacity: 1;
+  transform: scale(1);
+}
+
+.motion-scale-exit-active {
+  opacity: 0;
+  transform: scale(0.95);
+  transition: opacity var(--transition-fast) var(--easing-in),
+              transform var(--transition-fast) var(--easing-in);
+}
+
+/* ─── Non-blocking progress indicator ─────────────────────────────────────── */
+/* Uses transform (rotate) so it doesn't cause layout shift */
+
+.motion-spinner {
+  display: inline-block;
+  width: 1.25em;
+  height: 1.25em;
+  border: 2px solid currentColor;
+  border-top-color: transparent;
+  border-radius: 50%;
+  animation: motion-spin 0.8s linear infinite;
+}
+
+@keyframes motion-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+/* ─── Carousel/repeating animation ────────────────────────────────────────── */
+
+.motion-carousel {
+  animation-play-state: running;
+}
+
+/* Pause on hover or keyboard focus within (Req 11.5) */
+.motion-carousel:hover,
+.motion-carousel:focus-within {
+  animation-play-state: paused;
+}
+
+/* ─── Stable target positions ─────────────────────────────────────────────── */
+/* Animated elements use transform/opacity only — no layout-shifting properties */
+
+.motion-stable {
+  will-change: opacity, transform;
+  position: relative;
+}
+
+/* Prevent layout shift during transitions */
+.motion-enter-container {
+  display: grid;
+}
+
+.motion-enter-container > * {
+  grid-area: 1 / 1;
+}
+
+/* ─── Immediate non-motion feedback ──────────────────────────────────────── */
+/* Color, border, and opacity changes that don't rely on motion (Req 11.4) */
+
+.feedback-color {
+  transition: background-color var(--transition-fast) var(--easing-default),
+              color var(--transition-fast) var(--easing-default),
+              border-color var(--transition-fast) var(--easing-default);
+}
+
+.feedback-opacity {
+  transition: opacity var(--transition-fast) var(--easing-default);
+}
+
+/* ─── Reduced motion: remove prohibited effects ───────────────────────────── */
+/* Req 11.3: Remove parallax, pulsing, bouncing, carousel, smooth scroll,
+   large transforms, and non-essential entrance/exit motion */
+
+@media (prefers-reduced-motion: reduce) {
+  /* Remove all non-essential animations globally */
+  .motion-fade-enter,
+  .motion-fade-enter-active,
+  .motion-fade-exit,
+  .motion-fade-exit-active,
+  .motion-slide-enter,
+  .motion-slide-enter-active,
+  .motion-slide-exit,
+  .motion-slide-exit-active,
+  .motion-scale-enter,
+  .motion-scale-enter-active,
+  .motion-scale-exit,
+  .motion-scale-exit-active {
+    transition: none !important;
+    animation: none !important;
+    opacity: 1 !important;
+    transform: none !important;
+  }
+
+  /* Remove parallax effects */
+  .motion-parallax,
+  [data-motion="parallax"] {
+    transform: none !important;
+    animation: none !important;
+  }
+
+  /* Remove pulsing animations */
+  .motion-pulse,
+  [data-motion="pulse"] {
+    animation: none !important;
+  }
+
+  /* Remove bouncing animations */
+  .motion-bounce,
+  [data-motion="bounce"] {
+    animation: none !important;
+  }
+
+  /* Remove carousel movement */
+  .motion-carousel,
+  [data-motion="carousel"] {
+    animation: none !important;
+    animation-play-state: paused !important;
+  }
+
+  /* Remove smooth scrolling */
+  html,
+  .motion-smooth-scroll {
+    scroll-behavior: auto !important;
+  }
+
+  /* Remove large transforms */
+  .motion-large-transform,
+  [data-motion="large-transform"] {
+    transform: none !important;
+    transition: none !important;
+  }
+
+  /* Remove non-essential entrance/exit animations */
+  .motion-entrance,
+  .motion-exit,
+  [data-motion="entrance"],
+  [data-motion="exit"] {
+    animation: none !important;
+    transition: none !important;
+    opacity: 1 !important;
+    transform: none !important;
+  }
+
+  /* Req 11.4: Preserve immediate non-motion feedback */
+  /* Color change, border change, and opacity feedback remain functional */
+  .feedback-color {
+    transition: background-color 0ms,
+                color 0ms,
+                border-color 0ms;
+  }
+
+  .feedback-opacity {
+    transition: opacity 0ms;
+  }
+
+  /* Spinner remains functional but uses reduced approach */
+  .motion-spinner {
+    animation-duration: 1.5s;
+  }
+
+  /* Transition utility classes: instant */
+  .transition-fast,
+  .transition-normal,
+  .transition-slow,
+  .transition-opacity,
+  .transition-transform,
+  .transition-all {
+    transition-duration: 0ms !important;
+  }
+}
