@@ -17,7 +17,11 @@
     "test:property": "node scripts/verification/run-property-tests.mjs",
     "test:integration": "firebase emulators:exec --config firebase.test.json --project demo-sandyfeet-test --only auth,firestore \"vitest --config vitest.integration.config.js --run --passWithNoTests\"",
     "test:browser": "npm run build && playwright test --config playwright.config.js --pass-with-no-tests",
-    "test": "npm run scan && npm run lint && npm run test:unit && npm run test:property && npm run test:integration && npm run test:browser"
+    "test": "npm run scan && npm run lint && npm run test:unit && npm run test:property && npm run test:integration && npm run test:browser",
+    "ci": "npm run scan && npm run lint && npm run test:unit && npm run test:property && npm run build && npm run test:integration",
+    "smoke": "node scripts/smoke-checks.mjs",
+    "migrate:status": "node -e \"import('./lib/server/services/migration-orchestrator.js').then(m => m.getMigrationStatus().then(s => console.log(JSON.stringify(s, null, 2))))\"",
+    "migrate:advance": "node -e \"import('./lib/server/services/migration-orchestrator.js').then(m => m.getMigrationStatus().then(s => m.advanceStage(s.currentStage, s.preconditionsMet).then(r => console.log(JSON.stringify(r, null, 2)))))\""
   },
   "dependencies": {
     "@heroicons/react": "^2.2.0",

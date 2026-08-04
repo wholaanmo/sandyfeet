@@ -12,7 +12,7 @@
  * Requirements: 9.13, 9.14, 10.9
  */
 
-import React from 'react';
+import React from   'react';
 
 /**
  * @param {object} props
