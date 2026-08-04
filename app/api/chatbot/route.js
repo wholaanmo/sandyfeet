@@ -1,5 +1,13 @@
+// app/api/chatbot/route.js
+// Hardened chatbot API — bounded input, rate-limited, normalized history.
+import { z } from 'zod';
 import { readFileSync } from 'fs';
 import { join } from 'path';
+import { withApiBoundary } from '@/lib/server/http/boundary.js';
+import { boundedString, chatbotHistoryEntry } from '@/lib/server/http/schemas.js';
+import { normalizeChatbotInput } from '@/lib/server/services/chatbot.js';
+
+export const runtime = 'nodejs';
 
 const QUOTA_COOLDOWN_MS = 15 * 60 * 1000;
 let openAICircuitOpenUntil = 0;
@@ -61,6 +69,60 @@ ${knowledgeBase}
 ---
 
 Remember: You are Sandy, the Sandyfeet Resort assistant. Stay in scope, be helpful, and keep it beachy! 🌊`;
+
+// Body schema: bounded message + optional validated history
+const bodySchema = z.object({
+  message: boundedString(1, 1000),
+  history: z.array(chatbotHistoryEntry).max(10).optional(),
+}).strict();
+
+export const POST = withApiBoundary(
+  {
+    methods: ['POST'],
+    auth: 'none',
+    rateLimit: 'chatbot',
+    bodySchema,
+  },
+  async ({ input, correlationId }) => {
+    const { message, history } = input;
+
+    // Normalize through the chatbot service for additional validation
+    const normalized = normalizeChatbotInput(message, history);
+
+    const trimmedMessage = normalized.message;
+
+    if (!trimmedMessage) {
+      return {
+        data: { reply: "It looks like you sent an empty message. How can I help you today? 😊" },
+        status: 200,
+      };
+    }
+
+    const messages = buildConversationMessages(normalized.history, trimmedMessage);
+
+    const openAIReply = await tryOpenAI(messages);
+    if (openAIReply) {
+      return { data: { reply: openAIReply, source: 'openai' }, status: 200 };
+    }
+
+    const geminiReply = await tryGemini(messages);
+    if (geminiReply) {
+      return { data: { reply: geminiReply, source: 'gemini' }, status: 200 };
+    }
+
+    const localReply = localKnowledgeReply(trimmedMessage);
+    const aiUnavailableNotice = SHOW_AI_UNAVAILABLE_NOTICE
+      ? '\n\nI am currently using the local resort guide for this reply.'
+      : '';
+
+    return {
+      data: { reply: `${localReply}${aiUnavailableNotice}`, source: 'local' },
+      status: 200,
+    };
+  }
+);
+
+// ─── Internal helpers (preserved from original) ──────────────────────────────
 
 function isQuotaOrRateLimitError(error) {
   const errorMessage = (error?.message || '').toLowerCase();
@@ -135,10 +197,10 @@ function buildConversationMessages(history, trimmedMessage) {
 
   if (Array.isArray(history)) {
     for (const msg of history.slice(-10)) {
-      if (msg.role === 'user' && typeof msg.content === 'string') {
-        messages.push({ role: 'user', content: msg.content });
-      } else if (msg.role === 'bot' && typeof msg.content === 'string') {
-        messages.push({ role: 'assistant', content: msg.content });
+      if (msg.role === 'user' && typeof msg.text === 'string') {
+        messages.push({ role: 'user', content: msg.text });
+      } else if (msg.role === 'assistant' && typeof msg.text === 'string') {
+        messages.push({ role: 'assistant', content: msg.text });
       }
     }
   }
@@ -189,22 +251,10 @@ async function tryOpenAI(messages) {
     } catch (error) {
       if (isQuotaOrRateLimitError(error)) {
         openAICircuitOpenUntil = Date.now() + QUOTA_COOLDOWN_MS;
-        console.warn('OpenAI quota/rate limit reached; opening OpenAI circuit.', {
-          status: error?.status,
-          code: error?.code,
-          type: error?.type,
-          cooldownMs: QUOTA_COOLDOWN_MS,
-        });
         break;
       }
 
       if (!isRetryableModelError(error)) {
-        console.error('OpenAI hard failure:', {
-          message: error?.message,
-          status: error?.status,
-          code: error?.code,
-          type: error?.type,
-        });
         break;
       }
     }
@@ -272,22 +322,10 @@ async function tryGemini(messages) {
       } catch (error) {
         if (isQuotaOrRateLimitError(error)) {
           geminiCircuitOpenUntil = Date.now() + QUOTA_COOLDOWN_MS;
-          console.warn('Gemini quota/rate limit reached; opening Gemini circuit.', {
-            status: error?.status,
-            code: error?.code,
-            type: error?.type,
-            cooldownMs: QUOTA_COOLDOWN_MS,
-          });
           break;
         }
 
         if (!isRetryableModelError(error)) {
-          console.error('Gemini hard failure:', {
-            message: error?.message,
-            status: error?.status,
-            code: error?.code,
-            type: error?.type,
-          });
           break;
         }
       }
@@ -397,54 +435,4 @@ function localKnowledgeReply(message) {
 
   const reply = replyParts.join('\n').trim();
   return reply || fallbackContact;
-}
-
-export async function POST(request) {
-  try {
-    const { message, history } = await request.json();
-    const trimmedMessage = typeof message === 'string' ? message.trim() : '';
-
-    if (!trimmedMessage) {
-      return Response.json({ reply: "It looks like you sent an empty message. How can I help you today? 😊" }, { status: 200 });
-    }
-
-    const messages = buildConversationMessages(history, trimmedMessage);
-
-    const openAIReply = await tryOpenAI(messages);
-    if (openAIReply) {
-      return Response.json({ reply: openAIReply, source: 'openai' }, { status: 200 });
-    }
-
-    const geminiReply = await tryGemini(messages);
-    if (geminiReply) {
-      return Response.json({ reply: geminiReply, source: 'gemini' }, { status: 200 });
-    }
-
-    const localReply = localKnowledgeReply(trimmedMessage);
-    const aiUnavailableNotice = SHOW_AI_UNAVAILABLE_NOTICE
-      ? '\n\nI am currently using the local resort guide for this reply.'
-      : '';
-
-    return Response.json(
-      {
-        reply: `${localReply}${aiUnavailableNotice}`,
-        source: 'local',
-      },
-      { status: 200 }
-    );
-
-  } catch (error) {
-    console.error('Chatbot API unexpected error:', {
-      message: error?.message,
-      status: error?.status,
-      code: error?.code,
-      type: error?.type,
-      requestID: error?.requestID,
-    });
-
-    return Response.json(
-      { reply: "Oops! Something went wrong on my end. Please try again in a moment. If the issue persists, feel free to email us at sandyfeetreservation@gmail.com 📧" },
-      { status: 200 }
-    );
-  }
 }

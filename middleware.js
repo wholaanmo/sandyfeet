@@ -1,4 +1,11 @@
 // middleware.js
+//
+// NOTE: This middleware will be replaced by the canonical route manifest
+// request-policy layer (lib/routes/manifest.js + lib/routes/registry.js).
+// The new layer uses the ROUTE_MANIFEST for matching instead of hardcoded
+// arrays, and does NOT derive authority from unsigned cookie values.
+// See: lib/routes/manifest.js for the authoritative route classification.
+//
 import { NextResponse } from 'next/server';
 
 // Define protected admin routes

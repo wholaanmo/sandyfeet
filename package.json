@@ -8,7 +8,16 @@
     "dev:turbo": "next dev --turbo",
     "build": "next build",
     "start": "next start",
-    "lint": "eslint"
+    "lint": "eslint . --max-warnings=0",
+    "scan:server-imports": "node scripts/verification/scan-source.mjs server-imports",
+    "scan:sensitive-tokens": "node scripts/verification/scan-source.mjs sensitive-tokens",
+    "scan:route-coverage": "node lib/routes/coverage.js",
+    "scan": "npm run scan:server-imports && npm run scan:sensitive-tokens && npm run scan:route-coverage",
+    "test:unit": "vitest --config vitest.unit.config.js --run --passWithNoTests",
+    "test:property": "node scripts/verification/run-property-tests.mjs",
+    "test:integration": "firebase emulators:exec --config firebase.test.json --project demo-sandyfeet-test --only auth,firestore \"vitest --config vitest.integration.config.js --run --passWithNoTests\"",
+    "test:browser": "npm run build && playwright test --config playwright.config.js --pass-with-no-tests",
+    "test": "npm run scan && npm run lint && npm run test:unit && npm run test:property && npm run test:integration && npm run test:browser"
   },
   "dependencies": {
     "@heroicons/react": "^2.2.0",
@@ -26,16 +35,29 @@
     "react": "19.2.3",
     "react-dom": "19.2.3",
     "recharts": "^3.8.1",
+    "server-only": "^0.0.1",
     "xlsx": "^0.18.5",
-    "xlsx-js-style": "^1.2.0"
+    "xlsx-js-style": "^1.2.0",
+    "zod": "^4.4.3"
   },
   "devDependencies": {
+    "@axe-core/playwright": "4.12.1",
+    "@firebase/rules-unit-testing": "5.0.1",
+    "@playwright/test": "1.62.1",
     "@tailwindcss/postcss": "^4",
+    "@testing-library/jest-dom": "7.0.0",
+    "@testing-library/react": "16.3.2",
+    "@testing-library/user-event": "14.6.3",
     "autoprefixer": "^10.5.0",
     "babel-plugin-react-compiler": "1.0.0",
     "eslint": "^9",
     "eslint-config-next": "16.1.6",
+    "fast-check": "4.9.0",
+    "firebase-tools": "15.25.1",
+    "jest-axe": "11.0.0",
+    "jsdom": "29.1.1",
     "postcss": "^8.5.10",
-    "tailwindcss": "^4.2.4"
+    "tailwindcss": "^4.2.4",
+    "vitest": "4.1.10"
   }
 }
