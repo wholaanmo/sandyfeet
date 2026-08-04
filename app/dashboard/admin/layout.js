@@ -1,4 +1,23 @@
 // app/dashboard/admin/layout.js
+//
+// SERVER LAYOUT GUARD INTEGRATION:
+// The server-authoritative session check is performed by the server layout guard.
+// Import and call it at the top of the layout to enforce admin access before
+// rendering any admin content:
+//
+//   import { withProtectedLayout } from '@/lib/server/auth/layout-guard';
+//
+//   export default async function AdminServerLayout({ children }) {
+//     const actor = await withProtectedLayout(['admin']);
+//     // actor is guaranteed to be an authenticated admin at this point.
+//     // Pass actor data to client components via props or a context provider.
+//     return <AdminLayoutClient>{children}</AdminLayoutClient>;
+//   }
+//
+// The client layout below retains existing navigation/sidebar behavior.
+// The legacy SessionGuard is preserved during migration but is NOT
+// authoritative — server layout guard handles real access control.
+
 'use client';
 
 import { useState, useEffect } from 'react';

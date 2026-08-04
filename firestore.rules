@@ -1,0 +1,144 @@
+rules_version = '2';
+
+// Sandyfeet Resort Firestore Security Rules
+// Defense-in-depth: denies client writes to privileged fields and collections.
+// Server Admin SDK bypasses these rules; they protect against direct client access.
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // ─── Helper Functions ───────────────────────────────────────────────
+
+    // Check if user is authenticated
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+
+    // Check if the authenticated user owns this document
+    function isOwner(uid) {
+      return isAuthenticated() && request.auth.uid == uid;
+    }
+
+    // Deny writes to privileged fields that only the server may set
+    function noPrivilegedFieldWrites() {
+      let forbidden = ['role', 'status', 'emailVerified', 'createdBy',
+                       'auditId', 'auditAction', 'auditActorUid',
+                       'paymentState', 'checkInState', 'idempotencyKey'];
+      return !request.resource.data.diff(resource.data).affectedKeys().hasAny(forbidden);
+    }
+
+    // ─── Guest Profiles ─────────────────────────────────────────────────
+
+    match /guestProfiles/{uid} {
+      // Guests can read their own profile
+      allow read: if isOwner(uid);
+
+      // Guests can update limited fields on their own profile
+      // Privileged fields (role, status, emailVerified) are server-only
+      allow update: if isOwner(uid) && noPrivilegedFieldWrites();
+
+      // Profile creation and deletion are server-only
+      allow create, delete: if false;
+    }
+
+    // ─── Users (Staff/Admin) ────────────────────────────────────────────
+
+    match /users/{uid} {
+      // Staff/admin can read their own user document
+      allow read: if isOwner(uid);
+
+      // All writes to user documents are server-only
+      // Roles, status, credentials — never client-writable
+      allow write: if false;
+    }
+
+    // ─── Bookings (Room Reservations) ───────────────────────────────────
+
+    match /bookings/{bookingId} {
+      // Guests can read their own bookings
+      allow read: if isAuthenticated() &&
+        (resource.data.ownerUid == request.auth.uid ||
+         resource.data.userId == request.auth.uid);
+
+      // All booking writes are server-only
+      // Status transitions, payment state, check-in state — never client-writable
+      allow write: if false;
+    }
+
+    // ─── Day Tour Bookings ──────────────────────────────────────────────
+
+    match /dayTourBookings/{bookingId} {
+      // Guests can read their own day tour bookings
+      allow read: if isAuthenticated() &&
+        (resource.data.ownerUid == request.auth.uid ||
+         resource.data.userId == request.auth.uid);
+
+      // All writes are server-only
+      allow write: if false;
+    }
+
+    // ─── Audit Events ───────────────────────────────────────────────────
+
+    match /auditEvents/{eventId} {
+      // Audit records are never readable or writable by clients
+      allow read, write: if false;
+    }
+
+    // ─── Credentials / One-Time Tokens ──────────────────────────────────
+
+    match /credentials/{credentialId} {
+      // Credential records are never accessible to clients
+      allow read, write: if false;
+    }
+
+    // ─── Payment State Records ──────────────────────────────────────────
+
+    match /paymentRecords/{recordId} {
+      // Payment state records are server-only
+      allow read, write: if false;
+    }
+
+    // ─── Check-In State ─────────────────────────────────────────────────
+
+    match /checkInTokens/{tokenId} {
+      // Check-in tokens/state are server-only
+      allow read, write: if false;
+    }
+
+    // ─── Capacity Ledgers ───────────────────────────────────────────────
+
+    match /capacityLedgers/{ledgerId} {
+      // Ledger documents are server-only for atomic capacity management
+      allow read, write: if false;
+    }
+
+    // ─── Idempotency Records ────────────────────────────────────────────
+
+    match /idempotencyRecords/{recordId} {
+      // Idempotency tracking is server-only
+      allow read, write: if false;
+    }
+
+    // ─── Notification Outbox ────────────────────────────────────────────
+
+    match /notificationOutbox/{messageId} {
+      // Outbox records are server-only
+      allow read, write: if false;
+    }
+
+    // ─── Rate Limit Records ─────────────────────────────────────────────
+
+    match /rateLimits/{limitId} {
+      // Rate limit state is server-only
+      allow read, write: if false;
+    }
+
+    // ─── Default Deny ───────────────────────────────────────────────────
+
+    // Any collection not explicitly listed above is denied by default.
+    // This prevents new collections from being accidentally accessible.
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}
