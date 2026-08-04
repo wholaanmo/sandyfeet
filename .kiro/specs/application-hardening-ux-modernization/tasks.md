@@ -6,7 +6,7 @@ Implement the approved JavaScript design incrementally, preserving active URLs a
 
 ## Tasks
 
-- [ ] 1. Establish P0 verification, server, and route foundations
+- [x] 1. Establish P0 verification, server, and route foundations
   - [x] 1.1 Configure the one-shot verification toolchain
     - Pin and configure Vitest, fast-check, React Testing Library, user-event, jest-axe, Firebase emulators/Rules tests, and Playwright using the repository lockfile; add non-watch scripts for lint, build, unit, property, integration, and browser suites.
     - Add test environment separation, deterministic fixtures/seeds, failure seed retention, and forbidden server-import/sensitive-token scans.
@@ -39,7 +39,7 @@ Implement the approved JavaScript design incrementally, preserving active URLs a
     - Cover manifest discovery, `/dashboard`, `/calendar`, `/check-in`, `/room/[slug]`, unknown pages, render failures, redirect cycles, API methods, and safe role/public recovery links.
     - _Requirements: 4.1, 4.4, 4.6, 4.7, 4.8, 4.9, 4.10, 15.2_
 
-- [ ] 2. Close P0 authentication, API, and credential boundaries
+- [x] 2. Close P0 authentication, API, and credential boundaries
   - [x] 2.1 Implement server-authoritative sessions and authorization
     - Add ID-token exchange at `/api/auth/session`, `__Host-sf_session` cookie creation/clearing, revocation-aware `resolveSession`, authoritative account/role/status resolution, `requireActor`/`requireRole`/`requireOwner`, `/api/auth/me`, sign-out, and session revocation on deactivation or sensitive changes.
     - Remove authorization dependence on script-readable tokens, role/UID/expiry cookies, and client-supplied actor fields while retaining a temporary display-only compatibility adapter.
@@ -89,7 +89,7 @@ Implement the approved JavaScript design incrementally, preserving active URLs a
     - Remove legacy credential writes only after the access matrix passes.
     - _Requirements: 1.1, 1.6, 1.8, 1.9, 1.10, 4.4, 4.5_
 
-- [ ] 3. Enforce P0 ownership and atomic reservation integrity
+- [x] 3. Enforce P0 ownership and atomic reservation integrity
   - [x] 3.1 Implement actor-scoped repositories and defense-in-depth Rules
     - Create server-only converters, operation-specific repository methods, owner/role/state checks, legacy email-to-UID resolution, allowlisted DTOs, non-disclosing misses, and Security Rules denying client writes to privileged fields and collections.
     - Restrict identity documents and payment evidence to authenticated, purpose-specific server projections.
@@ -133,7 +133,7 @@ Implement the approved JavaScript design incrementally, preserving active URLs a
     - Verify ownership/role matrices, protected-field denial, evidence access, forced transaction rollback, last-capacity concurrency, exclusive locks, atomic group create/edit/cancel, idempotency conflict, dry-run/resume behavior, and reconciliation that reports without mutating discrepancies.
     - _Requirements: 5.1–5.9, 6.6–6.11, 15.8, 15.15_
 
-- [ ] 4. Close P0 payment, refund, check-in, audit, and privileged-write gaps
+- [x] 4. Close P0 payment, refund, check-in, audit, and privileged-write gaps
   - [x] 4.1 Implement canonical state machines, audit construction, and notification outbox records
     - Define payment/refund/reservation/check-in adjacency maps and guards, canonical legacy mappings, immutable server-derived audit projections, retry correlation, and transactional outbox records with minimal payloads.
     - _Requirements: 7.1, 7.2, 7.3, 7.4, 7.5, 7.9, 7.10, 7.11, 14.11_
@@ -164,7 +164,7 @@ Implement the approved JavaScript design incrementally, preserving active URLs a
   - Ensure all tests pass, ask the user if questions arise.
   - Do not advance to P1 while route coverage (including `/calendar` and `/check-in`), P0 access, Rules, concurrency, idempotency, migration dry-run, rollback-adapter, or audit atomicity checks fail.
 
-- [ ] 6. Apply P1 browser policy and external-service resilience
+- [x] 6. Apply P1 browser policy and external-service resilience
   - [x] 6.1 Implement nonce-based browser security policy with staged enforcement
     - Add documented CSP source directives, HSTS in production, frame denial, `nosniff`, strict referrer policy, restrictive permissions policy, and header/cache tests; support report-only collection before an explicit enforcement gate.
     - Keep a scoped rollback from enforced to report-only without removing the other security headers.
@@ -188,7 +188,7 @@ Implement the approved JavaScript design incrementally, preserving active URLs a
     - Assert all required headers/directives and no-store mappings; mock timeout, rejection, malformed/oversized content, provider exhaustion, local fallback, outbox lease/retry, and inert rendered output; limit configured-provider checks to one to three controlled examples.
     - _Requirements: 8.1–8.10, 14.1–14.11, 15.10, 15.15_
 
-- [ ] 7. Build P1 accessible, responsive, motion, and async contracts
+- [x] 7. Build P1 accessible, responsive, motion, and async contracts
   - [x] 7.1 Create semantic interaction and presentation foundations
     - Add accessible base tokens for focus, contrast, control size, spacing, typography roles, live announcements, and transition timing plus `Button`, `FormField`, `LiveRegion`, `AsyncRegion`, and image contracts.
     - _Requirements: 9.1, 9.2, 9.4, 9.5, 9.6, 9.9, 9.12, 9.13, 9.14, 10.3, 10.9, 11.2, 11.8_
@@ -204,83 +204,83 @@ Implement the approved JavaScript design incrementally, preserving active URLs a
   - [x] 7.5 Implement async reducer, mutation controller, and reconciliation
     - Model idle/pending/success/empty/partial/error/reconciling phases, 300ms delayed labels, duplicate-submit prevention, valid-input and primary-data preservation, targeted retry, route error/not-found distinction, persistent idempotency keys, navigation reconciliation, and affected-view invalidation.
     - _Requirements: 13.1, 13.2, 13.3, 13.4, 13.5, 13.6, 13.7, 13.8, 13.9, 13.10_
-  - [ ]* 7.6 Write the property test for async phase timing
+  - [x]* 7.6 Write the property test for async phase timing
     - **Property 28: Async phases are distinct and time-correct**
     - **Validates: Requirements 13.1, 13.3, 15.14**
-  - [ ]* 7.7 Write the property test for async failure and retry
+  - [x]* 7.7 Write the property test for async failure and retry
     - **Property 29: Async failure and retry preserve usable state**
     - **Validates: Requirements 13.4, 13.5, 13.8, 15.14**
-  - [ ]* 7.8 Write the property test for mutation de-duplication and reconciliation
+  - [x]* 7.8 Write the property test for mutation de-duplication and reconciliation
     - **Property 30: Async mutations de-duplicate and reconcile effects**
     - **Validates: Requirements 13.2, 13.6, 13.9, 13.10, 15.14**
-  - [ ]* 7.9 Write semantic component and async-state tests
+  - [x]* 7.9 Write semantic component and async-state tests
     - Use Testing Library/user-event and axe for accessible names, labels/errors, focus order/trap/restore, overlay stacks, live regions, calendar keys, navigation current state, image alternatives, loading/empty/error/partial/retry/reconciling/success states, and chatbot reset confirmation.
     - _Requirements: 9.1–9.14, 13.1–13.10, 14.10, 15.11, 15.14_
-  - [ ]* 7.10 Write the responsive, accessibility, and motion browser matrix
+  - [x]* 7.10 Write the responsive, accessibility, and motion browser matrix
     - Run representative workflows at 320, 375, 768, 1024, and 1440px plus automated/manual-compatible 200%/400% reflow; assert overflow, reachability, touch targets, overlay containment, resize state, tables, image stability, keyboard paths, contrast tokens, reduced motion, pause behavior, and 100–300ms normal motion.
     - _Requirements: 9.1–9.14, 10.1–10.9, 11.1–11.8, 15.11, 15.12, 15.13_
 
-- [ ] 8. Migrate P1 application surfaces to shared server and UX contracts
-  - [ ] 8.1 Migrate reservation, payment, refund, and check-in surfaces first
+- [x] 8. Migrate P1 application surfaces to shared server and UX contracts
+  - [x] 8.1 Migrate reservation, payment, refund, and check-in surfaces first
     - Wire critical forms, calendars, evidence states, confirmations, totals, async recovery, idempotency continuity, accessibility, responsive layout, and reduced motion to committed server results without changing active URLs.
     - _Requirements: 6.5, 6.10, 6.12, 7.2–7.8, 9.1–9.14, 10.1–10.9, 11.1–11.8, 13.1–13.10_
-  - [ ] 8.2 Migrate authentication, verification, account, and guest-booking surfaces
+  - [x] 8.2 Migrate authentication, verification, account, and guest-booking surfaces
     - Apply shared fields/errors, neutral credential feedback, live announcements, route-safe recovery, preserved valid input, responsive behavior, and session-based identity display.
     - _Requirements: 1.5, 1.8, 3.4–3.11, 9.1–9.14, 10.1–10.9, 13.1–13.10_
-  - [ ] 8.3 Migrate admin and staff dashboards
+  - [x] 8.3 Migrate admin and staff dashboards
     - Replace remaining privileged readers/writers, apply role-correct navigation/labels, accessible responsive tables/overlays/calendars, partial-data recovery, and collapsed navigation without covering content.
     - _Requirements: 1.2, 1.3, 5.3, 5.4, 9.1–9.14, 10.1–10.9, 12.6, 13.1–13.10_
-  - [ ] 8.4 Migrate public pages and chatbot
+  - [x] 8.4 Migrate public pages and chatbot
     - Apply semantic landmarks/controls, image alternatives and dimensions, safe chatbot formatting/fallback/action redirects, reset confirmation, live-log behavior, touch targets, responsive reflow, and reduced motion.
     - _Requirements: 8.7, 9.1–9.14, 10.1–10.9, 11.1–11.8, 13.1–13.10, 14.5, 14.6, 14.8, 14.9, 14.10_
-  - [ ]* 8.5 Write representative end-to-end role journeys and internal-link crawling
+  - [x]* 8.5 Write representative end-to-end role journeys and internal-link crawling
     - Cover public, guest, booking/payment/check-in, account, staff, admin, and chatbot success/denial/recovery/sign-out flows; crawl internal links against the manifest and distinguish not-found from route errors.
     - _Requirements: 4.4–4.10, 9.3, 13.4–13.9, 15.2, 15.11, 15.12, 15.13, 15.14_
-  - [ ]* 8.6 Write layout-stability and state-continuity regression tests
+  - [x]* 8.6 Write layout-stability and state-continuity regression tests
     - Verify responsive image reservation, no layout shifts from delayed async states, no lost valid input on resize/navigation/error, and no duplicate business effect across retry/reconciliation.
     - _Requirements: 10.6, 10.9, 11.6, 13.2, 13.4, 13.9, 13.10, 15.12, 15.17_
 
-- [ ] 9. Encode migration, rollback, CI, and controlled-runtime release gates
-  - [ ] 9.1 Implement a stage-aware migration and rollback orchestrator
+- [x] 9. Encode migration, rollback, CI, and controlled-runtime release gates
+  - [x] 9.1 Implement a stage-aware migration and rollback orchestrator
     - Encode ordered gates for server path → dry-run/backfill → reconciliation → Rules restriction → client-writer removal → CSP enforcement → adapter removal, with resumable state, schema-version checks, precondition assertions, immutable discrepancy output, and reversible configuration per stage.
     - Prevent destructive rollback of committed canonical business data; rollback may restore compatible reads/navigation or CSP report-only mode, not unsafe client authority.
     - _Requirements: 5.8, 6.6, 6.11, 8.1, 15.8, 15.15_
-  - [ ] 9.2 Build automated controlled-environment smoke checks
+  - [x] 9.2 Build automated controlled-environment smoke checks
     - Add bounded scripts for parsed configuration without values, deployed Rules owner/role outcomes, security headers/CSP, protected routes, provider permissions/timeouts/minimal fields, email/reset/check-in link resolution, local QR boundary, and representative audit creation/immutability.
     - _Requirements: 4.6, 4.7, 5.8, 7.9, 7.10, 8.1–8.10, 14.1–14.5, 15.15_
-  - [ ] 9.3 Implement structured runtime evidence recording
+  - [x] 9.3 Implement structured runtime evidence recording
     - Validate `passed|failed|unverified` records with build/environment/tool/evidence metadata; require blocker, dependency, owner, and follow-up for `unverified`; redact secrets and support keyboard, screen-reader, contrast, reflow, touch, reduced-motion, route-load, interaction, image, layout-stability, and animation evidence.
     - _Requirements: 15.16, 15.17, 15.18_
-  - [ ] 9.4 Wire dependency-ordered CI and release gates
+  - [x] 9.4 Wire dependency-ordered CI and release gates
     - Run scans/lint, unit/property, emulator integration/Rules, production build/manifest coverage, Playwright matrices, and controlled smoke checks as one-shot jobs; block promotion on failures or waived P0 evidence.
     - _Requirements: 15.1, 15.2, 15.3, 15.4, 15.5, 15.6, 15.7, 15.8, 15.9, 15.10, 15.11, 15.12, 15.13, 15.14, 15.15, 15.18_
-  - [ ]* 9.5 Write migration-forward and rollback integration tests
+  - [x]* 9.5 Write migration-forward and rollback integration tests
     - Exercise interrupted/resumed backfills, repeated dry runs, version mismatch, reported discrepancies, compatibility reads, canonical-only writes, Rules gating, per-surface feature rollback, CSP report-only fallback, and prohibition of unsafe authority restoration.
     - _Requirements: 5.8, 6.6, 6.11, 8.1, 15.8, 15.15, 15.18_
-  - [ ]* 9.6 Write runtime smoke and evidence-schema tests
+  - [x]* 9.6 Write runtime smoke and evidence-schema tests
     - Use safe representative fixtures to verify smoke failure categories and correlation, prove `passed` requires evidence, prove incomplete checks become `unverified` rather than passed, and reject evidence records containing sensitive fields.
     - _Requirements: 3.10, 8.10, 15.15, 15.16, 15.17, 15.18_
 
-- [ ] 10. P1 checkpoint — verify hardened behavior and modernized workflows
+- [x] 10. P1 checkpoint — verify hardened behavior and modernized workflows
   - Ensure all tests pass, ask the user if questions arise.
   - Do not advance to P2 while browser security enforcement, external fallback, representative role journeys, accessibility/responsive/reduced-motion matrices, async recovery, migration rollback, or runtime-evidence gates fail or leave a P0 item unverified.
 
-- [ ] 11. Complete P2 visual and component consistency
-  - [ ] 11.1 Implement the complete design-token and formatter contracts
+- [x] 11. Complete P2 visual and component consistency
+  - [x] 11.1 Implement the complete design-token and formatter contracts
     - Consolidate typography, semantic color, spacing, radii, elevation, control size, interaction states, and motion tokens; create canonical role, PHP money, resort date/time, booking-ID, and reservation-status formatters.
     - Add static validation that rejects invalid tokens and undocumented one-off color/typography roles.
     - _Requirements: 12.1, 12.3, 12.4, 12.6, 12.7, 12.8_
-  - [ ]* 11.2 Write the property test for canonical labels and formatting
+  - [x]* 11.2 Write the property test for canonical labels and formatting
     - **Property 27: Canonical role and data formatting is total**
     - **Validates: Requirements 12.6, 12.7**
-  - [ ] 11.3 Consolidate all surfaces onto shared component contracts
+  - [x] 11.3 Consolidate all surfaces onto shared component contracts
     - Replace remaining one-off modal, form, navigation, card, table, badge, notification, empty-state, action, and status styles while preserving the verified server, accessibility, responsive, motion, and async behavior from P0/P1.
     - _Requirements: 12.2, 12.3, 12.4, 12.5, 12.6, 12.8_
-  - [ ]* 11.4 Write visual consistency and token-regression tests
+  - [x]* 11.4 Write visual consistency and token-regression tests
     - Snapshot documented component states and formatter examples; scan production surfaces for invalid tokens/one-off roles and run focused visual regressions across public, guest, staff, admin, modal, and chatbot surfaces.
     - _Requirements: 12.1–12.8, 15.11, 15.17_
 
-- [ ] 12. Final P2 checkpoint — verify the complete rollout
+- [x] 12. Final P2 checkpoint — verify the complete rollout
   - Ensure all tests pass, ask the user if questions arise.
   - Confirm all 31 property tests run with retained seeds/counterexamples, every requirement has automated or explicit runtime evidence, all migration discrepancies are resolved or blocking, compatibility adapters have evidence-backed removal gates, and no unverified item is represented as passed.
 
