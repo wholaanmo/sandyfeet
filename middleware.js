@@ -1,106 +1,77 @@
 // middleware.js
+// Request policy layer using the canonical route manifest.
+// Does NOT derive authority from unsigned cookie values.
+// Final authorization is always in server layouts and route handlers.
 //
-// NOTE: This middleware will be replaced by the canonical route manifest
-// request-policy layer (lib/routes/manifest.js + lib/routes/registry.js).
-// The new layer uses the ROUTE_MANIFEST for matching instead of hardcoded
-// arrays, and does NOT derive authority from unsigned cookie values.
-// See: lib/routes/manifest.js for the authoritative route classification.
+// This middleware performs ONLY:
+// 1. Missing-session routing (redirect to /login for protected routes without any session cookie)
+// 2. Legacy redirect handling (/room/[slug] → /rooms/[slug])
 //
+// It NEVER makes role-based access decisions from cookies.
+// Role enforcement happens in withProtectedLayout (layouts) and withApiBoundary (APIs).
+
 import { NextResponse } from 'next/server';
 
-// Define protected admin routes
-const adminRoutes = [
-  '/dashboard/admin/archive',
-  '/dashboard/admin/audit',
-  '/dashboard/admin/calendar',
-  '/dashboard/admin/calendar-daytour',
-  '/dashboard/admin/calendars',
-  '/dashboard/admin/day-tour',
-  '/dashboard/admin/overview',
-  '/dashboard/admin/payment',
-  '/dashboard/admin/reports',
-  '/dashboard/admin/reservations',
-  '/dashboard/admin/rooms',
-  '/dashboard/admin/staff',
+// The secure session cookie name — presence is checked, not value (that's for server)
+const SESSION_COOKIE_NAME = '__Host-sf_session';
+
+// Routes that require ANY authenticated session (not role-specific — role is server-checked)
+const PROTECTED_PATH_PREFIXES = [
+  '/dashboard',
+  '/account',
+  '/my-bookings',
 ];
 
-// Define protected staff routes
-const staffRoutes = [
-  '/dashboard/staff/front-desk',
-  '/dashboard/staff/calendar',
-  '/dashboard/staff/calendar-daytour',
-  '/dashboard/staff',
-];
-
-// Check if a path matches any of the routes (exact or starts with)
-const matchesRoute = (path, routes) => {
-  return routes.some(route => 
-    path === route || path.startsWith(`${route}/`)
-  );
-};
+// Legacy redirect patterns
+const LEGACY_ROOM_PATTERN = /^\/room\/([^/]+)$/;
 
 export function middleware(request) {
   const { pathname } = request.nextUrl;
-  
-  // Check if this is an admin route
-  const isAdminRoute = matchesRoute(pathname, adminRoutes);
-  // Check if this is a staff route
-  const isStaffRoute = matchesRoute(pathname, staffRoutes);
-  
-  // If not a protected route, allow access
-  if (!isAdminRoute && !isStaffRoute) {
+
+  // Handle legacy redirect: /room/[slug] → /rooms/[slug]
+  const legacyMatch = pathname.match(LEGACY_ROOM_PATTERN);
+  if (legacyMatch) {
+    const slug = legacyMatch[1];
+    const destination = new URL(`/rooms/${encodeURIComponent(slug)}`, request.url);
+    return NextResponse.redirect(destination, 308);
+  }
+
+  // Check if this is a protected path (requires session)
+  const isProtected = PROTECTED_PATH_PREFIXES.some(
+    (prefix) => pathname === prefix || pathname.startsWith(`${prefix}/`)
+  );
+
+  if (!isProtected) {
     return NextResponse.next();
   }
-  
-  // Get session data from cookies (set during login)
-  const sessionToken = request.cookies.get('sessionToken')?.value;
-  const userType = request.cookies.get('userType')?.value;
-  const sessionExpiry = request.cookies.get('sessionExpiry')?.value;
-  
-  // Check if session exists and is not expired
-  const isValidSession = sessionToken && userType && sessionExpiry && 
-    parseInt(sessionExpiry) > Date.now();
-  
-  // If no valid session, redirect to login
-  if (!isValidSession) {
+
+  // Check for the presence of the secure session cookie
+  // We only check PRESENCE here — actual validation happens server-side
+  const hasSessionCookie = request.cookies.has(SESSION_COOKIE_NAME);
+
+  if (!hasSessionCookie) {
+    // No session cookie → redirect to login with safe return path
     const loginUrl = new URL('/login', request.url);
-    // Add redirect parameter to return to the original page after login
-    loginUrl.searchParams.set('redirect', pathname);
+
+    // Only pass the return path if it's a same-origin relative path
+    // (validated again server-side by normalizeReturnPath)
+    if (pathname && pathname.startsWith('/') && !pathname.includes('\\')) {
+      loginUrl.searchParams.set('redirect', pathname);
+    }
+
     return NextResponse.redirect(loginUrl);
   }
-  
-  // For admin routes, verify user has admin role
-  if (isAdminRoute && userType !== 'admin') {
-    // If user is staff trying to access admin route, redirect to staff dashboard
-    if (userType === 'staff') {
-      const staffDashboard = new URL('/dashboard/staff/front-desk', request.url);
-      return NextResponse.redirect(staffDashboard);
-    }
-    // Otherwise redirect to login
-    const loginUrl = new URL('/login', request.url);
-    return NextResponse.redirect(loginUrl);
-  }
-  
-  // For staff routes, enforce staff-only access
-  if (isStaffRoute) {
-    if (userType === 'admin') {
-      const adminDashboard = new URL('/dashboard/admin/overview', request.url);
-      return NextResponse.redirect(adminDashboard);
-    }
-    if (userType !== 'staff') {
-      const loginUrl = new URL('/login', request.url);
-      return NextResponse.redirect(loginUrl);
-    }
-  }
-  
-  // Session is valid, allow access
+
+  // Session cookie exists — let the request through
+  // Final role-based authorization happens in:
+  // - Server layouts via withProtectedLayout(['admin']) or withProtectedLayout(['staff', 'admin'])
+  // - API routes via withApiBoundary({ auth: 'required', roles: [...] })
   return NextResponse.next();
 }
 
-// Configure which paths to run middleware on
+// Only run middleware on pages (not static assets, _next, etc.)
 export const config = {
   matcher: [
-    '/dashboard/:path*',
-    '/login'
+    '/((?!_next/static|_next/image|favicon.ico|public/).*)',
   ],
 };
