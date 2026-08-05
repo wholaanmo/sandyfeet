@@ -575,7 +575,7 @@ export const cancelBooking = async (booking, reason) => {
     const dp = getDownPayment(booking);
     let html;
     if (booking.type === 'daytour') {
-      html = `<div style="font-family:Arial;max-width:600px;margin:0 auto;padding:20px;background:#f8f9fa;border-radius:8px"><h2 style="color:#dc2626">Reservation Cancelled by Guest</h2><p><strong>Guest:</strong> ${guestName}</p><p><strong>Booking ID:</strong> ${booking.bookingId}</p><p><strong>Tour Date:</strong> ${formatDateOnly(booking.selectedDate)}</p><p><strong>Total:</strong> PHP ${booking.totalPrice?.toLocaleString()}</p><p><strong>DP Paid:</strong> PHP ${dp.toLocaleString()}</p><hr/><p><strong>Reason:</strong> ${reason}</p></div>`;
+      html = `<div style="font-family:Arial;max-width:600px;margin:0 auto;padding:20px;background:#f8f9fa;border-radius:8px"><h2 style="color:#dc2626">Reservation Cancelled by Guest</h2><p><strong>Guest:</strong> ${guestName}</p><p><strong>Booking ID:</strong> ${booking.bookingId}</p><p><strong>Tour Date:</strong> ${formatDateOnly(booking.selectedDate)}</p><p><strong>Total:</strong> ₱${booking.totalPrice?.toLocaleString()}</p><p><strong>DP Paid:</strong> ₱${dp.toLocaleString()}</p><hr/><p><strong>Reason:</strong> ${reason}</p></div>`;
     } else {
       let roomStr;
       if (booking.isExclusiveResortBooking) {
@@ -587,7 +587,7 @@ export const cancelBooking = async (booking, reason) => {
         const quantity = booking.numberOfRooms || (booking.roomTypesArray?.[0]?.quantity) || 1;
         roomStr = `${quantity} x ${roomType}`;
       }
-      html = `<div style="font-family:Arial;max-width:600px;margin:0 auto;padding:20px;background:#f8f9fa;border-radius:8px"><h2 style="color:#dc2626">Reservation Cancelled by Guest</h2><p><strong>Guest:</strong> ${guestName}</p><p><strong>Booking ID:</strong> ${booking.bookingId}</p><p><strong>Rooms:</strong> ${roomStr}</p><p><strong>Check-in:</strong> ${formatDateOnly(booking.checkIn)}</p><p><strong>Check-out:</strong> ${formatDateOnly(booking.checkOut)}</p><p><strong>Total:</strong> PHP ${booking.totalPrice?.toLocaleString()}</p><p><strong>DP Paid:</strong> PHP ${dp.toLocaleString()}</p><hr/><p><strong>Reason:</strong> ${reason}</p></div>`;
+      html = `<div style="font-family:Arial;max-width:600px;margin:0 auto;padding:20px;background:#f8f9fa;border-radius:8px"><h2 style="color:#dc2626">Reservation Cancelled by Guest</h2><p><strong>Guest:</strong> ${guestName}</p><p><strong>Booking ID:</strong> ${booking.bookingId}</p><p><strong>Rooms:</strong> ${roomStr}</p><p><strong>Check-in:</strong> ${formatDateOnly(booking.checkIn)}</p><p><strong>Check-out:</strong> ${formatDateOnly(booking.checkOut)}</p><p><strong>Total:</strong> ₱${booking.totalPrice?.toLocaleString()}</p><p><strong>DP Paid:</strong> ₱${dp.toLocaleString()}</p><hr/><p><strong>Reason:</strong> ${reason}</p></div>`;
     }
     const baseUrl = typeof window !== 'undefined' ? window.location.origin : '';
     await fetch(`${baseUrl}/api/send-email`, {

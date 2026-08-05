@@ -659,7 +659,7 @@ function HomePageContent() {
 
                       <div className="mt-auto flex flex-col items-start gap-4 sm:flex-row sm:items-center sm:justify-between">
                         <span className="text-xl font-bold text-[#3B82F6]">
-                          PHP {room.price.toLocaleString()}
+                          ₱{room.price.toLocaleString()}
                         </span>
                         <Link
                           href={`/rooms/${encodeURIComponent(room.slug)}`}

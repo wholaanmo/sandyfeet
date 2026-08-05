@@ -10,7 +10,7 @@ function formatPeso(value) {
     return 'TBA';
   }
 
-  return `PHP ${Number(value).toLocaleString()}`;
+  return `₱${Number(value).toLocaleString()}`;
 }
 
 export default function DayTourCard({ tour, compact = false }) {

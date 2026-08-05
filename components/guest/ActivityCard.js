@@ -15,7 +15,7 @@ function formatPeso(value) {
   if (value === null || value === undefined) {
     return 'TBA';
   }
-  return `PHP ${Number(value).toLocaleString()}`;
+  return `₱${Number(value).toLocaleString()}`;
 }
 
 // MODIFIED: support custom pricing types
