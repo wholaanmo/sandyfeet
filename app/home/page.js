@@ -2,7 +2,7 @@
 'use client';
 
 import { Suspense } from 'react';
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useRef } from 'react';
 import GuestLayout from '../guest/layout';
 import Image from 'next/image';
 import Link from 'next/link';
@@ -10,7 +10,7 @@ import { db } from '@/lib/firebase';
 import { addDoc, collection, getDocs, limit, onSnapshot, query, serverTimestamp, where } from 'firebase/firestore';
 import ChatBot from '@/components/guest/ChatBot';
 import dynamic from 'next/dynamic';
-import { MagnifyingGlassIcon, SunIcon, CpuChipIcon } from '@heroicons/react/24/outline';
+import { MagnifyingGlassIcon, SunIcon } from '@heroicons/react/24/outline';
 import PrivacyPolicyModal from '@/components/guest/PrivacyPolicyModal';
 import TermsConditionsReadOnlyModal from '@/components/guest/TermsConditionsReadOnlyModal';
 
@@ -91,6 +91,42 @@ const StarRating = ({ rating }) => {
     </div>
   );
 };
+
+// Intersection Observer hook for scroll-triggered fade-in
+function useReveal() {
+  const ref = useRef(null);
+  const [visible, setVisible] = useState(false);
+
+  useEffect(() => {
+    const el = ref.current;
+    if (!el) return;
+    const observer = new IntersectionObserver(
+      ([entry]) => { if (entry.isIntersecting) setVisible(true); },
+      { threshold: 0.12, rootMargin: '0px 0px -50px 0px' }
+    );
+    observer.observe(el);
+    return () => observer.disconnect();
+  }, []);
+
+  return { ref, visible };
+}
+
+function RevealSection({ children, className = '', delay = 0 }) {
+  const { ref, visible } = useReveal();
+  return (
+    <div
+      ref={ref}
+      className={className}
+      style={{
+        opacity: visible ? 1 : 0,
+        transform: visible ? 'translateY(0)' : 'translateY(32px)',
+        transition: `opacity 0.8s cubic-bezier(0.16,1,0.3,1) ${delay}ms, transform 0.8s cubic-bezier(0.16,1,0.3,1) ${delay}ms`,
+      }}
+    >
+      {children}
+    </div>
+  );
+}
 
 function HomePageContent() {
   const [featuredRooms, setFeaturedRooms] = useState([]);
@@ -530,6 +566,7 @@ function HomePageContent() {
         </section>
 
         {/* --- GALLERY SECTION --- */}
+        <RevealSection>
         <section className="bg-white/70 py-16 pb-20">
           <div className="max-w-7xl mx-auto px-6 text-center">
             <span className="text-gray-500 font-bold text-[10px] tracking-[0.2em] uppercase mb-4 block">
@@ -562,8 +599,10 @@ function HomePageContent() {
             </div>
           </div>
         </section>
+        </RevealSection>
 
         {/* --- FEATURED PACKAGES --- */}
+        <RevealSection>
         <section className="py-16 relative">
           <div className="max-w-7xl mx-auto px-6">
             <div className="text-center mb-12 relative">
@@ -595,8 +634,9 @@ function HomePageContent() {
                   </div>
                 ))
               ) : featuredRooms.length > 0 ? (
-                featuredRooms.map((room) => (
-                  <div key={room.slug} className="flex flex-col rounded-[2.25rem] border border-gray-100 bg-white p-4 shadow-[0_16px_40px_rgba(15,40,36,0.06)] transition-all duration-500 hover:-translate-y-1 hover:shadow-[0_18px_50px_rgba(15,40,36,0.1)]">
+                featuredRooms.map((room, idx) => (
+                  <RevealSection key={room.slug} delay={idx * 120}>
+                  <div className="flex flex-col rounded-[2.25rem] border border-gray-100 bg-white p-4 shadow-[0_16px_40px_rgba(15,40,36,0.06)] transition-all duration-500 hover:-translate-y-1 hover:shadow-[0_18px_50px_rgba(15,40,36,0.1)]">
                     <div className="relative mb-6 h-[240px] w-full overflow-hidden rounded-[1.75rem]">
                       <Image
                         src={room.image}
@@ -630,6 +670,7 @@ function HomePageContent() {
                       </div>
                     </div>
                   </div>
+                  </RevealSection>
                 ))
               ) : (
                 <div className="col-span-full rounded-[2rem] border border-gray-100 bg-white px-6 py-12 text-center shadow-[0_12px_40px_rgb(0,0,0,0.06)]">
@@ -646,8 +687,10 @@ function HomePageContent() {
             </div>
           </div>
         </section>
+        </RevealSection>
 
         {/* --- WHY GUESTS LOVE IT & STATS --- */}
+        <RevealSection>
         <section className="py-16 relative bg-gray-50/50">
           <div className="max-w-7xl mx-auto px-6 grid grid-cols-1 lg:grid-cols-2 gap-16 items-center">
             <div>
@@ -690,8 +733,10 @@ function HomePageContent() {
             </div>
           </div>
         </section>
+        </RevealSection>
 
         {/* --- TESTIMONIALS (UPDATED to respect anonymity) --- */}
+        <RevealSection>
         <section className="py-16 bg-white border-t border-gray-50 pb-24">
           <div className="max-w-7xl mx-auto px-6">
             <div className="mb-12 text-center">
@@ -775,6 +820,7 @@ function HomePageContent() {
             </div>
           </div>
         </section>
+        </RevealSection>
 
         {/* --- FEEDBACK MODAL (unchanged) --- */}
         {showFeedbackModal ? (
@@ -939,6 +985,7 @@ function HomePageContent() {
         ) : null}
 
         {/* --- HOW IT WORKS --- */}
+        <RevealSection>
         <section className="py-16 bg-white">
           <div className="max-w-7xl mx-auto px-6 text-center">
             <span className="text-gray-500 font-bold text-[10px] tracking-[0.2em] uppercase mb-4 block">
@@ -951,7 +998,7 @@ function HomePageContent() {
             <div className="grid grid-cols-1 md:grid-cols-4 gap-12 relative">
               <div className="hidden md:block absolute top-[44px] left-[15%] right-[15%] h-[1px] bg-gray-200 z-0"></div>
 
-              <div className="relative z-10 flex flex-col items-center">
+              <RevealSection delay={0} className="relative z-10 flex flex-col items-center">
                 <div className="w-24 h-24 bg-white border border-gray-100 rounded-full flex items-center justify-center mb-6 relative">
                   <span className="absolute -top-2 -right-2 w-6 h-6 bg-[#3B82F6] rounded-full text-white text-xs font-bold flex items-center justify-center">1</span>
                   <div className="relative w-12 h-12">
@@ -960,9 +1007,9 @@ function HomePageContent() {
                 </div>
                 <h4 className="font-bold text-[#0f2824] mb-2">Pick a Stay</h4>
                 <p className="text-gray-500 text-sm">Select a room or day tour package.</p>
-              </div>
+              </RevealSection>
 
-              <div className="relative z-10 flex flex-col items-center">
+              <RevealSection delay={150} className="relative z-10 flex flex-col items-center">
                 <div className="w-24 h-24 bg-white border border-gray-100 rounded-full flex items-center justify-center mb-6 relative">
                   <span className="absolute -top-2 -right-2 w-6 h-6 bg-[#3B82F6] rounded-full text-white text-xs font-bold flex items-center justify-center">2</span>
                   <div className="relative w-12 h-12">
@@ -971,9 +1018,9 @@ function HomePageContent() {
                 </div>
                 <h4 className="font-bold text-[#0f2824] mb-2">Details</h4>
                 <p className="text-gray-500 text-sm">Enter your booking dates and information.</p>
-              </div>
+              </RevealSection>
 
-              <div className="relative z-10 flex flex-col items-center">
+              <RevealSection delay={300} className="relative z-10 flex flex-col items-center">
                 <div className="w-24 h-24 bg-white border border-gray-100 rounded-full flex items-center justify-center mb-6 relative">
                   <span className="absolute -top-2 -right-2 w-6 h-6 bg-[#3B82F6] rounded-full text-white text-xs font-bold flex items-center justify-center">3</span>
                   <div className="relative w-12 h-12">
@@ -982,9 +1029,9 @@ function HomePageContent() {
                 </div>
                 <h4 className="font-bold text-[#0f2824] mb-2">Pay</h4>
                 <p className="text-gray-500 text-sm">Transfer 50% deposit and upload proof.</p>
-              </div>
+              </RevealSection>
 
-              <div className="relative z-10 flex flex-col items-center">
+              <RevealSection delay={450} className="relative z-10 flex flex-col items-center">
                 <div className="w-24 h-24 bg-white border border-gray-100 rounded-full flex items-center justify-center mb-6 relative">
                   <span className="absolute -top-2 -right-2 w-6 h-6 bg-[#3B82F6] rounded-full text-white text-xs font-bold flex items-center justify-center">4</span>
                   <div className="relative w-12 h-12">
@@ -993,12 +1040,14 @@ function HomePageContent() {
                 </div>
                 <h4 className="font-bold text-[#0f2824] mb-2">Relax</h4>
                 <p className="text-gray-500 text-sm">We verify and you get ready to chill.</p>
-              </div>
+              </RevealSection>
             </div>
           </div>
         </section>
+        </RevealSection>
 
         {/* --- MAP / FIND US SECTION --- */}
+        <RevealSection>
         <section className="py-16 bg-[#FAFAFA] border-t border-gray-100">
           <div className="max-w-[70rem] mx-auto px-6 grid grid-cols-1 items-center gap-10 rounded-3xl border border-gray-50 bg-white p-4 shadow-[0_8px_30px_rgb(0,0,0,0.03)] sm:p-6 md:grid-cols-2 md:p-8">
             <div>
@@ -1045,6 +1094,7 @@ function HomePageContent() {
             </a>
           </div>
         </section>
+        </RevealSection>
 
         {/* --- FOOTER --- */}
         <footer className="py-14 bg-white border-t border-gray-100">
