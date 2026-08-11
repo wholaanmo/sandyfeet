@@ -25,7 +25,10 @@
   },
   "dependencies": {
     "@heroicons/react": "^2.2.0",
+    "@openai-oauth/ai-sdk": "^2.0.0",
+    "@openai-oauth/local": "^2.0.0",
     "@opentelemetry/api": "^1.9.1",
+    "ai": "^6.0.248",
     "base64-arraybuffer": "^1.0.2",
     "firebase": "^12.10.0",
     "firebase-admin": "^13.7.0",

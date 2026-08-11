@@ -154,9 +154,10 @@ export default function ChatBot() {
     setIsLoading(true);
 
     try {
-      const historyForApi = messages.map((m) => ({
-        role: m.role === 'user' ? 'user' : 'bot',
-        content: m.content,
+      // Build history in the format the API expects (role: 'user' | 'assistant')
+      const historyForApi = messages.slice(-10).map((m) => ({
+        role: m.role === 'user' ? 'user' : 'assistant',
+        text: m.content,
       }));
 
       const response = await fetch('/api/chatbot', {
@@ -168,11 +169,21 @@ export default function ChatBot() {
         }),
       });
 
-      const data = await response.json();
+      const json = await response.json();
+
+      // The API returns { ok, data: { reply, source }, correlationId }
+      // On error, it returns { ok: false, error: { code, message } }
+      let reply;
+      if (json?.ok && json?.data?.reply) {
+        reply = json.data.reply;
+      } else if (json?.reply) {
+        // Legacy format support
+        reply = json.reply;
+      }
 
       const botMessage = {
         role: 'bot',
-        content: data.reply || "I'm having trouble responding right now. Please try again!",
+        content: reply || "I'm not sure about that one! For more details, please email us at sandyfeetreservation@gmail.com or check our website. 🏖️",
         timestamp: new Date(),
       };
 
@@ -253,7 +264,7 @@ export default function ChatBot() {
               <div className={styles.welcomeEmoji}>🏖️</div>
               <div className={styles.welcomeTitle}>Welcome to Sandyfeet!</div>
               <div className={styles.welcomeText}>
-                Hi there! I'm Sandy, your virtual resort assistant. Ask me about rooms, day tours, facilities, or booking — I'm here to help!
+                Hi there! I'm Sandy, your virtual resort assistant. I can help you in English or Tagalog — just ask away! Ask me about rooms, day tours, facilities, or booking.
               </div>
               {messages.length === 0 && (
                 <div className={styles.quickActions}>

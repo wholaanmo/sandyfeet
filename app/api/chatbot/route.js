@@ -1,10 +1,12 @@
 // app/api/chatbot/route.js
 // Hardened chatbot API — bounded input, rate-limited, normalized history.
+// Primary provider: openai-oauth (uses ChatGPT subscription, no API credits needed)
+// Fallbacks: OpenAI API key, Gemini API key, local knowledge base
 import { z } from 'zod';
 import { readFileSync } from 'fs';
 import { join } from 'path';
 import { withApiBoundary } from '@/lib/server/http/boundary.js';
-import { boundedString, chatbotHistoryEntry } from '@/lib/server/http/schemas.js';
+import { boundedString } from '@/lib/server/http/schemas.js';
 import { normalizeChatbotInput } from '@/lib/server/services/chatbot.js';
 
 export const runtime = 'nodejs';
@@ -12,11 +14,13 @@ export const runtime = 'nodejs';
 const QUOTA_COOLDOWN_MS = 15 * 60 * 1000;
 let openAICircuitOpenUntil = 0;
 let geminiCircuitOpenUntil = 0;
+let oauthCircuitOpenUntil = 0;
 const OPENAI_MODELS = ['gpt-4o-mini', 'gpt-4.1-mini'];
 const GEMINI_MODELS = ['gemini-2.5-flash', 'gemini-2.0-flash'];
+// Models available via openai-oauth (ChatGPT subscription)
+const OAUTH_MODELS = ['gpt-5.4-mini', 'gpt-5.5'];
 const MAX_RESPONSE_TOKENS = 700;
 const MAX_LOCAL_SECTIONS = 3;
-const SHOW_AI_UNAVAILABLE_NOTICE = process.env.CHATBOT_SHOW_AI_STATUS === 'true';
 
 const QUERY_TOKEN_ALIASES = {
   tagalo: ['tagalog', 'filipino'],
@@ -39,7 +43,7 @@ const QUERY_TOKEN_ALIASES = {
   labas: ['checkout', 'times'],
 };
 
-// Load the knowledge base once at module level
+// Load the knowledge base at module level (re-read on module re-evaluation)
 let knowledgeBase = '';
 try {
   const knowledgePath = join(process.cwd(), 'public', 'chatbot-knowledge.md');
@@ -70,11 +74,17 @@ ${knowledgeBase}
 
 Remember: You are Sandy, the Sandyfeet Resort assistant. Stay in scope, be helpful, and keep it beachy! 🌊`;
 
-// Body schema: bounded message + optional validated history
+// Body schema: bounded message + optional history (lenient to allow normalization service to handle variants)
 const bodySchema = z.object({
   message: boundedString(1, 1000),
-  history: z.array(chatbotHistoryEntry).max(10).optional(),
-}).strict();
+  history: z.array(
+    z.object({
+      role: z.string(),
+      text: z.string().optional(),
+      content: z.string().optional(),
+    }).passthrough()
+  ).max(10).optional(),
+}).passthrough();
 
 export const POST = withApiBoundary(
   {
@@ -87,7 +97,13 @@ export const POST = withApiBoundary(
     const { message, history } = input;
 
     // Normalize through the chatbot service for additional validation
-    const normalized = normalizeChatbotInput(message, history);
+    let normalized;
+    try {
+      normalized = normalizeChatbotInput(message, history);
+    } catch (validationError) {
+      // If normalization fails, use raw message with empty history
+      normalized = { message: String(message || '').trim().slice(0, 1000), history: [] };
+    }
 
     const trimmedMessage = normalized.message;
 
@@ -100,23 +116,29 @@ export const POST = withApiBoundary(
 
     const messages = buildConversationMessages(normalized.history, trimmedMessage);
 
+    // 1st: Try openai-oauth (uses ChatGPT subscription — no API credits)
+    const oauthReply = await tryOpenAIOAuth(messages);
+    if (oauthReply) {
+      return { data: { reply: oauthReply, source: 'openai-oauth' }, status: 200 };
+    }
+
+    // 2nd: Try OpenAI API key (paid credits)
     const openAIReply = await tryOpenAI(messages);
     if (openAIReply) {
       return { data: { reply: openAIReply, source: 'openai' }, status: 200 };
     }
 
+    // 3rd: Try Gemini API
     const geminiReply = await tryGemini(messages);
     if (geminiReply) {
       return { data: { reply: geminiReply, source: 'gemini' }, status: 200 };
     }
 
+    // 4th: Local knowledge fallback (always available — uses the FAQ/knowledge base)
     const localReply = localKnowledgeReply(trimmedMessage);
-    const aiUnavailableNotice = SHOW_AI_UNAVAILABLE_NOTICE
-      ? '\n\nI am currently using the local resort guide for this reply.'
-      : '';
 
     return {
-      data: { reply: `${localReply}${aiUnavailableNotice}`, source: 'local' },
+      data: { reply: localReply, source: 'local' },
       status: 200,
     };
   }
@@ -207,6 +229,73 @@ function buildConversationMessages(history, trimmedMessage) {
 
   messages.push({ role: 'user', content: trimmedMessage });
   return messages;
+}
+
+async function tryOpenAIOAuth(messages) {
+  // openai-oauth uses your ChatGPT subscription credentials stored locally.
+  // No API credits needed — uses the same auth as ChatGPT in the browser.
+  if (Date.now() < oauthCircuitOpenUntil) {
+    return null;
+  }
+
+  try {
+    const { openaiCredentials } = await import('@openai-oauth/local');
+    const { createOpenAIOAuth } = await import('@openai-oauth/ai-sdk');
+    const { generateText } = await import('ai');
+
+    const credentials = openaiCredentials();
+    const openai = createOpenAIOAuth(credentials);
+
+    for (const model of OAUTH_MODELS) {
+      try {
+        const result = await generateText({
+          model: openai(model),
+          messages: messages.map((m) => ({
+            role: m.role === 'system' ? 'system' : m.role,
+            content: m.content,
+          })),
+          maxTokens: MAX_RESPONSE_TOKENS,
+          temperature: 0.7,
+        });
+
+        const reply = result?.text?.trim();
+        if (reply) {
+          return reply;
+        }
+      } catch (modelError) {
+        // If it's a rate limit or quota error for this model, try next
+        if (isRetryableModelError(modelError)) {
+          continue;
+        }
+        throw modelError;
+      }
+    }
+  } catch (error) {
+    const errorMessage = (error?.message || '').toLowerCase();
+
+    // If credentials are not found or not logged in, disable for cooldown
+    if (
+      errorMessage.includes('not logged in') ||
+      errorMessage.includes('credential') ||
+      errorMessage.includes('auth') ||
+      errorMessage.includes('no session') ||
+      errorMessage.includes('enoent')
+    ) {
+      // Credentials not set up — circuit open for longer
+      oauthCircuitOpenUntil = Date.now() + QUOTA_COOLDOWN_MS * 4;
+      return null;
+    }
+
+    if (isQuotaOrRateLimitError(error)) {
+      oauthCircuitOpenUntil = Date.now() + QUOTA_COOLDOWN_MS;
+      return null;
+    }
+
+    // Other error — short circuit
+    oauthCircuitOpenUntil = Date.now() + 60_000;
+  }
+
+  return null;
 }
 
 async function tryOpenAI(messages) {
