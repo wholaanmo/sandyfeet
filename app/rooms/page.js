@@ -1355,7 +1355,7 @@ function RoomsPageContent() {
                               <div className="flex flex-col">
                                 <span className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">Base Rate</span>
                                 <span className="text-2xl font-bold tracking-tight text-[#2169F3]">
-                                  PHP {room.price.toLocaleString()}
+                                  ₱{room.price.toLocaleString()}
                                 </span>
                               </div>
                               <div className="text-right">
