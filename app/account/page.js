@@ -1,7 +1,7 @@
 // app/account/page.js
 'use client';
 
-import { Suspense, useEffect, useState } from 'react';
+import { Suspense, useEffect, useMemo, useState } from 'react';
 import Image from 'next/image';
 import Link from 'next/link';
 import GuestLayout from '@/app/guest/layout';
@@ -18,6 +18,19 @@ import {
   getGuestAddressFromProfile,
   sanitizeNumericMobileInput,
 } from '@/lib/guestAddress';
+import {
+  getAddressNamesFromCodes,
+  getBarangayOptionsForCity,
+  getCityOptionsForProvince,
+  getProvinceOptions,
+  resolveAddressCodesFromNames,
+} from '@/lib/philippineAddress';
+
+const EMPTY_ADDRESS_CODES = {
+  provinceCode: '',
+  cityCode: '',
+  barangayCode: '',
+};
 
 function GuestAccountContent() {
   const { user, profile, loading, logout, updateGuestProfile } = useGuestAuth();
@@ -27,12 +40,14 @@ function GuestAccountContent() {
   // Profile editing state
   const [isEditing, setIsEditing] = useState(false);
   const [originalProfile, setOriginalProfile] = useState({});
+  const [originalAddressCodes, setOriginalAddressCodes] = useState({ ...EMPTY_ADDRESS_CODES });
   const [profileForm, setProfileForm] = useState({
     firstName: '',
     lastName: '',
     mobileNumber: '',
     address: { ...EMPTY_GUEST_ADDRESS },
   });
+  const [addressCodes, setAddressCodes] = useState({ ...EMPTY_ADDRESS_CODES });
   const [profileSaving, setProfileSaving] = useState(false);
   const [profileNotice, setProfileNotice] = useState('');
 
@@ -66,12 +81,15 @@ function GuestAccountContent() {
 
   useEffect(() => {
     if (!user) return;
+    const address = getGuestAddressFromProfile(profile);
+    const codes = resolveAddressCodesFromNames(address);
     setProfileForm({
       firstName: profile?.firstName || '',
       lastName: profile?.lastName || '',
       mobileNumber: profile?.mobileNumber || '',
-      address: getGuestAddressFromProfile(profile),
+      address,
     });
+    setAddressCodes(codes);
     setValidIdForm({
       validIdType: profile?.validIdType || 'Passport',
       validIdOther: profile?.validIdOther || '',
@@ -91,10 +109,85 @@ function GuestAccountContent() {
     if (field === 'lastName') setLastNameError('');
   };
 
+  const provinceOptions = useMemo(() => getProvinceOptions(), []);
+  const cityOptions = useMemo(
+    () => getCityOptionsForProvince(addressCodes.provinceCode),
+    [addressCodes.provinceCode]
+  );
+  const barangayOptions = useMemo(
+    () => getBarangayOptionsForCity(addressCodes.cityCode),
+    [addressCodes.cityCode]
+  );
+
   const handleAddressChange = (field, value) => {
     setProfileForm((prev) => ({
       ...prev,
       address: { ...prev.address, [field]: value },
+    }));
+  };
+
+  const handleProvinceSelect = (provinceCode) => {
+    const names = getAddressNamesFromCodes({
+      provinceCode,
+      cityCode: '',
+      barangayCode: '',
+    });
+    setAddressCodes({
+      provinceCode,
+      cityCode: '',
+      barangayCode: '',
+    });
+    setProfileForm((prev) => ({
+      ...prev,
+      address: {
+        ...prev.address,
+        province: names.province,
+        city: '',
+        barangay: '',
+      },
+    }));
+  };
+
+  const handleCitySelect = (cityCode) => {
+    const names = getAddressNamesFromCodes({
+      provinceCode: addressCodes.provinceCode,
+      cityCode,
+      barangayCode: '',
+    });
+    setAddressCodes((prev) => ({
+      ...prev,
+      cityCode,
+      barangayCode: '',
+    }));
+    setProfileForm((prev) => ({
+      ...prev,
+      address: {
+        ...prev.address,
+        province: names.province,
+        city: names.city,
+        barangay: '',
+      },
+    }));
+  };
+
+  const handleBarangaySelect = (barangayCode) => {
+    const names = getAddressNamesFromCodes({
+      provinceCode: addressCodes.provinceCode,
+      cityCode: addressCodes.cityCode,
+      barangayCode,
+    });
+    setAddressCodes((prev) => ({
+      ...prev,
+      barangayCode,
+    }));
+    setProfileForm((prev) => ({
+      ...prev,
+      address: {
+        ...prev.address,
+        province: names.province,
+        city: names.city,
+        barangay: names.barangay,
+      },
     }));
   };
 
@@ -104,6 +197,7 @@ function GuestAccountContent() {
 
   const handleEditClick = () => {
     setOriginalProfile({ ...profileForm });
+    setOriginalAddressCodes({ ...addressCodes });
     setIsEditing(true);
     // Clear any previous validation errors
     setFirstNameError('');
@@ -112,6 +206,7 @@ function GuestAccountContent() {
 
   const handleCancelEdit = () => {
     setProfileForm(originalProfile);
+    setAddressCodes(originalAddressCodes);
     setIsEditing(false);
     setFirstNameError('');
     setLastNameError('');
@@ -506,7 +601,7 @@ function GuestAccountContent() {
                         <div className="space-y-1">
                           <label className="flex items-center gap-2 text-sm font-semibold text-[#1E3A8A]">
                             <i className="fas fa-phone-alt text-[#4D8CF5] text-xs"></i>
-                            Mobile Number <span className="text-red-500">(Required for Booking)</span>
+                            Mobile Number <span className="text-red-500">*</span>
                           </label>
                           {isEditing ? (
                             <input
@@ -546,32 +641,121 @@ function GuestAccountContent() {
                           </p>
                         </div>
                         <div className="grid gap-6 sm:grid-cols-2">
-                          {[
-                            { key: 'houseNumber', label: 'House Number', icon: 'fa-home' },
-                            { key: 'street', label: 'Street', icon: 'fa-road' },
-                            { key: 'barangay', label: 'Barangay', icon: 'fa-map-marker-alt' },
-                            { key: 'city', label: 'City/Municipality', icon: 'fa-city' },
-                            { key: 'province', label: 'Province', icon: 'fa-map' },
-                          ].map(({ key, label, icon }) => (
-                            <div key={key} className={`space-y-1 ${key === 'province' ? 'sm:col-span-2' : ''}`}>
-                              <label className="flex items-center gap-2 text-sm font-semibold text-[#1E3A8A]">
-                                <i className={`fas ${icon} text-[#4D8CF5] text-xs`} />
-                                {label}
-                              </label>
-                              {isEditing ? (
-                                <input
-                                  type="text"
-                                  value={profileForm.address[key]}
-                                  onChange={(e) => handleAddressChange(key, e.target.value)}
-                                  className="w-full rounded-xl border border-[#4D8CF5]/20 bg-white px-4 py-2.5 text-sm text-gray-900 transition-all focus:border-[#4D8CF5] focus:bg-white focus:outline-none focus:ring-2 focus:ring-[#4D8CF5]/20"
-                                />
-                              ) : (
-                                <div className="flex items-center gap-2 rounded-xl border border-[#4D8CF5]/20 bg-[#F9FCFF] px-4 py-2.5 text-sm text-gray-700">
-                                  {profileForm.address[key] || '—'}
-                                </div>
-                              )}
-                            </div>
-                          ))}
+                          <div className="space-y-1 sm:col-span-2">
+                            <label className="flex items-center gap-2 text-sm font-semibold text-[#1E3A8A]">
+                              <i className="fas fa-map text-[#4D8CF5] text-xs" />
+                              Province
+                            </label>
+                            {isEditing ? (
+                              <select
+                                value={addressCodes.provinceCode}
+                                onChange={(e) => handleProvinceSelect(e.target.value)}
+                                className="w-full rounded-xl border border-[#4D8CF5]/20 bg-white px-4 py-2.5 text-sm text-gray-900 transition-all focus:border-[#4D8CF5] focus:outline-none focus:ring-2 focus:ring-[#4D8CF5]/20"
+                              >
+                                <option value="">Select province</option>
+                                {provinceOptions.map((option) => (
+                                  <option key={option.code} value={option.code}>
+                                    {option.name}
+                                  </option>
+                                ))}
+                              </select>
+                            ) : (
+                              <div className="flex items-center gap-2 rounded-xl border border-[#4D8CF5]/20 bg-[#F9FCFF] px-4 py-2.5 text-sm text-gray-700">
+                                {profileForm.address.province || '—'}
+                              </div>
+                            )}
+                          </div>
+
+                          <div className="space-y-1">
+                            <label className="flex items-center gap-2 text-sm font-semibold text-[#1E3A8A]">
+                              <i className="fas fa-city text-[#4D8CF5] text-xs" />
+                              City/Municipality
+                            </label>
+                            {isEditing ? (
+                              <select
+                                value={addressCodes.cityCode}
+                                onChange={(e) => handleCitySelect(e.target.value)}
+                                disabled={!addressCodes.provinceCode}
+                                className="w-full rounded-xl border border-[#4D8CF5]/20 bg-white px-4 py-2.5 text-sm text-gray-900 transition-all focus:border-[#4D8CF5] focus:outline-none focus:ring-2 focus:ring-[#4D8CF5]/20 disabled:cursor-not-allowed disabled:bg-gray-50 disabled:text-gray-400"
+                              >
+                                <option value="">Select city/municipality</option>
+                                {cityOptions.map((option) => (
+                                  <option key={option.code} value={option.code}>
+                                    {option.name}
+                                  </option>
+                                ))}
+                              </select>
+                            ) : (
+                              <div className="flex items-center gap-2 rounded-xl border border-[#4D8CF5]/20 bg-[#F9FCFF] px-4 py-2.5 text-sm text-gray-700">
+                                {profileForm.address.city || '—'}
+                              </div>
+                            )}
+                          </div>
+
+                          <div className="space-y-1">
+                            <label className="flex items-center gap-2 text-sm font-semibold text-[#1E3A8A]">
+                              <i className="fas fa-map-marker-alt text-[#4D8CF5] text-xs" />
+                              Barangay
+                            </label>
+                            {isEditing ? (
+                              <select
+                                value={addressCodes.barangayCode}
+                                onChange={(e) => handleBarangaySelect(e.target.value)}
+                                disabled={!addressCodes.cityCode}
+                                className="w-full rounded-xl border border-[#4D8CF5]/20 bg-white px-4 py-2.5 text-sm text-gray-900 transition-all focus:border-[#4D8CF5] focus:outline-none focus:ring-2 focus:ring-[#4D8CF5]/20 disabled:cursor-not-allowed disabled:bg-gray-50 disabled:text-gray-400"
+                              >
+                                <option value="">Select barangay</option>
+                                {barangayOptions.map((option) => (
+                                  <option key={option.code} value={option.code}>
+                                    {option.name}
+                                  </option>
+                                ))}
+                              </select>
+                            ) : (
+                              <div className="flex items-center gap-2 rounded-xl border border-[#4D8CF5]/20 bg-[#F9FCFF] px-4 py-2.5 text-sm text-gray-700">
+                                {profileForm.address.barangay || '—'}
+                              </div>
+                            )}
+                          </div>
+
+                          <div className="space-y-1">
+                            <label className="flex items-center gap-2 text-sm font-semibold text-[#1E3A8A]">
+                              <i className="fas fa-road text-[#4D8CF5] text-xs" />
+                              Street <span className="text-xs font-normal text-[#4D6FA8]">(Optional)</span>
+                            </label>
+                            {isEditing ? (
+                              <input
+                                type="text"
+                                value={profileForm.address.street}
+                                onChange={(e) => handleAddressChange('street', e.target.value)}
+                                placeholder="Enter street name if applicable"
+                                className="w-full rounded-xl border border-[#4D8CF5]/20 bg-white px-4 py-2.5 text-sm text-gray-900 transition-all focus:border-[#4D8CF5] focus:outline-none focus:ring-2 focus:ring-[#4D8CF5]/20"
+                              />
+                            ) : (
+                              <div className="flex items-center gap-2 rounded-xl border border-[#4D8CF5]/20 bg-[#F9FCFF] px-4 py-2.5 text-sm text-gray-700">
+                                {profileForm.address.street || '—'}
+                              </div>
+                            )}
+                          </div>
+
+                          <div className="space-y-1">
+                            <label className="flex items-center gap-2 text-sm font-semibold text-[#1E3A8A]">
+                              <i className="fas fa-home text-[#4D8CF5] text-xs" />
+                              House Number
+                            </label>
+                            {isEditing ? (
+                              <input
+                                type="text"
+                                value={profileForm.address.houseNumber}
+                                onChange={(e) => handleAddressChange('houseNumber', e.target.value)}
+                                className="w-full rounded-xl border border-[#4D8CF5]/20 bg-white px-4 py-2.5 text-sm text-gray-900 transition-all focus:border-[#4D8CF5] focus:outline-none focus:ring-2 focus:ring-[#4D8CF5]/20"
+                              />
+                            ) : (
+                              <div className="flex items-center gap-2 rounded-xl border border-[#4D8CF5]/20 bg-[#F9FCFF] px-4 py-2.5 text-sm text-gray-700">
+                                {profileForm.address.houseNumber || '—'}
+                              </div>
+                            )}
+                          </div>
                         </div>
                         <p className="rounded-xl border border-[#4D8CF5]/10 bg-[#F9FCFF] px-4 py-3 text-xs leading-relaxed text-[#4D6FA8]">
                           <i className="fas fa-shield-alt mr-1.5 text-[#4D8CF5]" />
@@ -631,7 +815,7 @@ function GuestAccountContent() {
                         </div>
                         <div>
                           <h2 className="text-xl font-bold text-[#1E3A8A]">VALID ID</h2>
-                          <p className="text-sm text-[#4D6FA8]">Manage your valid ID for reservations <span className="text-red-500">(Required for Booking)</span> </p>
+                          <p className="text-sm text-[#4D6FA8]">Manage your valid ID for reservations <span className="text-red-500">*</span> </p>
                         </div>
                       </div>
                       {user && !isEditingValidId && profile?.validIdUrl && (

@@ -275,11 +275,10 @@ export default function StaffRoomAssign() {
     }
   };
 
-  // Get all eligible reservations
+  // Get all eligible reservations (one entry per unassigned booking document)
   const getAllEligibleReservations = async () => {
     try {
       const bookingsRef = collection(db, 'bookings');
-
       const statuses = ['confirmed', 'check-in', 'check-out'];
       const allReservations = [];
 
@@ -290,65 +289,24 @@ export default function StaffRoomAssign() {
         );
         const snapshot = await getDocs(q);
 
-        for (const doc of snapshot.docs) {
-          const data = doc.data();
+        for (const docSnap of snapshot.docs) {
+          const data = docSnap.data();
 
-          if (data.isExclusiveResortBooking === true) {
-            continue;
-          }
-          if (data.bookingIdDisplay === 'Entire Resort') {
-            continue;
-          }
+          if (data.isExclusiveResortBooking === true) continue;
+          if (data.bookingIdDisplay === 'Entire Resort') continue;
+          if (data.assignedRoomId) continue;
 
-          let displayInfo = '';
-          let roomTypeDisplay = '';
+          const roomType = String(data.roomType || '').trim();
+          if (!roomType) continue;
 
-          if (data.isMultiRoomBooking && data.parentBookingId) {
-            const parentQuery = query(
-              bookingsRef,
-              where('parentBookingId', '==', data.parentBookingId)
-            );
-            const parentSnapshot = await getDocs(parentQuery);
-            const roomTypes = [];
-            let totalRooms = 0;
-            let assignedCount = 0;
-
-            for (const childDoc of parentSnapshot.docs) {
-              const childData = childDoc.data();
-              if (!childData.isExclusiveResortBooking) {
-                roomTypes.push(childData.roomType);
-                totalRooms++;
-                if (childData.assignedRoomId) {
-                  assignedCount++;
-                }
-              }
-            }
-
-            const uniqueRoomTypes = [...new Set(roomTypes)];
-            const remainingRooms = totalRooms - assignedCount;
-
-            roomTypeDisplay = uniqueRoomTypes.join(' + ');
-            displayInfo = `${data.guestInfo?.firstName || 'Guest'} ${data.guestInfo?.lastName || ''} - ${roomTypeDisplay} (${remainingRooms} rooms remaining)`;
-          } else {
-            roomTypeDisplay = data.roomType || 'Room';
-            const requiredCount = data.numberOfRooms || 1;
-            const assignedCount = data.assignedRoomId ? 1 : 0;
-            const remainingRooms = requiredCount - assignedCount;
-
-            displayInfo = `${data.guestInfo?.firstName || 'Guest'} ${data.guestInfo?.lastName || ''} - ${roomTypeDisplay} (${remainingRooms} rooms remaining)`;
-          }
-
-          const remainingRooms = data.remainingQuantity !== undefined ? data.remainingQuantity :
-            (data.isMultiRoomBooking ? 1 : (data.numberOfRooms || 1) - (data.assignedRoomId ? 1 : 0));
+          const guestName = `${data.guestInfo?.firstName || 'Guest'} ${data.guestInfo?.lastName || ''}`.trim();
 
           allReservations.push({
-            id: doc.id,
+            id: docSnap.id,
             ...data,
-            displayInfo: displayInfo,
-            roomTypeDisplay: roomTypeDisplay,
-            status: data.status,
-            remainingQuantity: remainingRooms,
-            roomType: data.roomType || roomTypeDisplay
+            displayInfo: `${guestName} - ${roomType}`,
+            roomTypeDisplay: roomType,
+            roomType,
           });
         }
       }
@@ -359,6 +317,17 @@ export default function StaffRoomAssign() {
       return [];
     }
   };
+
+  const normalizeRoomType = (value) => String(value || '').trim().toLowerCase();
+
+  const reservationMatchesRoomType = (reservation, room) => {
+    const targetType = normalizeRoomType(room?.roomTypeName);
+    const reservationType = normalizeRoomType(reservation?.roomType);
+    return Boolean(targetType && reservationType && targetType === reservationType);
+  };
+
+  const filterReservationsForRoom = (reservations, room) =>
+    reservations.filter((reservation) => reservationMatchesRoomType(reservation, room));
 
   // Handle assign click
   const handleAssignClick = async (room) => {
@@ -373,10 +342,11 @@ export default function StaffRoomAssign() {
 
     try {
       const allEligible = await getAllEligibleReservations();
-      setAvailableReservations(allEligible);
+      const filtered = filterReservationsForRoom(allEligible, room);
+      setAvailableReservations(filtered);
 
-      if (allEligible.length === 0) {
-        showNotification(`No eligible reservations available.`, 'error');
+      if (filtered.length === 0) {
+        showNotification(`No eligible reservations for ${room.roomTypeName}.`, 'error');
       }
 
       setShowAssignModal(true);
@@ -444,11 +414,14 @@ export default function StaffRoomAssign() {
 
     try {
       const allEligible = await getAllEligibleReservations();
-      const matchingReservations = allEligible.filter(res => res.id !== room.currentReservationId);
+      const matchingReservations = filterReservationsForRoom(
+        allEligible.filter((res) => res.id !== room.currentReservationId),
+        room
+      );
       setAvailableReservations(matchingReservations);
 
       if (matchingReservations.length === 0) {
-        showNotification(`No other eligible reservations available.`, 'error');
+        showNotification(`No other eligible reservations for ${room.roomTypeName}.`, 'error');
         return;
       }
 
@@ -826,11 +799,11 @@ export default function StaffRoomAssign() {
                 <label className="block mb-1.5 text-xs font-bold text-[#1E3A8A]/60 uppercase tracking-widest px-1">
                   Select Guest Name
                 </label>
-                <p className="text-[11px] text-textSecondary mb-2 px-1">Showing guest names with Confirmed, Checked In, or Checked Out reservations (excluding Entire Resort bookings).</p>
+                <p className="text-[11px] text-textSecondary mb-2 px-1">Showing guests with {selectedRoom.roomTypeName} reservations (Confirmed, Checked In, or Checked Out).</p>
                 {availableReservations.length === 0 ? (
                   <div className="bg-amber-50 border-l-4 border-amber-500 text-amber-800 rounded-xl p-3.5 text-xs font-medium">
                     <i className="fas fa-info-circle mr-2"></i>
-                    No eligible reservations available. Reservations must have Confirmed, Checked In, or Checked Out status.
+                    No eligible {selectedRoom.roomTypeName} reservations available.
                   </div>
                 ) : (
                   <div className="relative">
@@ -840,20 +813,14 @@ export default function StaffRoomAssign() {
                       className="w-full px-4 py-2.5 pr-10 border-2 border-[#4D8CF5]/20 rounded-xl text-sm focus:outline-none focus:border-[#4D8CF5] bg-white transition-all appearance-none cursor-pointer"
                     >
                       <option value="">Select a guest...</option>
-                      {(() => {
-                        const uniqueGuests = new Map();
-                        availableReservations.forEach(reservation => {
-                          const guestName = `${reservation.guestInfo?.firstName || 'Guest'} ${reservation.guestInfo?.lastName || ''}`.trim();
-                          if (!uniqueGuests.has(guestName)) {
-                            uniqueGuests.set(guestName, reservation.id);
-                          }
-                        });
-                        return Array.from(uniqueGuests).map(([guestName, reservationId]) => (
-                          <option key={reservationId} value={reservationId}>
+                      {availableReservations.map((reservation) => {
+                        const guestName = `${reservation.guestInfo?.firstName || 'Guest'} ${reservation.guestInfo?.lastName || ''}`.trim();
+                        return (
+                          <option key={reservation.id} value={reservation.id}>
                             {guestName}
                           </option>
-                        ));
-                      })()}
+                        );
+                      })}
                     </select>
                     <div className="absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none text-[#4D8CF5] text-xs">
                       ▼
@@ -949,11 +916,11 @@ export default function StaffRoomAssign() {
                 <label className="block mb-1.5 text-xs font-bold text-[#1E3A8A]/60 uppercase tracking-widest px-1">
                   Select Guest Name to Reassign
                 </label>
-                <p className="text-[11px] text-textSecondary mb-2 px-1">Showing guest names with Confirmed, Checked In, or Checked Out reservations (excluding Entire Resort bookings).</p>
+                <p className="text-[11px] text-textSecondary mb-2 px-1">Showing guests with {editingRoom.roomTypeName} reservations (Confirmed, Checked In, or Checked Out).</p>
                 {availableReservations.length === 0 ? (
                   <div className="bg-amber-50 border-l-4 border-amber-500 text-amber-800 rounded-xl p-3.5 text-xs font-medium">
                     <i className="fas fa-info-circle mr-2"></i>
-                    No other eligible reservations available.
+                    No other eligible {editingRoom.roomTypeName} reservations available.
                   </div>
                 ) : (
                   <div className="relative">
@@ -963,20 +930,14 @@ export default function StaffRoomAssign() {
                       className="w-full px-4 py-2.5 pr-10 border-2 border-[#4D8CF5]/20 rounded-xl text-sm focus:outline-none focus:border-[#4D8CF5] bg-white transition-all appearance-none cursor-pointer"
                     >
                       <option value="">Select a guest...</option>
-                      {(() => {
-                        const uniqueGuests = new Map();
-                        availableReservations.forEach(reservation => {
-                          const guestName = `${reservation.guestInfo?.firstName || 'Guest'} ${reservation.guestInfo?.lastName || ''}`.trim();
-                          if (!uniqueGuests.has(guestName)) {
-                            uniqueGuests.set(guestName, reservation.id);
-                          }
-                        });
-                        return Array.from(uniqueGuests).map(([guestName, reservationId]) => (
-                          <option key={reservationId} value={reservationId}>
+                      {availableReservations.map((reservation) => {
+                        const guestName = `${reservation.guestInfo?.firstName || 'Guest'} ${reservation.guestInfo?.lastName || ''}`.trim();
+                        return (
+                          <option key={reservation.id} value={reservation.id}>
                             {guestName}
                           </option>
-                        ));
-                      })()}
+                        );
+                      })}
                     </select>
                     <div className="absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none text-[#4D8CF5] text-xs">
                       ▼
