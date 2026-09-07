@@ -92,6 +92,15 @@ function DayTourBookingContent() {
   const accountValidIdUrl = profile?.validIdUrl || '';
   const accountValidIdSelfieUrl = profile?.validIdSelfieUrl || '';
 
+  // FIX: Move these declarations BEFORE they are used in canSubmitPayment
+  const visibleGuestQrBank = paymentSettings.bankAccounts.find(
+    (account) => account.qrCodeUrl && account.showToGuest === true
+  ) || null;
+
+  const requestableBankAccounts = paymentSettings.bankAccounts.filter(
+    (account) => account.accountNumber && String(account.accountNumber).trim().length > 0
+  );
+
   // Restore bank transfer request when returning from Pending Payment
   useEffect(() => {
     if (!bankRequestIdParam) return undefined;
@@ -437,20 +446,15 @@ function DayTourBookingContent() {
     ['digital', 'cash'].includes(balancePaymentMethod) &&
     hasCompleteAddress
   );
-  const visibleGuestQrBank = paymentSettings.bankAccounts.find(
-    (account) => account.qrCodeUrl && account.showToGuest === true
-  ) || null;
-  const requestableBankAccounts = paymentSettings.bankAccounts.filter(
-    (account) => account.accountNumber && String(account.accountNumber).trim().length > 0
-  );
 
   // Format date for display
   const formatSelectedDate = () => {
     if (!selectedDate) return '';
     const year = selectedDate.getFullYear();
-    const month = String(selectedDate.getMonth() + 1).padStart(2, '0');
-    const day = String(selectedDate.getDate()).padStart(2, '0');
-    return `${year}-${month}-${day}`;
+    const month = selectedDate.toLocaleString('default', { month: 'long' });
+    const day = selectedDate.getDate();
+    const weekday = selectedDate.toLocaleString('default', { weekday: 'long' });
+    return `${weekday}, ${month} ${day}, ${year}`;
   };
 
   const validateGuests = () => {
@@ -1548,85 +1552,85 @@ function DayTourBookingContent() {
                   {paymentMethod === 'gcash' && renderGcashPanel()}
                   {paymentMethod === 'bank_transfer' && renderBankTransferPanel()}
 
-                   <div className="mt-6 mb-6">
-  <label className="mb-2 block text-xs font-semibold text-textPrimary sm:text-sm">
-    How would you like to pay your remaining balance upon check-in?
-  </label>
+                  <div className="mt-6 mb-6">
+                    <label className="mb-2 block text-xs font-semibold text-textPrimary sm:text-sm">
+                      How would you like to pay your remaining balance upon check-in?
+                    </label>
 
-  <div className="grid gap-3 md:grid-cols-2">
-    {[
-      {
-        value: 'digital',
-        label: 'Digital',
-        icon: 'fa-mobile-alt',
-        description: 'Pay the remaining balance digitally at check-in.',
-      },
-      {
-        value: 'cash',
-        label: 'Cash',
-        icon: 'fa-money-bill-wave',
-        description: 'Pay the remaining balance in cash at check-in.',
-      },
-    ].map((option) => (
-      <button
-        key={option.value}
-        type="button"
-        onClick={() => setBalancePaymentMethod(option.value)}
-        className={`rounded-[1.5rem] border p-4 text-left transition-all duration-200 ${
-          balancePaymentMethod === option.value
-            ? 'border-ocean-mid bg-ocean-ice shadow-[0_14px_32px_rgba(33,105,243,0.14)]'
-            : 'border-ocean-light/20 bg-white hover:-translate-y-0.5 hover:border-ocean-light hover:shadow-md'
-        }`}
-      >
-        <div className="flex items-start justify-between gap-2">
-          <div className="flex items-start gap-2">
-            <span
-              className={`mt-1 flex h-3.5 w-3.5 shrink-0 items-center justify-center rounded-full border-2 ${
-                balancePaymentMethod === option.value
-                  ? 'border-ocean-mid'
-                  : 'border-gray-300'
-              }`}
-            >
-              {balancePaymentMethod === option.value && (
-                <span className="h-1.5 w-1.5 rounded-full bg-ocean-mid" />
-              )}
-            </span>
+                    <div className="grid gap-3 md:grid-cols-2">
+                      {[
+                        {
+                          value: 'digital',
+                          label: 'Digital',
+                          icon: 'fa-mobile-alt',
+                          description: 'Pay the remaining balance digitally at check-in.',
+                        },
+                        {
+                          value: 'cash',
+                          label: 'Cash',
+                          icon: 'fa-money-bill-wave',
+                          description: 'Pay the remaining balance in cash at check-in.',
+                        },
+                      ].map((option) => (
+                        <button
+                          key={option.value}
+                          type="button"
+                          onClick={() => setBalancePaymentMethod(option.value)}
+                          className={`rounded-[1.5rem] border p-4 text-left transition-all duration-200 ${
+                            balancePaymentMethod === option.value
+                              ? 'border-ocean-mid bg-ocean-ice shadow-[0_14px_32px_rgba(33,105,243,0.14)]'
+                              : 'border-ocean-light/20 bg-white hover:-translate-y-0.5 hover:border-ocean-light hover:shadow-md'
+                          }`}
+                        >
+                          <div className="flex items-start justify-between gap-2">
+                            <div className="flex items-start gap-2">
+                              <span
+                                className={`mt-1 flex h-3.5 w-3.5 shrink-0 items-center justify-center rounded-full border-2 ${
+                                  balancePaymentMethod === option.value
+                                    ? 'border-ocean-mid'
+                                    : 'border-gray-300'
+                                }`}
+                              >
+                                {balancePaymentMethod === option.value && (
+                                  <span className="h-1.5 w-1.5 rounded-full bg-ocean-mid" />
+                                )}
+                              </span>
 
-            <div
-              className={`flex h-10 w-10 items-center justify-center rounded-xl ${
-                balancePaymentMethod === option.value
-                  ? 'bg-ocean-mid text-white'
-                  : 'bg-ocean-ice text-ocean-mid'
-              }`}
-            >
-              <i className={`fas ${option.icon} text-sm`} />
-            </div>
+                              <div
+                                className={`flex h-10 w-10 items-center justify-center rounded-xl ${
+                                  balancePaymentMethod === option.value
+                                    ? 'bg-ocean-mid text-white'
+                                    : 'bg-ocean-ice text-ocean-mid'
+                                }`}
+                              >
+                                <i className={`fas ${option.icon} text-sm`} />
+                              </div>
 
-            <div>
-              <p
-                className={`text-sm font-semibold ${
-                  balancePaymentMethod === option.value
-                    ? 'text-ocean-mid'
-                    : 'text-textPrimary'
-                }`}
-              >
-                {option.label}
-              </p>
+                              <div>
+                                <p
+                                  className={`text-sm font-semibold ${
+                                    balancePaymentMethod === option.value
+                                      ? 'text-ocean-mid'
+                                      : 'text-textPrimary'
+                                  }`}
+                                >
+                                  {option.label}
+                                </p>
 
-              <p className="mt-0.5 text-xs leading-snug text-textSecondary">
-                {option.description}
-              </p>
-            </div>
-          </div>
+                                <p className="mt-0.5 text-xs leading-snug text-textSecondary">
+                                  {option.description}
+                                </p>
+                              </div>
+                            </div>
 
-          {balancePaymentMethod === option.value && (
-            <i className="fas fa-check-circle text-sm text-ocean-mid" />
-          )}
-        </div>
-      </button>
-    ))}
-  </div>
-</div>
+                            {balancePaymentMethod === option.value && (
+                              <i className="fas fa-check-circle text-sm text-ocean-mid" />
+                            )}
+                          </div>
+                        </button>
+                      ))}
+                    </div>
+                  </div>
                   
                   <div className="mt-6 grid gap-4 lg:grid-cols-[minmax(0,1fr)_320px]">
                     <div className="rounded-[1.75rem] border border-ocean-light/20 bg-[#f7fbff] p-5">
@@ -1838,7 +1842,6 @@ export default function DayTourBookingPage() {
   return (
     <Suspense
       fallback={
-        // Removed GuestLayout wrapper – just a plain loading indicator
         <div className="min-h-screen bg-gradient-to-br from-ocean-ice to-blue-white flex items-center justify-center">
           <i className="fas fa-spinner fa-spin text-3xl text-ocean-light"></i>
         </div>
