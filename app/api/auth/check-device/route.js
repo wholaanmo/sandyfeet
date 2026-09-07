@@ -39,7 +39,7 @@ async function sendVerificationEmail(to, code) {
       <div style="font-size: 32px; font-weight: bold; background: #f0f0f0; padding: 20px; text-align: center; letter-spacing: 5px;">
         ${code}
       </div>
-      <p>This code expires in 15 minutes.</p>
+      <p>This code expires in 5 minutes.</p>
       <p>If you did not attempt to log in, please ignore this email.</p>
     </div>
   `;
@@ -85,7 +85,7 @@ export async function POST(req) {
 
     // New device – generate 6‑digit code
     const code = Math.floor(100000 + Math.random() * 900000).toString();
-    const expiresAt = Date.now() + 15 * 60 * 1000; // 15 minutes
+    const expiresAt = Date.now() + 5 * 60 * 1000; // 5 minutes
 
     const pendingRef = doc(db, 'pendingDeviceVerifications', email);
     await setDoc(pendingRef, {
@@ -106,7 +106,7 @@ export async function POST(req) {
       // For now, we keep going; the modal will appear but email never arrives.
     }
 
-    return NextResponse.json({ recognised: false });
+    return NextResponse.json({ recognised: false, expiresAt });
   } catch (error) {
     console.error('Device check error (full details):', error);
     // Return a more descriptive error in development, but generic in production

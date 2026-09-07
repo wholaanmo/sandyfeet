@@ -27,6 +27,10 @@ const [deviceLoading, setDeviceLoading] = useState(false);
 const [pendingDeviceUid, setPendingDeviceUid] = useState('');
 const [pendingDeviceId, setPendingDeviceId] = useState('');
 const [pendingDeviceEmail, setPendingDeviceEmail] = useState('');
+const [codeExpiresAt, setCodeExpiresAt] = useState(null);
+const [countdownSeconds, setCountdownSeconds] = useState(0);
+const [codeExpired, setCodeExpired] = useState(false);
+const [deviceResendLoading, setDeviceResendLoading] = useState(false);
 
     // Forgot password modal states
     const [showForgotModal, setShowForgotModal] = useState(false);
@@ -36,6 +40,69 @@ const [pendingDeviceEmail, setPendingDeviceEmail] = useState('');
     const [resetError, setResetError] = useState('');
     
     const router = useRouter();
+
+    const formatCountdown = (totalSeconds) => {
+        const minutes = Math.floor(totalSeconds / 60);
+        const seconds = totalSeconds % 60;
+        return `${minutes}:${String(seconds).padStart(2, '0')}`;
+    };
+
+    const resetDeviceVerificationState = () => {
+        setDeviceCode('');
+        setDeviceError('');
+        setCodeExpiresAt(null);
+        setCountdownSeconds(0);
+        setCodeExpired(false);
+        setDeviceResendLoading(false);
+    };
+
+    useEffect(() => {
+        if (!showDeviceModal || !codeExpiresAt) return undefined;
+
+        const updateCountdown = () => {
+            const remaining = Math.max(0, Math.ceil((codeExpiresAt - Date.now()) / 1000));
+            setCountdownSeconds(remaining);
+            setCodeExpired(remaining <= 0);
+        };
+
+        updateCountdown();
+        const interval = setInterval(updateCountdown, 1000);
+        return () => clearInterval(interval);
+    }, [showDeviceModal, codeExpiresAt]);
+
+    const handleResendDeviceCode = async () => {
+        if (!pendingDeviceEmail || !pendingDeviceUid || !pendingDeviceId) return;
+
+        setDeviceResendLoading(true);
+        setDeviceError('');
+        try {
+            const checkRes = await fetch('/api/auth/check-device', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    email: pendingDeviceEmail,
+                    uid: pendingDeviceUid,
+                    deviceId: pendingDeviceId,
+                }),
+            });
+            const checkData = await checkRes.json();
+
+            if (!checkRes.ok) {
+                setDeviceError(checkData.error || 'Unable to send a new verification code.');
+                return;
+            }
+
+            setCodeExpiresAt(checkData.expiresAt || Date.now() + 5 * 60 * 1000);
+            setCodeExpired(false);
+            setDeviceCode('');
+            setCountdownSeconds(300);
+        } catch (err) {
+            console.error('Error resending device verification code:', err);
+            setDeviceError('Unable to send a new verification code. Please try again.');
+        } finally {
+            setDeviceResendLoading(false);
+        }
+    };
 
     // Check for existing session on mount
 useEffect(() => {
@@ -280,6 +347,10 @@ const loginUser = async (e) => {
             setPendingDeviceUid(uid);
             setPendingDeviceId(deviceId);
             setPendingDeviceEmail(email);
+            setCodeExpiresAt(checkData.expiresAt || Date.now() + 5 * 60 * 1000);
+            setCodeExpired(false);
+            setDeviceCode('');
+            setDeviceError('');
             setShowDeviceModal(true);
             setLoading(false);
             return;
@@ -608,6 +679,24 @@ const loginUser = async (e) => {
                 </div>
             )}
 
+            <div className={`mb-4 rounded-2xl border p-3 text-xs ${
+                codeExpired
+                    ? 'border-amber-200 bg-amber-50 text-amber-700'
+                    : 'border-ocean-light/20 bg-ocean-ice/40 text-ocean-mid'
+            }`}>
+                {codeExpired ? (
+                    <span>
+                        <i className="fas fa-clock mr-2"></i>
+                        Your verification code has expired. Please request a new code to continue.
+                    </span>
+                ) : (
+                    <span>
+                        <i className="fas fa-hourglass-half mr-2"></i>
+                        Code expires in <strong>{formatCountdown(countdownSeconds)}</strong>
+                    </span>
+                )}
+            </div>
+
             <input
                 type="text"
                 inputMode="numeric"
@@ -615,14 +704,30 @@ const loginUser = async (e) => {
                 placeholder="Enter 6‑digit code"
                 value={deviceCode}
                 onChange={(e) => setDeviceCode(e.target.value.replace(/\D/g, ''))}
-                className="w-full rounded-2xl border border-slate-200 py-3 px-4 text-center text-lg tracking-widest font-mono focus:border-ocean-light focus:outline-none focus:ring-2 focus:ring-ocean-light/20"
-                disabled={deviceLoading}
+                className="w-full rounded-2xl border border-slate-200 py-3 px-4 text-center text-lg tracking-widest font-mono focus:border-ocean-light focus:outline-none focus:ring-2 focus:ring-ocean-light/20 disabled:bg-gray-50 disabled:text-gray-400"
+                disabled={deviceLoading || codeExpired}
             />
+
+            {codeExpired && (
+                <button
+                    type="button"
+                    onClick={handleResendDeviceCode}
+                    disabled={deviceResendLoading || deviceLoading}
+                    className="mt-4 w-full rounded-2xl border border-ocean-light/30 py-2.5 text-sm font-semibold text-ocean-mid transition hover:bg-ocean-ice/40 disabled:opacity-60"
+                >
+                    {deviceResendLoading ? (
+                        <><i className="fas fa-spinner fa-spin mr-2"></i>Sending new code...</>
+                    ) : (
+                        <><i className="fas fa-redo mr-2"></i>Request New Verification Code</>
+                    )}
+                </button>
+            )}
 
             <div className="flex gap-3 mt-6">
                 <button
                     onClick={() => {
                         setShowDeviceModal(false);
+                        resetDeviceVerificationState();
                         setLoading(false);
                         auth.signOut(); // abort login
                     }}
@@ -633,6 +738,10 @@ const loginUser = async (e) => {
                 </button>
                 <button
                     onClick={async () => {
+                        if (codeExpired) {
+                            setDeviceError('Verification code expired. Please request a new code.');
+                            return;
+                        }
                         if (deviceCode.length !== 6) {
                             setDeviceError('Enter the 6‑digit code');
                             return;
@@ -660,6 +769,7 @@ const loginUser = async (e) => {
                             }
                             // Verified – complete login
                             setShowDeviceModal(false);
+                            resetDeviceVerificationState();
                             await completeLogin(pendingDeviceUid);
                         } catch (err) {
                             console.error(err);
@@ -667,7 +777,7 @@ const loginUser = async (e) => {
                             setDeviceLoading(false);
                         }
                     }}
-                    disabled={deviceCode.length !== 6 || deviceLoading}
+                    disabled={deviceCode.length !== 6 || deviceLoading || codeExpired}
                     className="flex-1 rounded-2xl bg-ocean-mid py-2 text-sm font-semibold text-white shadow-md hover:bg-ocean-light disabled:opacity-60"
                 >
                     {deviceLoading ? <i className="fas fa-spinner fa-spin"></i> : 'Verify'}

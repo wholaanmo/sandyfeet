@@ -4,6 +4,7 @@
 import { Suspense, useEffect, useMemo, useState } from 'react';
 import Image from 'next/image';
 import Link from 'next/link';
+import { useRouter } from 'next/navigation';
 import GuestLayout from '@/app/guest/layout';
 import GuestAuthModal from '@/components/guest/GuestAuthModal';
 import { useGuestAuth } from '@/components/guest/GuestAuthContext';
@@ -33,14 +34,12 @@ const EMPTY_ADDRESS_CODES = {
 };
 
 function GuestAccountContent() {
+  const router = useRouter();
   const { user, profile, loading, logout, updateGuestProfile } = useGuestAuth();
   const [isAuthOpen, setIsAuthOpen] = useState(false);
   const [showSignOutModal, setShowSignOutModal] = useState(false);
 
   // Profile editing state
-  const [isEditing, setIsEditing] = useState(false);
-  const [originalProfile, setOriginalProfile] = useState({});
-  const [originalAddressCodes, setOriginalAddressCodes] = useState({ ...EMPTY_ADDRESS_CODES });
   const [profileForm, setProfileForm] = useState({
     firstName: '',
     lastName: '',
@@ -195,21 +194,8 @@ function GuestAccountContent() {
     handleProfileChange('mobileNumber', sanitizeNumericMobileInput(value));
   };
 
-  const handleEditClick = () => {
-    setOriginalProfile({ ...profileForm });
-    setOriginalAddressCodes({ ...addressCodes });
-    setIsEditing(true);
-    // Clear any previous validation errors
-    setFirstNameError('');
-    setLastNameError('');
-  };
-
-  const handleCancelEdit = () => {
-    setProfileForm(originalProfile);
-    setAddressCodes(originalAddressCodes);
-    setIsEditing(false);
-    setFirstNameError('');
-    setLastNameError('');
+  const handleBackClick = () => {
+    router.back();
   };
 
   const handleValidIdFileChange = async (e) => {
@@ -371,7 +357,6 @@ function GuestAccountContent() {
         },
       });
       setProfileNotice('Profile updated.');
-      setIsEditing(false);
     } catch (err) {
       console.error('Failed to update profile:', err);
       setProfileNotice('Unable to update profile right now.');
@@ -415,6 +400,17 @@ function GuestAccountContent() {
         })()}
 
         <div className="mx-auto max-w-7xl">
+          <div className="mb-5">
+            <button
+              type="button"
+              onClick={handleBackClick}
+              className="inline-flex items-center gap-2 rounded-xl border border-[#4D8CF5]/20 bg-white px-4 py-2 text-sm font-semibold text-[#1E3A8A] shadow-sm transition-all hover:bg-[#4D8CF5]/5 hover:shadow-md"
+            >
+              <i className="fas fa-arrow-left text-xs"></i>
+              Back
+            </button>
+          </div>
+
           <div className="grid gap-5 lg:grid-cols-[360px_minmax(0,1fr)]">
             {/* Left Sidebar (unchanged) */}
             <aside className="space-y-4">
@@ -521,16 +517,6 @@ function GuestAccountContent() {
                           <p className="text-sm text-[#4D6FA8]">Update your personal and contact information</p>
                         </div>
                       </div>
-                      {user && !isEditing && (
-                        <button
-                          type="button"
-                          onClick={handleEditClick}
-                          className="inline-flex items-center gap-2 rounded-xl border border-[#4D8CF5]/30 bg-white px-4 py-2 text-sm font-semibold text-[#1E3A8A] shadow-sm transition-all hover:bg-[#4D8CF5]/5 hover:shadow-md"
-                        >
-                          <i className="fas fa-pen text-xs"></i>
-                          Edit
-                        </button>
-                      )}
                     </div>
                   </div>
 
@@ -543,26 +529,17 @@ function GuestAccountContent() {
                             <i className="fas fa-user text-[#4D8CF5] text-xs"></i>
                             First Name <span className="text-red-500">*</span>
                           </label>
-                          {isEditing ? (
-                            <>
-                              <input
-                                type="text"
-                                value={profileForm.firstName}
-                                onChange={(e) => handleProfileChange('firstName', e.target.value)}
-                                className={`w-full rounded-xl border ${firstNameError ? 'border-red-300 focus:border-red-500' : 'border-[#4D8CF5]/20'} bg-white px-4 py-2.5 text-sm text-gray-900 transition-all focus:outline-none focus:ring-2 ${firstNameError ? 'focus:ring-red-100' : 'focus:ring-[#4D8CF5]/20'}`}
-                              />
-                              {firstNameError && (
-                                <p className="mt-1 text-xs text-red-600 flex items-center gap-1">
-                                  <i className="fas fa-exclamation-circle text-[10px]"></i>
-                                  {firstNameError}
-                                </p>
-                              )}
-                            </>
-                          ) : (
-                            <div className="flex items-center gap-2 rounded-xl border border-[#4D8CF5]/20 bg-[#F9FCFF] px-4 py-2.5 text-sm text-gray-700">
-                              <i className="fas fa-user text-slate-400 text-xs"></i>
-                              {profileForm.firstName || '—'}
-                            </div>
+                          <input
+                            type="text"
+                            value={profileForm.firstName}
+                            onChange={(e) => handleProfileChange('firstName', e.target.value)}
+                            className={`w-full rounded-xl border ${firstNameError ? 'border-red-300 focus:border-red-500' : 'border-[#4D8CF5]/20'} bg-white px-4 py-2.5 text-sm text-gray-900 transition-all focus:outline-none focus:ring-2 ${firstNameError ? 'focus:ring-red-100' : 'focus:ring-[#4D8CF5]/20'}`}
+                          />
+                          {firstNameError && (
+                            <p className="mt-1 text-xs text-red-600 flex items-center gap-1">
+                              <i className="fas fa-exclamation-circle text-[10px]"></i>
+                              {firstNameError}
+                            </p>
                           )}
                         </div>
 
@@ -572,26 +549,17 @@ function GuestAccountContent() {
                             <i className="fas fa-user-tag text-[#4D8CF5] text-xs"></i>
                             Last Name <span className="text-red-500">*</span>
                           </label>
-                          {isEditing ? (
-                            <>
-                              <input
-                                type="text"
-                                value={profileForm.lastName}
-                                onChange={(e) => handleProfileChange('lastName', e.target.value)}
-                                className={`w-full rounded-xl border ${lastNameError ? 'border-red-300 focus:border-red-500' : 'border-[#4D8CF5]/20'} bg-white px-4 py-2.5 text-sm text-gray-900 transition-all focus:outline-none focus:ring-2 ${lastNameError ? 'focus:ring-red-100' : 'focus:ring-[#4D8CF5]/20'}`}
-                              />
-                              {lastNameError && (
-                                <p className="mt-1 text-xs text-red-600 flex items-center gap-1">
-                                  <i className="fas fa-exclamation-circle text-[10px]"></i>
-                                  {lastNameError}
-                                </p>
-                              )}
-                            </>
-                          ) : (
-                            <div className="flex items-center gap-2 rounded-xl border border-[#4D8CF5]/20 bg-[#F9FCFF] px-4 py-2.5 text-sm text-gray-700">
-                              <i className="fas fa-user-tag text-slate-400 text-xs"></i>
-                              {profileForm.lastName || '—'}
-                            </div>
+                          <input
+                            type="text"
+                            value={profileForm.lastName}
+                            onChange={(e) => handleProfileChange('lastName', e.target.value)}
+                            className={`w-full rounded-xl border ${lastNameError ? 'border-red-300 focus:border-red-500' : 'border-[#4D8CF5]/20'} bg-white px-4 py-2.5 text-sm text-gray-900 transition-all focus:outline-none focus:ring-2 ${lastNameError ? 'focus:ring-red-100' : 'focus:ring-[#4D8CF5]/20'}`}
+                          />
+                          {lastNameError && (
+                            <p className="mt-1 text-xs text-red-600 flex items-center gap-1">
+                              <i className="fas fa-exclamation-circle text-[10px]"></i>
+                              {lastNameError}
+                            </p>
                           )}
                         </div>
                       </div>
@@ -603,21 +571,14 @@ function GuestAccountContent() {
                             <i className="fas fa-phone-alt text-[#4D8CF5] text-xs"></i>
                             Mobile Number <span className="text-red-500">*</span>
                           </label>
-                          {isEditing ? (
-                            <input
-                              type="tel"
-                              inputMode="numeric"
-                              pattern="[0-9]*"
-                              value={profileForm.mobileNumber}
-                              onChange={(e) => handleMobileNumberChange(e.target.value)}
-                              className="w-full rounded-xl border border-[#4D8CF5]/20 bg-white px-4 py-2.5 text-sm text-gray-900 transition-all focus:border-[#4D8CF5] focus:bg-white focus:outline-none focus:ring-2 focus:ring-[#4D8CF5]/20"
-                            />
-                          ) : (
-                            <div className="flex items-center gap-2 rounded-xl border border-[#4D8CF5]/20 bg-[#F9FCFF] px-4 py-2.5 text-sm text-gray-700">
-                              <i className="fas fa-phone-alt text-slate-400 text-xs"></i>
-                              {profileForm.mobileNumber || '—'}
-                            </div>
-                          )}
+                          <input
+                            type="tel"
+                            inputMode="numeric"
+                            pattern="[0-9]*"
+                            value={profileForm.mobileNumber}
+                            onChange={(e) => handleMobileNumberChange(e.target.value)}
+                            className="w-full rounded-xl border border-[#4D8CF5]/20 bg-white px-4 py-2.5 text-sm text-gray-900 transition-all focus:border-[#4D8CF5] focus:bg-white focus:outline-none focus:ring-2 focus:ring-[#4D8CF5]/20"
+                          />
                         </div>
 
                         {/* Email (read-only) */}
@@ -646,24 +607,18 @@ function GuestAccountContent() {
                               <i className="fas fa-map text-[#4D8CF5] text-xs" />
                               Province
                             </label>
-                            {isEditing ? (
-                              <select
-                                value={addressCodes.provinceCode}
-                                onChange={(e) => handleProvinceSelect(e.target.value)}
-                                className="w-full rounded-xl border border-[#4D8CF5]/20 bg-white px-4 py-2.5 text-sm text-gray-900 transition-all focus:border-[#4D8CF5] focus:outline-none focus:ring-2 focus:ring-[#4D8CF5]/20"
-                              >
-                                <option value="">Select province</option>
-                                {provinceOptions.map((option) => (
-                                  <option key={option.code} value={option.code}>
-                                    {option.name}
-                                  </option>
-                                ))}
-                              </select>
-                            ) : (
-                              <div className="flex items-center gap-2 rounded-xl border border-[#4D8CF5]/20 bg-[#F9FCFF] px-4 py-2.5 text-sm text-gray-700">
-                                {profileForm.address.province || '—'}
-                              </div>
-                            )}
+                            <select
+                              value={addressCodes.provinceCode}
+                              onChange={(e) => handleProvinceSelect(e.target.value)}
+                              className="w-full rounded-xl border border-[#4D8CF5]/20 bg-white px-4 py-2.5 text-sm text-gray-900 transition-all focus:border-[#4D8CF5] focus:outline-none focus:ring-2 focus:ring-[#4D8CF5]/20"
+                            >
+                              <option value="">Select province</option>
+                              {provinceOptions.map((option) => (
+                                <option key={option.code} value={option.code}>
+                                  {option.name}
+                                </option>
+                              ))}
+                            </select>
                           </div>
 
                           <div className="space-y-1">
@@ -671,25 +626,19 @@ function GuestAccountContent() {
                               <i className="fas fa-city text-[#4D8CF5] text-xs" />
                               City/Municipality
                             </label>
-                            {isEditing ? (
-                              <select
-                                value={addressCodes.cityCode}
-                                onChange={(e) => handleCitySelect(e.target.value)}
-                                disabled={!addressCodes.provinceCode}
-                                className="w-full rounded-xl border border-[#4D8CF5]/20 bg-white px-4 py-2.5 text-sm text-gray-900 transition-all focus:border-[#4D8CF5] focus:outline-none focus:ring-2 focus:ring-[#4D8CF5]/20 disabled:cursor-not-allowed disabled:bg-gray-50 disabled:text-gray-400"
-                              >
-                                <option value="">Select city/municipality</option>
-                                {cityOptions.map((option) => (
-                                  <option key={option.code} value={option.code}>
-                                    {option.name}
-                                  </option>
-                                ))}
-                              </select>
-                            ) : (
-                              <div className="flex items-center gap-2 rounded-xl border border-[#4D8CF5]/20 bg-[#F9FCFF] px-4 py-2.5 text-sm text-gray-700">
-                                {profileForm.address.city || '—'}
-                              </div>
-                            )}
+                            <select
+                              value={addressCodes.cityCode}
+                              onChange={(e) => handleCitySelect(e.target.value)}
+                              disabled={!addressCodes.provinceCode}
+                              className="w-full rounded-xl border border-[#4D8CF5]/20 bg-white px-4 py-2.5 text-sm text-gray-900 transition-all focus:border-[#4D8CF5] focus:outline-none focus:ring-2 focus:ring-[#4D8CF5]/20 disabled:cursor-not-allowed disabled:bg-gray-50 disabled:text-gray-400"
+                            >
+                              <option value="">Select city/municipality</option>
+                              {cityOptions.map((option) => (
+                                <option key={option.code} value={option.code}>
+                                  {option.name}
+                                </option>
+                              ))}
+                            </select>
                           </div>
 
                           <div className="space-y-1">
@@ -697,25 +646,19 @@ function GuestAccountContent() {
                               <i className="fas fa-map-marker-alt text-[#4D8CF5] text-xs" />
                               Barangay
                             </label>
-                            {isEditing ? (
-                              <select
-                                value={addressCodes.barangayCode}
-                                onChange={(e) => handleBarangaySelect(e.target.value)}
-                                disabled={!addressCodes.cityCode}
-                                className="w-full rounded-xl border border-[#4D8CF5]/20 bg-white px-4 py-2.5 text-sm text-gray-900 transition-all focus:border-[#4D8CF5] focus:outline-none focus:ring-2 focus:ring-[#4D8CF5]/20 disabled:cursor-not-allowed disabled:bg-gray-50 disabled:text-gray-400"
-                              >
-                                <option value="">Select barangay</option>
-                                {barangayOptions.map((option) => (
-                                  <option key={option.code} value={option.code}>
-                                    {option.name}
-                                  </option>
-                                ))}
-                              </select>
-                            ) : (
-                              <div className="flex items-center gap-2 rounded-xl border border-[#4D8CF5]/20 bg-[#F9FCFF] px-4 py-2.5 text-sm text-gray-700">
-                                {profileForm.address.barangay || '—'}
-                              </div>
-                            )}
+                            <select
+                              value={addressCodes.barangayCode}
+                              onChange={(e) => handleBarangaySelect(e.target.value)}
+                              disabled={!addressCodes.cityCode}
+                              className="w-full rounded-xl border border-[#4D8CF5]/20 bg-white px-4 py-2.5 text-sm text-gray-900 transition-all focus:border-[#4D8CF5] focus:outline-none focus:ring-2 focus:ring-[#4D8CF5]/20 disabled:cursor-not-allowed disabled:bg-gray-50 disabled:text-gray-400"
+                            >
+                              <option value="">Select barangay</option>
+                              {barangayOptions.map((option) => (
+                                <option key={option.code} value={option.code}>
+                                  {option.name}
+                                </option>
+                              ))}
+                            </select>
                           </div>
 
                           <div className="space-y-1">
@@ -723,19 +666,13 @@ function GuestAccountContent() {
                               <i className="fas fa-road text-[#4D8CF5] text-xs" />
                               Street <span className="text-xs font-normal text-[#4D6FA8]">(Optional)</span>
                             </label>
-                            {isEditing ? (
-                              <input
-                                type="text"
-                                value={profileForm.address.street}
-                                onChange={(e) => handleAddressChange('street', e.target.value)}
-                                placeholder="Enter street name if applicable"
-                                className="w-full rounded-xl border border-[#4D8CF5]/20 bg-white px-4 py-2.5 text-sm text-gray-900 transition-all focus:border-[#4D8CF5] focus:outline-none focus:ring-2 focus:ring-[#4D8CF5]/20"
-                              />
-                            ) : (
-                              <div className="flex items-center gap-2 rounded-xl border border-[#4D8CF5]/20 bg-[#F9FCFF] px-4 py-2.5 text-sm text-gray-700">
-                                {profileForm.address.street || '—'}
-                              </div>
-                            )}
+                            <input
+                              type="text"
+                              value={profileForm.address.street}
+                              onChange={(e) => handleAddressChange('street', e.target.value)}
+                              placeholder="Enter street name if applicable"
+                              className="w-full rounded-xl border border-[#4D8CF5]/20 bg-white px-4 py-2.5 text-sm text-gray-900 transition-all focus:border-[#4D8CF5] focus:outline-none focus:ring-2 focus:ring-[#4D8CF5]/20"
+                            />
                           </div>
 
                           <div className="space-y-1">
@@ -743,18 +680,12 @@ function GuestAccountContent() {
                               <i className="fas fa-home text-[#4D8CF5] text-xs" />
                               House Number
                             </label>
-                            {isEditing ? (
-                              <input
-                                type="text"
-                                value={profileForm.address.houseNumber}
-                                onChange={(e) => handleAddressChange('houseNumber', e.target.value)}
-                                className="w-full rounded-xl border border-[#4D8CF5]/20 bg-white px-4 py-2.5 text-sm text-gray-900 transition-all focus:border-[#4D8CF5] focus:outline-none focus:ring-2 focus:ring-[#4D8CF5]/20"
-                              />
-                            ) : (
-                              <div className="flex items-center gap-2 rounded-xl border border-[#4D8CF5]/20 bg-[#F9FCFF] px-4 py-2.5 text-sm text-gray-700">
-                                {profileForm.address.houseNumber || '—'}
-                              </div>
-                            )}
+                            <input
+                              type="text"
+                              value={profileForm.address.houseNumber}
+                              onChange={(e) => handleAddressChange('houseNumber', e.target.value)}
+                              className="w-full rounded-xl border border-[#4D8CF5]/20 bg-white px-4 py-2.5 text-sm text-gray-900 transition-all focus:border-[#4D8CF5] focus:outline-none focus:ring-2 focus:ring-[#4D8CF5]/20"
+                            />
                           </div>
                         </div>
                         <p className="rounded-xl border border-[#4D8CF5]/10 bg-[#F9FCFF] px-4 py-3 text-xs leading-relaxed text-[#4D6FA8]">
@@ -763,30 +694,20 @@ function GuestAccountContent() {
                         </p>
                       </div>
 
-                      {isEditing && (
-                        <div className="flex justify-end gap-3 pt-4 border-t border-[#4D8CF5]/10">
-                          <button
-                            type="button"
-                            onClick={handleCancelEdit}
-                            className="inline-flex items-center gap-2 rounded-xl border border-[#4D8CF5]/30 bg-white px-5 py-2.5 text-sm font-semibold text-[#1E3A8A] transition-all hover:bg-[#4D8CF5]/5 hover:shadow-sm"
-                          >
-                            <i className="fas fa-times text-xs"></i>
-                            Cancel
-                          </button>
-                          <button
-                            type="button"
-                            onClick={handleSaveProfile}
-                            disabled={profileSaving}
-                            className="inline-flex items-center gap-2 rounded-xl bg-[#4D8CF5] px-5 py-2.5 text-sm font-semibold text-white shadow-md transition-all hover:bg-[#3B78E7] hover:shadow-lg disabled:opacity-70"
-                          >
-                            {profileSaving ? (
-                              <><i className="fas fa-spinner fa-spin"></i> Saving...</>
-                            ) : (
-                              <><i className="fas fa-save"></i> Save Changes</>
-                            )}
-                          </button>
-                        </div>
-                      )}
+                      <div className="flex justify-end gap-3 pt-4 border-t border-[#4D8CF5]/10">
+                        <button
+                          type="button"
+                          onClick={handleSaveProfile}
+                          disabled={profileSaving}
+                          className="inline-flex items-center gap-2 rounded-xl bg-[#4D8CF5] px-5 py-2.5 text-sm font-semibold text-white shadow-md transition-all hover:bg-[#3B78E7] hover:shadow-lg disabled:opacity-70"
+                        >
+                          {profileSaving ? (
+                            <><i className="fas fa-spinner fa-spin"></i> Saving...</>
+                          ) : (
+                            <><i className="fas fa-save"></i> Save Changes</>
+                          )}
+                        </button>
+                      </div>
                     </div>
                   ) : (
                     <div className="flex flex-col items-center justify-center px-6 py-12 text-center">
