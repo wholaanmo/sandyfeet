@@ -592,7 +592,11 @@ function DayTourBookingContent() {
 
   const handleGuestDetailsContinue = async () => {
     const { firstName, lastName, email, mobileNumber, address } = guestDetails;
-    if (!firstName.trim() || !lastName.trim() || !email.trim() || !mobileNumber.trim()) {
+    if (!firstName.trim() || !lastName.trim()) {
+      setGuestDetailsError('Complete your first name and last name before continuing.');
+      return;
+    }
+    if (!email.trim() || !mobileNumber.trim()) {
       setGuestDetailsError('Complete your contact number before continuing.');
       return;
     }
@@ -1498,8 +1502,9 @@ function DayTourBookingContent() {
                   <h2 className="mt-2 text-2xl font-bold text-textPrimary">Confirm your contact information</h2>
                   <p className="mt-2 text-sm leading-6 text-textSecondary">Your name and email come from your SandyFeet account. Confirm your mobile number and select your home address before continuing.</p>
                   <div className="mt-6 grid gap-4 sm:grid-cols-2">
-                    <div className="rounded-xl border border-gray-200 bg-gray-50 p-4"><p className="text-xs text-textSecondary">Full name</p><p className="mt-1 font-semibold text-textPrimary">{`${guestDetails.firstName} ${guestDetails.lastName}`.trim() || 'Not provided'}</p><p className="mt-1 text-[11px] text-textSecondary">From your account profile</p></div>
-                    <div className="rounded-xl border border-gray-200 bg-gray-50 p-4"><p className="text-xs text-textSecondary">Email address</p><p className="mt-1 break-all font-semibold text-textPrimary">{guestDetails.email || 'Not provided'}</p><p className="mt-1 text-[11px] text-textSecondary">Booking updates will be sent here</p></div>
+                    <label className="block"><span className="text-xs text-textSecondary">First name</span><input value={guestDetails.firstName} onChange={(event) => setGuestDetails((prev) => ({ ...prev, firstName: event.target.value }))} className="mt-1.5 w-full rounded-xl border border-gray-200 bg-white px-4 py-3 text-sm font-semibold text-textPrimary outline-none focus:border-ocean-mid focus:ring-2 focus:ring-ocean-mid/20" /></label>
+                    <label className="block"><span className="text-xs text-textSecondary">Last name</span><input value={guestDetails.lastName} onChange={(event) => setGuestDetails((prev) => ({ ...prev, lastName: event.target.value }))} className="mt-1.5 w-full rounded-xl border border-gray-200 bg-white px-4 py-3 text-sm font-semibold text-textPrimary outline-none focus:border-ocean-mid focus:ring-2 focus:ring-ocean-mid/20" /></label>
+                    <div className="rounded-xl border border-gray-200 bg-gray-50 p-4 sm:col-span-2"><p className="text-xs text-textSecondary">Email address</p><p className="mt-1 break-all font-semibold text-textPrimary">{guestDetails.email || 'Not provided'}</p><p className="mt-1 text-[11px] text-textSecondary">Booking updates will be sent here</p></div>
                     <label className="block sm:col-span-2"><span className="text-xs text-textSecondary">Mobile number</span><input value={guestDetails.mobileNumber} onChange={(event) => setGuestDetails((prev) => ({ ...prev, mobileNumber: event.target.value.replace(/\D/g, '').slice(0, 11) }))} inputMode="numeric" placeholder="09XXXXXXXXX" className="mt-1.5 w-full rounded-xl border border-gray-200 bg-white px-4 py-3 text-sm text-textPrimary outline-none focus:border-ocean-mid focus:ring-2 focus:ring-ocean-mid/20" /></label>
                   </div>
                   <div className="mt-6 rounded-2xl border border-ocean-light/20 bg-ocean-ice/40 p-4 sm:p-5">

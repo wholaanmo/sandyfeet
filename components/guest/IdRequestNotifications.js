@@ -13,8 +13,13 @@ import {
   dedupeIdRequestNotifications,
   mapDocToIdRequestNotification,
 } from '@/lib/idRequestUtils';
+import {
+  dedupePaymentRequestNotifications,
+  mapDocToPaymentRequestNotification,
+} from '@/lib/paymentRequestUtils';
 import { formatDateTime, getTypeDisplay, getBookingTitle } from '@/app/my-bookings/utils';
 import IdRequestViewModal from '@/components/guest/IdRequestViewModal';
+import PaymentRequestViewModal from '@/components/guest/PaymentRequestViewModal';
 import { usePhilippineTimeSync } from '@/hooks/usePhilippineTimeSync';
 import { getTrustedNowMs, getPhilippineNowIsoString } from '@/lib/philippineTime';
 
@@ -269,6 +274,29 @@ function useIdRequestSnapshot(collectionName, bookingType, field, value) {
   return items;
 }
 
+function usePaymentRequestSnapshot(collectionName, bookingType, field, value) {
+  const [items, setItems] = useState([]);
+
+  useEffect(() => {
+    if (!value) {
+      setItems([]);
+      return undefined;
+    }
+
+    const snapshotQuery = query(collection(db, collectionName), where(field, '==', value));
+
+    return onSnapshot(snapshotQuery, (snapshot) => {
+      setItems(
+        snapshot.docs
+          .map((docSnap) => mapDocToPaymentRequestNotification(docSnap, bookingType))
+          .filter(Boolean)
+      );
+    });
+  }, [collectionName, bookingType, field, value]);
+
+  return items;
+}
+
 function useBookingStatusSnapshot(collectionName, bookingType, field, value) {
   const [items, setItems] = useState([]);
   const previousDocStateRef = useRef(new Map());
@@ -399,6 +427,8 @@ export default function IdRequestNotifications() {
   usePhilippineTimeSync();
   const [selectedNotification, setSelectedNotification] = useState(null);
   const [modalOpen, setModalOpen] = useState(false);
+  const [selectedPaymentNotification, setSelectedPaymentNotification] = useState(null);
+  const [paymentModalOpen, setPaymentModalOpen] = useState(false);
   const [dismissedKeys, setDismissedKeys] = useState(() => readDismissedKeys());
 
   const normalizedEmail = user?.email?.toLowerCase().trim() || '';
@@ -408,6 +438,11 @@ export default function IdRequestNotifications() {
   const roomIdByUid = useIdRequestSnapshot('bookings', 'room', 'guestUid', user?.uid || '');
   const dayIdByUid = useIdRequestSnapshot('dayTourBookings', 'daytour', 'guestUid', user?.uid || '');
 
+  const roomPaymentByEmail = usePaymentRequestSnapshot('bookings', 'room', 'guestInfo.email', normalizedEmail);
+  const dayPaymentByEmail = usePaymentRequestSnapshot('dayTourBookings', 'daytour', 'guestInfo.email', normalizedEmail);
+  const roomPaymentByUid = usePaymentRequestSnapshot('bookings', 'room', 'guestUid', user?.uid || '');
+  const dayPaymentByUid = usePaymentRequestSnapshot('dayTourBookings', 'daytour', 'guestUid', user?.uid || '');
+
   const roomStatusByEmail = useBookingStatusSnapshot('bookings', 'room', 'guestInfo.email', normalizedEmail);
   const dayStatusByEmail = useBookingStatusSnapshot('dayTourBookings', 'daytour', 'guestInfo.email', normalizedEmail);
   const roomStatusByUid = useBookingStatusSnapshot('bookings', 'room', 'guestUid', user?.uid || '');
@@ -416,6 +451,11 @@ export default function IdRequestNotifications() {
   const idRequestNotifications = useMemo(
     () => dedupeIdRequestNotifications([...roomIdByEmail, ...dayIdByEmail, ...roomIdByUid, ...dayIdByUid]),
     [roomIdByEmail, dayIdByEmail, roomIdByUid, dayIdByUid]
+  );
+
+  const paymentRequestNotifications = useMemo(
+    () => dedupePaymentRequestNotifications([...roomPaymentByEmail, ...dayPaymentByEmail, ...roomPaymentByUid, ...dayPaymentByUid]),
+    [roomPaymentByEmail, dayPaymentByEmail, roomPaymentByUid, dayPaymentByUid]
   );
 
   const bookingStatusNotifications = useMemo(() => {
@@ -451,6 +491,11 @@ export default function IdRequestNotifications() {
         source: 'id_request',
         timestamp: notification.requestedAt,
       })),
+      ...paymentRequestNotifications.map((notification) => ({
+        ...notification,
+        source: 'payment_request',
+        timestamp: notification.requestedAt,
+      })),
       ...bookingStatusNotifications,
       ...bankPaymentRoom.filter((n) => !dismissedKeys.has(n.key)),
       ...bankPaymentDayTour.filter((n) => !dismissedKeys.has(n.key)),
@@ -461,6 +506,7 @@ export default function IdRequestNotifications() {
     );
   }, [
     idRequestNotifications,
+    paymentRequestNotifications,
     bookingStatusNotifications,
     bankPaymentRoom,
     bankPaymentDayTour,
@@ -497,6 +543,15 @@ export default function IdRequestNotifications() {
                     setModalOpen(true);
                   }}
                 />
+              ) : notification.source === 'payment_request' ? (
+                <PaymentRequestNotificationItem
+                  key={`payment-${notification.key}-${notification.docId}`}
+                  notification={notification}
+                  onView={() => {
+                    setSelectedPaymentNotification(notification);
+                    setPaymentModalOpen(true);
+                  }}
+                />
               ) : notification.source === 'bank_payment' ? (
                 <BankPaymentNotificationItem
                   key={`bank-${notification.key}`}
@@ -523,6 +578,15 @@ export default function IdRequestNotifications() {
           setSelectedNotification(null);
         }}
       />
+
+      <PaymentRequestViewModal
+        notification={selectedPaymentNotification}
+        isOpen={paymentModalOpen}
+        onClose={() => {
+          setPaymentModalOpen(false);
+          setSelectedPaymentNotification(null);
+        }}
+      />
     </>
   );
 }
@@ -541,6 +605,38 @@ function MotionlessConfirmModalNotificationsHeader({ count }) {
           {count}
         </span>
       )}
+    </div>
+  );
+}
+
+function PaymentRequestNotificationItem({ notification, onView }) {
+  return (
+    <div className="rounded-xl border border-[#4D8CF5]/10 bg-[#f8fbff] p-3">
+      <div className="flex items-start gap-2">
+        <div className="mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-amber-100 text-amber-600">
+          <i className="fas fa-receipt text-xs" />
+        </div>
+        <div className="min-w-0 flex-1">
+          <p className="text-xs font-bold uppercase tracking-wide text-[#4D8CF5]">Payment Request</p>
+          <p className="mt-0.5 truncate text-sm font-semibold text-[#1E3A8A]">{notification.title}</p>
+          <p className="text-xs text-[#5C7AA6]">
+            {notification.typeLabel} · {notification.bookingId}
+          </p>
+          {notification.timestamp && (
+            <p className="mt-1 text-[10px] text-[#5C7AA6]/80">
+              {formatNotificationTimestamp(notification.timestamp)}
+            </p>
+          )}
+        </div>
+      </div>
+      <button
+        type="button"
+        onClick={onView}
+        className="mt-3 inline-flex w-full items-center justify-center gap-2 rounded-xl bg-[#4D8CF5] px-3 py-2 text-xs font-semibold text-white transition hover:bg-[#3b7ae0]"
+      >
+        <i className="fas fa-eye text-[10px]" />
+        View
+      </button>
     </div>
   );
 }

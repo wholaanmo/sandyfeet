@@ -615,7 +615,11 @@ function MultiRoomBookingPageContent() {
 
   const handleGuestDetailsContinue = async () => {
     const { firstName, lastName, email, mobileNumber, address } = guestDetails;
-    if (!firstName.trim() || !lastName.trim() || !email.trim() || !mobileNumber.trim()) {
+    if (!firstName.trim() || !lastName.trim()) {
+      setGuestDetailsError('Complete your first name and last name before continuing.');
+      return;
+    }
+    if (!email.trim() || !mobileNumber.trim()) {
       setGuestDetailsError('Complete your contact number before continuing.');
       return;
     }
@@ -1442,19 +1446,12 @@ if (allRoomIds.length <= 1) {
               {/* Step 1: Dates & guests */}
               {step === 1 && (
                 <div className="rounded-2xl border border-gray-200 bg-white p-5 shadow-sm sm:p-7">
-                  <div className="mb-6"><p className="text-xs font-semibold uppercase tracking-[0.16em] text-ocean-mid">Your stay</p><h2 className="mt-2 text-2xl font-bold text-textPrimary">Choose your nights</h2><p className="mt-2 text-sm leading-6 text-textSecondary">Select an arrival date, then your check-out date. You can adjust your guests before continuing.</p></div>
-                  <div className="grid gap-6 lg:grid-cols-[1.1fr_0.9fr]">
-                    <div>
+                  <div className="mb-6"><p className="text-xs font-semibold uppercase tracking-[0.16em] text-ocean-mid">Your stay</p><h2 className="mt-2 text-2xl font-bold text-textPrimary">Choose your nights</h2><p className="mt-2 text-sm leading-6 text-textSecondary">Your selected dates are shown below.</p></div>
+                  <div>
                       <div className="mb-4 flex items-center justify-between"><button type="button" disabled={!calendarMonth || !minimumCalendarMonth || calendarMonth <= minimumCalendarMonth} onClick={() => calendarMonth && setCalendarMonth(new Date(calendarMonth.getFullYear(), calendarMonth.getMonth() - 1, 1))} aria-label="Previous month" className="flex size-9 items-center justify-center rounded-xl border border-gray-200 text-textSecondary transition-colors hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-35"><i className="fas fa-chevron-left text-xs" /></button><p className="font-semibold text-textPrimary">{calendarMonth?.toLocaleString('en-US', { month: 'long', year: 'numeric' }) || 'Choose dates'}</p><button type="button" onClick={() => calendarMonth && setCalendarMonth(new Date(calendarMonth.getFullYear(), calendarMonth.getMonth() + 1, 1))} aria-label="Next month" className="flex size-9 items-center justify-center rounded-xl border border-gray-200 text-textSecondary transition-colors hover:bg-gray-50"><i className="fas fa-chevron-right text-xs" /></button></div>
-                      <div className="grid grid-cols-7 gap-1 text-center text-[10px] font-semibold uppercase text-textSecondary">{['Su', 'Mo', 'Tu', 'We', 'Th', 'Fr', 'Sa'].map((day) => <span key={day} className="py-1">{day}</span>)}{getCalendarDays().map((date, index) => { const selectedStart = date && draftCheckIn && date.toDateString() === draftCheckIn.toDateString(); const selectedEnd = date && draftCheckOut && date.toDateString() === draftCheckOut.toDateString(); const inRange = date && draftCheckIn && draftCheckOut && date > draftCheckIn && date < draftCheckOut; const dateDisabled = isCalendarDateDisabled(date); return <button key={date ? date.toISOString() : `empty-${index}`} type="button" disabled={dateDisabled} onClick={() => handleBookingDateSelect(date)} aria-label={date ? `${date.toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })}${dateDisabled ? ', unavailable' : ''}` : undefined} className={`min-h-9 rounded-lg text-xs transition-colors ${selectedStart || selectedEnd ? 'bg-ocean-mid font-bold text-white' : inRange ? 'bg-ocean-ice text-textPrimary' : dateDisabled ? 'cursor-not-allowed text-gray-300 line-through' : 'text-textPrimary hover:bg-ocean-ice'} ${!date ? 'cursor-default' : ''}`}>{date?.getDate() || ''}</button>; })}</div>
-                      <div className="mt-4 rounded-xl bg-ocean-ice/60 px-3 py-2 text-xs text-textSecondary">{draftCheckIn && draftCheckOut ? `${formatDateOnly(draftCheckIn)} – ${formatDateOnly(draftCheckOut)}` : 'Tap an arrival date, then your check-out date.'}</div>
+                      <div className="grid grid-cols-7 gap-1 text-center text-[10px] font-semibold uppercase text-textSecondary">{['Su', 'Mo', 'Tu', 'We', 'Th', 'Fr', 'Sa'].map((day) => <span key={day} className="py-1">{day}</span>)}{getCalendarDays().map((date, index) => { const selectedStart = date && draftCheckIn && date.toDateString() === draftCheckIn.toDateString(); const selectedEnd = date && draftCheckOut && date.toDateString() === draftCheckOut.toDateString(); const inRange = date && draftCheckIn && draftCheckOut && date > draftCheckIn && date < draftCheckOut; const dateDisabled = isCalendarDateDisabled(date); return <div key={date ? date.toISOString() : `empty-${index}`} aria-label={date ? `${date.toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })}${dateDisabled ? ', unavailable' : ''}` : undefined} className={`flex min-h-9 items-center justify-center rounded-lg text-xs ${selectedStart || selectedEnd ? 'bg-ocean-mid font-bold text-white' : inRange ? 'bg-ocean-ice text-textPrimary' : dateDisabled ? 'text-gray-300 line-through' : 'text-textPrimary'} ${!date ? '' : 'cursor-default'}`}>{date?.getDate() || ''}</div>; })}</div>
+                      <div className="mt-4 rounded-xl bg-ocean-ice/60 px-3 py-2 text-xs text-textSecondary">{draftCheckIn && draftCheckOut ? `${formatDateOnly(draftCheckIn)} – ${formatDateOnly(draftCheckOut)}` : 'No dates selected.'}</div>
                       {availabilityError && <p className="mt-2 text-xs text-amber-700">{availabilityError}</p>}
-                    </div>
-                    <div className="space-y-4">
-                      <label className="block"><span className="mb-1.5 block text-sm font-semibold text-textPrimary">Adults</span><input type="number" min="1" value={isExclusiveBooking ? exclusiveAdults : Number(bookingData.adultsPerType?.[getFilteredRoomTypes()[0]?.type] || 1)} onChange={(event) => updateBookingGuestCount('adults', event.target.value)} className="w-full rounded-xl border border-gray-200 px-4 py-3 text-sm text-textPrimary outline-none focus:border-ocean-mid focus:ring-2 focus:ring-ocean-mid/20" /></label>
-                      <label className="block"><span className="mb-1.5 block text-sm font-semibold text-textPrimary">Children</span><input type="number" min="0" value={isExclusiveBooking ? exclusiveKids : Number(bookingData.kidsPerType?.[getFilteredRoomTypes()[0]?.type] || 0)} onChange={(event) => updateBookingGuestCount('kids', event.target.value)} className="w-full rounded-xl border border-gray-200 px-4 py-3 text-sm text-textPrimary outline-none focus:border-ocean-mid focus:ring-2 focus:ring-ocean-mid/20" /><span className="mt-1 block text-xs text-textSecondary">Under 7 stay free</span></label>
-                      <div className="rounded-xl bg-gray-50 px-4 py-3"><p className="font-semibold text-textPrimary">{draftCheckIn && draftCheckOut ? `${Math.max(1, Math.round((draftCheckOut - draftCheckIn) / 86400000))} nights` : 'No dates yet'}</p><p className="mt-1 text-xs text-textSecondary">{summaryGuestCount} guests · {summaryRoomType}</p></div>
-                    </div>
                   </div>
                   <div className="hidden grid gap-3 sm:grid-cols-3">
                     {['/assets/GroupRoom/GroupRoom1.1.jpg', '/assets/GroupRoom/GroupRoom1.2.jpg', '/assets/GroupRoom/GroupRoom2.jpg'].map((src, index) => <div key={src} className={`overflow-hidden rounded-2xl ${index === 0 ? 'sm:col-span-2 sm:row-span-2' : ''}`}><img src={src} alt="SandyFeet accommodation" className={`w-full object-cover ${index === 0 ? 'h-64 sm:h-full' : 'h-32'}`} /></div>)}
@@ -1480,11 +1477,14 @@ if (allRoomIds.length <= 1) {
 
                   <div className="grid gap-4 sm:grid-cols-2">
                     <label className="block">
-                      <span className="mb-1.5 block text-xs font-semibold text-textSecondary">Full name</span>
-                      <input value={`${guestDetails.firstName} ${guestDetails.lastName}`.trim()} readOnly className="w-full rounded-xl border border-gray-200 bg-gray-50 px-4 py-3 text-sm font-semibold text-textPrimary" />
-                      <span className="mt-1 block text-[11px] text-textSecondary">From your account profile</span>
+                      <span className="mb-1.5 block text-xs font-semibold text-textSecondary">First name</span>
+                      <input value={guestDetails.firstName} onChange={(e) => setGuestDetails((prev) => ({ ...prev, firstName: e.target.value }))} className="w-full rounded-xl border border-gray-200 bg-white px-4 py-3 text-sm font-semibold text-textPrimary outline-none focus:border-ocean-mid focus:ring-2 focus:ring-ocean-mid/20" />
                     </label>
                     <label className="block">
+                      <span className="mb-1.5 block text-xs font-semibold text-textSecondary">Last name</span>
+                      <input value={guestDetails.lastName} onChange={(e) => setGuestDetails((prev) => ({ ...prev, lastName: e.target.value }))} className="w-full rounded-xl border border-gray-200 bg-white px-4 py-3 text-sm font-semibold text-textPrimary outline-none focus:border-ocean-mid focus:ring-2 focus:ring-ocean-mid/20" />
+                    </label>
+                    <label className="block sm:col-span-2">
                       <span className="mb-1.5 block text-xs font-semibold text-textSecondary">Email address</span>
                       <input value={guestDetails.email} readOnly type="email" className="w-full rounded-xl border border-gray-200 bg-gray-50 px-4 py-3 text-sm text-textPrimary" />
                       <span className="mt-1 block text-[11px] text-textSecondary">Booking updates will be sent here</span>

@@ -17,6 +17,7 @@ import { getRatePerNight, getExtraGuestCharges, sumSavedExtraGuestCharges } from
 import { getPhilippineNowIsoString } from '@/lib/reservationScheduleStatus';
 import { usePhilippineTimeSync } from '@/hooks/usePhilippineTimeSync';
 import { useReservationScheduleSync } from '@/hooks/useReservationScheduleSync';
+import { getAdditionalPaymentProofUrls } from '@/lib/paymentRequestUtils';
 import { 
   assignRoomToReservation, 
   unassignRoom, 
@@ -51,6 +52,7 @@ export default function AdminReservations() {
   const sliderRef = useRef(null);
   const buttonRefs = useRef({});
   const [idRequestModal, setIdRequestModal] = useState({ show: false, booking: null, message: '', sending: false });
+  const [paymentRequestModal, setPaymentRequestModal] = useState({ show: false, booking: null, message: '', sending: false });
   const [editBookingModal, setEditBookingModal] = useState({ show: false, booking: null });
   const [editDayTourModal, setEditDayTourModal] = useState({ show: false, booking: null });
   const [showRequestDetailsModal, setShowRequestDetailsModal] = useState(false);
@@ -262,6 +264,7 @@ export default function AdminReservations() {
             paymentMethod: booking.paymentMethod,
             balancePaymentMethod: booking.balancePaymentMethod,
             paymentProofUrl: booking.paymentProofUrl,
+            additionalPaymentProofs: booking.additionalPaymentProofs || [],
             validIdType: booking.validIdType,
             validIdUrl: booking.validIdUrl,
             validIdSelfieUrl: booking.validIdSelfieUrl || booking.validIdSelfieImage || null,
@@ -282,6 +285,9 @@ export default function AdminReservations() {
         const group = multiRoomGroups.get(booking.parentBookingId);
         group.bookings.push(booking);
         group.validIdSelfieUrl = group.validIdSelfieUrl || booking.validIdSelfieUrl || booking.validIdSelfieImage || null;
+        if (Array.isArray(booking.additionalPaymentProofs) && booking.additionalPaymentProofs.length > (group.additionalPaymentProofs?.length || 0)) {
+          group.additionalPaymentProofs = booking.additionalPaymentProofs;
+        }
       } else if (!booking.isMultiRoomBooking) {
         // Single room booking
         singleBookings.push(booking);
@@ -431,6 +437,7 @@ export default function AdminReservations() {
         paymentMethod: group.paymentMethod,
         balancePaymentMethod: group.balancePaymentMethod,
         paymentProofUrl: group.paymentProofUrl,
+        additionalPaymentProofs: group.additionalPaymentProofs || [],
         validIdType: group.validIdType,
         validIdUrl: group.validIdUrl,
         validIdSelfieUrl: group.validIdSelfieUrl || group.validIdSelfieImage || null,
@@ -974,6 +981,59 @@ const handleAssignRoom = async (roomId, reservationId) => {
       showNotification('Failed to send ID request', 'error');
     } finally {
       setIdRequestModal({ show: false, booking: null, message: '', sending: false });
+    }
+  };
+
+  const handleSendPaymentRequest = async (booking, adminMessage) => {
+    setPaymentRequestModal(prev => ({ ...prev, sending: true }));
+    try {
+      const isRoomBooking = booking?.type === 'room';
+      let apiBookingId = booking.id;
+      if (booking.isMultiRoomGroup && booking.originalChildBookings?.length > 0) {
+        apiBookingId = booking.originalChildBookings[0].id;
+      }
+
+      let roomTypesDisplayForEmail = '';
+      if (booking.isExclusiveResortBooking) {
+        roomTypesDisplayForEmail = booking.roomTypesDisplay || 'Entire Resort';
+        if (booking.tentCount > 0 && !roomTypesDisplayForEmail.includes('Tent')) {
+          roomTypesDisplayForEmail += ` + ${booking.tentCount} Tent(s)`;
+        }
+      } else if (booking.isMultiRoomGroup) {
+        roomTypesDisplayForEmail = booking.roomTypesDisplay || '';
+      } else {
+        const roomQty = booking.numberOfRooms || 1;
+        const roomType = booking.roomType || 'Room';
+        roomTypesDisplayForEmail = `${roomQty} × ${roomType}`;
+      }
+
+      const response = await fetch('/api/admin/send-payment-request', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          bookingId: apiBookingId,
+          type: isRoomBooking ? 'room' : 'daytour',
+          adminMessage: adminMessage,
+          roomTypesDisplay: roomTypesDisplayForEmail
+        })
+      });
+      const data = await response.json();
+      if (response.ok) {
+        await logAdminAction({
+          action: 'Payment Request Sent',
+          module: 'Reservations',
+          details: `Sent payment request email for booking ${booking.bookingId} to ${booking.guestInfo?.firstName} ${booking.guestInfo?.lastName} (${booking.guestInfo?.email}). Message: ${adminMessage}`
+        });
+        showNotification(`Payment request email sent to ${booking.guestInfo?.email}`, 'success');
+        closeSidebar();
+      } else {
+        showNotification(data.error || 'Failed to send payment request', 'error');
+      }
+    } catch (error) {
+      console.error('Error sending payment request:', error);
+      showNotification('Failed to send payment request', 'error');
+    } finally {
+      setPaymentRequestModal({ show: false, booking: null, message: '', sending: false });
     }
   };
 
@@ -1689,6 +1749,21 @@ const getBookingNights = (booking) => {
     setSidebarBooking(null);
     setLiveGuestProfile(null);
   };
+
+  useEffect(() => {
+    if (!sidebarBooking) return;
+    const sourceList = sidebarBooking.type === 'daytour' ? dayTours : groupedBookings;
+    const live = sourceList.find(
+      (booking) => booking.id === sidebarBooking.id || booking.bookingId === sidebarBooking.bookingId
+    );
+    if (!live) return;
+    const liveProofs = getAdditionalPaymentProofUrls(live);
+    const currentProofs = getAdditionalPaymentProofUrls(sidebarBooking);
+    if (JSON.stringify(liveProofs) === JSON.stringify(currentProofs)) return;
+    setSidebarBooking((prev) =>
+      prev ? { ...prev, additionalPaymentProofs: live.additionalPaymentProofs || [] } : prev
+    );
+  }, [groupedBookings, dayTours, sidebarBooking]);
 
   const sidebarGuestInfo = useMemo(() => {
     if (!sidebarBooking) return null;
@@ -2770,6 +2845,37 @@ const getBookingNights = (booking) => {
                 </div>
               )}
 
+              {getAdditionalPaymentProofUrls(sidebarBooking).map((proofUrl, index) => (
+                <div key={`${proofUrl}-${index}`} className="bg-white border border-slate-200/60 rounded-xl shadow-[0_2px_8px_-1px_rgba(15,23,42,0.03)] hover:shadow-md transition-all duration-300 overflow-hidden">
+                  <div className="bg-slate-50 px-4 py-3 border-b border-slate-200/60 flex items-center justify-between gap-2">
+                    <h3 className="text-[11px] font-bold text-[#1E3A8A] uppercase tracking-widest flex items-center gap-2">
+                      <i className="fas fa-receipt text-[#4D8CF5] text-sm"></i>
+                      Additional Payment Proof{getAdditionalPaymentProofUrls(sidebarBooking).length > 1 ? ` ${index + 1}` : ''}
+                    </h3>
+                  </div>
+                  <div className="p-4">
+                    <div
+                      className="relative bg-gray-50 rounded-xl border border-gray-100 overflow-hidden cursor-pointer group transition-all duration-300 hover:shadow-md"
+                      onClick={() => setImageZoomModal({ show: true, imageUrl: proofUrl, title: 'Additional Payment Proof' })}
+                    >
+                      <img
+                        src={proofUrl}
+                        alt="Additional Payment Proof"
+                        className="w-full h-48 object-cover group-hover:scale-105 transition-transform duration-500"
+                        onError={(e) => {
+                          console.error('Error loading image:', e);
+                          e.target.style.display = 'none';
+                          e.target.parentElement.innerHTML = '<div class="p-6 text-center"><i class="fas fa-image text-3xl text-gray-400 mb-2 block"></i><p class="text-sm text-gray-500">Error loading payment proof image</p></div>';
+                        }}
+                      />
+                      <div className="absolute inset-0 bg-[#1E3A8A]/0 group-hover:bg-[#1E3A8A]/20 transition-all duration-300 flex items-center justify-center">
+                        <i className="fas fa-search-plus text-white text-2xl opacity-0 group-hover:opacity-100 transition-opacity duration-300 transform scale-50 group-hover:scale-100"></i>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              ))}
+
               {/* Valid ID - Clickable */}
               {(sidebarBooking.validIdImage || sidebarBooking.validIdUrl) && (
                 <div className="bg-white border border-slate-200/60 rounded-xl shadow-[0_2px_8px_-1px_rgba(15,23,42,0.03)] hover:shadow-md transition-all duration-300 overflow-hidden">
@@ -2876,12 +2982,20 @@ const getBookingNights = (booking) => {
                 </button>
               )}
               {!['cancelled', 'cancelled-by-guest', 'confirmed', 'check-in', 'check-out', 'completed'].includes(sidebarBooking.status) && (
+                <>
                 <button
                   onClick={() => setIdRequestModal({ show: true, booking: sidebarBooking, message: '', sending: false })}
                   className="px-3.5 py-2.5 rounded-lg bg-blue-500/10 text-blue-600 hover:bg-blue-600 hover:text-white transition-all duration-200 flex items-center gap-1.5 text-xs font-medium"
                 >
                   <i className="fas fa-id-card text-[10px]"></i> Send ID Request
                 </button>
+                <button
+                  onClick={() => setPaymentRequestModal({ show: true, booking: sidebarBooking, message: '', sending: false })}
+                  className="px-3.5 py-2.5 rounded-lg bg-blue-500/10 text-blue-600 hover:bg-blue-600 hover:text-white transition-all duration-200 flex items-center gap-1.5 text-xs font-medium"
+                >
+                  <i className="fas fa-receipt text-[10px]"></i> Send Payment Request
+                </button>
+                </>
               )}
               {sidebarBooking.status === 'pending' && (
                 <>
@@ -3627,6 +3741,77 @@ const getBookingNights = (booking) => {
                   <><i className="fas fa-spinner fa-spin"></i> Sending...</>
                 ) : (
                   'Send ID Request'
+                )}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Payment Request Confirmation Modal with Message Field */}
+      {paymentRequestModal.show && paymentRequestModal.booking && (
+        <div className="fixed inset-0 z-[80] flex items-center justify-center p-4">
+          <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" onClick={() => setPaymentRequestModal({ show: false, booking: null, message: '', sending: false })} />
+          <div className="relative z-10 w-full max-w-md overflow-hidden rounded-2xl bg-white shadow-2xl animate-[fadeIn_0.2s_ease-out]">
+            <div className="border-b border-blue-100 bg-gradient-to-r from-blue-50 to-white px-6 py-5">
+              <div className="flex items-start gap-4">
+                <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-full bg-blue-100">
+                  <i className="fas fa-receipt text-blue-600 text-lg" />
+                </div>
+                <div className="flex-1">
+                  <h3 className="text-xl font-bold text-blue-900">Send Payment Request</h3>
+                  <p className="mt-1 text-sm text-blue-600">
+                    Booking ID: <span className="font-mono font-semibold">{paymentRequestModal.booking.bookingId}</span>
+                  </p>
+                </div>
+                <button
+                  onClick={() => setPaymentRequestModal({ show: false, booking: null, message: '', sending: false })}
+                  className="w-7 h-7 rounded-md bg-ocean-ice text-neutral hover:bg-ocean-light/20 hover:text-textPrimary transition-all duration-200 flex items-center justify-center"
+                >
+                  <i className="fas fa-times" />
+                </button>
+              </div>
+            </div>
+
+            <div className="px-6 py-5 space-y-4">
+              <p className="text-sm text-gray-600">
+                Send an email to <span className="font-semibold text-textPrimary">{paymentRequestModal.booking.guestInfo?.firstName} {paymentRequestModal.booking.guestInfo?.lastName}</span> requesting them to resend their payment proof.
+              </p>
+
+              <div>
+                <label className="block text-sm font-semibold text-textPrimary mb-1.5">
+                  Message to Guest (Optional)
+                </label>
+                <textarea
+                  value={paymentRequestModal.message}
+                  onChange={(e) => setPaymentRequestModal(prev => ({ ...prev, message: e.target.value }))}
+                  placeholder="Add a custom message to include in the email..."
+                  rows="3"
+                  className="w-full px-3 py-2 border border-ocean-light/20 rounded-xl text-sm focus:outline-none focus:border-blue-300 focus:ring-2 focus:ring-blue-200 transition-all duration-300 bg-white resize-none"
+                />
+                <p className="text-xs text-textSecondary mt-1">
+                  This message will be included in the email sent to the guest.
+                </p>
+              </div>
+            </div>
+
+            <div className="flex items-center justify-end gap-2 border-t border-gray-100 bg-gray-50 px-4 py-2.5">
+              <button
+                onClick={() => setPaymentRequestModal({ show: false, booking: null, message: '', sending: false })}
+                className="flex h-10 items-center justify-center rounded-xl border border-slate-200 bg-white px-4 text-sm font-medium text-slate-600 shadow-sm transition-all duration-200 hover:bg-slate-50 disabled:opacity-50"
+                disabled={paymentRequestModal.sending}
+              >
+                Cancel
+              </button>
+              <button
+                onClick={() => handleSendPaymentRequest(paymentRequestModal.booking, paymentRequestModal.message)}
+                disabled={paymentRequestModal.sending}
+                className="flex h-10 items-center justify-center gap-1.5 rounded-xl bg-blue-500/10 px-4 text-sm font-semibold text-blue-600 shadow-sm transition-all duration-200 hover:bg-blue-600 hover:text-white disabled:opacity-50"
+              >
+                {paymentRequestModal.sending ? (
+                  <><i className="fas fa-spinner fa-spin"></i> Sending...</>
+                ) : (
+                  'Send Payment Request'
                 )}
               </button>
             </div>
