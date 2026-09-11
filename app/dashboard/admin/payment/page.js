@@ -1646,8 +1646,8 @@ export default function AdminPaymentPage() {
               </div>
               <h3 className="text-lg font-bold text-textPrimary mb-2">Archive Bank Account</h3>
               <p className="text-textSecondary text-sm">
-                Are you sure you want to archive "{bankToArchive.bankName}"?
-                This account will be moved to the archive and won't be available for new bank transfer requests.
+                Are you sure you want to archive &quot;{bankToArchive.bankName}&quot;?
+                This account will be moved to the archive and won&apos;t be available for new bank transfer requests.
               </p>
             </div>
             <div className="flex gap-3 justify-center">

@@ -1094,7 +1094,7 @@ export default function AdminDayTour({ defaultTab = 'tours', hideTabs = false })
       <div className="bg-white rounded-2xl shadow-md border border-ocean-light/10 p-12 text-center">
         <i className="fas fa-search text-6xl text-ocean-light/30 mb-4 block"></i>
         <h3 className="text-xl font-semibold text-textPrimary mb-2">No matching activities</h3>
-        <p className="text-textSecondary">No activities found matching "{searchTerm}"</p>
+        <p className="text-textSecondary">No activities found matching &quot;{searchTerm}&quot;</p>
         {searchTerm && (
           <button 
             onClick={() => setSearchTerm('')} 
@@ -1766,7 +1766,7 @@ className="px-3 py-2 rounded-lg bg-[#93C5FD]/10 text-[#1E3A8A] border border-[#9
             <div className="text-center mb-5">
               <div className="w-14 h-14 mx-auto mb-3 rounded-full bg-amber-100 flex items-center justify-center"><i className="fas fa-archive text-amber-500 text-2xl"></i></div>
               <h3 className="text-lg font-bold text-textPrimary mb-2">Archive Day Tour</h3>
-              <p className="text-textSecondary text-sm">Are you sure you want to archive this day tour? This tour will be moved to the archive and won't appear in active listings. You can create a new one after archiving.</p>
+              <p className="text-textSecondary text-sm">Are you sure you want to archive this day tour? This tour will be moved to the archive and won&apos;t appear in active listings. You can create a new one after archiving.</p>
             </div>
             <div className="flex gap-3 justify-center">
               <button onClick={() => setConfirmArchiveModal({ show: false, tour: null })} className="px-5 py-2 border border-ocean-light/20 rounded-xl text-textSecondary text-sm font-medium hover:bg-ocean-ice transition-all duration-300">Cancel</button>
@@ -1782,7 +1782,7 @@ className="px-3 py-2 rounded-lg bg-[#93C5FD]/10 text-[#1E3A8A] border border-[#9
             <div className="text-center mb-5">
               <div className="w-14 h-14 mx-auto mb-3 rounded-full bg-amber-100 flex items-center justify-center"><i className="fas fa-archive text-amber-500 text-2xl"></i></div>
               <h3 className="text-lg font-bold text-textPrimary mb-2">Archive Activity</h3>
-              <p className="text-textSecondary text-sm">Are you sure you want to archive "{confirmArchiveActivityModal.activity.name}"? This activity will be moved to the archive and won't appear in active listings.</p>
+              <p className="text-textSecondary text-sm">Are you sure you want to archive &quot;{confirmArchiveActivityModal.activity.name}&quot;? This activity will be moved to the archive and won&apos;t appear in active listings.</p>
             </div>
             <div className="flex gap-3 justify-center">
               <button onClick={() => setConfirmArchiveActivityModal({ show: false, activity: null })} className="px-5 py-2 border border-ocean-light/20 rounded-xl text-textSecondary text-sm font-medium hover:bg-ocean-ice transition-all duration-300">Cancel</button>

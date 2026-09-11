@@ -750,7 +750,7 @@ const handlePreviousStep = () => {
           {step === 1 && (
             <div className="bg-white rounded-2xl border border-gray-200 shadow-[0_10px_30px_rgb(0,0,0,0.05)] p-5 sm:p-6">
               <h2 className="text-xl font-bold text-textPrimary mb-4">Guest Information</h2>
-              <p className="text-sm text-textSecondary mb-6">Please enter the guest's complete details.</p>
+              <p className="text-sm text-textSecondary mb-6">Please enter the guest&apos;s complete details.</p>
 
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div>
@@ -905,7 +905,7 @@ const handlePreviousStep = () => {
             <div className="bg-white rounded-2xl border border-gray-200 shadow-[0_10px_30px_rgb(0,0,0,0.05)] p-5 sm:p-6">
               <h2 className="text-xl font-bold text-textPrimary mb-4">Valid ID & Payment</h2>
               <p className="text-sm text-textSecondary mb-6">
-                Optionally upload the guest's valid ID and select how the remaining balance will be paid.
+                Optionally upload the guest&apos;s valid ID and select how the remaining balance will be paid.
               </p>
 
               <div className="space-y-6">

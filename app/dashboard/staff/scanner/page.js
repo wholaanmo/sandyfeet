@@ -165,7 +165,7 @@ export default function StaffScannerPage() {
             QR Code Scanner
           </h1>
           <p className="text-[#4D6FA8] text-xs sm:text-sm leading-relaxed mt-1">
-            Scan guest's check-in QR code to quickly access their booking
+            Scan guest&apos;s check-in QR code to quickly access their booking
           </p>
         </div>
 
@@ -277,7 +277,7 @@ export default function StaffScannerPage() {
                   </li>
                   <li className="flex gap-3 items-start">
                     <span className="flex-shrink-0 w-6 h-6 bg-blue-100 text-blue-700 rounded-full flex items-center justify-center text-xs font-bold">2</span>
-                    <span className="text-gray-700">Hold the guest's QR code inside the square frame</span>
+                    <span className="text-gray-700">Hold the guest&apos;s QR code inside the square frame</span>
                   </li>
                   <li className="flex gap-3 items-start">
                     <span className="flex-shrink-0 w-6 h-6 bg-blue-100 text-blue-700 rounded-full flex items-center justify-center text-xs font-bold">3</span>
@@ -285,7 +285,7 @@ export default function StaffScannerPage() {
                   </li>
                   <li className="flex gap-3 items-start">
                     <span className="flex-shrink-0 w-6 h-6 bg-blue-100 text-blue-700 rounded-full flex items-center justify-center text-xs font-bold">4</span>
-                    <span className="text-gray-700">You'll be taken to the booking details to confirm check-in</span>
+                    <span className="text-gray-700">You&apos;ll be taken to the booking details to confirm check-in</span>
                   </li>
                 </ol>
               </div>

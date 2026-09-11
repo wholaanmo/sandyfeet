@@ -1,13 +1,13 @@
 // app/dashboard/staff/book-process/page.js
 'use client';
 
-import { useState, useEffect } from 'react';
+import { Suspense, useState } from 'react';
 import { useRouter, usePathname, useSearchParams } from 'next/navigation';
 import StaffBooking from '../booking/page';
 import StaffDayTourBook from '../daytour-book/page';
 import StaffBookingProcess from '../booking-process/page';
 
-export default function StaffBookProcess() {
+function StaffBookProcessContent() {
   const router = useRouter();
   const pathname = usePathname();
   const searchParams = useSearchParams();
@@ -20,17 +20,13 @@ export default function StaffBookProcess() {
   };
 
   const [activeTab, setActiveTab] = useState(getInitialTab);
-  const [showProcess, setShowProcess] = useState(false);
-
-  useEffect(() => {
-    const process = searchParams.get('process');
-    setShowProcess(process === 'true');
-  }, [searchParams]);
+  const showProcess = searchParams.get('process') === 'true';
 
   const handleTabChange = (tab) => {
     setActiveTab(tab);
-    setShowProcess(false);
-    router.push(`/dashboard/staff/book-process?tab=${tab}`);
+    const nextParams = new URLSearchParams(searchParams.toString());
+    nextParams.set('tab', tab);
+    router.push(`${pathname}?${nextParams.toString()}`);
   };
 
   // Common header and tabs component
@@ -116,5 +112,13 @@ export default function StaffBookProcess() {
         {activeTab === 'daytour' && <StaffDayTourBook />}
       </div>
     </div>
+  );
+}
+
+export default function StaffBookProcess() {
+  return (
+    <Suspense fallback={<div className="flex min-h-screen items-center justify-center bg-slate-50"><i className="fas fa-spinner fa-spin text-2xl text-ocean-mid" /></div>}>
+      <StaffBookProcessContent />
+    </Suspense>
   );
 }

@@ -1,4 +1,4 @@
-// app/rooms/[slug]/page.js
+  // app/rooms/[slug]/page.js
 
 'use client';
 
@@ -877,7 +877,7 @@ export default function RoomDetailsPage({ params }) {
 
             {/* ─── RIGHT: BOOKING SIDEBAR ─── */}
             <aside className="lg:col-span-5 lg:sticky lg:top-24 lg:self-start">
-              <div className="max-h-[calc(100dvh-7rem)] w-full space-y-3.5 overflow-y-auto rounded-3xl border border-gray-100 bg-white p-4 shadow-[0_12px_40px_rgb(0,0,0,0.07)] lg:overscroll-contain">
+              <div className="max-h-[calc(100dvh-7rem)] w-full flex flex-col overflow-hidden space-y-3.5 rounded-3xl border border-gray-100 bg-white p-4 shadow-[0_12px_40px_rgb(0,0,0,0.07)]">
 
                 {/* Header */}
                 <div className="flex items-center justify-between">
@@ -1010,6 +1010,7 @@ export default function RoomDetailsPage({ params }) {
                   )}
                 </div>
 
+                <div className="min-h-0 flex-1 space-y-3.5 overflow-y-auto pr-1 lg:overscroll-contain">
                 {/* ─── ROOM & NIGHTS CONTROLS ─── */}
                 <div className="grid grid-cols-2 gap-2.5">
                   {/* Nights */}
@@ -1198,6 +1199,7 @@ export default function RoomDetailsPage({ params }) {
                 <div className="flex items-center justify-center gap-2 text-gray-400">
                   <i className="fas fa-lock text-[10px]"></i>
                   <p className="text-[9px] font-bold uppercase tracking-widest">Secure booking guaranteed</p>
+                </div>
                 </div>
               </div>
             </aside>

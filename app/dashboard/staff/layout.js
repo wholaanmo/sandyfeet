@@ -9,7 +9,6 @@ import { SessionGuard } from '@/components/SessionGuard';
 export default function StaffLayout({ children }) {
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const [isDesktop, setIsDesktop] = useState(true);
-  const [mounted, setMounted] = useState(false);
 
   useEffect(() => {
     const checkScreenSize = () => {
@@ -24,7 +23,6 @@ export default function StaffLayout({ children }) {
 
     checkScreenSize();
     window.addEventListener('resize', checkScreenSize);
-    setMounted(true);
 
     return () => window.removeEventListener('resize', checkScreenSize);
   }, []);
@@ -36,8 +34,6 @@ export default function StaffLayout({ children }) {
   const mainMarginLeft = isDesktop
     ? (sidebarOpen ? '260px' : '80px')
     : '0px';
-
-  if (!mounted) return null;
 
   return (
     <div className="min-h-screen" style={{ backgroundColor: '#fcfcfc' }}>

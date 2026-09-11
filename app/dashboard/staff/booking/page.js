@@ -6,6 +6,20 @@ import { useRouter } from 'next/navigation';
 import { db } from '@/lib/firebase';
 import { collection, query, where, onSnapshot } from 'firebase/firestore';
 
+const toLocalDateKey = (date) => {
+  if (!date) return '';
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, '0');
+  const day = String(date.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
+};
+
+const normalizeDayTourDateKey = (dateString) => {
+  if (!dateString) return null;
+  const date = new Date(dateString);
+  return Number.isNaN(date.getTime()) ? null : toLocalDateKey(date);
+};
+
 export default function StaffBooking() {
   const router = useRouter();
   const [availableRoomTypes, setAvailableRoomTypes] = useState([]);
@@ -467,6 +481,8 @@ export default function StaffBooking() {
       const newCheckOutDate = new Date(checkInDate);
       newCheckOutDate.setDate(checkInDate.getDate() + numberOfNights);
       newCheckOutDate.setHours(checkOutHour, 0, 0, 0);
+      // This state mirrors the selected check-in/time inputs for the booking payload.
+      // eslint-disable-next-line react-hooks/set-state-in-effect
       setCheckOutDate(newCheckOutDate);
     }
   }, [checkInDate, numberOfNights, checkOutHour]);
@@ -475,6 +491,8 @@ export default function StaffBooking() {
     if (checkInDate) {
       const updated = new Date(checkInDate);
       updated.setHours(checkInHour, 0, 0, 0);
+      // Keep the selected date aligned with the selected check-in time.
+      // eslint-disable-next-line react-hooks/set-state-in-effect
       setCheckInDate(updated);
     }
   }, [checkInHour]);
@@ -569,25 +587,6 @@ export default function StaffBooking() {
     return totalMaxBooked;
   };
 
-  const toLocalDateKey = (d) => {
-    if (!d) return '';
-    const y = d.getFullYear();
-    const m = String(d.getMonth() + 1).padStart(2, '0');
-    const day = String(d.getDate()).padStart(2, '0');
-    return `${y}-${m}-${day}`;
-  };
-
-  const normalizeDayTourDateKey = (dateString) => {
-    if (!dateString) return null;
-    try {
-      const d = new Date(dateString);
-      if (isNaN(d.getTime())) return null;
-      return toLocalDateKey(d);
-    } catch {
-      return null;
-    }
-  };
-
   const isDateFullyAvailableForExclusive = (date) => {
     if (!date || availableRoomTypes.length === 0) return false;
 
@@ -616,14 +615,18 @@ export default function StaffBooking() {
   useEffect(() => {
     if (checkInDate) {
       const availability = calculateUnitAvailabilityForDate(checkInDate);
+      // Availability is recalculated from live Firestore snapshots.
+      // eslint-disable-next-line react-hooks/set-state-in-effect
       setUnitLevelAvailability(availability);
     } else {
+      // eslint-disable-next-line react-hooks/set-state-in-effect
       setUnitLevelAvailability({});
     }
   }, [checkInDate, availableRoomTypes, bookedDates, blockedSlots, checkInHour]);
 
   useEffect(() => {
     if (!checkInDate || availableRoomTypes.length === 0) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect
       setRoomAvailability({});
       return;
     }
@@ -652,6 +655,7 @@ export default function StaffBooking() {
       }
       availability[roomType.type] = totalAvailable;
     }
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     setRoomAvailability(availability);
   }, [checkInDate, numberOfNights, availableRoomTypes, bookedDates, blockedSlots, roomDetailsMap, checkInHour]);
 
@@ -664,8 +668,12 @@ export default function StaffBooking() {
         clearedSelected[roomType.type] = 0;
         clearedGuests[roomType.type] = [];
       }
+      // Exclusive selections must be cleared when live availability changes.
+      // eslint-disable-next-line react-hooks/set-state-in-effect
       setSelectedRooms(clearedSelected);
+      // eslint-disable-next-line react-hooks/set-state-in-effect
       setPerRoomGuests(clearedGuests);
+      // eslint-disable-next-line react-hooks/set-state-in-effect
       setTentCount(0);
       return;
     }
@@ -686,12 +694,15 @@ export default function StaffBooking() {
       nextSelected[roomType.type] = qty;
       nextGuests[roomType.type] = guestsArray;
     }
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     setSelectedRooms(nextSelected);
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     setPerRoomGuests(nextGuests);
   }, [isExclusiveResortBooking, checkInDate, availableRoomTypes, roomAvailability, numberOfNights, checkInHour, blockedSlots, bookedDates, roomDetailsMap]);
 
   useEffect(() => {
     if (!checkInDate || !checkOutDate) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect
       setAvailabilityStatus({});
       return;
     }
@@ -728,6 +739,7 @@ export default function StaffBooking() {
       };
       if (totalAvailable < quantity) allAvailable = false;
     }
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     setAvailabilityStatus(status);
     if (!allAvailable && checkInDate) {
       const unavailableTypes = Object.entries(status)
@@ -1221,7 +1233,7 @@ export default function StaffBooking() {
       <div className="flex flex-col lg:flex-row lg:items-end justify-between mb-8 gap-6">
         <div>
           <h2 className="text-xl font-bold text-textPrimary">Select Rooms</h2>
-          <p className="text-sm text-textSecondary">Choose accommodations for the guest's stay</p>
+      <p className="text-sm text-textSecondary">Choose accommodations for the guest&apos;s stay</p>
         </div>
         <div className="flex flex-wrap gap-2">
           {['All Rooms', 'Ground Floor', 'Group Room', 'Couples', 'Tents'].map(cat => (
@@ -1579,7 +1591,7 @@ export default function StaffBooking() {
                   <div className="w-12 h-12 mx-auto bg-white rounded-full flex items-center justify-center text-gray-300 mb-4 shadow-sm border border-gray-100">
                     <h2 className="text-gray-300 font-bold text-lg">$</h2>
                   </div>
-                  <p className="text-xs text-gray-400 font-medium max-w-[200px] mx-auto leading-relaxed">No rooms added yet. Click "Add to Reservation" to build the booking.</p>
+                    <p className="text-xs text-gray-400 font-medium max-w-[200px] mx-auto leading-relaxed">No rooms added yet. Click &quot;Add to Reservation&quot; to build the booking.</p>
                 </div>
               ) : (
                 availableRoomTypes.filter(r => selectedRooms[r.type] > 0).map(room => {

@@ -171,7 +171,7 @@ const computePaymentDisplay = (booking) => {
   return { totalAmount, downPayment, balance };
 };
 
-export default function AdminGuestProfilePage() {
+function AdminGuestProfilePageContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const email = searchParams.get('email')?.toLowerCase().trim() || '';
@@ -869,6 +869,14 @@ export default function AdminGuestProfilePage() {
         </div>
       )}
     </GuestProfilePageShell>
+  );
+}
+
+export default function AdminGuestProfilePage() {
+  return (
+    <React.Suspense fallback={<div className="flex min-h-screen items-center justify-center bg-slate-50"><i className="fas fa-spinner fa-spin text-2xl text-ocean-mid" /></div>}>
+      <AdminGuestProfilePageContent />
+    </React.Suspense>
   );
 }
 

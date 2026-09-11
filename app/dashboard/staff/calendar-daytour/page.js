@@ -367,12 +367,12 @@ export default function AdminDayTourCalendar() {
         <div className="text-center">
           <i className="fas fa-umbrella-beach text-5xl text-ocean-light/40 mb-4"></i>
           <h2 className="text-2xl font-bold text-textPrimary mb-2">Day Tour Not Configured</h2>
-          <p className="text-textSecondary">Please configure a day tour package in the admin panel first.</p>
+          <p className="text-textSecondary">No day tour package is currently available. Please contact an administrator.</p>
           <Link
-            href="/dashboard/admin/day-tour"
+            href="/dashboard/staff/overview"
             className="mt-4 inline-block px-6 py-2 bg-gradient-to-r from-ocean-mid to-ocean-light text-white rounded-lg"
           >
-            Configure Day Tour
+            Back to dashboard
           </Link>
         </div>
       </div>

@@ -1,7 +1,7 @@
 // app/dashboard/staff/reservations/page.js
 'use client';
 
-import { useState, useEffect, useRef, useCallback, useMemo } from 'react';
+import { Suspense, useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import { db } from '../../../../lib/firebase';
 import { collection, query, orderBy, onSnapshot, updateDoc, doc, getDoc, getDocs, where } from 'firebase/firestore';
 import { logAdminAction } from '../../../../lib/auditLogger';
@@ -24,7 +24,7 @@ import {
   isRoomAvailableForDates
 } from '@/lib/roomInventory';
 
-export default function AdminReservations() {
+function AdminReservationsContent() {
   usePhilippineTimeSync();
   useReservationScheduleSync();
   const router = useRouter();
@@ -3919,5 +3919,13 @@ const getBookingNights = (booking) => {
         />
       )}
     </div>
+  );
+}
+
+export default function AdminReservations() {
+  return (
+    <Suspense fallback={<div className="flex min-h-screen items-center justify-center bg-slate-50"><i className="fas fa-spinner fa-spin text-2xl text-ocean-mid" /></div>}>
+      <AdminReservationsContent />
+    </Suspense>
   );
 }

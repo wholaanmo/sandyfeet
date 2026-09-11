@@ -362,7 +362,7 @@ export default function AdminFeedback() {
                 className="px-4 py-2 rounded-lg bg-red-500/10 text-red-600 hover:bg-red-600/80 hover:text-white transition-all duration-200 flex items-center gap-2 text-sm disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 <i className="fas fa-times text-sm"></i>
-                <span>Don't Publish</span>
+                <span>Don&apos;t Publish</span>
               </button>
               <button
                 onClick={() => openArchiveConfirm(selectedFeedback)}

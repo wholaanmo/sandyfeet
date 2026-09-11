@@ -42,6 +42,10 @@ function DayTourPageContent() {
   const [dateError, setDateError] = useState('');
   const calendarPopoverRef = useRef(null);
   const calendarTriggerRef = useRef(null);
+  const galleryDialogRef = useRef(null);
+  const galleryCloseButtonRef = useRef(null);
+  const galleryTriggerRef = useRef(null);
+  const wasGalleryViewerOpenRef = useRef(false);
 
   // Use dynamic maxAllowedGuests from dayTour.maxCapacity, fallback to Infinity if not set
   const maxAllowedGuests = dayTour?.maxCapacity || Infinity;
@@ -497,15 +501,78 @@ function DayTourPageContent() {
   // Use dynamic images from admin, fallback to static if none
   const displayImages = galleryImages.length > 0 ? galleryImages : fallbackImages;
 
+  const closeGalleryViewer = () => {
+    setGalleryViewerIndex(null);
+    if (galleryTriggerRef.current && typeof galleryTriggerRef.current.focus === 'function') {
+      window.requestAnimationFrame(() => {
+        galleryTriggerRef.current?.focus();
+      });
+    }
+  };
+
+  const openGalleryViewer = (index, event) => {
+    galleryTriggerRef.current = event.currentTarget;
+    setGalleryViewerIndex(index);
+  };
+
   useEffect(() => {
-    if (galleryViewerIndex === null) return undefined;
+    if (galleryViewerIndex === null) return;
+    if (displayImages.length === 0) {
+      setGalleryViewerIndex(null);
+      return;
+    }
+    if (galleryViewerIndex >= displayImages.length) {
+      setGalleryViewerIndex(displayImages.length - 1);
+      return;
+    }
+    if (galleryViewerIndex < 0) {
+      setGalleryViewerIndex(0);
+    }
+  }, [galleryViewerIndex, displayImages.length]);
+
+  useEffect(() => {
+    const isViewerOpen = galleryViewerIndex !== null && Boolean(displayImages[galleryViewerIndex]);
+    if (isViewerOpen && !wasGalleryViewerOpenRef.current) {
+      galleryCloseButtonRef.current?.focus();
+    }
+    wasGalleryViewerOpenRef.current = isViewerOpen;
+  }, [galleryViewerIndex, displayImages.length]);
+
+  useEffect(() => {
+    if (galleryViewerIndex === null || !displayImages[galleryViewerIndex]) return undefined;
+    const previousBodyOverflow = document.body.style.overflow;
 
     const handleKeyDown = (event) => {
-      if (event.key === 'Escape') setGalleryViewerIndex(null);
-      if (event.key === 'ArrowLeft') {
-        setGalleryViewerIndex((current) => (current - 1 + displayImages.length) % displayImages.length);
+      if (event.key === 'Escape') {
+        closeGalleryViewer();
+        return;
       }
-      if (event.key === 'ArrowRight') {
+      if (event.key === 'Tab') {
+        const dialog = galleryDialogRef.current;
+        if (!dialog) return;
+        const focusableElements = dialog.querySelectorAll('button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])');
+        if (focusableElements.length === 0) {
+          event.preventDefault();
+          galleryCloseButtonRef.current?.focus();
+          return;
+        }
+        const firstElement = focusableElements[0];
+        const lastElement = focusableElements[focusableElements.length - 1];
+        const activeElement = document.activeElement;
+        if (event.shiftKey && activeElement === firstElement) {
+          event.preventDefault();
+          lastElement.focus();
+        } else if (!event.shiftKey && activeElement === lastElement) {
+          event.preventDefault();
+          firstElement.focus();
+        }
+        return;
+      }
+      if (event.key === 'ArrowLeft' && displayImages.length > 1) {
+        setGalleryViewerIndex((current) => (current - 1 + displayImages.length) % displayImages.length);
+        return;
+      }
+      if (event.key === 'ArrowRight' && displayImages.length > 1) {
         setGalleryViewerIndex((current) => (current + 1) % displayImages.length);
       }
     };
@@ -514,7 +581,7 @@ function DayTourPageContent() {
     document.body.style.overflow = 'hidden';
     return () => {
       document.removeEventListener('keydown', handleKeyDown);
-      document.body.style.overflow = 'unset';
+      document.body.style.overflow = previousBodyOverflow;
     };
   }, [galleryViewerIndex, displayImages.length]);
 
@@ -844,7 +911,7 @@ function DayTourPageContent() {
                 <button
                   type="button"
                   key={idx}
-                  onClick={() => setGalleryViewerIndex(idx)}
+                  onClick={(event) => openGalleryViewer(idx, event)}
                   aria-label={`View Sandyfeet Resort Gallery Item ${idx + 1}`}
                   className={`group relative overflow-hidden rounded-[1.5rem] bg-ocean-ice border border-ocean-light/10 text-left shadow-[0_4px_20px_rgba(0,0,0,0.03)] transform transition-all duration-700 hover:scale-[1.01] hover:z-10 hover:shadow-[0_15px_35px_rgba(0,0,0,0.12)] focus:outline-none focus:ring-2 focus:ring-ocean-mid/60 ${colSpan} ${rowSpan}`}
                 >
@@ -872,9 +939,9 @@ function DayTourPageContent() {
           role="dialog"
           aria-modal="true"
           aria-label="Resort gallery viewer"
-          onClick={() => setGalleryViewerIndex(null)}
+          onClick={closeGalleryViewer}
         >
-          <div className="relative flex max-h-[90vh] w-full max-w-5xl items-center justify-center" onClick={(event) => event.stopPropagation()}>
+          <div ref={galleryDialogRef} className="relative flex max-h-[90vh] w-full max-w-5xl items-center justify-center" onClick={(event) => event.stopPropagation()}>
             <Image
               src={displayImages[galleryViewerIndex]}
               alt={`Sandyfeet Resort Gallery Item ${galleryViewerIndex + 1}`}
@@ -882,7 +949,7 @@ function DayTourPageContent() {
               height={1000}
               className="max-h-[82vh] w-auto max-w-full rounded-2xl object-contain"
             />
-            <button type="button" onClick={() => setGalleryViewerIndex(null)} aria-label="Close gallery viewer" className="absolute right-0 top-0 flex size-10 items-center justify-center rounded-full bg-white/90 text-gray-700 shadow-sm hover:bg-white">
+            <button ref={galleryCloseButtonRef} type="button" onClick={closeGalleryViewer} aria-label="Close gallery viewer" className="absolute right-0 top-0 flex size-10 items-center justify-center rounded-full bg-white/90 text-gray-700 shadow-sm hover:bg-white">
               <i className="fas fa-times" />
             </button>
             {displayImages.length > 1 && (

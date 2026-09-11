@@ -912,7 +912,7 @@ const handleUpdateRoom = async (e) => {
                     <td colSpan="6" className="px-4 py-12 text-center text-neutral">
                       <i className="fas fa-bed text-5xl mb-3 opacity-50 block"></i>
                       <p className="text-lg">No rooms found</p>
-                      <p className="text-sm">Click "Add New Room" to get started</p>
+                      <p className="text-sm">Click &quot;Add New Room&quot; to get started</p>
                     </td>
                   </tr>
                 ) : (
@@ -1542,8 +1542,8 @@ const handleUpdateRoom = async (e) => {
               </div>
               <h3 className="text-lg font-bold text-textPrimary mb-2">Archive Room</h3>
               <p className="text-textSecondary text-sm">
-                Are you sure you want to archive "{confirmArchiveModal.room.type}"? 
-                This room will be moved to the archive and won't appear in active listings.
+                Are you sure you want to archive &quot;{confirmArchiveModal.room.type}&quot;?
+                This room will be moved to the archive and won&apos;t appear in active listings.
               </p>
             </div>
             <div className="flex gap-3 justify-center">

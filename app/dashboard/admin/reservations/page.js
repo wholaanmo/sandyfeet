@@ -1,7 +1,7 @@
 ﻿// app/dashboard/admin/reservations/page.js
 'use client';
 
-import { useState, useEffect, useRef, useCallback, useMemo } from 'react';
+import { Suspense, useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import { db } from '../../../../lib/firebase';
 import { collection, query, orderBy, onSnapshot, updateDoc, doc, getDoc, getDocs, where } from 'firebase/firestore';
 import { logAdminAction } from '../../../../lib/auditLogger';
@@ -18,7 +18,7 @@ import { getPhilippineNowIsoString } from '@/lib/reservationScheduleStatus';
 import { usePhilippineTimeSync } from '@/hooks/usePhilippineTimeSync';
 import { useReservationScheduleSync } from '@/hooks/useReservationScheduleSync';
 
-export default function AdminReservations() {
+function AdminReservationsContent() {
   usePhilippineTimeSync();
   useReservationScheduleSync();
   const router = useRouter();
@@ -3825,5 +3825,13 @@ export default function AdminReservations() {
         />
       )}
     </div>
+  );
+}
+
+export default function AdminReservations() {
+  return (
+    <Suspense fallback={<div className="flex min-h-screen items-center justify-center bg-slate-50"><i className="fas fa-spinner fa-spin text-2xl text-ocean-mid" /></div>}>
+      <AdminReservationsContent />
+    </Suspense>
   );
 }

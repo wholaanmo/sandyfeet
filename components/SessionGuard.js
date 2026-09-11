@@ -49,7 +49,7 @@ export function SessionGuard({ children }) {
 
     if (expectedRole === 'admin' && userType !== 'admin') {
       if (userType === 'staff') {
-        router.replace('/dashboard/staff/front-desk');
+        router.replace('/dashboard/staff/overview');
       } else {
         redirectToLogin();
       }

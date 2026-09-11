@@ -108,19 +108,8 @@ export default function ChatBot() {
       const savedState = localStorage.getItem(CHAT_STORAGE_KEY);
       if (savedState) {
         const parsed = JSON.parse(savedState);
-        const restoredMessages = Array.isArray(parsed.messages)
-          ? parsed.messages
-            .filter((message) => message?.content && ['user', 'bot'].includes(message.role))
-            .map((message) => ({
-              role: message.role,
-              content: String(message.content),
-              timestamp: new Date(message.timestamp || Date.now()),
-            }))
-          : [];
-
-        setMessages(restoredMessages);
         setIsOpen(parsed.isOpen === true);
-        setHasOpenedBefore(parsed.hasOpenedBefore === true || restoredMessages.length > 0);
+        setHasOpenedBefore(parsed.hasOpenedBefore === true);
       }
     } catch (error) {
       console.error('Unable to restore Sandy chat:', error);
@@ -133,14 +122,13 @@ export default function ChatBot() {
     if (!storageHydrated) return;
     try {
       localStorage.setItem(CHAT_STORAGE_KEY, JSON.stringify({
-        messages,
         isOpen,
         hasOpenedBefore,
       }));
     } catch (error) {
       console.error('Unable to save Sandy chat:', error);
     }
-  }, [messages, isOpen, hasOpenedBefore, storageHydrated]);
+  }, [isOpen, hasOpenedBefore, storageHydrated]);
 
   const scrollToBottom = useCallback(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });

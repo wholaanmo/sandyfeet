@@ -28,10 +28,10 @@ import {
 export default function StaffNavbar({ toggleSidebar, sidebarOpen, isDesktop }) {
   const [userName, setUserName] = useState('');
   const [userRole, setUserRole] = useState('');
-  const [unreadCount, setUnreadCount] = useState(0);
   const [showNotifications, setShowNotifications] = useState(false);
   const [notifications, setNotifications] = useState([]);
   const hasMarkedReadForCurrentOpen = useRef(false);
+  const unreadCount = notifications.filter((notification) => !notification.read).length;
 
   useEffect(() => {
     const fetchUserData = async () => {
@@ -124,12 +124,6 @@ export default function StaffNavbar({ toggleSidebar, sidebarOpen, isDesktop }) {
       unsubscribeGuestIdSubmission();
     };
   }, []);
-
-  // Recalculate unread count whenever notifications change
-  useEffect(() => {
-    const count = notifications.filter(n => !n.read).length;
-    setUnreadCount(count);
-  }, [notifications]);
 
   // Mark all as read in the background when dropdown opens (does NOT block render)
   useEffect(() => {

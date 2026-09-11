@@ -48,27 +48,21 @@ export default function StaffRoomStatus() {
         }
       });
       setRooms(roomsList);
-      
-      // Fetch details for each room
-      roomsList.forEach(room => {
-        fetchRoomDetails(room.id);
-      });
-      
       setLoading(false);
     });
     return () => unsubscribe();
   }, []);
 
-  // Fetch room details for each room ID
-  const fetchRoomDetails = async (roomId) => {
-    const roomRef = doc(db, 'rooms', roomId);
-    const unsubscribe = onSnapshot(roomRef, (snap) => {
+  // Keep one cleaned-up listener per currently available room.
+  useEffect(() => {
+    const unsubscribers = rooms.map((room) => onSnapshot(doc(db, 'rooms', room.id), (snap) => {
       if (snap.exists()) {
-        setRoomDetails(prev => ({ ...prev, [roomId]: snap.data() }));
+        setRoomDetails((prev) => ({ ...prev, [room.id]: snap.data() }));
       }
-    });
-    return () => unsubscribe();
-  };
+    }));
+
+    return () => unsubscribers.forEach((unsubscribe) => unsubscribe());
+  }, [rooms]);
 
   // Compute total available units for a room type
   const getTotalRoomUnits = (roomId) => {

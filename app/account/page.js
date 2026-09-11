@@ -92,7 +92,7 @@ function GuestAccountContent() {
     setValidIdForm({
       validIdType: profile?.validIdType || 'Passport',
       validIdOther: profile?.validIdOther || '',
-      validIdName: profile?.validIdName || profile?.displayName || '',
+      validIdName: profile?.validIdName || '',
       validIdUrl: profile?.validIdUrl || '',
       validIdSelfieUrl: profile?.validIdSelfieUrl || '',
     });
@@ -253,7 +253,7 @@ function GuestAccountContent() {
     setValidIdForm({
       validIdType: profile?.validIdType || 'Passport',
       validIdOther: profile?.validIdOther || '',
-      validIdName: profile?.validIdName || profile?.displayName || '',
+      validIdName: profile?.validIdName || '',
       validIdUrl: profile?.validIdUrl || '',
       validIdSelfieUrl: profile?.validIdSelfieUrl || '',
     });
@@ -264,7 +264,7 @@ function GuestAccountContent() {
     setValidIdForm({
       validIdType: profile?.validIdType || 'Passport',
       validIdOther: profile?.validIdOther || '',
-      validIdName: profile?.validIdName || profile?.displayName || '',
+      validIdName: profile?.validIdName || '',
       validIdUrl: profile?.validIdUrl || '',
       validIdSelfieUrl: profile?.validIdSelfieUrl || '',
     });
@@ -759,7 +759,7 @@ function GuestAccountContent() {
                           <div className="flex items-center gap-2 rounded-xl border border-[#4D8CF5]/20 bg-[#F9FCFF] px-4 py-2.5 text-sm text-gray-700">
                             <i className="fas fa-signature text-slate-400 text-xs"></i>
                             <span className="text-[#1E3A8A]/70">Name on ID:</span>
-                            <span className="font-semibold text-[#1E3A8A]">{profile.validIdName || profile.displayName || 'Not provided'}</span>
+                            <span className="font-semibold text-[#1E3A8A]">{profile.validIdName || 'Not provided'}</span>
                           </div>
                           <div className="grid gap-4 lg:grid-cols-2">
                             <div className="overflow-hidden rounded-xl border border-[#4D8CF5]/20 bg-[#F9FCFF]">
@@ -908,7 +908,7 @@ function GuestAccountContent() {
                             <button
                               type="button"
                               onClick={handleSaveValidId}
-                              disabled={validIdSaving || validIdUploading || validIdSelfieUploading || !validIdForm.validIdUrl || !validIdForm.validIdSelfieUrl}
+                              disabled={validIdSaving || validIdUploading || validIdSelfieUploading || !validIdForm.validIdUrl || !validIdForm.validIdSelfieUrl || !validIdForm.validIdName.trim()}
                               className="inline-flex items-center gap-2 rounded-xl bg-[#4D8CF5] px-5 py-2.5 text-sm font-semibold text-white shadow-md hover:bg-[#3B78E7] disabled:opacity-70"
                             >
                               {validIdSaving ? <><i className="fas fa-spinner fa-spin"></i> Saving...</> : <><i className="fas fa-save"></i> Save Verification</>}

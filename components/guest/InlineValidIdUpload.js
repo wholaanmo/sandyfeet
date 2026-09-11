@@ -23,7 +23,7 @@ export default function InlineValidIdUpload({ profile, updateGuestProfile, onCom
     setForm({
       validIdType: profile?.validIdType || 'Passport',
       validIdOther: profile?.validIdOther || '',
-      validIdName: profile?.validIdName || profile?.displayName || '',
+      validIdName: profile?.validIdName || '',
       validIdUrl: profile?.validIdUrl || '',
       validIdSelfieUrl: profile?.validIdSelfieUrl || '',
     });
@@ -52,8 +52,12 @@ export default function InlineValidIdUpload({ profile, updateGuestProfile, onCom
   };
 
   const handleSave = async () => {
-    if (!form.validIdType || (form.validIdType === 'Other' && !form.validIdOther.trim())) {
+    if (!form.validIdType) {
       setMessage('Select an ID type before continuing.');
+      return;
+    }
+    if (form.validIdType === 'Other' && !form.validIdOther.trim()) {
+      setMessage('Specify the ID type before continuing.');
       return;
     }
     if (!form.validIdName.trim()) {

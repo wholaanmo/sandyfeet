@@ -769,7 +769,7 @@ const handlePreviousStep = () => {
             <h2 className="text-2xl font-bold text-textPrimary mb-2">Day Tour Unavailable</h2>
             <p className="text-textSecondary">No day tour package is currently available.</p>
             <button
-              onClick={() => router.push('/dashboard/staff')}
+              onClick={() => router.push('/dashboard/staff/overview')}
               className="mt-4 px-6 py-2.5 bg-[#4D8CF5] text-white rounded-xl font-semibold hover:bg-[#3B78E7] transition-colors"
             >
               Back to Dashboard
@@ -1051,7 +1051,7 @@ const handlePreviousStep = () => {
           {step === 2 && (
             <div className="bg-white rounded-2xl border border-gray-200 shadow-[0_10px_30px_rgb(0,0,0,0.05)] p-5 sm:p-6">
               <h2 className="text-xl font-bold text-textPrimary mb-4">Guest Information</h2>
-              <p className="text-sm text-textSecondary mb-6">Enter the guest's details. Valid ID upload is optional.</p>
+              <p className="text-sm text-textSecondary mb-6">Enter the guest&apos;s details. Valid ID upload is optional.</p>
 
               <div className="space-y-6">
                 {/* Guest Information */}
