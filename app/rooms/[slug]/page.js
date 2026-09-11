@@ -877,7 +877,7 @@ export default function RoomDetailsPage({ params }) {
 
             {/* ─── RIGHT: BOOKING SIDEBAR ─── */}
             <aside className="lg:col-span-5 lg:sticky lg:top-24 lg:self-start">
-              <div className="max-h-[calc(100dvh-7rem)] w-full flex flex-col overflow-hidden space-y-3.5 rounded-3xl border border-gray-100 bg-white p-4 shadow-[0_12px_40px_rgb(0,0,0,0.07)]">
+              <div className="max-h-[calc(100dvh-7rem)] w-full flex flex-col overflow-visible space-y-3.5 rounded-3xl border border-gray-100 bg-white p-4 shadow-[0_12px_40px_rgb(0,0,0,0.07)]">
 
                 {/* Header */}
                 <div className="flex items-center justify-between">
