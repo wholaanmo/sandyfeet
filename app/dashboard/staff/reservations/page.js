@@ -2964,11 +2964,28 @@ const getBookingNights = (booking) => {
             </div>
 
             {/* Fixed Footer with Confirm and Cancel buttons */}
-            <div className="sticky bottom-0 bg-[#F8FAFC]/90 backdrop-blur-lg border-t border-slate-200/80 px-5 py-2.5 flex gap-2 justify-end flex-shrink-0">
+            <div className="sticky bottom-0 bg-[#F8FAFC]/90 backdrop-blur-lg border-t border-slate-200/80 px-5 py-2.5 flex flex-col gap-1.5 items-stretch flex-shrink-0">
+              {!['cancelled', 'cancelled-by-guest', 'confirmed', 'check-in', 'check-out', 'completed'].includes(sidebarBooking.status) && (
+                <div className="flex gap-1.5">
+                  <button
+                    onClick={() => setIdRequestModal({ show: true, booking: sidebarBooking, message: '', sending: false })}
+                    className="flex-1 px-3 py-2 rounded-lg bg-blue-500/10 text-blue-600 hover:bg-blue-600 hover:text-white transition-all duration-200 flex items-center justify-center gap-1.5 text-xs font-medium"
+                  >
+                    <i className="fas fa-id-card text-[10px]"></i> Send ID Request
+                  </button>
+                  <button
+                    onClick={() => setPaymentRequestModal({ show: true, booking: sidebarBooking, message: '', sending: false })}
+                    className="flex-1 px-3 py-2 rounded-lg bg-blue-500/10 text-blue-600 hover:bg-blue-600 hover:text-white transition-all duration-200 flex items-center justify-center gap-1.5 text-xs font-medium"
+                  >
+                    <i className="fas fa-receipt text-[10px]"></i> Send Payment Request
+                  </button>
+                </div>
+              )}
+              <div className="flex gap-1.5">
               {activeTab === 'rooms' && canAdminEditBooking(sidebarBooking) && (
                 <button
                   onClick={() => setEditBookingModal({ show: true, booking: sidebarBooking })}
-                  className="px-3.5 py-2.5 rounded-lg bg-[#4D8CF5]/10 text-[#1E3A8A] hover:bg-[#4D8CF5] hover:text-white transition-all duration-200 flex items-center gap-1.5 text-xs font-medium"
+                  className="flex-1 px-3 py-2 rounded-lg bg-[#4D8CF5]/10 text-[#1E3A8A] hover:bg-[#4D8CF5] hover:text-white transition-all duration-200 flex items-center justify-center gap-1.5 text-xs font-medium"
                 >
                   <i className="fas fa-edit text-[10px]"></i> Edit
                 </button>
@@ -2976,26 +2993,10 @@ const getBookingNights = (booking) => {
               {activeTab === 'daytour' && canAdminEditDayTour(sidebarBooking) && (
                 <button
                   onClick={() => setEditDayTourModal({ show: true, booking: sidebarBooking })}
-                  className="px-3.5 py-2.5 rounded-lg bg-[#4D8CF5]/10 text-[#1E3A8A] hover:bg-[#4D8CF5] hover:text-white transition-all duration-200 flex items-center gap-1.5 text-xs font-medium"
+                  className="flex-1 px-3 py-2 rounded-lg bg-[#4D8CF5]/10 text-[#1E3A8A] hover:bg-[#4D8CF5] hover:text-white transition-all duration-200 flex items-center justify-center gap-1.5 text-xs font-medium"
                 >
                   <i className="fas fa-edit text-[10px]"></i> Edit
                 </button>
-              )}
-              {!['cancelled', 'cancelled-by-guest', 'confirmed', 'check-in', 'check-out', 'completed'].includes(sidebarBooking.status) && (
-                <>
-                <button
-                  onClick={() => setIdRequestModal({ show: true, booking: sidebarBooking, message: '', sending: false })}
-                  className="px-3.5 py-2.5 rounded-lg bg-blue-500/10 text-blue-600 hover:bg-blue-600 hover:text-white transition-all duration-200 flex items-center gap-1.5 text-xs font-medium"
-                >
-                  <i className="fas fa-id-card text-[10px]"></i> Send ID Request
-                </button>
-                <button
-                  onClick={() => setPaymentRequestModal({ show: true, booking: sidebarBooking, message: '', sending: false })}
-                  className="px-3.5 py-2.5 rounded-lg bg-blue-500/10 text-blue-600 hover:bg-blue-600 hover:text-white transition-all duration-200 flex items-center gap-1.5 text-xs font-medium"
-                >
-                  <i className="fas fa-receipt text-[10px]"></i> Send Payment Request
-                </button>
-                </>
               )}
               {sidebarBooking.status === 'pending' && (
                 <>
@@ -3005,7 +3006,7 @@ const getBookingNights = (booking) => {
                       setConfirmModal({ show: true, booking: sidebarBooking, type: activeTab === 'rooms' ? 'room' : 'daytour', note: '', loading: false });
                     }}
                     disabled={actionLoading[sidebarBooking.id] || confirmModal.loading}
-                    className="px-3.5 py-2.5 rounded-lg bg-green-500/10 text-green-600 hover:bg-green-600 hover:text-white transition-all duration-200 flex items-center gap-1.5 text-xs font-medium disabled:opacity-50"
+                    className="flex-1 px-3 py-2 rounded-lg bg-green-500/10 text-green-600 hover:bg-green-600 hover:text-white transition-all duration-200 flex items-center justify-center gap-1.5 text-xs font-medium disabled:opacity-50"
                   >
                     {confirmModal.loading ? (
                       <><i className="fas fa-spinner fa-spin text-[10px]"></i> Processing...</>
@@ -3019,7 +3020,7 @@ const getBookingNights = (booking) => {
                       setCancelModal({ show: true, booking: sidebarBooking, reason: '', loading: false });
                     }}
                     disabled={actionLoading[sidebarBooking.id] || cancelModal.loading}
-                    className="px-3.5 py-2.5 rounded-lg bg-red-500/10 text-red-600 hover:bg-red-600 hover:text-white transition-all duration-200 flex items-center gap-1.5 text-xs font-medium disabled:opacity-50"
+                    className="flex-1 px-3 py-2 rounded-lg bg-red-500/10 text-red-600 hover:bg-red-600 hover:text-white transition-all duration-200 flex items-center justify-center gap-1.5 text-xs font-medium disabled:opacity-50"
                   >
                     {cancelModal.loading ? (
                       <><i className="fas fa-spinner fa-spin text-[10px]"></i> Processing...</>
@@ -3029,6 +3030,7 @@ const getBookingNights = (booking) => {
                   </button>
                 </>
               )}
+              </div>
             </div>
           </div>
         </>
