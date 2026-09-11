@@ -1498,7 +1498,7 @@ function RoomsPageContent() {
             </div>
 
             {/* RIGHT: Booking Receipt & Dates */}
-            <div className="lg:col-span-4 lg:sticky lg:top-24">
+            <div className="lg:col-span-4 lg:sticky lg:top-24 lg:self-start">
               <div className="bg-white rounded-[2rem] border border-gray-100 shadow-[0_12px_40px_rgb(0,0,0,0.06)] p-6">
 
                 <div className="flex justify-between items-center mb-6">

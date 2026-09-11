@@ -12,6 +12,8 @@ const QUICK_QUESTIONS = [
   'What facilities are available?',
 ];
 
+const CHAT_STORAGE_KEY = 'sandyfeet_chat_state';
+
 function formatTime(date) {
   return date.toLocaleTimeString('en-US', {
     hour: 'numeric',
@@ -96,9 +98,49 @@ export default function ChatBot() {
   const [inputValue, setInputValue] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [hasOpenedBefore, setHasOpenedBefore] = useState(false);
+  const [storageHydrated, setStorageHydrated] = useState(false);
 
   const messagesEndRef = useRef(null);
   const inputRef = useRef(null);
+
+  useEffect(() => {
+    try {
+      const savedState = localStorage.getItem(CHAT_STORAGE_KEY);
+      if (savedState) {
+        const parsed = JSON.parse(savedState);
+        const restoredMessages = Array.isArray(parsed.messages)
+          ? parsed.messages
+            .filter((message) => message?.content && ['user', 'bot'].includes(message.role))
+            .map((message) => ({
+              role: message.role,
+              content: String(message.content),
+              timestamp: new Date(message.timestamp || Date.now()),
+            }))
+          : [];
+
+        setMessages(restoredMessages);
+        setIsOpen(parsed.isOpen === true);
+        setHasOpenedBefore(parsed.hasOpenedBefore === true || restoredMessages.length > 0);
+      }
+    } catch (error) {
+      console.error('Unable to restore Sandy chat:', error);
+    } finally {
+      setStorageHydrated(true);
+    }
+  }, []);
+
+  useEffect(() => {
+    if (!storageHydrated) return;
+    try {
+      localStorage.setItem(CHAT_STORAGE_KEY, JSON.stringify({
+        messages,
+        isOpen,
+        hasOpenedBefore,
+      }));
+    } catch (error) {
+      console.error('Unable to save Sandy chat:', error);
+    }
+  }, [messages, isOpen, hasOpenedBefore, storageHydrated]);
 
   const scrollToBottom = useCallback(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -253,7 +295,7 @@ export default function ChatBot() {
               <div className={styles.welcomeEmoji}>🏖️</div>
               <div className={styles.welcomeTitle}>Welcome to Sandyfeet!</div>
               <div className={styles.welcomeText}>
-                Hi there! I'm Sandy, your virtual resort assistant. Ask me about rooms, day tours, facilities, or booking — I'm here to help!
+                Hi there! I&apos;m Sandy, your virtual resort assistant. Ask me about rooms, day tours, facilities, or booking — I&apos;m here to help!
               </div>
               {messages.length === 0 && (
                 <div className={styles.quickActions}>

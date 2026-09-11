@@ -32,6 +32,7 @@ function DayTourPageContent() {
   const [loadingActivities, setLoadingActivities] = useState(true);
   const [dayTour, setDayTour] = useState(null);
   const [galleryImages, setGalleryImages] = useState([]);
+  const [galleryViewerIndex, setGalleryViewerIndex] = useState(null);
   const [bookedDates, setBookedDates] = useState({});
   const [unavailableDates, setUnavailableDates] = useState({});
   const [exclusiveResortBlockedDates, setExclusiveResortBlockedDates] = useState({});
@@ -496,6 +497,27 @@ function DayTourPageContent() {
   // Use dynamic images from admin, fallback to static if none
   const displayImages = galleryImages.length > 0 ? galleryImages : fallbackImages;
 
+  useEffect(() => {
+    if (galleryViewerIndex === null) return undefined;
+
+    const handleKeyDown = (event) => {
+      if (event.key === 'Escape') setGalleryViewerIndex(null);
+      if (event.key === 'ArrowLeft') {
+        setGalleryViewerIndex((current) => (current - 1 + displayImages.length) % displayImages.length);
+      }
+      if (event.key === 'ArrowRight') {
+        setGalleryViewerIndex((current) => (current + 1) % displayImages.length);
+      }
+    };
+
+    document.addEventListener('keydown', handleKeyDown);
+    document.body.style.overflow = 'hidden';
+    return () => {
+      document.removeEventListener('keydown', handleKeyDown);
+      document.body.style.overflow = 'unset';
+    };
+  }, [galleryViewerIndex, displayImages.length]);
+
   return (
     <GuestLayout>
       <div className="min-h-screen bg-[#F8FCFF] pt-32 pb-32">
@@ -819,9 +841,12 @@ function DayTourPageContent() {
               }
 
               return (
-                <div
+                <button
+                  type="button"
                   key={idx}
-                  className={`group relative overflow-hidden rounded-[1.5rem] bg-ocean-ice border border-ocean-light/10 shadow-[0_4px_20px_rgba(0,0,0,0.03)] transform transition-all duration-700 hover:scale-[1.01] hover:z-10 hover:shadow-[0_15px_35px_rgba(0,0,0,0.12)] ${colSpan} ${rowSpan}`}
+                  onClick={() => setGalleryViewerIndex(idx)}
+                  aria-label={`View Sandyfeet Resort Gallery Item ${idx + 1}`}
+                  className={`group relative overflow-hidden rounded-[1.5rem] bg-ocean-ice border border-ocean-light/10 text-left shadow-[0_4px_20px_rgba(0,0,0,0.03)] transform transition-all duration-700 hover:scale-[1.01] hover:z-10 hover:shadow-[0_15px_35px_rgba(0,0,0,0.12)] focus:outline-none focus:ring-2 focus:ring-ocean-mid/60 ${colSpan} ${rowSpan}`}
                 >
                   <Image
                     src={src}
@@ -831,13 +856,51 @@ function DayTourPageContent() {
                     className="object-cover transition-transform duration-[1.5s] group-hover:scale-110"
                   />
                   <div className="absolute inset-0 bg-ocean-dark/10 opacity-0 group-hover:opacity-100 transition-opacity duration-500"></div>
-                </div>
+                  <span className="absolute bottom-3 right-3 flex size-8 items-center justify-center rounded-full bg-black/45 text-white opacity-0 transition-opacity duration-200 group-hover:opacity-100">
+                    <i className="fas fa-expand text-xs" />
+                  </span>
+                </button>
               );
             })}
           </div>
 
         </div>
       </div>
+      {galleryViewerIndex !== null && displayImages[galleryViewerIndex] && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 p-4"
+          role="dialog"
+          aria-modal="true"
+          aria-label="Resort gallery viewer"
+          onClick={() => setGalleryViewerIndex(null)}
+        >
+          <div className="relative flex max-h-[90vh] w-full max-w-5xl items-center justify-center" onClick={(event) => event.stopPropagation()}>
+            <Image
+              src={displayImages[galleryViewerIndex]}
+              alt={`Sandyfeet Resort Gallery Item ${galleryViewerIndex + 1}`}
+              width={1600}
+              height={1000}
+              className="max-h-[82vh] w-auto max-w-full rounded-2xl object-contain"
+            />
+            <button type="button" onClick={() => setGalleryViewerIndex(null)} aria-label="Close gallery viewer" className="absolute right-0 top-0 flex size-10 items-center justify-center rounded-full bg-white/90 text-gray-700 shadow-sm hover:bg-white">
+              <i className="fas fa-times" />
+            </button>
+            {displayImages.length > 1 && (
+              <>
+                <button type="button" onClick={() => setGalleryViewerIndex((current) => (current - 1 + displayImages.length) % displayImages.length)} aria-label="Previous gallery image" className="absolute left-2 top-1/2 flex size-10 -translate-y-1/2 items-center justify-center rounded-full bg-white/90 text-gray-700 shadow-sm hover:bg-white sm:left-4">
+                  <i className="fas fa-chevron-left" />
+                </button>
+                <button type="button" onClick={() => setGalleryViewerIndex((current) => (current + 1) % displayImages.length)} aria-label="Next gallery image" className="absolute right-2 top-1/2 flex size-10 -translate-y-1/2 items-center justify-center rounded-full bg-white/90 text-gray-700 shadow-sm hover:bg-white sm:right-4">
+                  <i className="fas fa-chevron-right" />
+                </button>
+              </>
+            )}
+            <span className="absolute bottom-3 left-1/2 -translate-x-1/2 rounded-full bg-black/55 px-3 py-1 text-xs font-medium text-white">
+              {galleryViewerIndex + 1} / {displayImages.length}
+            </span>
+          </div>
+        </div>
+      )}
       <ChatBot />
       <GuestAuthModal
         isOpen={isAuthModalOpen}

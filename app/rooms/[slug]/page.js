@@ -540,7 +540,8 @@ export default function RoomDetailsPage({ params }) {
       };
       sessionStorage.setItem('roomDetailDraft', JSON.stringify(draft));
     }
-    router.push('/rooms');
+    const cameFromAiRecommendation = sessionStorage.getItem('sandyfeet_ai_recommendation_return') === 'true';
+    router.push(cameFromAiRecommendation ? '/' : '/rooms');
   };
 
   // +++ EXTRACTED BOOKING LOGIC (unchanged except moved) +++
@@ -875,8 +876,8 @@ export default function RoomDetailsPage({ params }) {
             </div>
 
             {/* ─── RIGHT: BOOKING SIDEBAR ─── */}
-            <aside className="lg:col-span-5 lg:sticky lg:top-24">
-              <div className="bg-white rounded-3xl border border-gray-100 shadow-[0_12px_40px_rgb(0,0,0,0.07)] p-4 w-full space-y-3.5">
+            <aside className="lg:col-span-5 lg:sticky lg:top-24 lg:self-start">
+              <div className="max-h-[calc(100dvh-7rem)] w-full space-y-3.5 overflow-y-auto rounded-3xl border border-gray-100 bg-white p-4 shadow-[0_12px_40px_rgb(0,0,0,0.07)] lg:overscroll-contain">
 
                 {/* Header */}
                 <div className="flex items-center justify-between">

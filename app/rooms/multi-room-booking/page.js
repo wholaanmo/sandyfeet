@@ -1,7 +1,7 @@
 // app/rooms/multi-room-booking/page.js
 'use client';
 
-import { Suspense, useState, useEffect } from 'react';
+import { Suspense, useState, useEffect, useMemo } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import GuestLayout from '@/app/guest/layout';
 import { db } from '@/lib/firebase';
@@ -11,29 +11,53 @@ import { uploadImage } from '@/lib/cloudinary';
 import { compressImage } from '@/lib/imageUtils';
 import { sendRoomPendingEmail } from '@/lib/emailService';
 import ChatBot from '@/components/guest/ChatBot';
+import InlineValidIdUpload from '@/components/guest/InlineValidIdUpload';
 import { QRCodeSVG } from 'qrcode.react';
 import { useGuestAuth } from '@/components/guest/GuestAuthContext';
 import { getDisplayValidIdType, hasAccountValidIdVerification, hasAccountMobileNumber } from '@/lib/guestValidId';
 import {
   buildGuestInfoWithAddress,
+  getGuestAddressFromProfile,
   getAddressBlockerMessage,
+  isGuestAddressComplete,
   isProfileAddressComplete,
 } from '@/lib/guestAddress';
+import {
+  getAddressNamesFromCodes,
+  getBarangayOptionsForCity,
+  getCityOptionsForProvince,
+  getProvinceOptions,
+  resolveAddressCodesFromNames,
+} from '@/lib/philippineAddress';
+import { toLocalDateKey } from '@/lib/reservationAvailability';
 import { usePhilippineTimeSync } from '@/hooks/usePhilippineTimeSync';
-import { getPhilippineNowIsoString, getTrustedNowMs } from '@/lib/philippineTime';
+import {
+  getPhilippineNowIsoString,
+  getTrustedNowMs,
+  isPhilippineCalendarDatePast,
+  isPhilippineCalendarDateTooSoon,
+} from '@/lib/philippineTime';
 
 // Storage keys for persisting data
 const MULTI_ROOM_STORAGE_KEY = 'multi_room_booking_data';
 const MULTI_ROOM_STEP_KEY = 'multi_room_booking_step';
 
+const getRoomSummaryImage = (roomType = '') => {
+  const normalized = roomType.toLowerCase();
+  if (normalized.includes('tent')) return '/assets/Tent/Tents.jpg';
+  if (normalized.includes('group')) return '/assets/GroupRoom/GroupRoom2.jpg';
+  if (normalized.includes('ground')) return '/assets/GroundFloor/GroundRoom.jpg';
+  return '/assets/GroupRoom/GroupRoom1.1.jpg';
+};
+
 function MultiRoomBookingPageContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const { user, profile, loading: authLoading } = useGuestAuth();
+  const { user, profile, loading: authLoading, updateGuestProfile } = useGuestAuth();
   const { ready: phTimeReady, nowMs } = usePhilippineTimeSync();
   const [bookingData, setBookingData] = useState(null);
   const [loading, setLoading] = useState(true);
-  const [step, setStep] = useState(2);
+  const [step, setStep] = useState(1);
   const [errors, setErrors] = useState({});
   const [uploading, setUploading] = useState(false);
   const [submitting, setSubmitting] = useState(false);
@@ -60,6 +84,71 @@ function MultiRoomBookingPageContent() {
   const [qrLoading, setQrLoading] = useState(false);
   const [mobileNumberError, setMobileNumberError] = useState('');
   const [validIdError, setValidIdError] = useState('');
+  const [guestDetailsSaving, setGuestDetailsSaving] = useState(false);
+  const [guestDetailsError, setGuestDetailsError] = useState('');
+  const [guestDetails, setGuestDetails] = useState({
+    firstName: '',
+    lastName: '',
+    email: '',
+    mobileNumber: '',
+    address: { houseNumber: '', street: '', barangay: '', city: '', province: '' },
+  });
+  const [addressCodes, setAddressCodes] = useState({ provinceCode: '', cityCode: '', barangayCode: '' });
+  const [calendarMonth, setCalendarMonth] = useState(null);
+  const [draftCheckIn, setDraftCheckIn] = useState(null);
+  const [draftCheckOut, setDraftCheckOut] = useState(null);
+  const [roomDetailsMap, setRoomDetailsMap] = useState({});
+  const [bookedDates, setBookedDates] = useState({});
+  const [blockedSlots, setBlockedSlots] = useState({});
+  const [roomInventoryReady, setRoomInventoryReady] = useState(false);
+  const [bookingsAvailabilityReady, setBookingsAvailabilityReady] = useState(false);
+  const [blockedSlotsReady, setBlockedSlotsReady] = useState(false);
+  const [availabilityError, setAvailabilityError] = useState('');
+
+  const provinceOptions = useMemo(() => getProvinceOptions(), []);
+  const cityOptions = useMemo(() => getCityOptionsForProvince(addressCodes.provinceCode), [addressCodes.provinceCode]);
+  const barangayOptions = useMemo(() => getBarangayOptionsForCity(addressCodes.cityCode), [addressCodes.cityCode]);
+  const selectedRoomIds = useMemo(() => (
+    Array.from(new Set(
+      (bookingData?.roomTypes || [])
+        .filter((room) => Number(bookingData?.selectedRooms?.[room.type] || room.quantity || 0) > 0)
+        .flatMap((room) => room.roomIds || [])
+    ))
+  ), [bookingData?.roomTypes, bookingData?.selectedRooms]);
+
+  useEffect(() => {
+    if (!profile) return;
+    const address = getGuestAddressFromProfile(profile);
+    setGuestDetails({
+      firstName: profile.firstName || '',
+      lastName: profile.lastName || '',
+      email: profile.email || user?.email || '',
+      mobileNumber: profile.mobileNumber || '',
+      address,
+    });
+    setAddressCodes(resolveAddressCodesFromNames(address));
+  }, [profile, user]);
+
+  useEffect(() => {
+    if (!bookingData?.checkIn) return;
+    const checkIn = new Date(bookingData.checkIn);
+    const checkOut = bookingData.checkOut ? new Date(bookingData.checkOut) : null;
+    const trustedNow = phTimeReady ? new Date(nowMs) : null;
+    const currentMonth = trustedNow
+      ? new Date(trustedNow.getFullYear(), trustedNow.getMonth(), 1)
+      : null;
+    const bookingMonth = new Date(checkIn.getFullYear(), checkIn.getMonth(), 1);
+    setCalendarMonth(currentMonth && bookingMonth < currentMonth ? currentMonth : bookingMonth);
+    setDraftCheckIn(checkIn);
+    setDraftCheckOut(checkOut);
+  }, [bookingData?.checkIn, bookingData?.checkOut, phTimeReady, nowMs]);
+
+  useEffect(() => {
+    if (!phTimeReady || !nowMs) return;
+    const trustedNow = new Date(nowMs);
+    const currentMonth = new Date(trustedNow.getFullYear(), trustedNow.getMonth(), 1);
+    setCalendarMonth((current) => current && current < currentMonth ? currentMonth : current);
+  }, [phTimeReady, nowMs]);
 
   const FIXED_CHECK_IN_HOUR = 14;
   const FIXED_CHECK_OUT_HOUR = 12;
@@ -123,7 +212,7 @@ function MultiRoomBookingPageContent() {
       const savedStep = localStorage.getItem(MULTI_ROOM_STEP_KEY);
       if (savedStep && !isNaN(parseInt(savedStep))) {
         const stepNum = parseInt(savedStep);
-        if (stepNum >= 2 && stepNum <= 3) {
+        if (stepNum >= 1 && stepNum <= 5) {
           setStep(stepNum);
         }
       }
@@ -171,6 +260,151 @@ function MultiRoomBookingPageContent() {
     };
   }, [router, searchParams]);
 
+  // Keep this booking calendar in sync with the same active room inventory the
+  // public rooms page uses. A room archived or taken offline by staff is
+  // therefore removed from the calendar's available capacity immediately.
+  useEffect(() => {
+    const roomsRef = collection(db, 'rooms');
+    const roomsQuery = query(roomsRef, where('archived', '!=', true), where('availability', '==', 'available'));
+
+    const unsubscribe = onSnapshot(roomsQuery, (snapshot) => {
+      const details = {};
+      snapshot.forEach((roomSnapshot) => {
+        const roomData = roomSnapshot.data();
+        details[roomData.type] = {
+          ...(details[roomData.type] || {}),
+          [roomSnapshot.id]: roomData,
+        };
+      });
+      setRoomDetailsMap(details);
+      setRoomInventoryReady(true);
+      setBookingsAvailabilityReady(false);
+      setBlockedSlotsReady(false);
+      setAvailabilityError('');
+    }, (error) => {
+      console.error('Error listening to room availability:', error);
+      setRoomInventoryReady(false);
+      setAvailabilityError('Room availability is still loading. Please wait a moment and try again.');
+    });
+
+    return () => unsubscribe();
+  }, []);
+
+  useEffect(() => {
+    if (!roomInventoryReady || selectedRoomIds.length === 0) {
+      setBookedDates({});
+      setBookingsAvailabilityReady(false);
+      return undefined;
+    }
+
+    const bookingsRef = collection(db, 'bookings');
+    const snapshotsByChunk = {};
+    const unsubscribes = [];
+    setBookingsAvailabilityReady(false);
+    const roomIdChunks = [];
+    for (let index = 0; index < selectedRoomIds.length; index += 10) {
+      roomIdChunks.push(selectedRoomIds.slice(index, index + 10));
+    }
+
+    const getRoomCapacity = (roomId) => {
+      for (const roomType of bookingData?.roomTypes || []) {
+        const detail = roomDetailsMap[roomType.type]?.[roomId];
+        if (detail) {
+          return Math.max(0, Number(detail.totalRooms || 1) - Number(detail.maintenanceRooms || 0));
+        }
+      }
+      return 0;
+    };
+
+    const rebuildBookedDates = () => {
+      const booked = {};
+      Object.values(snapshotsByChunk).forEach((snapshot) => {
+        snapshot.forEach((bookingSnapshot) => {
+          const booking = bookingSnapshot.data();
+          const checkIn = booking.checkIn?.toDate ? booking.checkIn.toDate() : new Date(booking.checkIn);
+          const checkOut = booking.checkOut?.toDate ? booking.checkOut.toDate() : new Date(booking.checkOut);
+          if (!booking.roomId || Number.isNaN(checkIn.getTime()) || Number.isNaN(checkOut.getTime()) || checkOut <= checkIn) return;
+
+          const current = new Date(checkIn);
+          while (current < checkOut) {
+            const dateKey = toLocalDateKey(current);
+            const hour = current.getHours();
+            if (!booked[dateKey]) booked[dateKey] = {};
+
+            if (booking.isExclusiveResortBooking) {
+              selectedRoomIds.forEach((roomId) => {
+                if (!booked[dateKey][roomId]) booked[dateKey][roomId] = {};
+                const maxUnits = getRoomCapacity(roomId);
+                booked[dateKey][roomId][hour] = (booked[dateKey][roomId][hour] || 0) + maxUnits;
+              });
+            } else {
+              if (!booked[dateKey][booking.roomId]) booked[dateKey][booking.roomId] = {};
+              booked[dateKey][booking.roomId][hour] = (
+                booked[dateKey][booking.roomId][hour] || 0
+              ) + Number(booking.numberOfRooms || 1);
+            }
+            current.setHours(current.getHours() + 1, 0, 0, 0);
+          }
+        });
+      });
+      setBookedDates(booked);
+    };
+
+    roomIdChunks.forEach((roomIds, index) => {
+      const bookingsQuery = query(
+        bookingsRef,
+        where('roomId', 'in', roomIds),
+        where('status', 'in', ['pending', 'confirmed', 'check-in'])
+      );
+      const unsubscribe = onSnapshot(bookingsQuery, (snapshot) => {
+        snapshotsByChunk[index] = snapshot;
+        rebuildBookedDates();
+        if (Object.keys(snapshotsByChunk).length === roomIdChunks.length) {
+          setBookingsAvailabilityReady(true);
+        }
+      }, (error) => {
+        console.error('Error listening to booking availability:', error);
+        setAvailabilityError('We could not refresh room availability. Please try again.');
+      });
+      unsubscribes.push(unsubscribe);
+    });
+
+    return () => unsubscribes.forEach((unsubscribe) => unsubscribe());
+  }, [bookingData?.roomTypes, roomDetailsMap, roomInventoryReady, selectedRoomIds]);
+
+  useEffect(() => {
+    if (!roomInventoryReady || selectedRoomIds.length === 0) {
+      setBlockedSlots({});
+      setBlockedSlotsReady(false);
+      return undefined;
+    }
+
+    setBlockedSlotsReady(false);
+    const unsubscribe = onSnapshot(collection(db, 'unavailableSlots'), (snapshot) => {
+      const blocks = {};
+      snapshot.forEach((slotSnapshot) => {
+        const slot = slotSnapshot.data();
+        if (!selectedRoomIds.includes(slot.roomId)) return;
+        const dateKey = slot.date;
+        if (!dateKey) return;
+        if (!blocks[dateKey]) blocks[dateKey] = {};
+        if (!blocks[dateKey][slot.roomId]) blocks[dateKey][slot.roomId] = {};
+        for (let hour = Number(slot.startHour || 0); hour < Number(slot.endHour || 0); hour += 1) {
+          blocks[dateKey][slot.roomId][hour] = (
+            blocks[dateKey][slot.roomId][hour] || 0
+          ) + Number(slot.unitsBlocked || 1);
+        }
+      });
+      setBlockedSlots(blocks);
+      setBlockedSlotsReady(true);
+    }, (error) => {
+      console.error('Error listening to blocked room slots:', error);
+      setAvailabilityError('We could not refresh room availability. Please try again.');
+    });
+
+    return () => unsubscribe();
+  }, [roomInventoryReady, selectedRoomIds]);
+
   // Save booking data to localStorage whenever it changes
   useEffect(() => {
     if (!bookingData) return;
@@ -200,9 +434,9 @@ function MultiRoomBookingPageContent() {
     }
   }, [step]);
 
-  // Clear persisted data when booking is completed (step 3)
+  // Clear persisted data when booking is completed (step 5)
   useEffect(() => {
-    if (step === 3) {
+    if (step === 5) {
       try {
         localStorage.removeItem(MULTI_ROOM_STORAGE_KEY);
         localStorage.removeItem(MULTI_ROOM_STEP_KEY);
@@ -336,7 +570,254 @@ function MultiRoomBookingPageContent() {
   };
 
   const handleNextStep = () => {
+    if (step === 1) {
+      if (!draftCheckIn || !draftCheckOut) {
+        setModalNotification({ message: 'Select an available check-in date and check-out date before continuing.', type: 'error' });
+        return;
+      }
+      if (isBookingRangeUnavailable(draftCheckIn, draftCheckOut)) {
+        setModalNotification({ message: 'Those dates are no longer available. Please choose another stay.', type: 'error' });
+        return;
+      }
+    }
     setStep(step + 1);
+  };
+
+  const handleAddressSelect = (field, value) => {
+    if (field === 'province') {
+      const nextCodes = { provinceCode: value, cityCode: '', barangayCode: '' };
+      const names = getAddressNamesFromCodes(nextCodes);
+      setAddressCodes(nextCodes);
+      setGuestDetails((prev) => ({
+        ...prev,
+        address: { ...prev.address, province: names.province, city: '', barangay: '' },
+      }));
+      return;
+    }
+    if (field === 'city') {
+      const nextCodes = { provinceCode: addressCodes.provinceCode, cityCode: value, barangayCode: '' };
+      const names = getAddressNamesFromCodes(nextCodes);
+      setAddressCodes(nextCodes);
+      setGuestDetails((prev) => ({
+        ...prev,
+        address: { ...prev.address, province: names.province, city: names.city, barangay: '' },
+      }));
+      return;
+    }
+    const nextCodes = { ...addressCodes, barangayCode: value };
+    const names = getAddressNamesFromCodes(nextCodes);
+    setAddressCodes(nextCodes);
+    setGuestDetails((prev) => ({
+      ...prev,
+      address: { ...prev.address, province: names.province, city: names.city, barangay: names.barangay },
+    }));
+  };
+
+  const handleGuestDetailsContinue = async () => {
+    const { firstName, lastName, email, mobileNumber, address } = guestDetails;
+    if (!firstName.trim() || !lastName.trim() || !email.trim() || !mobileNumber.trim()) {
+      setGuestDetailsError('Complete your contact number before continuing.');
+      return;
+    }
+    if (!isGuestAddressComplete(address)) {
+      setGuestDetailsError('Complete your province, city/municipality, barangay, and house or unit number before continuing.');
+      return;
+    }
+    setGuestDetailsSaving(true);
+    setGuestDetailsError('');
+    try {
+      await updateGuestProfile({
+        firstName: firstName.trim(),
+        lastName: lastName.trim(),
+        mobileNumber: mobileNumber.trim(),
+        address: {
+          houseNumber: address.houseNumber.trim(),
+          street: address.street.trim(),
+          barangay: address.barangay.trim(),
+          city: address.city.trim(),
+          province: address.province.trim(),
+        },
+      });
+      setStep(3);
+    } catch (error) {
+      setGuestDetailsError('We could not save your details. Please try again.');
+    } finally {
+      setGuestDetailsSaving(false);
+    }
+  };
+
+  const getAvailabilityRoomTypes = () => (
+    (bookingData?.roomTypes || []).filter((room) => (
+      Number(bookingData?.selectedRooms?.[room.type] || room.quantity || 0) > 0
+    ))
+  );
+
+  const getMaxRoomsForType = (roomType, roomId) => {
+    const roomDetail = roomDetailsMap[roomType?.type]?.[roomId];
+    if (!roomDetail) return 0;
+    return Math.max(0, Number(roomDetail.totalRooms || 1) - Number(roomDetail.maintenanceRooms || 0));
+  };
+
+  const isBookingDatePast = (date) => {
+    if (!phTimeReady) return true;
+    return isPhilippineCalendarDatePast(date, nowMs);
+  };
+
+  const isBookingDateTooSoon = (date) => {
+    if (!phTimeReady) return true;
+    return isPhilippineCalendarDateTooSoon(date, 2, nowMs);
+  };
+
+  const isBookingDateFullyBooked = (date) => {
+    if (!date || !roomInventoryReady || !bookingsAvailabilityReady || !blockedSlotsReady) return true;
+    const roomTypes = getAvailabilityRoomTypes();
+    if (roomTypes.length === 0) return true;
+    const dateKey = toLocalDateKey(date);
+    const checkInHour = Number(bookingData?.checkInHour || FIXED_CHECK_IN_HOUR);
+
+    return roomTypes.some((roomType) => {
+      const quantity = Number(bookingData?.selectedRooms?.[roomType.type] || roomType.quantity || 0);
+      let availableUnits = 0;
+
+      (roomType.roomIds || []).forEach((roomId) => {
+        const maxRooms = getMaxRoomsForType(roomType, roomId);
+        if (maxRooms <= 0) return;
+        let minimumAvailable = maxRooms;
+        for (let hour = checkInHour; hour < 24; hour += 1) {
+          const booked = bookedDates[dateKey]?.[roomId]?.[hour] || 0;
+          const blocked = blockedSlots[dateKey]?.[roomId]?.[hour] || 0;
+          minimumAvailable = Math.min(minimumAvailable, Math.max(0, maxRooms - booked - blocked));
+          if (minimumAvailable <= 0) break;
+        }
+        availableUnits += minimumAvailable;
+      });
+
+      return availableUnits < quantity;
+    });
+  };
+
+  const isBookingDateFullyBlockedByAdmin = (date) => {
+    if (!date || !roomInventoryReady || !bookingsAvailabilityReady || !blockedSlotsReady) return true;
+    const roomTypes = getAvailabilityRoomTypes();
+    if (roomTypes.length === 0) return true;
+    const dateKey = toLocalDateKey(date);
+    const checkInHour = Number(bookingData?.checkInHour || FIXED_CHECK_IN_HOUR);
+
+    return roomTypes.some((roomType) => {
+      let totalUnits = 0;
+      let blockedAtMorning = 0;
+      let blockedAtCheckIn = 0;
+      (roomType.roomIds || []).forEach((roomId) => {
+        const maxRooms = getMaxRoomsForType(roomType, roomId);
+        if (maxRooms <= 0) return;
+        totalUnits += maxRooms;
+        blockedAtMorning += Math.min(maxRooms, blockedSlots[dateKey]?.[roomId]?.[0] || 0);
+        blockedAtCheckIn += Math.min(maxRooms, blockedSlots[dateKey]?.[roomId]?.[checkInHour] || 0);
+      });
+      return totalUnits > 0 && blockedAtMorning >= totalUnits && blockedAtCheckIn >= totalUnits;
+    });
+  };
+
+  const isBookingDateSelectable = (date) => {
+    if (!date || isBookingDatePast(date) || isBookingDateTooSoon(date)) return false;
+    if (isBookingDateFullyBooked(date)) return false;
+    if (isBookingDateFullyBlockedByAdmin(date)) return false;
+    return true;
+  };
+
+  const isBookingRangeUnavailable = (start, end) => {
+    if (!start || !end) return true;
+    const current = new Date(start.getFullYear(), start.getMonth(), start.getDate());
+    const lastNight = new Date(end.getFullYear(), end.getMonth(), end.getDate());
+    while (current < lastNight) {
+      if (!isBookingDateSelectable(current)) return true;
+      current.setDate(current.getDate() + 1);
+    }
+    return false;
+  };
+
+  const isCalendarDateDisabled = (date) => {
+    if (!date) return true;
+    const selectingCheckout = draftCheckIn && !draftCheckOut && date > draftCheckIn;
+    if (selectingCheckout) return isBookingRangeUnavailable(draftCheckIn, date);
+    return !isBookingDateSelectable(date);
+  };
+
+  const getCalendarDays = () => {
+    if (!calendarMonth) return [];
+    const firstDay = new Date(calendarMonth.getFullYear(), calendarMonth.getMonth(), 1);
+    const daysInMonth = new Date(calendarMonth.getFullYear(), calendarMonth.getMonth() + 1, 0).getDate();
+    const leadingDays = firstDay.getDay();
+    return Array.from({ length: leadingDays + daysInMonth }, (_, index) => (
+      index < leadingDays ? null : new Date(calendarMonth.getFullYear(), calendarMonth.getMonth(), index - leadingDays + 1)
+    ));
+  };
+
+  const handleBookingDateSelect = (date) => {
+    if (!date) return;
+    if (isCalendarDateDisabled(date)) return;
+    const selected = new Date(date.getFullYear(), date.getMonth(), date.getDate());
+    if (!draftCheckIn || draftCheckOut) {
+      setDraftCheckIn(selected);
+      setDraftCheckOut(null);
+      return;
+    }
+    if (selected <= draftCheckIn) {
+      setDraftCheckIn(selected);
+      setDraftCheckOut(null);
+      return;
+    }
+    if (isBookingRangeUnavailable(draftCheckIn, selected)) return;
+    const nextCheckOut = new Date(selected);
+    const nights = Math.max(1, Math.round((nextCheckOut - draftCheckIn) / 86400000));
+    setDraftCheckOut(nextCheckOut);
+    setBookingData((prev) => {
+      const nextTotal = prev.isExclusiveResortBooking
+        ? Number(prev.exclusivePackagePrice || totalPrice)
+        : (prev.roomTypes || []).reduce((sum, room) => {
+          const quantity = Number(prev.selectedRooms?.[room.type] || room.quantity || 1);
+          const base = Number(room.price || 0) * quantity * nights;
+          const extra = Number(room.extraGuests || 0) * Number(room.additionalGuestCharge || 0) * nights;
+          return sum + base + extra;
+        }, 0);
+      setTotalPrice(nextTotal);
+      setDownPaymentAmount(nextTotal * 0.5);
+      return {
+        ...prev,
+      checkIn: draftCheckIn,
+      checkOut: nextCheckOut,
+      checkInDate: draftCheckIn.toISOString(),
+      checkOutDate: nextCheckOut.toISOString(),
+      numberOfNights: nights,
+      nights,
+      };
+    });
+  };
+
+  const updateBookingGuestCount = (field, value) => {
+    const count = Math.max(field === 'adults' ? 1 : 0, Number(value) || 0);
+    setBookingData((prev) => {
+      const next = { ...prev, totalGuests: 0 };
+      if (prev.isExclusiveResortBooking) {
+        next.exclusiveAdults = field === 'adults' ? count : Number(prev.exclusiveAdults || 0);
+        next.exclusiveKids = field === 'kids' ? count : Number(prev.exclusiveKids || 0);
+        next.totalGuests = next.exclusiveAdults + next.exclusiveKids;
+        return next;
+      }
+      const firstType = prev.roomTypes?.[0]?.type;
+      const guestsByType = { ...(prev.perRoomGuests || {}) };
+      const firstRoomGuests = [...(guestsByType[firstType] || [{ adults: 1, kids: 0 }])];
+      firstRoomGuests[0] = { ...firstRoomGuests[0], [field]: count };
+      guestsByType[firstType] = firstRoomGuests;
+      const adults = firstRoomGuests.reduce((sum, guest) => sum + Number(guest.adults || 0), 0);
+      const kids = firstRoomGuests.reduce((sum, guest) => sum + Number(guest.kids || 0), 0);
+      next.perRoomGuests = guestsByType;
+      next.adultsPerType = { ...(prev.adultsPerType || {}), [firstType]: adults };
+      next.kidsPerType = { ...(prev.kidsPerType || {}), [firstType]: kids };
+      next.totalGuestsPerType = { ...(prev.totalGuestsPerType || {}), [firstType]: adults + kids };
+      next.totalGuests = adults + kids;
+      return next;
+    });
   };
 
   const toStoragePayload = (data) => ({
@@ -346,7 +827,7 @@ function MultiRoomBookingPageContent() {
   });
 
   const handlePreviousStep = () => {
-    if (step === 2) {
+    if (step === 1) {
       if (bookingData) {
         const storagePayload = toStoragePayload(bookingData);
         sessionStorage.setItem('multiRoomBooking', JSON.stringify(storagePayload));
@@ -482,7 +963,7 @@ function MultiRoomBookingPageContent() {
       setMobileNumberError('');
     }
     if (!hasAccountValidIdVerification(profile)) {
-      setValidIdError('A valid ID photo and selfie holding the same ID are required. Please upload both in your account profile.');
+      setValidIdError('A valid ID photo and selfie holding the same ID are required. Complete the Valid ID step above.');
       valid = false;
     } else {
       setValidIdError('');
@@ -595,6 +1076,7 @@ if (allRoomIds.length <= 1) {
     balancePaymentMethod: balancePaymentMethod,
     paymentProofUrl: bookingData.paymentProofUrl,
     validIdType: accountValidIdType || null,
+    validIdName: profile?.validIdName || null,
     validIdUrl: accountValidIdUrl || null,
     validIdSelfieUrl: accountValidIdSelfieUrl || null,
     createdAt: serverTimestamp(),
@@ -674,6 +1156,7 @@ if (allRoomIds.length <= 1) {
               balancePaymentMethod: balancePaymentMethod,
               paymentProofUrl: bookingData.paymentProofUrl,
               validIdType: accountValidIdType || null,
+              validIdName: profile?.validIdName || null,
               validIdUrl: accountValidIdUrl || null,
               validIdSelfieUrl: accountValidIdSelfieUrl || null,
               createdAt: serverTimestamp(),
@@ -748,7 +1231,7 @@ if (allRoomIds.length <= 1) {
 
       // Mark as confirmed and go to confirmation step (step 3)
       setIsConfirmed(true);
-      setStep(3);
+      setStep(5);
     } catch (error) {
       console.error('Error creating booking:', error);
       setModalNotification({ message: 'Failed to create booking. Please try again.', type: 'error' });
@@ -804,19 +1287,16 @@ if (allRoomIds.length <= 1) {
     return bookingData.roomTypes.filter(room => (bookingData.selectedRooms?.[room.type] || 0) > 0);
   };
 
+  const minimumCalendarMonth = phTimeReady && nowMs
+    ? new Date(new Date(nowMs).getFullYear(), new Date(nowMs).getMonth(), 1)
+    : null;
+
   if (loading || authLoading) {
     return (
       <GuestLayout>
         <div className="min-h-screen bg-[#F8FCFF] pt-32 pb-14 flex items-center justify-center">
           <i className="fas fa-spinner fa-spin text-3xl text-blue-500"></i>
         </div>
-        <style jsx>{`
-        @keyframes fadeIn {
-          from { opacity: 0; transform: translateY(-5px); }
-          to { opacity: 1; transform: translateY(0); }
-        }
-        .animate-fadeIn { animation: fadeIn 0.3s ease-out; }
-      `}</style>
         <ChatBot />
       </GuestLayout>
     );
@@ -855,6 +1335,12 @@ if (allRoomIds.length <= 1) {
   const exclusiveKids = Math.max(0, Number(bookingData.exclusiveKids || 0));
   const exclusiveTotalGuests = Math.max(0, Number(bookingData.totalGuests || 0));
   const tentCount = Math.max(0, Number(bookingData.tentCount || 0));
+  const summaryRoomType = isExclusiveBooking ? 'Entire Resort Package' : (getFilteredRoomTypes()[0]?.type || 'Selected room');
+  const summaryRoomImage = getRoomSummaryImage(summaryRoomType);
+  const summaryGuestCount = isExclusiveBooking
+    ? exclusiveTotalGuests
+    : Number(bookingData.totalGuests || Object.values(bookingData.totalGuestsPerType || {}).reduce((sum, value) => sum + Number(value || 0), 0));
+  const summaryNightlyRate = isExclusiveBooking ? (totalPrice / stayNights) : derivedNightlyRate;
 
   // Get user display name
   const userDisplayName = profile ? `${profile.firstName || ''} ${profile.lastName || ''}`.trim() : 'Guest';
@@ -884,7 +1370,7 @@ if (allRoomIds.length <= 1) {
     confirmBookingBlockers.push('Add a mobile number in your account profile.');
   }
   if (!hasAccountValidIdVerification(profile)) {
-    confirmBookingBlockers.push('Upload both your valid ID photo and selfie holding the same ID in your account profile.');
+    confirmBookingBlockers.push('Complete the Valid ID step with both required photos.');
   }
   if (!['digital', 'cash'].includes(balancePaymentMethod)) {
     confirmBookingBlockers.push('Select how you will pay your remaining balance at check-in (Digital or Cash).');
@@ -900,55 +1386,50 @@ if (allRoomIds.length <= 1) {
     <GuestLayout>
       <div className="min-h-screen bg-[#F8FCFF] pt-32 pb-16">
         <div className="max-w-6xl w-full mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="mb-6 space-y-3">
-            <button
-              onClick={() => router.push('/rooms')}
-              className="inline-flex items-center gap-2 px-4 py-2 rounded-xl border border-blue-200 bg-white text-blue-700 text-xs font-semibold uppercase tracking-wider hover:bg-blue-50 hover:border-blue-300 transition-colors"
-            >
-              <i className="fas fa-arrow-left text-[10px]"></i>
-              Back to Room Selection
-            </button>
-
-            <div>
-              <h1 className="text-2xl md:text-3xl font-playfair font-extrabold text-gray-900 tracking-tight">Complete Your Reservation</h1>
-              <p className="text-sm text-gray-500 mt-1">Review your room selection and finalize your down payment.</p>
-            </div>
-          </div>
-
           <div className="flex flex-col lg:flex-row gap-6 items-start">
             {/* Left Column - Booking Form */}
-            <div className="lg:w-[66%] w-full">
-              {/* Progress Steps */}
-              <div className="mb-6 bg-white rounded-2xl border border-gray-200 shadow-sm p-4 sm:p-6 pb-2">
-                <div className="flex justify-between items-start relative w-full mb-4">
-                  <div className="absolute top-5 left-0 w-full h-[2px] flex px-10 z-0">
-                    <div className="w-1/3 h-full bg-blue-500 transition-all duration-300"></div>
-                    <div className={`w-1/3 h-full transition-all duration-300 ${step >= 2 ? 'bg-blue-500' : 'bg-gray-200'}`}></div>
-                    <div className={`w-1/3 h-full transition-all duration-300 ${step >= 3 ? 'bg-blue-500' : 'bg-gray-200'}`}></div>
+            <div className="w-full lg:w-[62%]">
+              {/* Five-step progress */}
+              <div className="mb-4 rounded-2xl border border-gray-200 bg-white px-3 py-3 shadow-sm sm:px-4 sm:py-3">
+                <div className="mb-3 flex items-center justify-between gap-3">
+                  <div className="flex min-w-0 items-start gap-2">
+                    <button type="button" onClick={() => router.push('/rooms')} aria-label="Back to room selection" title="Back to room selection" className="mt-0.5 flex size-7 shrink-0 items-center justify-center rounded-full text-gray-400 transition-colors hover:bg-gray-50 hover:text-gray-700">
+                      <i className="fas fa-arrow-left text-xs" />
+                    </button>
+                    <div>
+                    <p className="text-[10px] font-bold uppercase tracking-[0.16em] text-ocean-mid">SandyFeet Reserve</p>
+                    <p className="mt-0.5 text-sm font-semibold text-textPrimary sm:text-base">Complete your reservation</p>
+                    </div>
                   </div>
-
+                  <div className="flex items-center gap-2">
+                    <span className="rounded-full bg-ocean-ice px-2.5 py-1 text-[11px] font-semibold text-ocean-mid">Step {Math.min(step, 5)} / 5</span>
+                  </div>
+                </div>
+                <div className="grid grid-cols-5 gap-1.5 sm:gap-2">
                   {[
-                    { id: 1, label: 'Select Rooms' },
-                    { id: 2, label: 'Payment' },
-                    { id: 3, label: 'Confirmation' }
+                    { id: 1, label: 'Dates & guests' },
+                    { id: 2, label: 'Your details' },
+                    { id: 3, label: 'Valid ID' },
+                    { id: 4, label: 'Reservation fee' },
+                    { id: 5, label: 'Review' }
                   ].map((item) => {
                     const isCompleted = item.id < step;
                     const isActive = item.id === step;
                     const isUpcoming = item.id > step;
-                    const showCheckIcon = isCompleted || (item.id === 3 && step === 3);
+                    const showCheckIcon = isCompleted;
 
                     return (
-                      <div key={item.id} className="flex flex-col items-center relative z-10 w-1/3">
-                        <div className={`w-10 h-10 rounded-full flex items-center justify-center text-sm font-bold border-2 transition-colors ${isActive
+                      <div key={item.id} className="relative z-10 flex min-w-0 flex-col items-center">
+                        <div className={`flex size-7 items-center justify-center rounded-full border-2 text-[10px] font-bold transition-colors sm:size-8 sm:text-xs ${isActive
                             ? 'bg-blue-600 border-blue-600 text-white shadow-md shadow-blue-200'
-                            : showCheckIcon
-                              ? 'bg-blue-500 border-blue-500 text-white'
-                              : 'bg-white border-gray-300 text-gray-400'
+                              : showCheckIcon
+                                ? 'bg-blue-500 border-blue-500 text-white'
+                                : 'bg-white border-gray-300 text-gray-400'
                           }`}>
                           {showCheckIcon ? <i className="fas fa-check text-xs"></i> : item.id}
                         </div>
 
-                        <div className={`text-center text-[10px] sm:text-[11px] mt-2 font-bold uppercase tracking-wider w-full ${isActive ? 'text-blue-700' : isUpcoming ? 'text-gray-400' : 'text-gray-600'
+                        <div className={`mt-1.5 w-full truncate text-center text-[8px] font-semibold sm:text-[10px] ${isActive ? 'text-blue-700' : isUpcoming ? 'text-gray-400' : 'text-gray-600'
                           }`}>
                           {item.label}
                         </div>
@@ -958,13 +1439,96 @@ if (allRoomIds.length <= 1) {
                 </div>
               </div>
 
-              {/* Step 2: Payment */}
-              {step === 2 && (
-                <div className="bg-white rounded-2xl border border-gray-200 shadow-[0_10px_30px_rgb(0,0,0,0.05)] p-5 sm:p-6">
-                  <h2 className="text-xl md:text-2xl font-playfair font-bold text-gray-900 mb-4 sm:mb-6">Payment</h2>
+              {/* Step 1: Dates & guests */}
+              {step === 1 && (
+                <div className="rounded-2xl border border-gray-200 bg-white p-5 shadow-sm sm:p-7">
+                  <div className="mb-6"><p className="text-xs font-semibold uppercase tracking-[0.16em] text-ocean-mid">Your stay</p><h2 className="mt-2 text-2xl font-bold text-textPrimary">Choose your nights</h2><p className="mt-2 text-sm leading-6 text-textSecondary">Select an arrival date, then your check-out date. You can adjust your guests before continuing.</p></div>
+                  <div className="grid gap-6 lg:grid-cols-[1.1fr_0.9fr]">
+                    <div>
+                      <div className="mb-4 flex items-center justify-between"><button type="button" disabled={!calendarMonth || !minimumCalendarMonth || calendarMonth <= minimumCalendarMonth} onClick={() => calendarMonth && setCalendarMonth(new Date(calendarMonth.getFullYear(), calendarMonth.getMonth() - 1, 1))} aria-label="Previous month" className="flex size-9 items-center justify-center rounded-xl border border-gray-200 text-textSecondary transition-colors hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-35"><i className="fas fa-chevron-left text-xs" /></button><p className="font-semibold text-textPrimary">{calendarMonth?.toLocaleString('en-US', { month: 'long', year: 'numeric' }) || 'Choose dates'}</p><button type="button" onClick={() => calendarMonth && setCalendarMonth(new Date(calendarMonth.getFullYear(), calendarMonth.getMonth() + 1, 1))} aria-label="Next month" className="flex size-9 items-center justify-center rounded-xl border border-gray-200 text-textSecondary transition-colors hover:bg-gray-50"><i className="fas fa-chevron-right text-xs" /></button></div>
+                      <div className="grid grid-cols-7 gap-1 text-center text-[10px] font-semibold uppercase text-textSecondary">{['Su', 'Mo', 'Tu', 'We', 'Th', 'Fr', 'Sa'].map((day) => <span key={day} className="py-1">{day}</span>)}{getCalendarDays().map((date, index) => { const selectedStart = date && draftCheckIn && date.toDateString() === draftCheckIn.toDateString(); const selectedEnd = date && draftCheckOut && date.toDateString() === draftCheckOut.toDateString(); const inRange = date && draftCheckIn && draftCheckOut && date > draftCheckIn && date < draftCheckOut; const dateDisabled = isCalendarDateDisabled(date); return <button key={date ? date.toISOString() : `empty-${index}`} type="button" disabled={dateDisabled} onClick={() => handleBookingDateSelect(date)} aria-label={date ? `${date.toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })}${dateDisabled ? ', unavailable' : ''}` : undefined} className={`min-h-9 rounded-lg text-xs transition-colors ${selectedStart || selectedEnd ? 'bg-ocean-mid font-bold text-white' : inRange ? 'bg-ocean-ice text-textPrimary' : dateDisabled ? 'cursor-not-allowed text-gray-300 line-through' : 'text-textPrimary hover:bg-ocean-ice'} ${!date ? 'cursor-default' : ''}`}>{date?.getDate() || ''}</button>; })}</div>
+                      <div className="mt-4 rounded-xl bg-ocean-ice/60 px-3 py-2 text-xs text-textSecondary">{draftCheckIn && draftCheckOut ? `${formatDateOnly(draftCheckIn)} – ${formatDateOnly(draftCheckOut)}` : 'Tap an arrival date, then your check-out date.'}</div>
+                      {availabilityError && <p className="mt-2 text-xs text-amber-700">{availabilityError}</p>}
+                    </div>
+                    <div className="space-y-4">
+                      <label className="block"><span className="mb-1.5 block text-sm font-semibold text-textPrimary">Adults</span><input type="number" min="1" value={isExclusiveBooking ? exclusiveAdults : Number(bookingData.adultsPerType?.[getFilteredRoomTypes()[0]?.type] || 1)} onChange={(event) => updateBookingGuestCount('adults', event.target.value)} className="w-full rounded-xl border border-gray-200 px-4 py-3 text-sm text-textPrimary outline-none focus:border-ocean-mid focus:ring-2 focus:ring-ocean-mid/20" /></label>
+                      <label className="block"><span className="mb-1.5 block text-sm font-semibold text-textPrimary">Children</span><input type="number" min="0" value={isExclusiveBooking ? exclusiveKids : Number(bookingData.kidsPerType?.[getFilteredRoomTypes()[0]?.type] || 0)} onChange={(event) => updateBookingGuestCount('kids', event.target.value)} className="w-full rounded-xl border border-gray-200 px-4 py-3 text-sm text-textPrimary outline-none focus:border-ocean-mid focus:ring-2 focus:ring-ocean-mid/20" /><span className="mt-1 block text-xs text-textSecondary">Under 7 stay free</span></label>
+                      <div className="rounded-xl bg-gray-50 px-4 py-3"><p className="font-semibold text-textPrimary">{draftCheckIn && draftCheckOut ? `${Math.max(1, Math.round((draftCheckOut - draftCheckIn) / 86400000))} nights` : 'No dates yet'}</p><p className="mt-1 text-xs text-textSecondary">{summaryGuestCount} guests · {summaryRoomType}</p></div>
+                    </div>
+                  </div>
+                  <div className="hidden grid gap-3 sm:grid-cols-3">
+                    {['/assets/GroupRoom/GroupRoom1.1.jpg', '/assets/GroupRoom/GroupRoom1.2.jpg', '/assets/GroupRoom/GroupRoom2.jpg'].map((src, index) => <div key={src} className={`overflow-hidden rounded-2xl ${index === 0 ? 'sm:col-span-2 sm:row-span-2' : ''}`}><img src={src} alt="SandyFeet accommodation" className={`w-full object-cover ${index === 0 ? 'h-64 sm:h-full' : 'h-32'}`} /></div>)}
+                  </div>
+                  <div className="hidden mt-5 grid gap-4 sm:grid-cols-2">
+                    <div className="rounded-2xl border border-gray-200 bg-gray-50 p-4"><p className="text-xs font-semibold uppercase tracking-[0.14em] text-textSecondary">Check-in</p><p className="mt-2 text-lg font-bold text-textPrimary">{formatDateOnly(bookingData.checkIn)}</p><p className="mt-1 text-xs text-textSecondary">{FIXED_CHECK_IN_DISPLAY}</p></div>
+                    <div className="rounded-2xl border border-gray-200 bg-gray-50 p-4"><p className="text-xs font-semibold uppercase tracking-[0.14em] text-textSecondary">Check-out</p><p className="mt-2 text-lg font-bold text-textPrimary">{formatDateOnly(bookingData.checkOut)}</p><p className="mt-1 text-xs text-textSecondary">{FIXED_CHECK_OUT_DISPLAY} · {stayNights} night{stayNights === 1 ? '' : 's'}</p></div>
+                  </div>
+                  <div className="mt-4 rounded-2xl border border-ocean-light/20 bg-ocean-ice/40 p-4"><p className="text-xs font-semibold uppercase tracking-[0.14em] text-textSecondary">Selected rooms</p><div className="mt-2 space-y-2">{getFilteredRoomTypes().map((roomType) => <div key={roomType.type} className="flex items-center justify-between gap-3 text-sm"><span className="font-semibold text-textPrimary">{bookingData.selectedRooms?.[roomType.type] || roomType.quantity} × {roomType.type}</span><span className="text-textSecondary">{roomType.totalGuests || bookingData.totalGuestsPerType?.[roomType.type] || 1} guest{(roomType.totalGuests || bookingData.totalGuestsPerType?.[roomType.type] || 1) === 1 ? '' : 's'}</span></div>)}</div></div>
+                  <label className="mt-5 block"><span className="mb-1.5 block text-sm font-semibold text-textPrimary">Special request <span className="font-normal text-textSecondary">(optional)</span></span><textarea value={bookingData.specialRequest || ''} onChange={(e) => setBookingData((prev) => ({ ...prev, specialRequest: e.target.value }))} rows={4} placeholder="Tell us about accessibility needs, celebrations, or room preferences." className="w-full resize-none rounded-xl border border-gray-200 px-4 py-3 text-sm text-textPrimary outline-none focus:border-ocean-mid focus:ring-2 focus:ring-ocean-mid/20" /></label>
+                  <div className="mt-6 flex flex-col-reverse gap-3 sm:flex-row"><button onClick={handlePreviousStep} className="flex-1 rounded-xl border border-gray-200 px-4 py-3 text-sm font-semibold text-textSecondary hover:bg-gray-50">Back to room selection</button><button onClick={handleNextStep} className="flex-1 rounded-xl bg-ocean-mid px-4 py-3 text-sm font-semibold text-white shadow-sm hover:bg-ocean-deep">Continue to your details<i className="fas fa-arrow-right ml-2" /></button></div>
+                </div>
+              )}
 
+              {/* Step 2: Your details */}
+              {step === 2 && (
+                <div className="rounded-2xl border border-gray-200 bg-white p-5 shadow-sm sm:p-7">
+                  <div className="mb-6">
+                    <p className="text-xs font-semibold uppercase tracking-[0.16em] text-ocean-mid">Your details</p>
+                    <h2 className="mt-2 text-2xl font-bold text-textPrimary">Tell us who is booking</h2>
+                    <p className="mt-2 text-sm leading-6 text-textSecondary">We filled these in from your SandyFeet account. Check the address and add anything missing.</p>
+                  </div>
+
+                  <div className="grid gap-4 sm:grid-cols-2">
+                    <label className="block">
+                      <span className="mb-1.5 block text-xs font-semibold text-textSecondary">Full name</span>
+                      <input value={`${guestDetails.firstName} ${guestDetails.lastName}`.trim()} readOnly className="w-full rounded-xl border border-gray-200 bg-gray-50 px-4 py-3 text-sm font-semibold text-textPrimary" />
+                      <span className="mt-1 block text-[11px] text-textSecondary">From your account profile</span>
+                    </label>
+                    <label className="block">
+                      <span className="mb-1.5 block text-xs font-semibold text-textSecondary">Email address</span>
+                      <input value={guestDetails.email} readOnly type="email" className="w-full rounded-xl border border-gray-200 bg-gray-50 px-4 py-3 text-sm text-textPrimary" />
+                      <span className="mt-1 block text-[11px] text-textSecondary">Booking updates will be sent here</span>
+                    </label>
+                    <label className="block sm:col-span-2">
+                      <span className="mb-1.5 block text-xs font-semibold text-textSecondary">Mobile number</span>
+                      <input value={guestDetails.mobileNumber} onChange={(e) => setGuestDetails((prev) => ({ ...prev, mobileNumber: e.target.value.replace(/\D/g, '').slice(0, 11) }))} inputMode="numeric" placeholder="09XXXXXXXXX" className="w-full rounded-xl border border-gray-200 bg-white px-4 py-3 text-sm text-textPrimary outline-none focus:border-ocean-mid focus:ring-2 focus:ring-ocean-mid/20" />
+                    </label>
+                  </div>
+
+                  <div className="mt-6 rounded-2xl border border-ocean-light/20 bg-ocean-ice/40 p-4 sm:p-5">
+                    <div className="mb-4 flex items-start gap-3">
+                      <span className="flex size-9 shrink-0 items-center justify-center rounded-xl bg-white text-ocean-mid"><i className="fas fa-location-dot" /></span>
+                      <div><h3 className="text-sm font-semibold text-textPrimary">Home address</h3><p className="mt-1 text-xs leading-5 text-textSecondary">Select your province, city/municipality, and barangay so staff can verify your booking faster.</p></div>
+                    </div>
+                    <div className="grid gap-4 sm:grid-cols-3">
+                      <label className="block"><span className="mb-1.5 block text-xs font-semibold text-textSecondary">Province <span className="text-red-500">*</span></span><select required aria-required="true" value={addressCodes.provinceCode} onChange={(e) => handleAddressSelect('province', e.target.value)} className="w-full rounded-xl border border-gray-200 bg-white px-3 py-3 text-sm text-textPrimary"><option value="">Select province</option>{provinceOptions.map((option) => <option key={option.code} value={option.code}>{option.name}</option>)}</select></label>
+                      <label className="block"><span className="mb-1.5 block text-xs font-semibold text-textSecondary">City / municipality <span className="text-red-500">*</span></span><select required aria-required="true" value={addressCodes.cityCode} onChange={(e) => handleAddressSelect('city', e.target.value)} disabled={!addressCodes.provinceCode} className="w-full rounded-xl border border-gray-200 bg-white px-3 py-3 text-sm text-textPrimary disabled:cursor-not-allowed disabled:bg-gray-100"><option value="">Select city</option>{cityOptions.map((option) => <option key={option.code} value={option.code}>{option.name}</option>)}</select></label>
+                      <label className="block"><span className="mb-1.5 block text-xs font-semibold text-textSecondary">Barangay <span className="text-red-500">*</span></span><select required aria-required="true" value={addressCodes.barangayCode} onChange={(e) => handleAddressSelect('barangay', e.target.value)} disabled={!addressCodes.cityCode} className="w-full rounded-xl border border-gray-200 bg-white px-3 py-3 text-sm text-textPrimary disabled:cursor-not-allowed disabled:bg-gray-100"><option value="">Select barangay</option>{barangayOptions.map((option) => <option key={option.code} value={option.code}>{option.name}</option>)}</select></label>
+                    </div>
+                    <div className="mt-4 grid gap-4 sm:grid-cols-2">
+                      <label className="block"><span className="mb-1.5 block text-xs font-semibold text-textSecondary">House / unit number <span className="text-red-500">*</span></span><input required aria-required="true" value={guestDetails.address.houseNumber} onChange={(e) => setGuestDetails((prev) => ({ ...prev, address: { ...prev.address, houseNumber: e.target.value } }))} placeholder="e.g. 24" className="w-full rounded-xl border border-gray-200 bg-white px-4 py-3 text-sm text-textPrimary outline-none focus:border-ocean-mid focus:ring-2 focus:ring-ocean-mid/20" /></label>
+                      <label className="block"><span className="mb-1.5 block text-xs font-semibold text-textSecondary">Street <span className="font-normal">(optional)</span></span><input value={guestDetails.address.street} onChange={(e) => setGuestDetails((prev) => ({ ...prev, address: { ...prev.address, street: e.target.value } }))} placeholder="Street name" className="w-full rounded-xl border border-gray-200 bg-white px-4 py-3 text-sm text-textPrimary outline-none focus:border-ocean-mid focus:ring-2 focus:ring-ocean-mid/20" /></label>
+                    </div>
+                  </div>
+                  {guestDetailsError && <p className="mt-4 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800"><i className="fas fa-circle-exclamation mr-2" />{guestDetailsError}</p>}
+                  <div className="mt-6 flex flex-col-reverse gap-3 sm:flex-row"><button onClick={handlePreviousStep} className="flex-1 rounded-xl border border-gray-200 px-4 py-3 text-sm font-semibold text-textSecondary hover:bg-gray-50">Back</button><button onClick={handleGuestDetailsContinue} disabled={guestDetailsSaving} className="flex-1 rounded-xl bg-ocean-mid px-4 py-3 text-sm font-semibold text-white shadow-sm hover:bg-ocean-deep disabled:cursor-not-allowed disabled:opacity-60">{guestDetailsSaving ? 'Saving details…' : 'Continue to valid ID'}<i className="fas fa-arrow-right ml-2" /></button></div>
+                </div>
+              )}
+
+              {/* Step 3: Valid ID */}
+              {step === 3 && (
+                <div className="rounded-2xl border border-gray-200 bg-white p-5 shadow-sm sm:p-7">
+                  <div className="mb-6"><p className="text-xs font-semibold uppercase tracking-[0.16em] text-ocean-mid">Verification</p><h2 className="mt-2 text-2xl font-bold text-textPrimary">Add one valid ID</h2><p className="mt-2 text-sm leading-6 text-textSecondary">Complete the verification here. Your details will be saved securely for future SandyFeet reservations.</p></div>
+                  <InlineValidIdUpload profile={profile} updateGuestProfile={updateGuestProfile} onComplete={() => setStep(4)} />
+                  <button onClick={handlePreviousStep} className="mt-3 w-full rounded-xl border border-gray-200 px-4 py-3 text-sm font-semibold text-textSecondary hover:bg-gray-50">Back to your details</button>
+                </div>
+              )}
+
+              {/* Step 4: Reservation fee */}
+              {step === 4 && (
+                <div className="bg-white rounded-2xl border border-gray-200 shadow-[0_10px_30px_rgb(0,0,0,0.05)] p-5 sm:p-6">
                   {/* Account Information Summary */}
-                  <div className="mb-5 p-4 bg-blue-50/30 rounded-xl border border-blue-100/80 shadow-sm">
+                  <div className="hidden mb-5 p-4 bg-blue-50/30 rounded-xl border border-blue-100/80 shadow-sm">
                     {/* Header */}
                     <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pb-2.5 border-b border-blue-100/60 mb-3">
                       <div className="flex items-center gap-2">
@@ -1036,10 +1600,10 @@ if (allRoomIds.length <= 1) {
                               <p className="text-xs text-amber-800 leading-relaxed font-medium">{validIdError}</p>
                               <button
                                 type="button"
-                                onClick={() => router.push('/account#photo-details')}
+                                onClick={() => setStep(3)}
                                 className="mt-1 text-xs text-blue-600 font-semibold hover:underline flex items-center gap-1"
                               >
-                                <i className="fas fa-arrow-right text-[9px]"></i> Upload Valid ID in Account
+                                <i className="fas fa-arrow-right text-[9px]"></i> Complete Valid ID step
                               </button>
                             </div>
                           </div>
@@ -1120,9 +1684,9 @@ if (allRoomIds.length <= 1) {
                         </ul>
                       </div>
 
-                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                      <div className="grid grid-cols-1 gap-4">
                         {/* Valid ID Container */}
-                        <div className="bg-white rounded-xl border border-gray-200 p-4 sm:p-5 shadow-sm hover:border-blue-200 transition-colors">
+                        <div className="hidden bg-white rounded-xl border border-gray-200 p-4 sm:p-5 shadow-sm hover:border-blue-200 transition-colors">
                           <div className="flex items-center gap-2 mb-2">
                             <i className="fas fa-id-card text-blue-500 text-lg"></i>
                             <label className="text-sm font-semibold text-gray-800">Valid ID (from your account)</label>
@@ -1134,18 +1698,18 @@ if (allRoomIds.length <= 1) {
                             {hasAccountValidIdVerification(profile) ? (
                               <button
                                 type="button"
-                                onClick={() => router.push('/account#photo-details')}
+                                onClick={() => setStep(3)}
                                 className="w-full inline-flex justify-center items-center gap-2 px-4 py-2.5 rounded-lg text-sm font-medium bg-gray-100 text-gray-700 hover:bg-gray-200 border border-gray-200 transition-all duration-200 cursor-pointer"
                               >
-                                <i className="fas fa-id-card"></i> Manage Valid ID
+                                <i className="fas fa-id-card"></i> Review Valid ID
                               </button>
                             ) : (
                               <button
                                 type="button"
-                                onClick={() => router.push('/account#photo-details')}
+                                onClick={() => setStep(3)}
                                 className="w-full inline-flex justify-center items-center gap-2 px-4 py-2.5 rounded-lg text-sm font-medium bg-blue-600 text-white hover:bg-blue-700 shadow-sm shadow-blue-200/50 cursor-pointer transition-all duration-200"
                               >
-                                <i className="fas fa-upload"></i> Upload in Account
+                                <i className="fas fa-upload"></i> Complete Valid ID
                               </button>
                             )}
                           </div>
@@ -1365,9 +1929,9 @@ if (allRoomIds.length <= 1) {
                         </ul>
                       </div>
 
-                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                      <div className="grid grid-cols-1 gap-4">
                         {/* Valid ID Container */}
-                        <div className="bg-white rounded-xl border border-gray-200 p-4 sm:p-5 shadow-sm hover:border-blue-200 transition-colors">
+                        <div className="hidden bg-white rounded-xl border border-gray-200 p-4 sm:p-5 shadow-sm hover:border-blue-200 transition-colors">
                           <div className="flex items-center gap-2 mb-2">
                             <i className="fas fa-id-card text-blue-500 text-lg"></i>
                             <label className="text-sm font-semibold text-gray-800">Valid ID (from your account)</label>
@@ -1379,18 +1943,18 @@ if (allRoomIds.length <= 1) {
                             {hasAccountValidIdVerification(profile) ? (
                               <button
                                 type="button"
-                                onClick={() => router.push('/account#photo-details')}
+                                onClick={() => setStep(3)}
                                 className="w-full inline-flex justify-center items-center gap-2 px-4 py-2.5 rounded-lg text-sm font-medium bg-gray-100 text-gray-700 hover:bg-gray-200 border border-gray-200 transition-all duration-200 cursor-pointer"
                               >
-                                <i className="fas fa-id-card"></i> Manage Valid ID
+                                <i className="fas fa-id-card"></i> Review Valid ID
                               </button>
                             ) : (
                               <button
                                 type="button"
-                                onClick={() => router.push('/account#photo-details')}
+                                onClick={() => setStep(3)}
                                 className="w-full inline-flex justify-center items-center gap-2 px-4 py-2.5 rounded-lg text-sm font-medium bg-blue-600 text-white hover:bg-blue-700 shadow-sm shadow-blue-200/50 cursor-pointer transition-all duration-200"
                               >
-                                <i className="fas fa-upload"></i> Upload in Account
+                                <i className="fas fa-upload"></i> Complete Valid ID
                               </button>
                             )}
                           </div>
@@ -1574,15 +2138,15 @@ if (allRoomIds.length <= 1) {
                 </div>
               )}
 
-              {/* Step 3: Confirmation */}
-              {step === 3 && (
+              {/* Step 5: Review & confirmation */}
+              {step === 5 && (
                 <div className="bg-white rounded-2xl border border-gray-200 shadow-[0_10px_30px_rgb(0,0,0,0.05)] p-6 sm:p-8 text-center">
                   <div className="w-20 h-20 bg-emerald-100 rounded-full flex items-center justify-center mx-auto mb-4">
                     <i className="fas fa-check text-3xl text-emerald-600"></i>
                   </div>
-                  <h2 className="text-2xl font-bold text-textPrimary mb-2">Booking Confirmed!</h2>
+                  <h2 className="text-2xl font-bold text-textPrimary mb-2">Reservation request received</h2>
                   <p className="text-textSecondary mb-4">
-                    Thank you for your booking! A confirmation email will be sent to {userEmail}. You can track your reservation through your account.
+                    Thank you for your booking. Your request is now pending staff confirmation. Updates will be sent to {userEmail}. You can track your reservation through your account.
                   </p>
 
                   <div className="p-4 bg-ocean-ice rounded-lg mb-4">
@@ -1659,8 +2223,42 @@ if (allRoomIds.length <= 1) {
             </div>
 
             {/* Right Column - Booking Summary Panel */}
-            <div className="lg:w-[34%] w-full">
-              <div className="bg-white rounded-[2rem] border border-gray-100 shadow-[0_12px_40px_rgb(0,0,0,0.06)] overflow-hidden sticky top-32">
+            <div className="w-full lg:w-[38%] lg:self-stretch">
+              <aside className="sticky top-24 max-h-[calc(100dvh-6rem)] overflow-y-auto rounded-2xl border border-[#e7e1d6] bg-white shadow-[0_8px_24px_-12px_rgba(38,50,56,0.18)] lg:overscroll-contain">
+                <div className="flex items-center gap-4 p-4">
+                  <img src={summaryRoomImage} alt={summaryRoomType} className="size-20 shrink-0 rounded-2xl object-cover" />
+                  <div className="min-w-0"><p className="text-[10px] font-bold uppercase tracking-[0.16em] text-ocean-mid">{isExclusiveBooking ? 'SandyFeet Camp' : summaryRoomType}</p><h2 className="mt-1 truncate text-base font-semibold text-textPrimary">{summaryRoomType}</h2><p className="mt-1 text-xs text-textSecondary">{stayNights} night{stayNights === 1 ? '' : 's'} · check-in {FIXED_CHECK_IN_DISPLAY}</p></div>
+                </div>
+                <div className="border-y border-[#e7e1d6] px-4 py-3.5">
+                  <div className="flex items-center justify-between gap-4 text-sm"><span className="flex items-center gap-2 text-textSecondary"><i className="fas fa-calendar text-ocean-mid" />Dates</span><span className="font-medium text-textPrimary">{formatDateOnly(bookingData.checkIn)} – {formatDateOnly(bookingData.checkOut)}</span></div>
+                  <div className="mt-3 flex items-center justify-between gap-4 text-sm"><span className="flex items-center gap-2 text-textSecondary"><i className="fas fa-users text-ocean-mid" />Guests</span><span className="font-medium text-textPrimary">{summaryGuestCount} guest{summaryGuestCount === 1 ? '' : 's'}</span></div>
+                </div>
+                <div className="border-b border-[#e7e1d6] px-4 py-3.5">
+                  <p className="text-[10px] font-bold uppercase tracking-[0.14em] text-textSecondary">Schedule</p>
+                  <div className="mt-2 space-y-1.5 text-xs text-textSecondary">
+                    <div className="flex items-center justify-between gap-3"><span>Check-in</span><span className="font-medium text-textPrimary">{formatDateOnly(bookingData.checkIn)} · {FIXED_CHECK_IN_DISPLAY}</span></div>
+                    <div className="flex items-center justify-between gap-3"><span>Check-out</span><span className="font-medium text-textPrimary">{formatDateOnly(bookingData.checkOut)} · {FIXED_CHECK_OUT_DISPLAY}</span></div>
+                  </div>
+                </div>
+                <div className="px-4 py-3.5">
+                  <p className="text-[10px] font-bold uppercase tracking-[0.14em] text-textSecondary">Price breakdown</p>
+                  <div className="mt-2 space-y-1.5 border-b border-[#e7e1d6] pb-3 text-xs">
+                    {isExclusiveBooking ? (
+                      <div className="flex items-center justify-between gap-3"><span className="text-textSecondary">Entire resort · {stayNights} night{stayNights === 1 ? '' : 's'}</span><span className="font-medium text-textPrimary">₱{totalPrice.toLocaleString()}</span></div>
+                    ) : getFilteredRoomTypes().map((roomType) => {
+                      const quantity = Number(bookingData.selectedRooms?.[roomType.type] || roomType.quantity || 0);
+                      const roomSubtotal = Number(roomType.price || 0) * quantity * stayNights;
+                      return <div key={`summary-${roomType.type}`} className="flex items-center justify-between gap-3"><span className="text-textSecondary">{quantity} × ₱{Number(roomType.price || 0).toLocaleString()} × {stayNights} night{stayNights === 1 ? '' : 's'}</span><span className="font-medium text-textPrimary">₱{roomSubtotal.toLocaleString()}</span></div>;
+                    })}
+                    {totalExtraGuestCharges > 0 && <div className="flex items-center justify-between gap-3"><span className="text-textSecondary">Additional guest charges</span><span className="font-medium text-textPrimary">₱{totalExtraGuestCharges.toLocaleString()}</span></div>}
+                  </div>
+                  <div className="flex items-center justify-between pt-3 text-base font-bold text-textPrimary"><span>Total</span><span>₱{totalPrice.toLocaleString()}</span></div>
+                </div>
+                <div className="border-t border-[#e7e1d6] bg-[#faf8f3] px-4 py-4"><div className="flex items-center justify-between gap-4"><span className="text-sm font-medium text-textPrimary">Reservation fee due now</span><span className="text-lg font-bold text-ocean-mid">₱{downPaymentAmount.toLocaleString()}</span></div><p className="mt-2 text-xs leading-5 text-textSecondary">Send this through GCash, Maya, or bank transfer and upload the receipt. The remaining ₱{(totalPrice - downPaymentAmount).toLocaleString()} is settled in cash at the camp office.</p></div>
+              </aside>
+            </div>
+            <div className="hidden w-full lg:w-[34%] lg:self-stretch">
+              <div className="sticky top-24 max-h-[calc(100dvh-6rem)] overflow-y-auto rounded-[2rem] border border-gray-100 bg-white shadow-[0_12px_40px_rgb(0,0,0,0.06)] lg:overscroll-contain">
                 <div className="px-5 py-4 border-b border-gray-100 bg-[#F8FCFF]">
                   <h3 className="font-bold text-gray-900 text-base flex items-center gap-2 uppercase tracking-wider">
                     <i className="fas fa-receipt text-blue-500 "></i>
@@ -1799,8 +2397,8 @@ if (allRoomIds.length <= 1) {
                       onChange={(e) => setBookingData(prev => ({ ...prev, specialRequest: e.target.value }))}
                       placeholder="e.g., Request early check-in, room preferences, PWD/Senior ID, etc."
                       rows="3"
-                      readOnly={step === 3}
-                      className={`w-full px-3 py-2 border rounded-xl text-sm focus:outline-none resize-none ${step === 3
+                      readOnly={step === 5}
+                      className={`w-full px-3 py-2 border rounded-xl text-sm focus:outline-none resize-none ${step === 5
                           ? 'bg-gray-50 border-gray-200 text-gray-500 cursor-not-allowed'
                           : 'border-blue-200 focus:border-blue-400 bg-white'
                         }`}

@@ -55,6 +55,14 @@ export default function AIRoomRecommendationModal({ isOpen, onClose }) {
   const [loading, setLoading] = useState(false);
   const [recommendations, setRecommendations] = useState([]);
 
+  const rememberRecommendationReturn = () => {
+    try {
+      sessionStorage.setItem('sandyfeet_ai_recommendation_return', 'true');
+    } catch (error) {
+      console.error('Unable to remember AI recommendation return path:', error);
+    }
+  };
+
   // Fetch active rooms when modal opens
   useEffect(() => {
     if (isOpen) {
@@ -582,6 +590,7 @@ export default function AIRoomRecommendationModal({ isOpen, onClose }) {
           <div>
             <button
               onClick={() => {
+                rememberRecommendationReturn();
                 onClose(); // Close modal
                 router.push('/rooms');
               }}
@@ -626,6 +635,7 @@ export default function AIRoomRecommendationModal({ isOpen, onClose }) {
             <div className="mt-2.5 flex items-center justify-between">
               <Link
                 href={`/rooms/${encodeURIComponent(slug)}`}
+                onClick={rememberRecommendationReturn}
                 className="text-xs font-semibold text-blue-600 hover:text-blue-700 flex items-center gap-1"
               >
                 View details <i className="fas fa-arrow-right text-[8px]"></i>
@@ -677,6 +687,7 @@ export default function AIRoomRecommendationModal({ isOpen, onClose }) {
           <div>
             <Link
               href={`/rooms/${encodeURIComponent(slug)}`}
+              onClick={rememberRecommendationReturn}
               className="inline-flex items-center justify-center w-full rounded-xl bg-blue-600 px-5 py-3 text-sm font-semibold text-white shadow-sm hover:bg-blue-700 hover:shadow-md transition-all duration-300"
             >
               Book & View Details <i className="fas fa-arrow-right ml-2 text-xs"></i>

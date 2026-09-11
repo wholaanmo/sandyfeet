@@ -4,7 +4,6 @@
 import { Suspense, useEffect, useMemo, useState } from 'react';
 import Image from 'next/image';
 import Link from 'next/link';
-import { useRouter } from 'next/navigation';
 import GuestLayout from '@/app/guest/layout';
 import GuestAuthModal from '@/components/guest/GuestAuthModal';
 import { useGuestAuth } from '@/components/guest/GuestAuthContext';
@@ -17,6 +16,7 @@ import {
   ADDRESS_VERIFICATION_NOTE,
   EMPTY_GUEST_ADDRESS,
   getGuestAddressFromProfile,
+  isGuestAddressComplete,
   sanitizeNumericMobileInput,
 } from '@/lib/guestAddress';
 import {
@@ -34,7 +34,6 @@ const EMPTY_ADDRESS_CODES = {
 };
 
 function GuestAccountContent() {
-  const router = useRouter();
   const { user, profile, loading, logout, updateGuestProfile } = useGuestAuth();
   const [isAuthOpen, setIsAuthOpen] = useState(false);
   const [showSignOutModal, setShowSignOutModal] = useState(false);
@@ -58,6 +57,7 @@ function GuestAccountContent() {
   const [validIdForm, setValidIdForm] = useState({
     validIdType: 'Passport',
     validIdOther: '',
+    validIdName: '',
     validIdUrl: '',
     validIdSelfieUrl: '',
   });
@@ -92,6 +92,7 @@ function GuestAccountContent() {
     setValidIdForm({
       validIdType: profile?.validIdType || 'Passport',
       validIdOther: profile?.validIdOther || '',
+      validIdName: profile?.validIdName || profile?.displayName || '',
       validIdUrl: profile?.validIdUrl || '',
       validIdSelfieUrl: profile?.validIdSelfieUrl || '',
     });
@@ -194,10 +195,6 @@ function GuestAccountContent() {
     handleProfileChange('mobileNumber', sanitizeNumericMobileInput(value));
   };
 
-  const handleBackClick = () => {
-    router.back();
-  };
-
   const handleValidIdFileChange = async (e) => {
     const file = e.target.files?.[0];
     if (!file) return;
@@ -256,6 +253,7 @@ function GuestAccountContent() {
     setValidIdForm({
       validIdType: profile?.validIdType || 'Passport',
       validIdOther: profile?.validIdOther || '',
+      validIdName: profile?.validIdName || profile?.displayName || '',
       validIdUrl: profile?.validIdUrl || '',
       validIdSelfieUrl: profile?.validIdSelfieUrl || '',
     });
@@ -266,6 +264,7 @@ function GuestAccountContent() {
     setValidIdForm({
       validIdType: profile?.validIdType || 'Passport',
       validIdOther: profile?.validIdOther || '',
+      validIdName: profile?.validIdName || profile?.displayName || '',
       validIdUrl: profile?.validIdUrl || '',
       validIdSelfieUrl: profile?.validIdSelfieUrl || '',
     });
@@ -289,6 +288,10 @@ function GuestAccountContent() {
       setProfileNotice('Please select a valid ID type.');
       return;
     }
+    if (!validIdForm.validIdName.trim()) {
+      setProfileNotice('Please enter the name printed on your valid ID.');
+      return;
+    }
     if (validIdForm.validIdType === 'Other' && !validIdForm.validIdOther.trim()) {
       setProfileNotice('Please specify your valid ID type.');
       return;
@@ -302,6 +305,7 @@ function GuestAccountContent() {
         validIdSelfieUrl: validIdForm.validIdSelfieUrl,
         validIdType: validIdForm.validIdType,
         validIdOther: validIdForm.validIdType === 'Other' ? validIdForm.validIdOther.trim() : '',
+        validIdName: validIdForm.validIdName.trim(),
       });
       setProfileNotice('Valid ID saved.');
       setIsEditingValidId(false);
@@ -400,17 +404,6 @@ function GuestAccountContent() {
         })()}
 
         <div className="mx-auto max-w-7xl">
-          <div className="mb-5">
-            <button
-              type="button"
-              onClick={handleBackClick}
-              className="inline-flex items-center gap-2 rounded-xl border border-[#4D8CF5]/20 bg-white px-4 py-2 text-sm font-semibold text-[#1E3A8A] shadow-sm transition-all hover:bg-[#4D8CF5]/5 hover:shadow-md"
-            >
-              <i className="fas fa-arrow-left text-xs"></i>
-              Back
-            </button>
-          </div>
-
           <div className="grid gap-5 lg:grid-cols-[360px_minmax(0,1fr)]">
             {/* Left Sidebar (unchanged) */}
             <aside className="space-y-4">
@@ -597,9 +590,11 @@ function GuestAccountContent() {
                       <div className="space-y-4 border-t border-[#4D8CF5]/10 pt-6">
                         <div>
                           <h3 className="text-sm font-semibold text-[#1E3A8A]">Home Address</h3>
-                          <p className="mt-1 text-xs text-red-500">
-                            Required for booking confirmation and verification. If your address does not have a street name, you may leave it blank.
-                          </p>
+                          {!isGuestAddressComplete(profileForm.address) && (
+                            <p className="mt-1 text-xs text-red-500">
+                              Complete your province, city/municipality, barangay, and house number before booking. Street name is optional.
+                            </p>
+                          )}
                         </div>
                         <div className="grid gap-6 sm:grid-cols-2">
                           <div className="space-y-1 sm:col-span-2">
@@ -761,6 +756,11 @@ function GuestAccountContent() {
                             <span className="text-[#1E3A8A]/70">ID Type:</span>
                             <span className="font-semibold text-[#1E3A8A]">{getDisplayValidIdType(profile)}</span>
                           </div>
+                          <div className="flex items-center gap-2 rounded-xl border border-[#4D8CF5]/20 bg-[#F9FCFF] px-4 py-2.5 text-sm text-gray-700">
+                            <i className="fas fa-signature text-slate-400 text-xs"></i>
+                            <span className="text-[#1E3A8A]/70">Name on ID:</span>
+                            <span className="font-semibold text-[#1E3A8A]">{profile.validIdName || profile.displayName || 'Not provided'}</span>
+                          </div>
                           <div className="grid gap-4 lg:grid-cols-2">
                             <div className="overflow-hidden rounded-xl border border-[#4D8CF5]/20 bg-[#F9FCFF]">
                               <img src={profile.validIdUrl} alt="Valid ID" className="max-h-64 w-full object-contain bg-white" />
@@ -843,8 +843,22 @@ function GuestAccountContent() {
                               />
                             </div>
                           )}
+                          <div className="space-y-1">
+                            <label className="flex items-center gap-2 text-sm font-semibold text-[#1E3A8A]">
+                              <i className="fas fa-signature text-[#4D8CF5] text-xs"></i>
+                              Name Printed on ID
+                            </label>
+                            <input
+                              type="text"
+                              value={validIdForm.validIdName}
+                              onChange={(e) => setValidIdForm((prev) => ({ ...prev, validIdName: e.target.value }))}
+                              placeholder="Enter your name exactly as shown on the ID"
+                              className="w-full rounded-xl border border-[#4D8CF5]/20 bg-white px-4 py-2.5 text-sm text-gray-900 focus:border-[#4D8CF5] focus:outline-none focus:ring-2 focus:ring-[#4D8CF5]/20"
+                            />
+                            <p className="text-xs text-[#516B85]">Use the spelling and order printed on the document.</p>
+                          </div>
                           <div className="space-y-2">
-                            <label className="text-sm font-semibold text-[#1E3A8A]">Photo 1: Valid Government-Issued ID</label>
+                            <label className="text-sm font-semibold text-[#1E3A8A]">Photo or Scan of Valid Government-Issued ID</label>
                             <div className="relative">
                               <input
                                 type="file"

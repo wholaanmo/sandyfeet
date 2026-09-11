@@ -1,7 +1,7 @@
 ﻿// app/day-tour/booking/page.js
 'use client';
 
-import { Suspense, useState, useEffect } from 'react';
+import { Suspense, useState, useEffect, useMemo } from 'react';
 import { useSearchParams, useRouter } from 'next/navigation';
 import GuestLayout from '@/app/guest/layout';
 import { db } from '@/lib/firebase';
@@ -9,15 +9,25 @@ import { collection, query, where, getDocs, addDoc, doc, getDoc, serverTimestamp
 import { uploadImage } from '@/lib/cloudinary';
 import { sendDayTourPendingEmail } from '@/lib/emailService';
 import ChatBot from '@/components/guest/ChatBot';
+import InlineValidIdUpload from '@/components/guest/InlineValidIdUpload';
 import { QRCodeSVG } from 'qrcode.react';
 import { useGuestAuth } from '@/components/guest/GuestAuthContext';
 import GuestAuthModal from '@/components/guest/GuestAuthModal';
-import { getDisplayValidIdType, hasAccountValidIdVerification, hasAccountMobileNumber } from '@/lib/guestValidId';
+import { getDisplayValidIdType, hasAccountValidIdVerification } from '@/lib/guestValidId';
 import {
   buildGuestInfoWithAddress,
   getAddressBlockerMessage,
+  getGuestAddressFromProfile,
+  isGuestAddressComplete,
   isProfileAddressComplete,
 } from '@/lib/guestAddress';
+import {
+  getAddressNamesFromCodes,
+  getBarangayOptionsForCity,
+  getCityOptionsForProvince,
+  getProvinceOptions,
+  resolveAddressCodesFromNames,
+} from '@/lib/philippineAddress';
 import { usePhilippineTimeSync } from '@/hooks/usePhilippineTimeSync';
 import {
   isPhilippineCalendarDateBeforeLeadTime,
@@ -33,7 +43,7 @@ const STEP_STORAGE_KEY = 'daytour_booking_step';
 function DayTourBookingContent() {
   const searchParams = useSearchParams();
   const router = useRouter();
-  const { user, profile, loading: authLoading } = useGuestAuth();
+  const { user, profile, loading: authLoading, updateGuestProfile } = useGuestAuth();
   const { ready: phTimeReady, nowMs } = usePhilippineTimeSync();
   const [isAuthModalOpen, setIsAuthModalOpen] = useState(false);
   const HARD_MAX_PACKS = 38;
@@ -82,12 +92,32 @@ function DayTourBookingContent() {
     paymentProof: null,
     specialRequest: ''
   });
+
+  const [guestDetails, setGuestDetails] = useState({
+    firstName: '',
+    lastName: '',
+    email: '',
+    mobileNumber: '',
+    address: { houseNumber: '', street: '', barangay: '', city: '', province: '' },
+  });
+  const [addressCodes, setAddressCodes] = useState({ provinceCode: '', cityCode: '', barangayCode: '' });
+  const [guestDetailsSaving, setGuestDetailsSaving] = useState(false);
+  const [guestDetailsError, setGuestDetailsError] = useState('');
   
   const [errors, setErrors] = useState({});
   const [validIdError, setValidIdError] = useState('');
   const [mobileNumberError, setMobileNumberError] = useState('');
 
-  const hasMobileNumber = hasAccountMobileNumber(profile);
+  const provinceOptions = useMemo(() => getProvinceOptions(), []);
+  const cityOptions = useMemo(
+    () => getCityOptionsForProvince(addressCodes.provinceCode),
+    [addressCodes.provinceCode]
+  );
+  const barangayOptions = useMemo(
+    () => getBarangayOptionsForCity(addressCodes.cityCode),
+    [addressCodes.cityCode]
+  );
+
   const accountValidIdType = getDisplayValidIdType(profile);
   const accountValidIdUrl = profile?.validIdUrl || '';
   const accountValidIdSelfieUrl = profile?.validIdSelfieUrl || '';
@@ -100,6 +130,19 @@ function DayTourBookingContent() {
   const requestableBankAccounts = paymentSettings.bankAccounts.filter(
     (account) => account.accountNumber && String(account.accountNumber).trim().length > 0
   );
+
+  useEffect(() => {
+    if (!profile) return;
+    const address = getGuestAddressFromProfile(profile);
+    setGuestDetails({
+      firstName: profile.firstName || '',
+      lastName: profile.lastName || '',
+      email: profile.email || user?.email || '',
+      mobileNumber: profile.mobileNumber || '',
+      address,
+    });
+    setAddressCodes(resolveAddressCodesFromNames(address));
+  }, [profile, user]);
 
   // Restore bank transfer request when returning from Pending Payment
   useEffect(() => {
@@ -153,7 +196,7 @@ function DayTourBookingContent() {
       const savedStep = localStorage.getItem(STEP_STORAGE_KEY);
       if (savedStep && !isNaN(parseInt(savedStep))) {
         const stepNum = parseInt(savedStep);
-        if (stepNum >= 1 && stepNum <= 3) {
+        if (stepNum >= 1 && stepNum <= 5) {
           setStep(stepNum);
         }
       }
@@ -206,9 +249,9 @@ function DayTourBookingContent() {
     }
   }, [step]);
 
-  // Clear persisted data when booking is completed (step 3)
+    // Clear persisted data when booking is completed (step 5)
   useEffect(() => {
-    if (step === 3) {
+    if (step === 5) {
       try {
         localStorage.removeItem(STORAGE_KEY);
         localStorage.removeItem(STEP_STORAGE_KEY);
@@ -434,8 +477,9 @@ function DayTourBookingContent() {
     ? `${profile.firstName || ''} ${profile.lastName || ''}`.trim()
     : 'Guest';
   const userEmail = profile?.email || user?.email || '';
-  const userMobileNumber = profile?.mobileNumber || '';
-  const hasCompleteAddress = isProfileAddressComplete(profile);
+  const userMobileNumber = guestDetails.mobileNumber || profile?.mobileNumber || '';
+  const hasMobileNumber = Boolean(userMobileNumber.trim());
+  const hasCompleteAddress = isGuestAddressComplete(guestDetails.address) || isProfileAddressComplete(profile);
 
   const canSubmitPayment = Boolean(
     bookingData.paymentProof &&
@@ -514,6 +558,73 @@ function DayTourBookingContent() {
     }
   };
 
+  const handleAddressSelect = (field, value) => {
+    if (field === 'province') {
+      const nextCodes = { provinceCode: value, cityCode: '', barangayCode: '' };
+      const names = getAddressNamesFromCodes(nextCodes);
+      setAddressCodes(nextCodes);
+      setGuestDetails((prev) => ({
+        ...prev,
+        address: { ...prev.address, province: names.province, city: '', barangay: '' },
+      }));
+      return;
+    }
+
+    if (field === 'city') {
+      const nextCodes = { provinceCode: addressCodes.provinceCode, cityCode: value, barangayCode: '' };
+      const names = getAddressNamesFromCodes(nextCodes);
+      setAddressCodes(nextCodes);
+      setGuestDetails((prev) => ({
+        ...prev,
+        address: { ...prev.address, province: names.province, city: names.city, barangay: '' },
+      }));
+      return;
+    }
+
+    const nextCodes = { ...addressCodes, barangayCode: value };
+    const names = getAddressNamesFromCodes(nextCodes);
+    setAddressCodes(nextCodes);
+    setGuestDetails((prev) => ({
+      ...prev,
+      address: { ...prev.address, province: names.province, city: names.city, barangay: names.barangay },
+    }));
+  };
+
+  const handleGuestDetailsContinue = async () => {
+    const { firstName, lastName, email, mobileNumber, address } = guestDetails;
+    if (!firstName.trim() || !lastName.trim() || !email.trim() || !mobileNumber.trim()) {
+      setGuestDetailsError('Complete your contact number before continuing.');
+      return;
+    }
+    if (!isGuestAddressComplete(address)) {
+      setGuestDetailsError('Complete your province, city/municipality, barangay, and house or unit number before continuing.');
+      return;
+    }
+
+    setGuestDetailsSaving(true);
+    setGuestDetailsError('');
+    try {
+      await updateGuestProfile({
+        firstName: firstName.trim(),
+        lastName: lastName.trim(),
+        mobileNumber: mobileNumber.trim(),
+        address: {
+          houseNumber: address.houseNumber.trim(),
+          street: address.street.trim(),
+          barangay: address.barangay.trim(),
+          city: address.city.trim(),
+          province: address.province.trim(),
+        },
+      });
+      setStep(3);
+    } catch (error) {
+      console.error('Failed to save day tour guest details:', error);
+      setGuestDetailsError('We could not save your details. Please try again.');
+    } finally {
+      setGuestDetailsSaving(false);
+    }
+  };
+
   const handleNextStep = () => {
     if (step === 1) {
       if (validateGuests()) {
@@ -524,6 +635,8 @@ function DayTourBookingContent() {
         }
         setStep(2);
       }
+    } else if (step === 2) {
+      handleGuestDetailsContinue();
     } else {
       setStep(step + 1);
     }
@@ -567,7 +680,7 @@ function DayTourBookingContent() {
       const docRef = await addDoc(bankRequestsRef, {
         guestName: `${profile?.firstName || ''} ${profile?.lastName || ''}`.trim(),
         guestEmail: user?.email || '',
-        guestPhone: profile?.mobileNumber || '',
+        guestPhone: userMobileNumber,
         bookingType: 'daytour',
         bookingId: generatedBookingId,
         selectedDate: dateKey,
@@ -618,14 +731,14 @@ function DayTourBookingContent() {
       return;
     }
     if (!hasMobileNumber) {
-      setMobileNumberError('A mobile number is required to confirm your booking. Please update your account profile.');
-      setModalNotification({ message: 'Please add a mobile number in your account settings before booking.', type: 'error' });
+      setMobileNumberError('A mobile number is required to confirm your booking. Return to the Your details step and add it there.');
+      setModalNotification({ message: 'Please add a mobile number in the Your details step before booking.', type: 'error' });
       return;
     }
     setMobileNumberError('');
     if (!hasAccountValidIdVerification(profile)) {
-      setValidIdError('Please upload both your valid ID photo and a selfie holding the same ID in your account profile.');
-      setModalNotification({ message: 'A valid ID photo and a selfie holding the same ID are required. Upload both in your account profile.', type: 'error' });
+      setValidIdError('Please complete both valid ID uploads in the Valid ID step.');
+      setModalNotification({ message: 'A valid ID photo and a selfie holding the same ID are required. Complete the Valid ID step.', type: 'error' });
       return;
     }
     setValidIdError('');
@@ -686,17 +799,22 @@ function DayTourBookingContent() {
         totalPrice: totalPrice,
         downPayment: downPaymentAmount,
         remainingBalance: totalPrice - downPaymentAmount,
-        guestInfo: buildGuestInfoWithAddress(profile, {
-          firstName: profile?.firstName || '',
-          lastName: profile?.lastName || '',
-          email: user.email,
-          phone: profile?.mobileNumber || '',
+        guestInfo: buildGuestInfoWithAddress({
+          ...profile,
+          address: guestDetails.address,
+          mobileNumber: userMobileNumber,
+        }, {
+          firstName: guestDetails.firstName || profile?.firstName || '',
+          lastName: guestDetails.lastName || profile?.lastName || '',
+          email: guestDetails.email || user.email,
+          phone: userMobileNumber,
         }),
         status: 'pending',
         paymentMethod: paymentMethod,
         balancePaymentMethod: balancePaymentMethod,
         paymentProof: bookingData.paymentProof,
         validIdType: accountValidIdType || null,
+        validIdName: profile?.validIdName || null,
         validIdImage: accountValidIdUrl || null,
         validIdSelfieUrl: accountValidIdSelfieUrl || null,
         createdAt: serverTimestamp(),
@@ -717,7 +835,7 @@ function DayTourBookingContent() {
       }
 
       await generateQrToken(generatedBookingId);
-      setStep(3);
+      setStep(5);
       
     } catch (error) {
       console.error('Error creating booking:', error);
@@ -790,7 +908,7 @@ function DayTourBookingContent() {
       icon: 'fa-map-marker-alt',
       label: 'Complete Address',
       description: hasCompleteAddress
-        ? 'Your home address is saved in your account profile.'
+        ? 'Your home address is ready for this booking.'
         : getAddressBlockerMessage(),
       complete: hasCompleteAddress,
     },
@@ -813,7 +931,7 @@ function DayTourBookingContent() {
       label: 'Valid ID on File',
       description: hasAccountValidIdVerification(profile)
         ? `${accountValidIdType} from your account (with selfie verification).`
-        : 'Upload your valid ID and selfie in Account settings.',
+        : 'Upload your valid ID and selfie in the Valid ID step.',
       complete: hasAccountValidIdVerification(profile)
     },
     {
@@ -857,7 +975,7 @@ function DayTourBookingContent() {
   const renderAccountValidIdCard = () => {
     const hasValidId = hasAccountValidIdVerification(profile);
     return (
-      <div className="rounded-2xl border p-5 shadow-sm border-ocean-light/20 bg-white">
+      <div className="hidden rounded-2xl border p-5 shadow-sm border-ocean-light/20 bg-white">
         <div className="flex items-start justify-between gap-3 mb-4">
           <div>
             <p className="text-sm font-semibold text-textPrimary">Valid ID (from your account)</p>
@@ -875,10 +993,10 @@ function DayTourBookingContent() {
             <div>
               <button
                 type="button"
-                onClick={() => router.push('/account#photo-details')}
+                onClick={() => setStep(3)}
                 className="inline-flex cursor-pointer items-center gap-2 rounded-xl px-4 py-2.5 text-sm font-medium transition-all duration-300 bg-gray-100 text-gray-700 hover:bg-gray-200 border border-gray-200/60 shadow-xs"
               >
-                <i className="fas fa-id-card"></i> Manage Valid ID
+                <i className="fas fa-id-card"></i> Review Valid ID
               </button>
               <p className="mt-3 text-xs text-green-600 flex items-center gap-1.5">
                 <i className="fas fa-check-circle"></i>
@@ -889,10 +1007,10 @@ function DayTourBookingContent() {
             <div>
               <button
                 type="button"
-                onClick={() => router.push('/account#photo-details')}
+                onClick={() => setStep(3)}
                 className="inline-flex cursor-pointer items-center gap-2 rounded-xl px-4 py-2.5 text-sm font-medium transition-all duration-300 bg-gradient-to-r from-ocean-mid to-ocean-light text-white hover:shadow-lg"
               >
-                <i className="fas fa-upload"></i> Upload in Account
+                <i className="fas fa-upload"></i> Complete Valid ID
               </button>
               <p className="mt-3 text-xs text-amber-600 flex items-center gap-1.5">
                 <i className="fas fa-exclamation-circle"></i>
@@ -1229,29 +1347,23 @@ function DayTourBookingContent() {
           <div className="flex flex-col gap-8">
             {/* Main Column - Booking Form */}
             <div className="w-full">
-              {/* Progress Steps - Now only 3 steps */}
-              <div className="mb-8 rounded-2xl border border-ocean-light/20 bg-white/70 px-3 py-4 sm:px-5">
+              {/* Five-step progress */}
+              <div className="mb-4 rounded-2xl border border-ocean-light/20 bg-white/70 px-3 py-2.5 sm:px-4">
                 <div className="relative">
-                  <div className="absolute left-[15%] right-[15%] top-5 h-0.5 bg-gray-200"></div>
-                  <div className="absolute left-[15%] right-[15%] top-5 h-0.5 bg-transparent">
-                    <div
-                      className="h-full bg-ocean-mid transition-all duration-300"
-                      style={{ width: `${Math.max(0, ((step - 1) / 2) * 100)}%` }}
-                    ></div>
-                  </div>
-
-                  <div className="grid grid-cols-3 gap-1">
+                  <div className="grid grid-cols-5 gap-1">
                     {[
-                      { id: 1, label: 'Guests' },
-                      { id: 2, label: 'Payment' },
-                      { id: 3, label: 'Confirmation' }
+                      { id: 1, label: 'Date & guests' },
+                      { id: 2, label: 'Your details' },
+                      { id: 3, label: 'Valid ID' },
+                      { id: 4, label: 'Reservation fee' },
+                      { id: 5, label: 'Review' }
                     ].map((item) => {
                       const isCurrent = step === item.id;
-                      const isDone = step > item.id || (item.id === 3 && step === 3);
+                      const isDone = step > item.id;
                       return (
                         <div key={item.id} className="relative z-10 flex flex-col items-center">
                           <div
-                            className={`w-10 h-10 rounded-full flex items-center justify-center text-sm font-bold border transition-all duration-300 ${
+                            className={`size-7 rounded-full flex items-center justify-center text-[10px] font-bold border transition-all duration-300 sm:size-8 sm:text-xs ${
                               isCurrent
                                 ? 'bg-ocean-mid text-white border-ocean-mid shadow-[0_6px_14px_rgba(33,105,243,0.28)]'
                                 : isDone
@@ -1261,7 +1373,7 @@ function DayTourBookingContent() {
                           >
                             {isDone ? <i className="fas fa-check text-xs"></i> : item.id}
                           </div>
-                          <span className={`mt-2 text-[12px] font-medium ${isCurrent ? 'text-textPrimary' : 'text-textSecondary'}`}>
+                          <span className={`mt-1.5 truncate text-[9px] font-medium sm:text-[10px] ${isCurrent ? 'text-textPrimary' : 'text-textSecondary'}`}>
                             {item.label}
                           </span>
                         </div>
@@ -1379,17 +1491,59 @@ function DayTourBookingContent() {
                 </div>
               )}
 
-              {/* Step 2: Payment (formerly step 3) */}
+              {/* Step 2: Your details */}
               {step === 2 && (
+                <div className="rounded-2xl border border-ocean-light/20 bg-white p-6 shadow-lg sm:p-8">
+                  <p className="text-xs font-semibold uppercase tracking-[0.16em] text-ocean-mid">Your details</p>
+                  <h2 className="mt-2 text-2xl font-bold text-textPrimary">Confirm your contact information</h2>
+                  <p className="mt-2 text-sm leading-6 text-textSecondary">Your name and email come from your SandyFeet account. Confirm your mobile number and select your home address before continuing.</p>
+                  <div className="mt-6 grid gap-4 sm:grid-cols-2">
+                    <div className="rounded-xl border border-gray-200 bg-gray-50 p-4"><p className="text-xs text-textSecondary">Full name</p><p className="mt-1 font-semibold text-textPrimary">{`${guestDetails.firstName} ${guestDetails.lastName}`.trim() || 'Not provided'}</p><p className="mt-1 text-[11px] text-textSecondary">From your account profile</p></div>
+                    <div className="rounded-xl border border-gray-200 bg-gray-50 p-4"><p className="text-xs text-textSecondary">Email address</p><p className="mt-1 break-all font-semibold text-textPrimary">{guestDetails.email || 'Not provided'}</p><p className="mt-1 text-[11px] text-textSecondary">Booking updates will be sent here</p></div>
+                    <label className="block sm:col-span-2"><span className="text-xs text-textSecondary">Mobile number</span><input value={guestDetails.mobileNumber} onChange={(event) => setGuestDetails((prev) => ({ ...prev, mobileNumber: event.target.value.replace(/\D/g, '').slice(0, 11) }))} inputMode="numeric" placeholder="09XXXXXXXXX" className="mt-1.5 w-full rounded-xl border border-gray-200 bg-white px-4 py-3 text-sm text-textPrimary outline-none focus:border-ocean-mid focus:ring-2 focus:ring-ocean-mid/20" /></label>
+                  </div>
+                  <div className="mt-6 rounded-2xl border border-ocean-light/20 bg-ocean-ice/40 p-4 sm:p-5">
+                    <div className="mb-4 flex items-start gap-3">
+                      <span className="flex size-9 shrink-0 items-center justify-center rounded-xl bg-white text-ocean-mid"><i className="fas fa-location-dot" /></span>
+                      <div><h3 className="text-sm font-semibold text-textPrimary">Home address <span className="text-red-500">*</span></h3><p className="mt-1 text-xs leading-5 text-textSecondary">Select your province, city/municipality, and barangay so staff can verify the booking faster. Street name is optional.</p></div>
+                    </div>
+                    <div className="grid gap-4 sm:grid-cols-3">
+                      <label className="block"><span className="mb-1.5 block text-xs font-semibold text-textSecondary">Province <span className="text-red-500">*</span></span><select required aria-required="true" value={addressCodes.provinceCode} onChange={(event) => handleAddressSelect('province', event.target.value)} className="w-full rounded-xl border border-gray-200 bg-white px-3 py-3 text-sm text-textPrimary"><option value="">Select province</option>{provinceOptions.map((option) => <option key={option.code} value={option.code}>{option.name}</option>)}</select></label>
+                      <label className="block"><span className="mb-1.5 block text-xs font-semibold text-textSecondary">City / municipality <span className="text-red-500">*</span></span><select required aria-required="true" value={addressCodes.cityCode} onChange={(event) => handleAddressSelect('city', event.target.value)} disabled={!addressCodes.provinceCode} className="w-full rounded-xl border border-gray-200 bg-white px-3 py-3 text-sm text-textPrimary disabled:cursor-not-allowed disabled:bg-gray-100"><option value="">Select city</option>{cityOptions.map((option) => <option key={option.code} value={option.code}>{option.name}</option>)}</select></label>
+                      <label className="block"><span className="mb-1.5 block text-xs font-semibold text-textSecondary">Barangay <span className="text-red-500">*</span></span><select required aria-required="true" value={addressCodes.barangayCode} onChange={(event) => handleAddressSelect('barangay', event.target.value)} disabled={!addressCodes.cityCode} className="w-full rounded-xl border border-gray-200 bg-white px-3 py-3 text-sm text-textPrimary disabled:cursor-not-allowed disabled:bg-gray-100"><option value="">Select barangay</option>{barangayOptions.map((option) => <option key={option.code} value={option.code}>{option.name}</option>)}</select></label>
+                    </div>
+                    <div className="mt-4 grid gap-4 sm:grid-cols-2">
+                      <label className="block"><span className="mb-1.5 block text-xs font-semibold text-textSecondary">House / unit number <span className="text-red-500">*</span></span><input required aria-required="true" value={guestDetails.address.houseNumber} onChange={(event) => setGuestDetails((prev) => ({ ...prev, address: { ...prev.address, houseNumber: event.target.value } }))} placeholder="e.g. 24" className="w-full rounded-xl border border-gray-200 bg-white px-4 py-3 text-sm text-textPrimary outline-none focus:border-ocean-mid focus:ring-2 focus:ring-ocean-mid/20" /></label>
+                      <label className="block"><span className="mb-1.5 block text-xs font-semibold text-textSecondary">Street <span className="font-normal">(optional)</span></span><input value={guestDetails.address.street} onChange={(event) => setGuestDetails((prev) => ({ ...prev, address: { ...prev.address, street: event.target.value } }))} placeholder="Street name" className="w-full rounded-xl border border-gray-200 bg-white px-4 py-3 text-sm text-textPrimary outline-none focus:border-ocean-mid focus:ring-2 focus:ring-ocean-mid/20" /></label>
+                    </div>
+                  </div>
+                  {guestDetailsError && <p className="mt-4 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800"><i className="fas fa-circle-exclamation mr-2" />{guestDetailsError}</p>}
+                  <div className="mt-6 flex flex-col-reverse gap-3 sm:flex-row"><button onClick={handlePreviousStep} className="flex-1 rounded-xl border border-ocean-light/25 px-4 py-3 text-sm font-semibold text-textSecondary hover:bg-ocean-ice">Back</button><button onClick={handleGuestDetailsContinue} disabled={guestDetailsSaving} className="flex-1 rounded-xl bg-ocean-mid px-4 py-3 text-sm font-semibold text-white hover:bg-ocean-deep disabled:cursor-not-allowed disabled:opacity-60">{guestDetailsSaving ? 'Saving details…' : 'Continue to valid ID'} <i className="fas fa-arrow-right ml-2" /></button></div>
+                </div>
+              )}
+
+              {/* Step 3: Valid ID */}
+              {step === 3 && (
+                <div className="rounded-2xl border border-ocean-light/20 bg-white p-6 shadow-lg sm:p-8">
+                  <p className="text-xs font-semibold uppercase tracking-[0.16em] text-ocean-mid">Verification</p>
+                  <h2 className="mt-2 text-2xl font-bold text-textPrimary">Add one valid ID</h2>
+                  <p className="mt-2 text-sm leading-6 text-textSecondary">Upload the ID type, name printed on the ID, a clear photo or scan, and a photo of you holding that ID without leaving this booking.</p>
+                  <div className="mt-6"><InlineValidIdUpload profile={profile} updateGuestProfile={updateGuestProfile} onComplete={() => setStep(4)} /></div>
+                  <button onClick={handlePreviousStep} className="mt-3 w-full rounded-xl border border-ocean-light/25 px-4 py-3 text-sm font-semibold text-textSecondary hover:bg-ocean-ice">Back to your details</button>
+                </div>
+              )}
+
+              {/* Step 4: Payment */}
+              {step === 4 && (
                 <div className="rounded-[2rem] border border-ocean-light/20 bg-white p-5 shadow-lg sm:p-8">
                   <div className="overflow-hidden rounded-[1.75rem] border border-ocean-light/20 bg-[radial-gradient(circle_at_top_left,_rgba(103,183,255,0.22),_transparent_32%),linear-gradient(135deg,_rgba(244,251,255,0.98),_rgba(255,255,255,0.98))] p-6">
                     <div className="flex flex-col gap-6 xl:flex-row xl:items-end xl:justify-between">
                       <div className="max-w-2xl">
                         <div className="inline-flex items-center gap-2 rounded-full bg-white/85 px-3 py-1 text-xs font-semibold uppercase tracking-[0.2em] text-ocean-mid shadow-sm">
                           <i className="fas fa-lock"></i>
-                          Secure Payment
+                          Reservation fee
                         </div>
-                        <h2 className="mt-4 text-3xl font-bold text-textPrimary">Complete Your Down Payment</h2>
+                        <h2 className="mt-4 text-3xl font-bold text-textPrimary">Send your reservation fee</h2>
                         <p className="mt-2 text-sm leading-6 text-textSecondary">
                           Choose how you want to pay, upload your ID and receipt, then confirm the reservation once everything is complete.
                         </p>
@@ -1418,7 +1572,7 @@ function DayTourBookingContent() {
                   </div>
 
                   {/* Guest profile from account */}
-                  <div className="mt-6 mb-5 p-4 bg-blue-50/30 rounded-xl border border-blue-100/80 shadow-sm">
+                  <div className="hidden mt-6 mb-5 p-4 bg-blue-50/30 rounded-xl border border-blue-100/80 shadow-sm">
                     <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pb-2.5 border-b border-blue-100/60 mb-3">
                       <div className="flex items-center gap-2">
                         <i className="fas fa-user-circle text-blue-600 text-lg"></i>
@@ -1426,19 +1580,11 @@ function DayTourBookingContent() {
                           Booking For: <span className="font-bold text-blue-900">{userDisplayName || '—'}</span>
                         </span>
                       </div>
-                      <button
-                        type="button"
-                        onClick={() => router.push('/account')}
-                        className="text-xs text-blue-600 hover:text-blue-700 font-semibold flex items-center gap-1 self-start sm:self-auto"
-                      >
-                        <i className="fas fa-user-cog text-[10px]"></i>
-                        Update Profile
-                      </button>
                     </div>
                     {!hasCompleteAddress && (
                       <p className="mb-3 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-900">
                         <i className="fas fa-map-marker-alt mr-1.5" />
-                        Complete your home address in account before you can confirm this booking.
+                        Complete your home address in the Your details step before you can confirm this booking.
                       </p>
                     )}
 
@@ -1470,13 +1616,6 @@ function DayTourBookingContent() {
                             <i className="fas fa-exclamation-circle text-amber-600 mt-0.5 text-sm"></i>
                             <div className="flex-1">
                               <p className="text-xs text-amber-800 leading-relaxed font-medium">{mobileNumberError}</p>
-                              <button
-                                type="button"
-                                onClick={() => router.push('/account')}
-                                className="mt-1 text-xs text-blue-600 font-semibold hover:underline flex items-center gap-1"
-                              >
-                                <i className="fas fa-arrow-right text-[9px]"></i> Update My Account
-                              </button>
                             </div>
                           </div>
                         )}
@@ -1487,10 +1626,10 @@ function DayTourBookingContent() {
                               <p className="text-xs text-amber-800 leading-relaxed font-medium">{validIdError}</p>
                               <button
                                 type="button"
-                                onClick={() => router.push('/account#photo-details')}
+                                onClick={() => setStep(3)}
                                 className="mt-1 text-xs text-blue-600 font-semibold hover:underline flex items-center gap-1"
                               >
-                                <i className="fas fa-arrow-right text-[9px]"></i> Upload Valid ID in Account
+                                <i className="fas fa-arrow-right text-[9px]"></i> Complete Valid ID step
                               </button>
                             </div>
                           </div>
@@ -1685,8 +1824,8 @@ function DayTourBookingContent() {
                 </div>
               )}
 
-              {/* Step 3: Confirmation */}
-              {step === 3 && (
+              {/* Step 5: Review & confirmation */}
+              {step === 5 && (
                 <div className="rounded-[2rem] bg-white p-6 shadow-lg sm:p-8">
                   <div className="mx-auto max-w-3xl">
                     <div className="text-center">
