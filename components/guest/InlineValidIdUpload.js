@@ -106,7 +106,7 @@ export default function InlineValidIdUpload({ profile, updateGuestProfile, onCom
       </div>
       {form.validIdType === 'Other' && <label className="mt-4 block"><span className="mb-1.5 block text-xs font-semibold text-textSecondary">Specify ID type</span><input value={form.validIdOther} onChange={(event) => setForm((prev) => ({ ...prev, validIdOther: event.target.value }))} placeholder="Enter the ID type" className="w-full rounded-xl border border-gray-200 bg-white px-4 py-3 text-sm text-textPrimary outline-none focus:border-ocean-mid focus:ring-2 focus:ring-ocean-mid/20" /></label>}
       <div className="mt-4 grid gap-4 lg:grid-cols-2">
-        {uploadCard('validIdUrl', 'Photo or scan of ID', 'Make sure the name, photo, and ID number are readable.', 'fa-id-card', 'Uploaded valid ID')}
+        {uploadCard('validIdUrl', 'Photo of ID', 'Make sure the name, photo, and ID number are readable.', 'fa-id-card', 'Uploaded valid ID')}
         {uploadCard('validIdSelfieUrl', 'Person holding the ID', 'Take a clear photo of yourself holding the same ID.', 'fa-camera', 'Person holding valid ID')}
       </div>
       {message && <p className="mt-4 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800"><i className="fas fa-circle-exclamation mr-2" />{message}</p>}
