@@ -858,7 +858,7 @@ function GuestAccountContent() {
                             <p className="text-xs text-[#516B85]">Use the spelling and order printed on the document.</p>
                           </div>
                           <div className="space-y-2">
-                            <label className="text-sm font-semibold text-[#1E3A8A]">Photo or Scan of Valid Government-Issued ID</label>
+                            <label className="text-sm font-semibold text-[#1E3A8A]">Photo of Valid Government-Issued ID</label>
                             <div className="relative">
                               <input
                                 type="file"
