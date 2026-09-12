@@ -1,7 +1,7 @@
 // app/rooms/multi-room-booking/page.js
 'use client';
 
-import { Suspense, useState, useEffect, useMemo, useRef } from 'react';
+import { Suspense, useState, useEffect, useMemo } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import GuestLayout from '@/app/guest/layout';
 import { db } from '@/lib/firebase';
@@ -86,7 +86,6 @@ function MultiRoomBookingPageContent() {
   const [validIdError, setValidIdError] = useState('');
   const [guestDetailsSaving, setGuestDetailsSaving] = useState(false);
   const [guestDetailsError, setGuestDetailsError] = useState('');
-  const [guestDetailsNeedsAccountUpdate, setGuestDetailsNeedsAccountUpdate] = useState(false);
   const [guestDetails, setGuestDetails] = useState({
     firstName: '',
     lastName: '',
@@ -99,7 +98,6 @@ function MultiRoomBookingPageContent() {
   const [draftCheckIn, setDraftCheckIn] = useState(null);
   const [draftCheckOut, setDraftCheckOut] = useState(null);
   const [roomDetailsMap, setRoomDetailsMap] = useState({});
-  const roomDetailsSignatureRef = useRef('');
   const [bookedDates, setBookedDates] = useState({});
   const [blockedSlots, setBlockedSlots] = useState({});
   const [roomInventoryReady, setRoomInventoryReady] = useState(false);
@@ -113,14 +111,10 @@ function MultiRoomBookingPageContent() {
   const selectedRoomIds = useMemo(() => (
     Array.from(new Set(
       (bookingData?.roomTypes || [])
-        .filter((room) => Number(bookingData?.selectedRooms?.[room.type] || 0) > 0)
+        .filter((room) => Number(bookingData?.selectedRooms?.[room.type] || room.quantity || 0) > 0)
         .flatMap((room) => room.roomIds || [])
     ))
   ), [bookingData?.roomTypes, bookingData?.selectedRooms]);
-  const selectedRoomIdsKey = useMemo(
-    () => [...selectedRoomIds].sort().join('|'),
-    [selectedRoomIds]
-  );
 
   useEffect(() => {
     if (!profile) return;
@@ -282,17 +276,10 @@ function MultiRoomBookingPageContent() {
           [roomSnapshot.id]: roomData,
         };
       });
-      const nextSignature = JSON.stringify(details);
-      const inventoryChanged = roomDetailsSignatureRef.current !== nextSignature;
-      if (inventoryChanged) {
-        roomDetailsSignatureRef.current = nextSignature;
-        setRoomDetailsMap(details);
-      }
+      setRoomDetailsMap(details);
       setRoomInventoryReady(true);
-      if (inventoryChanged) {
-        setBookingsAvailabilityReady(false);
-        setBlockedSlotsReady(false);
-      }
+      setBookingsAvailabilityReady(false);
+      setBlockedSlotsReady(false);
       setAvailabilityError('');
     }, (error) => {
       console.error('Error listening to room availability:', error);
@@ -304,8 +291,7 @@ function MultiRoomBookingPageContent() {
   }, []);
 
   useEffect(() => {
-    const activeSelectedRoomIds = selectedRoomIdsKey ? selectedRoomIdsKey.split('|').filter(Boolean) : [];
-    if (!roomInventoryReady || activeSelectedRoomIds.length === 0) {
+    if (!roomInventoryReady || selectedRoomIds.length === 0) {
       setBookedDates({});
       setBookingsAvailabilityReady(false);
       return undefined;
@@ -316,14 +302,14 @@ function MultiRoomBookingPageContent() {
     const unsubscribes = [];
     setBookingsAvailabilityReady(false);
     const roomIdChunks = [];
-    for (let index = 0; index < activeSelectedRoomIds.length; index += 10) {
-      roomIdChunks.push(activeSelectedRoomIds.slice(index, index + 10));
+    for (let index = 0; index < selectedRoomIds.length; index += 10) {
+      roomIdChunks.push(selectedRoomIds.slice(index, index + 10));
     }
 
     const getRoomCapacity = (roomId) => {
-      for (const roomTypeDetails of Object.values(roomDetailsMap || {})) {
-        const detail = roomTypeDetails?.[roomId];
-        if (detail && detail.archived !== true && detail.availability === 'available') {
+      for (const roomType of bookingData?.roomTypes || []) {
+        const detail = roomDetailsMap[roomType.type]?.[roomId];
+        if (detail) {
           return Math.max(0, Number(detail.totalRooms || 1) - Number(detail.maintenanceRooms || 0));
         }
       }
@@ -346,7 +332,7 @@ function MultiRoomBookingPageContent() {
             if (!booked[dateKey]) booked[dateKey] = {};
 
             if (booking.isExclusiveResortBooking) {
-              activeSelectedRoomIds.forEach((roomId) => {
+              selectedRoomIds.forEach((roomId) => {
                 if (!booked[dateKey][roomId]) booked[dateKey][roomId] = {};
                 const maxUnits = getRoomCapacity(roomId);
                 booked[dateKey][roomId][hour] = (booked[dateKey][roomId][hour] || 0) + maxUnits;
@@ -384,64 +370,40 @@ function MultiRoomBookingPageContent() {
     });
 
     return () => unsubscribes.forEach((unsubscribe) => unsubscribe());
-  }, [roomDetailsMap, roomInventoryReady, selectedRoomIdsKey]);
+  }, [bookingData?.roomTypes, roomDetailsMap, roomInventoryReady, selectedRoomIds]);
 
   useEffect(() => {
-    const activeSelectedRoomIds = selectedRoomIdsKey ? selectedRoomIdsKey.split('|').filter(Boolean) : [];
-    if (!roomInventoryReady || activeSelectedRoomIds.length === 0) {
+    if (!roomInventoryReady || selectedRoomIds.length === 0) {
       setBlockedSlots({});
       setBlockedSlotsReady(false);
       return undefined;
     }
 
     setBlockedSlotsReady(false);
-    const roomIdChunks = [];
-    for (let index = 0; index < activeSelectedRoomIds.length; index += 10) {
-      roomIdChunks.push(activeSelectedRoomIds.slice(index, index + 10));
-    }
-
-    const snapshotsByChunk = {};
-    const unsubscribes = [];
-
-    const rebuildBlockedSlots = () => {
+    const unsubscribe = onSnapshot(collection(db, 'unavailableSlots'), (snapshot) => {
       const blocks = {};
-      Object.values(snapshotsByChunk).forEach((snapshot) => {
-        snapshot.forEach((slotSnapshot) => {
-          const slot = slotSnapshot.data();
-          const dateKey = slot.date;
-          if (!dateKey) return;
-          if (!blocks[dateKey]) blocks[dateKey] = {};
-          if (!blocks[dateKey][slot.roomId]) blocks[dateKey][slot.roomId] = {};
-          for (let hour = Number(slot.startHour || 0); hour < Number(slot.endHour || 0); hour += 1) {
-            blocks[dateKey][slot.roomId][hour] = (
-              blocks[dateKey][slot.roomId][hour] || 0
-            ) + Number(slot.unitsBlocked || 1);
-          }
-        });
+      snapshot.forEach((slotSnapshot) => {
+        const slot = slotSnapshot.data();
+        if (!selectedRoomIds.includes(slot.roomId)) return;
+        const dateKey = slot.date;
+        if (!dateKey) return;
+        if (!blocks[dateKey]) blocks[dateKey] = {};
+        if (!blocks[dateKey][slot.roomId]) blocks[dateKey][slot.roomId] = {};
+        for (let hour = Number(slot.startHour || 0); hour < Number(slot.endHour || 0); hour += 1) {
+          blocks[dateKey][slot.roomId][hour] = (
+            blocks[dateKey][slot.roomId][hour] || 0
+          ) + Number(slot.unitsBlocked || 1);
+        }
       });
       setBlockedSlots(blocks);
-    };
-
-    roomIdChunks.forEach((roomIds, index) => {
-      const blockedSlotsQuery = query(
-        collection(db, 'unavailableSlots'),
-        where('roomId', 'in', roomIds)
-      );
-      const unsubscribe = onSnapshot(blockedSlotsQuery, (snapshot) => {
-        snapshotsByChunk[index] = snapshot;
-        rebuildBlockedSlots();
-        if (Object.keys(snapshotsByChunk).length === roomIdChunks.length) {
-          setBlockedSlotsReady(true);
-        }
-      }, (error) => {
-        console.error('Error listening to blocked room slots:', error);
-        setAvailabilityError('We could not refresh room availability. Please try again.');
-      });
-      unsubscribes.push(unsubscribe);
+      setBlockedSlotsReady(true);
+    }, (error) => {
+      console.error('Error listening to blocked room slots:', error);
+      setAvailabilityError('We could not refresh room availability. Please try again.');
     });
 
-    return () => unsubscribes.forEach((unsubscribe) => unsubscribe());
-  }, [roomDetailsMap, roomInventoryReady, selectedRoomIdsKey]);
+    return () => unsubscribe();
+  }, [roomInventoryReady, selectedRoomIds]);
 
   // Save booking data to localStorage whenever it changes
   useEffect(() => {
@@ -653,27 +615,19 @@ function MultiRoomBookingPageContent() {
 
   const handleGuestDetailsContinue = async () => {
     const { firstName, lastName, email, mobileNumber, address } = guestDetails;
-    const missingIdentityFields = [];
-    if (!firstName.trim()) missingIdentityFields.push('first name');
-    if (!lastName.trim()) missingIdentityFields.push('last name');
-    if (!email.trim()) missingIdentityFields.push('email');
-    if (missingIdentityFields.length > 0) {
-      setGuestDetailsNeedsAccountUpdate(true);
-      setGuestDetailsError(`Your account is missing ${missingIdentityFields.join(', ')}. Update your account profile, then continue this booking.`);
+    if (!firstName.trim() || !lastName.trim()) {
+      setGuestDetailsError('Complete your first name and last name before continuing.');
       return;
     }
-    if (!mobileNumber.trim()) {
-      setGuestDetailsNeedsAccountUpdate(false);
+    if (!email.trim() || !mobileNumber.trim()) {
       setGuestDetailsError('Complete your contact number before continuing.');
       return;
     }
     if (!isGuestAddressComplete(address)) {
-      setGuestDetailsNeedsAccountUpdate(false);
       setGuestDetailsError('Complete your province, city/municipality, barangay, and house or unit number before continuing.');
       return;
     }
     setGuestDetailsSaving(true);
-    setGuestDetailsNeedsAccountUpdate(false);
     setGuestDetailsError('');
     try {
       await updateGuestProfile({
@@ -820,107 +774,54 @@ function MultiRoomBookingPageContent() {
     if (isBookingRangeUnavailable(draftCheckIn, selected)) return;
     const nextCheckOut = new Date(selected);
     const nights = Math.max(1, Math.round((nextCheckOut - draftCheckIn) / 86400000));
-    const nextTotal = bookingData?.isExclusiveResortBooking
-      ? Number(bookingData?.exclusivePackagePrice || totalPrice)
-      : (bookingData?.roomTypes || []).reduce((sum, room) => {
-        const quantity = Number(bookingData?.selectedRooms?.[room.type] || room.quantity || 1);
-        const base = Number(room.price || 0) * quantity * nights;
-        const extra = Number(room.extraGuests || 0) * Number(room.additionalGuestCharge || 0) * nights;
-        return sum + base + extra;
-      }, 0);
-
     setDraftCheckOut(nextCheckOut);
-    setBookingData((prev) => ({
-      ...prev,
+    setBookingData((prev) => {
+      const nextTotal = prev.isExclusiveResortBooking
+        ? Number(prev.exclusivePackagePrice || totalPrice)
+        : (prev.roomTypes || []).reduce((sum, room) => {
+          const quantity = Number(prev.selectedRooms?.[room.type] || room.quantity || 1);
+          const base = Number(room.price || 0) * quantity * nights;
+          const extra = Number(room.extraGuests || 0) * Number(room.additionalGuestCharge || 0) * nights;
+          return sum + base + extra;
+        }, 0);
+      setTotalPrice(nextTotal);
+      setDownPaymentAmount(nextTotal * 0.5);
+      return {
+        ...prev,
       checkIn: draftCheckIn,
       checkOut: nextCheckOut,
       checkInDate: draftCheckIn.toISOString(),
       checkOutDate: nextCheckOut.toISOString(),
       numberOfNights: nights,
       nights,
-    }));
-    setTotalPrice(nextTotal);
-    setDownPaymentAmount(nextTotal * 0.5);
+      };
+    });
   };
 
   const updateBookingGuestCount = (field, value) => {
     const count = Math.max(field === 'adults' ? 1 : 0, Number(value) || 0);
-    let recalculatedTotalPrice = totalPrice;
     setBookingData((prev) => {
       const next = { ...prev, totalGuests: 0 };
       if (prev.isExclusiveResortBooking) {
         next.exclusiveAdults = field === 'adults' ? count : Number(prev.exclusiveAdults || 0);
         next.exclusiveKids = field === 'kids' ? count : Number(prev.exclusiveKids || 0);
         next.totalGuests = next.exclusiveAdults + next.exclusiveKids;
-        recalculatedTotalPrice = Number(prev.exclusivePackagePrice || totalPrice || 0);
         return next;
       }
+      const firstType = prev.roomTypes?.[0]?.type;
       const guestsByType = { ...(prev.perRoomGuests || {}) };
-      const nextAdultsPerType = { ...(prev.adultsPerType || {}) };
-      const nextKidsPerType = { ...(prev.kidsPerType || {}) };
-      const nextTotalGuestsPerType = { ...(prev.totalGuestsPerType || {}) };
-      const firstSelectedType = (prev.roomTypes || []).find(
-        (roomType) => Number(prev.selectedRooms?.[roomType.type] || 0) > 0
-      )?.type;
-      let adults = 0;
-      let kids = 0;
-
-      const nextRoomTypes = (prev.roomTypes || []).map((roomType) => {
-        const roomTypeKey = roomType.type;
-        const quantity = Number(prev.selectedRooms?.[roomTypeKey] || 0);
-        const isSelected = quantity > 0;
-        const roomGuests = isSelected
-          ? [...(guestsByType[roomTypeKey] || [{ adults: 1, kids: 0 }])]
-          : [];
-        if (isSelected && roomGuests.length === 0) roomGuests.push({ adults: 1, kids: 0 });
-        if (isSelected && roomTypeKey === firstSelectedType) {
-          roomGuests[0] = { ...roomGuests[0], [field]: count };
-        }
-        guestsByType[roomTypeKey] = roomGuests;
-
-        const typeAdults = roomGuests.reduce((sum, guest) => sum + Number(guest.adults || 0), 0);
-        const typeKids = roomGuests.reduce((sum, guest) => sum + Number(guest.kids || 0), 0);
-        const typeTotalGuests = typeAdults + typeKids;
-
-        nextAdultsPerType[roomTypeKey] = typeAdults;
-        nextKidsPerType[roomTypeKey] = typeKids;
-        nextTotalGuestsPerType[roomTypeKey] = typeTotalGuests;
-
-        adults += typeAdults;
-        kids += typeKids;
-
-        const capacityPerUnit = Math.max(0, Number(roomType.capacityMin || 0));
-        const capacityForType = capacityPerUnit * quantity;
-        const extraGuests = Math.max(0, typeTotalGuests - capacityForType);
-        const additionalGuestCharge = Number(roomType.additionalGuestCharge || 0);
-        const extraGuestCharges = extraGuests * additionalGuestCharge * stayNights;
-
-        return {
-          ...roomType,
-          totalGuests: typeTotalGuests,
-          extraGuests,
-          extraGuestCharges,
-          totalExtraGuestCharge: extraGuestCharges,
-        };
-      });
-
+      const firstRoomGuests = [...(guestsByType[firstType] || [{ adults: 1, kids: 0 }])];
+      firstRoomGuests[0] = { ...firstRoomGuests[0], [field]: count };
+      guestsByType[firstType] = firstRoomGuests;
+      const adults = firstRoomGuests.reduce((sum, guest) => sum + Number(guest.adults || 0), 0);
+      const kids = firstRoomGuests.reduce((sum, guest) => sum + Number(guest.kids || 0), 0);
       next.perRoomGuests = guestsByType;
-      next.adultsPerType = nextAdultsPerType;
-      next.kidsPerType = nextKidsPerType;
-      next.totalGuestsPerType = nextTotalGuestsPerType;
+      next.adultsPerType = { ...(prev.adultsPerType || {}), [firstType]: adults };
+      next.kidsPerType = { ...(prev.kidsPerType || {}), [firstType]: kids };
+      next.totalGuestsPerType = { ...(prev.totalGuestsPerType || {}), [firstType]: adults + kids };
       next.totalGuests = adults + kids;
-      next.roomTypes = nextRoomTypes;
-      next.totalExtraGuestCharge = nextRoomTypes.reduce((sum, roomType) => sum + Number(roomType.extraGuestCharges || 0), 0);
-      recalculatedTotalPrice = (nextRoomTypes || []).reduce((sum, roomType) => {
-        const quantity = Number(prev.selectedRooms?.[roomType.type] || 0);
-        const base = Number(roomType.price || 0) * quantity * stayNights;
-        const extra = Number(roomType.extraGuestCharges || 0);
-        return sum + base + extra;
-      }, 0);
       return next;
     });
-    setTotalPrice(recalculatedTotalPrice);
-    setDownPaymentAmount(recalculatedTotalPrice * 0.5);
   };
 
   const toStoragePayload = (data) => ({
@@ -1545,19 +1446,12 @@ if (allRoomIds.length <= 1) {
               {/* Step 1: Dates & guests */}
               {step === 1 && (
                 <div className="rounded-2xl border border-gray-200 bg-white p-5 shadow-sm sm:p-7">
-                  <div className="mb-6"><p className="text-xs font-semibold uppercase tracking-[0.16em] text-ocean-mid">Your stay</p><h2 className="mt-2 text-2xl font-bold text-textPrimary">Choose your nights</h2><p className="mt-2 text-sm leading-6 text-textSecondary">Select an arrival date, then your check-out date. You can adjust your guests before continuing.</p></div>
-                  <div className="grid gap-6 lg:grid-cols-[1.1fr_0.9fr]">
-                    <div>
+                  <div className="mb-6"><p className="text-xs font-semibold uppercase tracking-[0.16em] text-ocean-mid">Your stay</p><h2 className="mt-2 text-2xl font-bold text-textPrimary">Choose your nights</h2><p className="mt-2 text-sm leading-6 text-textSecondary">Your selected dates are shown below.</p></div>
+                  <div>
                       <div className="mb-4 flex items-center justify-between"><button type="button" disabled={!calendarMonth || !minimumCalendarMonth || calendarMonth <= minimumCalendarMonth} onClick={() => calendarMonth && setCalendarMonth(new Date(calendarMonth.getFullYear(), calendarMonth.getMonth() - 1, 1))} aria-label="Previous month" className="flex size-9 items-center justify-center rounded-xl border border-gray-200 text-textSecondary transition-colors hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-35"><i className="fas fa-chevron-left text-xs" /></button><p className="font-semibold text-textPrimary">{calendarMonth?.toLocaleString('en-US', { month: 'long', year: 'numeric' }) || 'Choose dates'}</p><button type="button" onClick={() => calendarMonth && setCalendarMonth(new Date(calendarMonth.getFullYear(), calendarMonth.getMonth() + 1, 1))} aria-label="Next month" className="flex size-9 items-center justify-center rounded-xl border border-gray-200 text-textSecondary transition-colors hover:bg-gray-50"><i className="fas fa-chevron-right text-xs" /></button></div>
-                      <div className="grid grid-cols-7 gap-1 text-center text-[10px] font-semibold uppercase text-textSecondary">{['Su', 'Mo', 'Tu', 'We', 'Th', 'Fr', 'Sa'].map((day) => <span key={day} className="py-1">{day}</span>)}{getCalendarDays().map((date, index) => { const selectedStart = date && draftCheckIn && date.toDateString() === draftCheckIn.toDateString(); const selectedEnd = date && draftCheckOut && date.toDateString() === draftCheckOut.toDateString(); const inRange = date && draftCheckIn && draftCheckOut && date > draftCheckIn && date < draftCheckOut; const dateDisabled = isCalendarDateDisabled(date); return <button key={date ? date.toISOString() : `empty-${index}`} type="button" disabled={dateDisabled} onClick={() => handleBookingDateSelect(date)} aria-label={date ? `${date.toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })}${dateDisabled ? ', unavailable' : ''}` : undefined} className={`min-h-9 rounded-lg text-xs transition-colors ${selectedStart || selectedEnd ? 'bg-ocean-mid font-bold text-white' : inRange ? 'bg-ocean-ice text-textPrimary' : dateDisabled ? 'cursor-not-allowed text-gray-300 line-through' : 'text-textPrimary hover:bg-ocean-ice'} ${!date ? 'cursor-default' : ''}`}>{date?.getDate() || ''}</button>; })}</div>
-                      <div className="mt-4 rounded-xl bg-ocean-ice/60 px-3 py-2 text-xs text-textSecondary">{draftCheckIn && draftCheckOut ? `${formatDateOnly(draftCheckIn)} – ${formatDateOnly(draftCheckOut)}` : 'Tap an arrival date, then your check-out date.'}</div>
+                      <div className="grid grid-cols-7 gap-1 text-center text-[10px] font-semibold uppercase text-textSecondary">{['Su', 'Mo', 'Tu', 'We', 'Th', 'Fr', 'Sa'].map((day) => <span key={day} className="py-1">{day}</span>)}{getCalendarDays().map((date, index) => { const selectedStart = date && draftCheckIn && date.toDateString() === draftCheckIn.toDateString(); const selectedEnd = date && draftCheckOut && date.toDateString() === draftCheckOut.toDateString(); const inRange = date && draftCheckIn && draftCheckOut && date > draftCheckIn && date < draftCheckOut; const dateDisabled = isCalendarDateDisabled(date); return <div key={date ? date.toISOString() : `empty-${index}`} aria-label={date ? `${date.toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })}${dateDisabled ? ', unavailable' : ''}` : undefined} className={`flex min-h-9 items-center justify-center rounded-lg text-xs ${selectedStart || selectedEnd ? 'bg-ocean-mid font-bold text-white' : inRange ? 'bg-ocean-ice text-textPrimary' : dateDisabled ? 'text-gray-300 line-through' : 'text-textPrimary'} ${!date ? '' : 'cursor-default'}`}>{date?.getDate() || ''}</div>; })}</div>
+                      <div className="mt-4 rounded-xl bg-ocean-ice/60 px-3 py-2 text-xs text-textSecondary">{draftCheckIn && draftCheckOut ? `${formatDateOnly(draftCheckIn)} – ${formatDateOnly(draftCheckOut)}` : 'No dates selected.'}</div>
                       {availabilityError && <p className="mt-2 text-xs text-amber-700">{availabilityError}</p>}
-                    </div>
-                    <div className="space-y-4">
-                      <label className="block"><span className="mb-1.5 block text-sm font-semibold text-textPrimary">Adults</span><input type="number" min="1" value={isExclusiveBooking ? exclusiveAdults : Number(bookingData.adultsPerType?.[getFilteredRoomTypes()[0]?.type] || 1)} onChange={(event) => updateBookingGuestCount('adults', event.target.value)} className="w-full rounded-xl border border-gray-200 px-4 py-3 text-sm text-textPrimary outline-none focus:border-ocean-mid focus:ring-2 focus:ring-ocean-mid/20" /></label>
-                      <label className="block"><span className="mb-1.5 block text-sm font-semibold text-textPrimary">Children</span><input type="number" min="0" value={isExclusiveBooking ? exclusiveKids : Number(bookingData.kidsPerType?.[getFilteredRoomTypes()[0]?.type] || 0)} onChange={(event) => updateBookingGuestCount('kids', event.target.value)} className="w-full rounded-xl border border-gray-200 px-4 py-3 text-sm text-textPrimary outline-none focus:border-ocean-mid focus:ring-2 focus:ring-ocean-mid/20" /><span className="mt-1 block text-xs text-textSecondary">Under 7 stay free</span></label>
-                      <div className="rounded-xl bg-gray-50 px-4 py-3"><p className="font-semibold text-textPrimary">{draftCheckIn && draftCheckOut ? `${Math.max(1, Math.round((draftCheckOut - draftCheckIn) / 86400000))} nights` : 'No dates yet'}</p><p className="mt-1 text-xs text-textSecondary">{summaryGuestCount} guests · {summaryRoomType}</p></div>
-                    </div>
                   </div>
                   <div className="hidden grid gap-3 sm:grid-cols-3">
                     {['/assets/GroupRoom/GroupRoom1.1.jpg', '/assets/GroupRoom/GroupRoom1.2.jpg', '/assets/GroupRoom/GroupRoom2.jpg'].map((src, index) => <div key={src} className={`overflow-hidden rounded-2xl ${index === 0 ? 'sm:col-span-2 sm:row-span-2' : ''}`}><img src={src} alt="SandyFeet accommodation" className={`w-full object-cover ${index === 0 ? 'h-64 sm:h-full' : 'h-32'}`} /></div>)}
@@ -1567,7 +1461,7 @@ if (allRoomIds.length <= 1) {
                     <div className="rounded-2xl border border-gray-200 bg-gray-50 p-4"><p className="text-xs font-semibold uppercase tracking-[0.14em] text-textSecondary">Check-out</p><p className="mt-2 text-lg font-bold text-textPrimary">{formatDateOnly(bookingData.checkOut)}</p><p className="mt-1 text-xs text-textSecondary">{FIXED_CHECK_OUT_DISPLAY} · {stayNights} night{stayNights === 1 ? '' : 's'}</p></div>
                   </div>
                   <div className="mt-4 rounded-2xl border border-ocean-light/20 bg-ocean-ice/40 p-4"><p className="text-xs font-semibold uppercase tracking-[0.14em] text-textSecondary">Selected rooms</p><div className="mt-2 space-y-2">{getFilteredRoomTypes().map((roomType) => <div key={roomType.type} className="flex items-center justify-between gap-3 text-sm"><span className="font-semibold text-textPrimary">{bookingData.selectedRooms?.[roomType.type] || roomType.quantity} × {roomType.type}</span><span className="text-textSecondary">{roomType.totalGuests || bookingData.totalGuestsPerType?.[roomType.type] || 1} guest{(roomType.totalGuests || bookingData.totalGuestsPerType?.[roomType.type] || 1) === 1 ? '' : 's'}</span></div>)}</div></div>
-                  <label className="mt-5 block"><span className="mb-1.5 block text-sm font-semibold text-textPrimary">Special request <span className="font-normal text-textSecondary">(optional)</span></span><textarea value={bookingData.specialRequest || ''} onChange={(e) => setBookingData((prev) => ({ ...prev, specialRequest: e.target.value }))} rows={4} placeholder="Tell us about accessibility needs, celebrations, or room preferences." className="w-full resize-none rounded-xl border border-gray-200 px-4 py-3 text-sm text-textPrimary outline-none focus:border-ocean-mid focus:ring-2 focus:ring-ocean-mid/20" /></label>
+                  <label className="mt-5 block"><span className="mb-1.5 block text-sm font-semibold text-textPrimary">Special request <span className="font-normal text-textSecondary">(optional)</span></span><textarea value={bookingData.specialRequest || ''} onChange={(e) => setBookingData((prev) => ({ ...prev, specialRequest: e.target.value }))} rows={4} placeholder="e.g., Request early check-in, room preferences, PWD/Senior ID, etc." className="w-full resize-none rounded-xl border border-gray-200 px-4 py-3 text-sm text-textPrimary outline-none focus:border-ocean-mid focus:ring-2 focus:ring-ocean-mid/20" /></label>
                   <div className="mt-6 flex flex-col-reverse gap-3 sm:flex-row"><button onClick={handlePreviousStep} className="flex-1 rounded-xl border border-gray-200 px-4 py-3 text-sm font-semibold text-textSecondary hover:bg-gray-50">Back to room selection</button><button onClick={handleNextStep} className="flex-1 rounded-xl bg-ocean-mid px-4 py-3 text-sm font-semibold text-white shadow-sm hover:bg-ocean-deep">Continue to your details<i className="fas fa-arrow-right ml-2" /></button></div>
                 </div>
               )}
@@ -1583,11 +1477,14 @@ if (allRoomIds.length <= 1) {
 
                   <div className="grid gap-4 sm:grid-cols-2">
                     <label className="block">
-                      <span className="mb-1.5 block text-xs font-semibold text-textSecondary">Full name</span>
-                      <input value={`${guestDetails.firstName} ${guestDetails.lastName}`.trim()} readOnly className="w-full rounded-xl border border-gray-200 bg-gray-50 px-4 py-3 text-sm font-semibold text-textPrimary" />
-                      <span className="mt-1 block text-[11px] text-textSecondary">From your account profile</span>
+                      <span className="mb-1.5 block text-xs font-semibold text-textSecondary">First name</span>
+                      <input value={guestDetails.firstName} onChange={(e) => setGuestDetails((prev) => ({ ...prev, firstName: e.target.value }))} className="w-full rounded-xl border border-gray-200 bg-white px-4 py-3 text-sm font-semibold text-textPrimary outline-none focus:border-ocean-mid focus:ring-2 focus:ring-ocean-mid/20" />
                     </label>
                     <label className="block">
+                      <span className="mb-1.5 block text-xs font-semibold text-textSecondary">Last name</span>
+                      <input value={guestDetails.lastName} onChange={(e) => setGuestDetails((prev) => ({ ...prev, lastName: e.target.value }))} className="w-full rounded-xl border border-gray-200 bg-white px-4 py-3 text-sm font-semibold text-textPrimary outline-none focus:border-ocean-mid focus:ring-2 focus:ring-ocean-mid/20" />
+                    </label>
+                    <label className="block sm:col-span-2">
                       <span className="mb-1.5 block text-xs font-semibold text-textSecondary">Email address</span>
                       <input value={guestDetails.email} readOnly type="email" className="w-full rounded-xl border border-gray-200 bg-gray-50 px-4 py-3 text-sm text-textPrimary" />
                       <span className="mt-1 block text-[11px] text-textSecondary">Booking updates will be sent here</span>
@@ -1613,21 +1510,7 @@ if (allRoomIds.length <= 1) {
                       <label className="block"><span className="mb-1.5 block text-xs font-semibold text-textSecondary">Street <span className="font-normal">(optional)</span></span><input value={guestDetails.address.street} onChange={(e) => setGuestDetails((prev) => ({ ...prev, address: { ...prev.address, street: e.target.value } }))} placeholder="Street name" className="w-full rounded-xl border border-gray-200 bg-white px-4 py-3 text-sm text-textPrimary outline-none focus:border-ocean-mid focus:ring-2 focus:ring-ocean-mid/20" /></label>
                     </div>
                   </div>
-                  {guestDetailsError && (
-                    <div className="mt-4 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
-                      <p><i className="fas fa-circle-exclamation mr-2" />{guestDetailsError}</p>
-                      {guestDetailsNeedsAccountUpdate && (
-                        <button
-                          type="button"
-                          onClick={() => router.push('/account')}
-                          className="mt-3 inline-flex items-center gap-2 rounded-lg border border-amber-300 bg-white px-3 py-1.5 text-xs font-semibold text-amber-800 hover:bg-amber-100"
-                        >
-                          <i className="fas fa-user-cog" />
-                          Update account profile
-                        </button>
-                      )}
-                    </div>
-                  )}
+                  {guestDetailsError && <p className="mt-4 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800"><i className="fas fa-circle-exclamation mr-2" />{guestDetailsError}</p>}
                   <div className="mt-6 flex flex-col-reverse gap-3 sm:flex-row"><button onClick={handlePreviousStep} className="flex-1 rounded-xl border border-gray-200 px-4 py-3 text-sm font-semibold text-textSecondary hover:bg-gray-50">Back</button><button onClick={handleGuestDetailsContinue} disabled={guestDetailsSaving} className="flex-1 rounded-xl bg-ocean-mid px-4 py-3 text-sm font-semibold text-white shadow-sm hover:bg-ocean-deep disabled:cursor-not-allowed disabled:opacity-60">{guestDetailsSaving ? 'Saving details…' : 'Continue to valid ID'}<i className="fas fa-arrow-right ml-2" /></button></div>
                 </div>
               )}
@@ -1803,7 +1686,7 @@ if (allRoomIds.length <= 1) {
 
                       <div className="grid grid-cols-1 gap-4">
                         {/* Valid ID Container */}
-                        <div className="bg-white rounded-xl border border-gray-200 p-4 sm:p-5 shadow-sm hover:border-blue-200 transition-colors">
+                        <div className="hidden bg-white rounded-xl border border-gray-200 p-4 sm:p-5 shadow-sm hover:border-blue-200 transition-colors">
                           <div className="flex items-center gap-2 mb-2">
                             <i className="fas fa-id-card text-blue-500 text-lg"></i>
                             <label className="text-sm font-semibold text-gray-800">Valid ID (from your account)</label>
@@ -2048,7 +1931,7 @@ if (allRoomIds.length <= 1) {
 
                       <div className="grid grid-cols-1 gap-4">
                         {/* Valid ID Container */}
-                        <div className="bg-white rounded-xl border border-gray-200 p-4 sm:p-5 shadow-sm hover:border-blue-200 transition-colors">
+                        <div className="hidden bg-white rounded-xl border border-gray-200 p-4 sm:p-5 shadow-sm hover:border-blue-200 transition-colors">
                           <div className="flex items-center gap-2 mb-2">
                             <i className="fas fa-id-card text-blue-500 text-lg"></i>
                             <label className="text-sm font-semibold text-gray-800">Valid ID (from your account)</label>

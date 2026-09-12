@@ -20,7 +20,6 @@ import {
   getGuestAddressFromProfile,
   isGuestAddressComplete,
   isProfileAddressComplete,
-  isValidPhilippineMobileNumber,
 } from '@/lib/guestAddress';
 import {
   getAddressNamesFromCodes,
@@ -104,7 +103,6 @@ function DayTourBookingContent() {
   const [addressCodes, setAddressCodes] = useState({ provinceCode: '', cityCode: '', barangayCode: '' });
   const [guestDetailsSaving, setGuestDetailsSaving] = useState(false);
   const [guestDetailsError, setGuestDetailsError] = useState('');
-  const [guestDetailsNeedsAccountUpdate, setGuestDetailsNeedsAccountUpdate] = useState(false);
   
   const [errors, setErrors] = useState({});
   const [validIdError, setValidIdError] = useState('');
@@ -481,13 +479,12 @@ function DayTourBookingContent() {
   const userEmail = profile?.email || user?.email || '';
   const userMobileNumber = guestDetails.mobileNumber || profile?.mobileNumber || '';
   const hasMobileNumber = Boolean(userMobileNumber.trim());
-  const hasValidMobileNumber = isValidPhilippineMobileNumber(userMobileNumber);
   const hasCompleteAddress = isGuestAddressComplete(guestDetails.address) || isProfileAddressComplete(profile);
 
   const canSubmitPayment = Boolean(
     bookingData.paymentProof &&
     !submitting &&
-    hasValidMobileNumber &&
+    hasMobileNumber &&
     hasAccountValidIdVerification(profile) &&
     (paymentMethod !== 'bank_transfer' || bankDetailsProvided || visibleGuestQrBank) &&
     ['digital', 'cash'].includes(balancePaymentMethod) &&
@@ -595,33 +592,20 @@ function DayTourBookingContent() {
 
   const handleGuestDetailsContinue = async () => {
     const { firstName, lastName, email, mobileNumber, address } = guestDetails;
-    const missingIdentityFields = [];
-    if (!firstName.trim()) missingIdentityFields.push('first name');
-    if (!lastName.trim()) missingIdentityFields.push('last name');
-    if (!email.trim()) missingIdentityFields.push('email');
-    if (missingIdentityFields.length > 0) {
-      setGuestDetailsNeedsAccountUpdate(true);
-      setGuestDetailsError(`Your account is missing ${missingIdentityFields.join(', ')}. Update your account profile, then continue this booking.`);
+    if (!firstName.trim() || !lastName.trim()) {
+      setGuestDetailsError('Complete your first name and last name before continuing.');
       return;
     }
-    if (!mobileNumber.trim()) {
-      setGuestDetailsNeedsAccountUpdate(false);
+    if (!email.trim() || !mobileNumber.trim()) {
       setGuestDetailsError('Complete your contact number before continuing.');
       return;
     }
-    if (!isValidPhilippineMobileNumber(mobileNumber)) {
-      setGuestDetailsNeedsAccountUpdate(false);
-      setGuestDetailsError('Enter a valid 11-digit mobile number that starts with 09.');
-      return;
-    }
     if (!isGuestAddressComplete(address)) {
-      setGuestDetailsNeedsAccountUpdate(false);
       setGuestDetailsError('Complete your province, city/municipality, barangay, and house or unit number before continuing.');
       return;
     }
 
     setGuestDetailsSaving(true);
-    setGuestDetailsNeedsAccountUpdate(false);
     setGuestDetailsError('');
     try {
       await updateGuestProfile({
@@ -691,17 +675,6 @@ function DayTourBookingContent() {
       setModalNotification({ message: 'Please select a bank account first', type: 'error' });
       return;
     }
-    if (!hasMobileNumber) {
-      setMobileNumberError('A mobile number is required to confirm your booking. Return to the Your details step and add it there.');
-      setModalNotification({ message: 'Please add a mobile number in the Your details step before requesting bank details.', type: 'error' });
-      return;
-    }
-    if (!hasValidMobileNumber) {
-      setMobileNumberError('Please use a valid 11-digit mobile number that starts with 09 before continuing.');
-      setModalNotification({ message: 'Please correct your mobile number in the Your details step before requesting bank details.', type: 'error' });
-      return;
-    }
-    setMobileNumberError('');
     
     setNotifyingResort(true);
     try {
@@ -764,11 +737,6 @@ function DayTourBookingContent() {
     if (!hasMobileNumber) {
       setMobileNumberError('A mobile number is required to confirm your booking. Return to the Your details step and add it there.');
       setModalNotification({ message: 'Please add a mobile number in the Your details step before booking.', type: 'error' });
-      return;
-    }
-    if (!hasValidMobileNumber) {
-      setMobileNumberError('Please use a valid 11-digit mobile number that starts with 09 before confirming your booking.');
-      setModalNotification({ message: 'Please correct your mobile number in the Your details step before booking.', type: 'error' });
       return;
     }
     setMobileNumberError('');
@@ -1534,8 +1502,9 @@ function DayTourBookingContent() {
                   <h2 className="mt-2 text-2xl font-bold text-textPrimary">Confirm your contact information</h2>
                   <p className="mt-2 text-sm leading-6 text-textSecondary">Your name and email come from your SandyFeet account. Confirm your mobile number and select your home address before continuing.</p>
                   <div className="mt-6 grid gap-4 sm:grid-cols-2">
-                    <div className="rounded-xl border border-gray-200 bg-gray-50 p-4"><p className="text-xs text-textSecondary">Full name</p><p className="mt-1 font-semibold text-textPrimary">{`${guestDetails.firstName} ${guestDetails.lastName}`.trim() || 'Not provided'}</p><p className="mt-1 text-[11px] text-textSecondary">From your account profile</p></div>
-                    <div className="rounded-xl border border-gray-200 bg-gray-50 p-4"><p className="text-xs text-textSecondary">Email address</p><p className="mt-1 break-all font-semibold text-textPrimary">{guestDetails.email || 'Not provided'}</p><p className="mt-1 text-[11px] text-textSecondary">Booking updates will be sent here</p></div>
+                    <label className="block"><span className="text-xs text-textSecondary">First name</span><input value={guestDetails.firstName} onChange={(event) => setGuestDetails((prev) => ({ ...prev, firstName: event.target.value }))} className="mt-1.5 w-full rounded-xl border border-gray-200 bg-white px-4 py-3 text-sm font-semibold text-textPrimary outline-none focus:border-ocean-mid focus:ring-2 focus:ring-ocean-mid/20" /></label>
+                    <label className="block"><span className="text-xs text-textSecondary">Last name</span><input value={guestDetails.lastName} onChange={(event) => setGuestDetails((prev) => ({ ...prev, lastName: event.target.value }))} className="mt-1.5 w-full rounded-xl border border-gray-200 bg-white px-4 py-3 text-sm font-semibold text-textPrimary outline-none focus:border-ocean-mid focus:ring-2 focus:ring-ocean-mid/20" /></label>
+                    <div className="rounded-xl border border-gray-200 bg-gray-50 p-4 sm:col-span-2"><p className="text-xs text-textSecondary">Email address</p><p className="mt-1 break-all font-semibold text-textPrimary">{guestDetails.email || 'Not provided'}</p><p className="mt-1 text-[11px] text-textSecondary">Booking updates will be sent here</p></div>
                     <label className="block sm:col-span-2"><span className="text-xs text-textSecondary">Mobile number</span><input value={guestDetails.mobileNumber} onChange={(event) => setGuestDetails((prev) => ({ ...prev, mobileNumber: event.target.value.replace(/\D/g, '').slice(0, 11) }))} inputMode="numeric" placeholder="09XXXXXXXXX" className="mt-1.5 w-full rounded-xl border border-gray-200 bg-white px-4 py-3 text-sm text-textPrimary outline-none focus:border-ocean-mid focus:ring-2 focus:ring-ocean-mid/20" /></label>
                   </div>
                   <div className="mt-6 rounded-2xl border border-ocean-light/20 bg-ocean-ice/40 p-4 sm:p-5">
@@ -1553,21 +1522,7 @@ function DayTourBookingContent() {
                       <label className="block"><span className="mb-1.5 block text-xs font-semibold text-textSecondary">Street <span className="font-normal">(optional)</span></span><input value={guestDetails.address.street} onChange={(event) => setGuestDetails((prev) => ({ ...prev, address: { ...prev.address, street: event.target.value } }))} placeholder="Street name" className="w-full rounded-xl border border-gray-200 bg-white px-4 py-3 text-sm text-textPrimary outline-none focus:border-ocean-mid focus:ring-2 focus:ring-ocean-mid/20" /></label>
                     </div>
                   </div>
-                  {guestDetailsError && (
-                    <div className="mt-4 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
-                      <p><i className="fas fa-circle-exclamation mr-2" />{guestDetailsError}</p>
-                      {guestDetailsNeedsAccountUpdate && (
-                        <button
-                          type="button"
-                          onClick={() => router.push('/account')}
-                          className="mt-3 inline-flex items-center gap-2 rounded-lg border border-amber-300 bg-white px-3 py-1.5 text-xs font-semibold text-amber-800 hover:bg-amber-100"
-                        >
-                          <i className="fas fa-user-cog" />
-                          Update account profile
-                        </button>
-                      )}
-                    </div>
-                  )}
+                  {guestDetailsError && <p className="mt-4 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800"><i className="fas fa-circle-exclamation mr-2" />{guestDetailsError}</p>}
                   <div className="mt-6 flex flex-col-reverse gap-3 sm:flex-row"><button onClick={handlePreviousStep} className="flex-1 rounded-xl border border-ocean-light/25 px-4 py-3 text-sm font-semibold text-textSecondary hover:bg-ocean-ice">Back</button><button onClick={handleGuestDetailsContinue} disabled={guestDetailsSaving} className="flex-1 rounded-xl bg-ocean-mid px-4 py-3 text-sm font-semibold text-white hover:bg-ocean-deep disabled:cursor-not-allowed disabled:opacity-60">{guestDetailsSaving ? 'Saving details…' : 'Continue to valid ID'} <i className="fas fa-arrow-right ml-2" /></button></div>
                 </div>
               )}

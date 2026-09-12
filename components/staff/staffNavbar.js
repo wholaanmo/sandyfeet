@@ -15,6 +15,7 @@ import {
   setupGuestReservationEditsListener,
   setupRoomStatusListener, 
   setupGuestIdSubmissionListener,
+  setupGuestPaymentSubmissionListener,
   markNotificationAsRead,
   markAllNotificationsAsRead,
   initializeDismissedNotifications,
@@ -110,6 +111,7 @@ export default function StaffNavbar({ toggleSidebar, sidebarOpen, isDesktop }) {
     const unsubscribeGuestActivity = setupGuestReservationEditsListener(handleNotificationsUpdate);
     const unsubscribeRoomStatus = setupRoomStatusListener(handleNotificationsUpdate);
     const unsubscribeGuestIdSubmission = setupGuestIdSubmissionListener(handleNotificationsUpdate);
+    const unsubscribeGuestPaymentSubmission = setupGuestPaymentSubmissionListener(handleNotificationsUpdate);
 
     return () => {
       unsubscribeReadStatus();
@@ -122,6 +124,7 @@ export default function StaffNavbar({ toggleSidebar, sidebarOpen, isDesktop }) {
       unsubscribeGuestActivity();
       unsubscribeRoomStatus();
       unsubscribeGuestIdSubmission();
+      unsubscribeGuestPaymentSubmission();
     };
   }, []);
 
@@ -186,6 +189,8 @@ export default function StaffNavbar({ toggleSidebar, sidebarOpen, isDesktop }) {
         return { icon: 'fas fa-exchange-alt', bgColor: 'bg-gradient-to-br from-teal-50 to-teal-100', iconColor: 'text-teal-600', borderColor: 'border-teal-200' };
       case 'guest_id_submission':
         return { icon: 'fas fa-id-card', bgColor: 'bg-gradient-to-br from-blue-50 to-blue-100', iconColor: 'text-blue-600', borderColor: 'border-blue-200' };
+      case 'guest_payment_submission':
+        return { icon: 'fas fa-receipt', bgColor: 'bg-gradient-to-br from-amber-50 to-amber-100', iconColor: 'text-amber-600', borderColor: 'border-amber-200' };
       default:
         return { icon: 'fas fa-bell', bgColor: 'bg-gradient-to-br from-gray-50 to-gray-100', iconColor: 'text-gray-600', borderColor: 'border-gray-200' };
     }
@@ -411,6 +416,17 @@ export default function StaffNavbar({ toggleSidebar, sidebarOpen, isDesktop }) {
     <div className="inline-flex items-center gap-1.5 mt-1 px-2 py-0.5 bg-blue-50 rounded-full">
       <i className="fas fa-tag text-blue-500 text-[10px]"></i>
       <span className="text-[11px] font-medium text-blue-700">{notification.bookingType}</span>
+    </div>
+  </>
+) : notification.type === 'guest_payment_submission' ? (
+  <>
+    <p className="text-sm font-bold text-gray-800 mb-1">Guest Payment Proof Submitted</p>
+    <p className="text-xs text-gray-600 mb-1">
+      <span className="font-semibold">{notification.guestName}</span> submitted another payment proof for booking <span className="font-mono">{notification.bookingId}</span>
+    </p>
+    <div className="inline-flex items-center gap-1.5 mt-1 px-2 py-0.5 bg-amber-50 rounded-full">
+      <i className="fas fa-tag text-amber-500 text-[10px]"></i>
+      <span className="text-[11px] font-medium text-amber-700">{notification.bookingType}</span>
     </div>
   </>
 ) : (
