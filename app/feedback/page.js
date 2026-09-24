@@ -29,8 +29,11 @@ import {
   serverTimestamp,
   where,
 } from 'firebase/firestore';
+import { uploadImage } from '@/lib/cloudinary';
 
 const feedbackEligibleStatuses = new Set(['check-in', 'check-out', 'completed']);
+const MAX_FEEDBACK_IMAGES = 2;
+const MAX_FEEDBACK_IMAGE_BYTES = 5 * 1024 * 1024;
 
 function FeedbackPageContent() {
   const { user, profile, loading: authLoading, logout } = useGuestAuth();
@@ -54,6 +57,11 @@ function FeedbackPageContent() {
   // New state for anonymous preference
   const [isAnonymous, setIsAnonymous] = useState(false);
 
+  // Optional feedback photos (max 2)
+  const [feedbackImages, setFeedbackImages] = useState([]);
+  const [feedbackImagePreviews, setFeedbackImagePreviews] = useState([]);
+  const [existingFeedbackImages, setExistingFeedbackImages] = useState([]);
+
   // For logged-in users
   const [eligibleBookings, setEligibleBookings] = useState([]);
   const [reviewedBookings, setReviewedBookings] = useState([]);
@@ -61,6 +69,19 @@ function FeedbackPageContent() {
   const [fetchingBookings, setFetchingBookings] = useState(false);
   const [selectedBookingId, setSelectedBookingId] = useState(null);
   const [isReadOnlyView, setIsReadOnlyView] = useState(false);
+
+  const clearFeedbackImageState = () => {
+    setFeedbackImagePreviews((prev) => {
+      prev.forEach((url) => {
+        if (typeof url === 'string' && url.startsWith('blob:')) {
+          URL.revokeObjectURL(url);
+        }
+      });
+      return [];
+    });
+    setFeedbackImages([]);
+    setExistingFeedbackImages([]);
+  };
 
   const handleSignOutClick = () => {
     setShowSignOutModal(true);
@@ -197,6 +218,7 @@ function FeedbackPageContent() {
       });
       // Set anonymous preference from existing feedback (if exists)
       setIsAnonymous(existing.isAnonymous === true);
+      setExistingFeedbackImages(Array.isArray(existing.images) ? existing.images.filter(Boolean) : []);
     }
   }, [feedbackByBookingId, selectedBookingId, isReadOnlyView]);
 
@@ -216,6 +238,7 @@ function FeedbackPageContent() {
   const handleSelectBooking = (booking, readOnly = false) => {
     const guestName = `${booking.guestInfo?.firstName || ''} ${booking.guestInfo?.lastName || ''}`.trim();
     setIsReadOnlyView(readOnly);
+    clearFeedbackImageState();
     if (readOnly) {
       const existing = feedbackByBookingId[booking.bookingId];
       setFeedback({
@@ -223,6 +246,7 @@ function FeedbackPageContent() {
         comment: existing?.comment || '',
       });
       setIsAnonymous(existing?.isAnonymous === true);
+      setExistingFeedbackImages(Array.isArray(existing?.images) ? existing.images.filter(Boolean) : []);
     } else {
       setFeedback({ rating: 5, comment: '' });
       setIsAnonymous(false); // reset for new feedback
@@ -347,6 +371,50 @@ function FeedbackPageContent() {
     }
   };
 
+  const handleFeedbackImagesChange = (event) => {
+    const files = Array.from(event.target.files || []);
+    event.target.value = '';
+    if (!files.length) return;
+
+    const remainingSlots = MAX_FEEDBACK_IMAGES - feedbackImages.length;
+    if (remainingSlots <= 0) {
+      showMessage('You can upload a maximum of 2 pictures.', 'error');
+      return;
+    }
+
+    const accepted = [];
+    for (const file of files.slice(0, remainingSlots)) {
+      if (!file.type.startsWith('image/')) {
+        showMessage('Please upload image files only.', 'error');
+        continue;
+      }
+      if (file.size > MAX_FEEDBACK_IMAGE_BYTES) {
+        showMessage('Each picture must be 5MB or smaller.', 'error');
+        continue;
+      }
+      accepted.push(file);
+    }
+
+    if (!accepted.length) return;
+
+    const newPreviews = accepted.map((file) => URL.createObjectURL(file));
+    setFeedbackImages((prev) => [...prev, ...accepted].slice(0, MAX_FEEDBACK_IMAGES));
+    setFeedbackImagePreviews((prev) => [...prev, ...newPreviews].slice(0, MAX_FEEDBACK_IMAGES));
+    setMessage({ text: '', type: '' });
+  };
+
+  const removeFeedbackImage = (index) => {
+    setFeedbackImagePreviews((prev) => {
+      const next = [...prev];
+      const [removed] = next.splice(index, 1);
+      if (typeof removed === 'string' && removed.startsWith('blob:')) {
+        URL.revokeObjectURL(removed);
+      }
+      return next;
+    });
+    setFeedbackImages((prev) => prev.filter((_, i) => i !== index));
+  };
+
   const handleSubmitFeedback = async (event) => {
     event.preventDefault();
     if (!verifiedBooking || isReadOnlyView) return;
@@ -357,10 +425,24 @@ function FeedbackPageContent() {
       return;
     }
 
+    if (feedbackImages.length > MAX_FEEDBACK_IMAGES) {
+      showMessage('You can upload a maximum of 2 pictures.', 'error');
+      return;
+    }
+
     setSubmitting(true);
     setMessage({ text: '', type: '' });
 
     try {
+      const uploadedImages = [];
+      for (const file of feedbackImages) {
+        const url = await uploadImage(file);
+        if (!url) {
+          throw new Error('Image upload failed');
+        }
+        uploadedImages.push(url);
+      }
+
       await addDoc(collection(db, 'feedbacks'), {
         bookingId: verifiedBooking.bookingId,
         guestEmail: verifiedBooking.email,
@@ -371,9 +453,11 @@ function FeedbackPageContent() {
         sourceDocId: verifiedBooking.sourceDocId,
         createdAt: serverTimestamp(),
         isAnonymous: isAnonymous, // store preference
+        images: uploadedImages,
       });
 
       setFeedback({ rating: 5, comment: '' });
+      clearFeedbackImageState();
       setVerifiedBooking(null);
       setSelectedBookingId(null);
       setIsReadOnlyView(false);
@@ -738,6 +822,7 @@ function FeedbackPageContent() {
                           setIsReadOnlyView(false);
                           setFeedback({ rating: 5, comment: '' });
                           setIsAnonymous(false);
+                          clearFeedbackImageState();
                           setMessage({ text: '', type: '' });
                         }}
                         className="self-start rounded-xl bg-blue-50 px-3 py-2 text-xs font-bold text-blue-600 transition-all hover:bg-blue-100 hover:text-blue-700 sm:px-4 sm:shrink-0"
@@ -846,6 +931,89 @@ function FeedbackPageContent() {
                               {feedback.comment.length} / 10 characters min
                             </p>
                           </div>
+                        )}
+                      </div>
+
+                      <div className="space-y-2">
+                        <div className="flex items-center justify-between gap-3">
+                          <label className="text-[11px] font-bold uppercase tracking-widest text-slate-400">
+                            Photos <span className="normal-case tracking-normal font-medium text-slate-400">(optional, max 2)</span>
+                          </label>
+                          {!isReadOnlyView && (
+                            <span className="text-[10px] font-semibold text-slate-400">
+                              {feedbackImages.length}/{MAX_FEEDBACK_IMAGES}
+                            </span>
+                          )}
+                        </div>
+
+                        {isReadOnlyView ? (
+                          existingFeedbackImages.length > 0 ? (
+                            <div className="grid grid-cols-2 gap-3">
+                              {existingFeedbackImages.map((url, index) => (
+                                <div key={`${url}-${index}`} className="relative overflow-hidden rounded-xl border border-slate-200 bg-slate-50 aspect-[4/3]">
+                                  <Image
+                                    src={url}
+                                    alt={`Feedback photo ${index + 1}`}
+                                    fill
+                                    className="object-cover"
+                                    sizes="(max-width: 768px) 50vw, 240px"
+                                  />
+                                </div>
+                              ))}
+                            </div>
+                          ) : (
+                            <p className="rounded-xl border border-dashed border-slate-200 bg-slate-50 px-4 py-3 text-xs text-slate-400">
+                              No photos were attached to this feedback.
+                            </p>
+                          )
+                        ) : (
+                          <>
+                            {feedbackImagePreviews.length > 0 && (
+                              <div className="grid grid-cols-2 gap-3">
+                                {feedbackImagePreviews.map((preview, index) => (
+                                  <div key={`${preview}-${index}`} className="relative overflow-hidden rounded-xl border border-slate-200 bg-slate-50 aspect-[4/3]">
+                                    {/* eslint-disable-next-line @next/next/no-img-element */}
+                                    <img
+                                      src={preview}
+                                      alt={`Selected photo ${index + 1}`}
+                                      className="h-full w-full object-cover"
+                                    />
+                                    <button
+                                      type="button"
+                                      onClick={() => removeFeedbackImage(index)}
+                                      className="absolute right-2 top-2 flex h-7 w-7 items-center justify-center rounded-full bg-white/95 text-slate-600 shadow-sm transition hover:bg-red-50 hover:text-red-600"
+                                      aria-label={`Remove photo ${index + 1}`}
+                                    >
+                                      <i className="fas fa-times text-[10px]" />
+                                    </button>
+                                  </div>
+                                ))}
+                              </div>
+                            )}
+
+                            {feedbackImages.length < MAX_FEEDBACK_IMAGES && (
+                              <label className="flex cursor-pointer flex-col items-center justify-center gap-2 rounded-xl border border-dashed border-blue-200 bg-blue-50/40 px-4 py-6 text-center transition hover:border-blue-300 hover:bg-blue-50">
+                                <div className="flex h-10 w-10 items-center justify-center rounded-full bg-white text-blue-500 shadow-sm">
+                                  <i className="fas fa-camera text-sm" />
+                                </div>
+                                <div>
+                                  <p className="text-sm font-semibold text-blue-700">
+                                    {feedbackImages.length === 0 ? 'Add photos' : 'Add another photo'}
+                                  </p>
+                                  <p className="mt-0.5 text-[11px] text-blue-500/70">
+                                    JPG, PNG up to 5MB each
+                                  </p>
+                                </div>
+                                <input
+                                  type="file"
+                                  accept="image/*"
+                                  multiple={feedbackImages.length === 0}
+                                  onChange={handleFeedbackImagesChange}
+                                  className="hidden"
+                                />
+                              </label>
+                            )}
+                          </>
                         )}
                       </div>
 

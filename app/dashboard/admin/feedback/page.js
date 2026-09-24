@@ -15,6 +15,7 @@ export default function AdminFeedback() {
   const [isViewModalOpen, setIsViewModalOpen] = useState(false);
   const [actionLoading, setActionLoading] = useState({});
   const [confirmModal, setConfirmModal] = useState({ show: false, type: '', feedback: null });
+  const [imageLightbox, setImageLightbox] = useState(null);
 
   useEffect(() => {
     if (notification.show) {
@@ -296,7 +297,7 @@ export default function AdminFeedback() {
 
       {/* Feedback Details Modal */}
       {isViewModalOpen && selectedFeedback && (
-        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-[70] p-4" onClick={() => setIsViewModalOpen(false)}>
+        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-[70] p-4" onClick={() => { setIsViewModalOpen(false); setImageLightbox(null); }}>
           <div className="bg-white rounded-2xl w-full max-w-lg max-h-[85vh] overflow-auto p-6 shadow-2xl" onClick={(e) => e.stopPropagation()}>
             <div className="flex justify-between items-center mb-5">
               <div className="flex items-center gap-3">
@@ -305,7 +306,7 @@ export default function AdminFeedback() {
                 </div>
                 <h3 className="text-lg font-bold text-textPrimary">Feedback Details</h3>
               </div>
-              <button onClick={() => setIsViewModalOpen(false)} className="w-7 h-7 rounded-md bg-ocean-ice text-neutral hover:bg-ocean-light/20 hover:text-textPrimary transition-all duration-200 flex items-center justify-center">
+              <button onClick={() => { setIsViewModalOpen(false); setImageLightbox(null); }} className="w-7 h-7 rounded-md bg-ocean-ice text-neutral hover:bg-ocean-light/20 hover:text-textPrimary transition-all duration-200 flex items-center justify-center">
                 <i className="fas fa-times text-sm"></i>
               </button>
             </div>
@@ -345,6 +346,29 @@ export default function AdminFeedback() {
                   <p className="text-xs text-gray-500 mb-1">Feedback</p>
                   <p className="text-sm text-gray-700 whitespace-pre-wrap">{selectedFeedback.comment}</p>
                 </div>
+                {Array.isArray(selectedFeedback.images) && selectedFeedback.images.filter(Boolean).length > 0 && (
+                  <div className="bg-gray-50 rounded-lg p-3 col-span-2">
+                    <p className="text-xs text-gray-500 mb-2">Photos</p>
+                    <div className="grid grid-cols-2 gap-3">
+                      {selectedFeedback.images.filter(Boolean).slice(0, 2).map((url, index) => (
+                        <button
+                          type="button"
+                          key={`${url}-${index}`}
+                          onClick={() => setImageLightbox({ url, alt: `Feedback photo ${index + 1}` })}
+                          className="group relative block overflow-hidden rounded-lg border border-gray-200 bg-white aspect-[4/3] cursor-pointer focus:outline-none focus:ring-2 focus:ring-[#4D8CF5]/40"
+                          aria-label={`View feedback photo ${index + 1}`}
+                        >
+                          {/* eslint-disable-next-line @next/next/no-img-element */}
+                          <img
+                            src={url}
+                            alt={`Feedback photo ${index + 1}`}
+                            className="h-full w-full object-cover transition duration-200 group-hover:scale-[1.02]"
+                          />
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                )}
               </div>
             </div>
             <div className="mt-5 flex justify-end gap-3">
@@ -372,6 +396,38 @@ export default function AdminFeedback() {
                 <i className="fas fa-archive text-sm"></i>
                 <span>Archive</span>
               </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {imageLightbox && (
+        <div
+          className="fixed inset-0 bg-black/70 backdrop-blur-sm flex items-center justify-center z-[90] p-4"
+          onClick={() => setImageLightbox(null)}
+          role="dialog"
+          aria-modal="true"
+          aria-label="Image preview"
+        >
+          <div
+            className="relative max-h-[90vh] max-w-4xl w-full"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <button
+              type="button"
+              onClick={() => setImageLightbox(null)}
+              className="absolute -top-3 -right-3 z-10 w-9 h-9 rounded-full bg-white text-gray-700 shadow-lg hover:bg-gray-100 transition-all duration-200 flex items-center justify-center"
+              aria-label="Close image preview"
+            >
+              <i className="fas fa-times text-sm"></i>
+            </button>
+            <div className="overflow-hidden rounded-2xl bg-black/20 shadow-2xl">
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img
+                src={imageLightbox.url}
+                alt={imageLightbox.alt}
+                className="max-h-[85vh] w-full object-contain"
+              />
             </div>
           </div>
         </div>

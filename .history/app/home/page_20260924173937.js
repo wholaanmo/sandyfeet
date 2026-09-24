@@ -806,38 +806,27 @@ function HomePageContent() {
                           <p className="text-[15px] leading-relaxed text-gray-600 italic">
                             &quot;{item.comment}&quot;
                           </p>
-                          {(() => {
-                            const guestImages = Array.isArray(item.images) ? item.images.filter(Boolean).slice(0, 2) : [];
-                            let displayImages = [];
-                            if (guestImages.length === 0) {
-                              displayImages = ['/assets/View/Banner.jpg', '/assets/View/FrontView.jpg'];
-                            } else if (guestImages.length === 1) {
-                              displayImages = [guestImages[0], '/assets/View/IMG3.jpg'];
-                            } else {
-                              displayImages = guestImages;
-                            }
-                            return (
-                              <div className="mt-5 flex flex-col gap-3">
-                                {displayImages.map((url, photoIndex) => (
-                                  <button
-                                    type="button"
-                                    key={`${item.id}-photo-${photoIndex}-${index}`}
-                                    onClick={() => setTestimonialLightbox({ url, alt: `${displayName} stay photo ${photoIndex + 1}` })}
-                                    className="relative block w-full overflow-hidden rounded-2xl border border-slate-100 bg-slate-50 aspect-[2/1] cursor-pointer transition hover:opacity-95 focus:outline-none focus:ring-2 focus:ring-[#3B82F6]/40"
-                                    aria-label={`View ${displayName} stay photo ${photoIndex + 1}`}
-                                  >
-                                    <Image
-                                      src={url}
-                                      alt={`${displayName} stay photo ${photoIndex + 1}`}
-                                      fill
-                                      className="object-cover"
-                                      sizes="(max-width: 768px) 360px, 420px"
-                                    />
-                                  </button>
-                                ))}
-                              </div>
-                            );
-                          })()}
+                          {Array.isArray(item.images) && item.images.filter(Boolean).length > 0 && (
+                            <div className="mt-5 flex flex-col gap-3">
+                              {item.images.filter(Boolean).slice(0, 2).map((url, photoIndex) => (
+                                <button
+                                  type="button"
+                                  key={`${item.id}-photo-${photoIndex}-${index}`}
+                                  onClick={() => setTestimonialLightbox({ url, alt: `${displayName} stay photo ${photoIndex + 1}` })}
+                                  className="relative block w-full overflow-hidden rounded-2xl border border-slate-100 bg-slate-50 aspect-[16/10] cursor-pointer transition hover:opacity-95 focus:outline-none focus:ring-2 focus:ring-[#3B82F6]/40"
+                                  aria-label={`View ${displayName} stay photo ${photoIndex + 1}`}
+                                >
+                                  <Image
+                                    src={url}
+                                    alt={`${displayName} stay photo ${photoIndex + 1}`}
+                                    fill
+                                    className="object-cover"
+                                    sizes="(max-width: 768px) 300px, 360px"
+                                  />
+                                </button>
+                              ))}
+                            </div>
+                          )}
                         </div>
                       );
                     })}
