@@ -57,6 +57,7 @@ function RoomsPageContent() {
   const suppressDraftPersistRef = useRef(false);
   // NEW: state for exclusive info modal
   const [showExclusiveInfoModal, setShowExclusiveInfoModal] = useState(false);
+  const [countDrafts, setCountDrafts] = useState({});
 
   const CHECK_IN_OPTIONS = [14, 15, 16];
   const CHECK_OUT_OPTIONS = [10, 11, 12, 13];
@@ -351,29 +352,34 @@ function RoomsPageContent() {
     const maxPerUnit = typeData?.capacityMax || 10;
     const minPerUnit = typeData?.capacityMin || 1;
 
-    const parsedValue = Number.parseInt(value, 10);
-    const normalized = Number.isNaN(parsedValue) ? 0 : Math.max(0, parsedValue);
-
     const currentGuests = [...(perRoomGuests[roomType] || [])];
     if (!currentGuests[unitIndex]) currentGuests[unitIndex] = { adults: minPerUnit, kids: 0 };
     let { adults, kids } = currentGuests[unitIndex];
+    const otherGuests = guestType === 'adults' ? kids : adults;
+    const min = guestType === 'adults' ? 1 : 0;
+    const max = Math.max(min, maxPerUnit - otherGuests);
+    const draftKey = `${roomType}-${unitIndex}-${guestType}`;
 
-    if (guestType === 'adults') {
-      adults = normalized;
-    } else {
-      kids = normalized;
-    }
-
-    const total = adults + kids;
-    let error = '';
-    if (adults < 1) error = 'At least 1 adult per room.';
-    else if (total > maxPerUnit) error = `Maximum ${maxPerUnit} guests per room.`;
-
-    if (!error) {
-      currentGuests[unitIndex] = { adults, kids };
-      setPerRoomGuests(prev => ({ ...prev, [roomType]: currentGuests }));
-    }
-    setGuestInputErrors(prev => ({ ...prev, [`${roomType}-${unitIndex}`]: error }));
+    handleTypedCount(draftKey, value, {
+      min,
+      max,
+      commit: (nextValue) => {
+        const nextGuests = [...(perRoomGuests[roomType] || currentGuests)];
+        const current = nextGuests[unitIndex] || { adults: minPerUnit, kids: 0 };
+        const updated = guestType === 'adults'
+          ? { ...current, adults: nextValue }
+          : { ...current, kids: nextValue };
+        nextGuests[unitIndex] = updated;
+        setPerRoomGuests((prev) => ({ ...prev, [roomType]: nextGuests }));
+        const total = updated.adults + updated.kids;
+        const error = updated.adults < 1
+          ? 'At least 1 adult per room.'
+          : total > maxPerUnit
+            ? `Maximum ${maxPerUnit} guests per room.`
+            : '';
+        setGuestInputErrors((prev) => ({ ...prev, [`${roomType}-${unitIndex}`]: error }));
+      },
+    });
   };
 
   const getAggregatedGuestCounts = (roomType) => {
@@ -819,14 +825,46 @@ function RoomsPageContent() {
     setDateSelectionError('');
   };
 
-  const handleNightsChange = (increment) => {
-    let newNights = numberOfNights;
-    if (increment) {
-      newNights = Math.min(numberOfNights + 1, 30);
-    } else {
-      newNights = Math.max(1, numberOfNights - 1);
+  const clearCountDraft = (key) => {
+    setCountDrafts((prev) => {
+      if (!(key in prev)) return prev;
+      const next = { ...prev };
+      delete next[key];
+      return next;
+    });
+  };
+
+  const handleTypedCount = (key, raw, { min, max, commit }) => {
+    if (raw !== '' && !/^\d+$/.test(String(raw))) return;
+    if (raw === '') {
+      setCountDrafts((prev) => ({ ...prev, [key]: '' }));
+      return;
     }
-    setNumberOfNights(newNights);
+    const parsed = parseInt(raw, 10);
+    if (parsed > max) {
+      clearCountDraft(key);
+      commit(max);
+      return;
+    }
+    if (parsed < min) {
+      setCountDrafts((prev) => ({ ...prev, [key]: String(parsed) }));
+      return;
+    }
+    clearCountDraft(key);
+    commit(parsed);
+  };
+
+  const commitTypedCount = (key, { min, max, commit }) => {
+    if (!(key in countDrafts)) return;
+    const parsed = parseInt(countDrafts[key], 10);
+    const next = Number.isNaN(parsed) ? min : Math.min(max, Math.max(min, parsed));
+    clearCountDraft(key);
+    commit(next);
+  };
+
+  const handleNightsChange = (increment) => {
+    clearCountDraft('nights');
+    setNumberOfNights((prev) => increment ? Math.min(prev + 1, 30) : Math.max(1, prev - 1));
   };
 
   const canBookExclusiveResort = Boolean(checkInDate && isDateFullyAvailableForExclusive(checkInDate, numberOfNights));
@@ -1579,11 +1617,19 @@ function RoomsPageContent() {
                   <div className="mt-3">
                     <p className="text-[10px] font-bold text-gray-500 uppercase tracking-wider mb-1.5">Nights</p>
                     <div className="flex items-center bg-white rounded-xl p-1 border border-gray-200 shadow-sm">
-                      <button onClick={() => handleNightsChange(false)} disabled={numberOfNights <= 1} className="w-8 h-8 flex items-center justify-center rounded-lg text-gray-500 hover:bg-gray-50 disabled:opacity-30 transition-colors">
+                      <button type="button" onClick={() => handleNightsChange(false)} disabled={numberOfNights <= 1} className="w-8 h-8 flex items-center justify-center rounded-lg text-gray-500 hover:bg-gray-50 disabled:opacity-30 transition-colors">
                         <i className="fas fa-minus text-[10px]"></i>
                       </button>
-                      <span className="font-bold text-sm flex-1 text-center text-gray-800">{numberOfNights}</span>
-                      <button onClick={() => handleNightsChange(true)} disabled={numberOfNights >= 30} className="w-8 h-8 flex items-center justify-center rounded-lg text-gray-500 hover:bg-gray-50 disabled:opacity-30 transition-colors">
+                      <input
+                        type="text"
+                        inputMode="numeric"
+                        aria-label="Number of nights"
+                        value={countDrafts.nights ?? numberOfNights}
+                        onChange={(e) => handleTypedCount('nights', e.target.value, { min: 1, max: 30, commit: setNumberOfNights })}
+                        onBlur={() => commitTypedCount('nights', { min: 1, max: 30, commit: setNumberOfNights })}
+                        className="w-full flex-1 bg-transparent text-center text-sm font-bold text-gray-800 outline-none"
+                      />
+                      <button type="button" onClick={() => handleNightsChange(true)} disabled={numberOfNights >= 30} className="w-8 h-8 flex items-center justify-center rounded-lg text-gray-500 hover:bg-gray-50 disabled:opacity-30 transition-colors">
                         <i className="fas fa-plus text-[10px]"></i>
                       </button>
                     </div>
@@ -1686,11 +1732,55 @@ function RoomsPageContent() {
                         <div className="grid grid-cols-2 gap-2">
                           <label className="flex flex-col gap-1">
                             <span className="text-[10px] uppercase font-bold text-gray-500">Adults</span>
-                            <input type="number" min={1} value={exclusiveAdults} onChange={(e) => handleExclusiveGuestChange('adults', e.target.value)} className={`w-full text-xs font-bold border bg-white rounded-md pl-3 py-1 shadow-sm focus:outline-none focus:ring-2 ${exclusiveGuestError ? 'border-red-300 focus:border-red-400 ring-red-100 text-red-600' : 'border-gray-200 focus:border-blue-400 ring-blue-100'}`} />
+                            <input
+                              type="text"
+                              inputMode="numeric"
+                              aria-label="Number of adults"
+                              value={countDrafts['exclusive-adults'] ?? exclusiveAdults}
+                              onChange={(e) => handleTypedCount('exclusive-adults', e.target.value, {
+                                min: 1,
+                                max: Math.max(1, getExclusiveMaxPax() - (Number(exclusiveKids) || 0)),
+                                commit: (nextAdults) => {
+                                  setExclusiveAdults(nextAdults);
+                                  setExclusiveGuestError('');
+                                },
+                              })}
+                              onBlur={() => commitTypedCount('exclusive-adults', {
+                                min: 1,
+                                max: Math.max(1, getExclusiveMaxPax() - (Number(exclusiveKids) || 0)),
+                                commit: (nextAdults) => {
+                                  setExclusiveAdults(nextAdults);
+                                  setExclusiveGuestError('');
+                                },
+                              })}
+                              className={`w-full text-xs font-bold border bg-white rounded-md pl-3 py-1 shadow-sm focus:outline-none focus:ring-2 ${exclusiveGuestError ? 'border-red-300 focus:border-red-400 ring-red-100 text-red-600' : 'border-gray-200 focus:border-blue-400 ring-blue-100'}`}
+                            />
                           </label>
                           <label className="flex flex-col gap-1">
                             <span className="text-[10px] uppercase font-bold text-gray-500">Kids</span>
-                            <input type="number" min={0} value={exclusiveKids} onChange={(e) => handleExclusiveGuestChange('kids', e.target.value)} className={`w-full text-xs font-bold border bg-white rounded-md pl-3 py-1 shadow-sm focus:outline-none focus:ring-2 ${exclusiveGuestError ? 'border-red-300 focus:border-red-400 ring-red-100 text-red-600' : 'border-gray-200 focus:border-blue-400 ring-blue-100'}`} />
+                            <input
+                              type="text"
+                              inputMode="numeric"
+                              aria-label="Number of kids"
+                              value={countDrafts['exclusive-kids'] ?? exclusiveKids}
+                              onChange={(e) => handleTypedCount('exclusive-kids', e.target.value, {
+                                min: 0,
+                                max: Math.max(0, getExclusiveMaxPax() - Math.max(1, Number(exclusiveAdults) || 1)),
+                                commit: (nextKids) => {
+                                  setExclusiveKids(nextKids);
+                                  setExclusiveGuestError('');
+                                },
+                              })}
+                              onBlur={() => commitTypedCount('exclusive-kids', {
+                                min: 0,
+                                max: Math.max(0, getExclusiveMaxPax() - Math.max(1, Number(exclusiveAdults) || 1)),
+                                commit: (nextKids) => {
+                                  setExclusiveKids(nextKids);
+                                  setExclusiveGuestError('');
+                                },
+                              })}
+                              className={`w-full text-xs font-bold border bg-white rounded-md pl-3 py-1 shadow-sm focus:outline-none focus:ring-2 ${exclusiveGuestError ? 'border-red-300 focus:border-red-400 ring-red-100 text-red-600' : 'border-gray-200 focus:border-blue-400 ring-blue-100'}`}
+                            />
                           </label>
                         </div>
                         <p className="text-[10px] font-semibold text-gray-500 mt-2">Total Pax: {exclusiveTotalPax}</p>
@@ -1744,20 +1834,40 @@ function RoomsPageContent() {
                                   <label className="flex flex-col gap-1">
                                     <span className="text-[10px] uppercase font-bold text-gray-500">Adults</span>
                                     <input
-                                      type="number"
-                                      min={1}
-                                      value={guest.adults}
+                                      type="text"
+                                      inputMode="numeric"
+                                      aria-label={`Adults for ${room.type} unit ${idx + 1}`}
+                                      value={countDrafts[`${room.type}-${idx}-adults`] ?? guest.adults}
                                       onChange={(e) => handleUnitGuestChange(room.type, idx, 'adults', e.target.value)}
+                                      onBlur={() => {
+                                        const maxPerUnit = room.capacityMax || 10;
+                                        const kids = guest.kids || 0;
+                                        commitTypedCount(`${room.type}-${idx}-adults`, {
+                                          min: 1,
+                                          max: Math.max(1, maxPerUnit - kids),
+                                          commit: (nextAdults) => handleUnitGuestChange(room.type, idx, 'adults', String(nextAdults)),
+                                        });
+                                      }}
                                       className={`w-full text-xs font-bold border bg-white rounded-md pl-3 py-1 shadow-sm focus:outline-none focus:ring-2 ${guestInputErrors[`${room.type}-${idx}`] ? 'border-red-300 focus:border-red-400 ring-red-100 text-red-600' : 'border-gray-200 focus:border-blue-400 ring-blue-100'}`}
                                     />
                                   </label>
                                   <label className="flex flex-col gap-1">
                                     <span className="text-[10px] uppercase font-bold text-gray-500">Kids</span>
                                     <input
-                                      type="number"
-                                      min={0}
-                                      value={guest.kids}
+                                      type="text"
+                                      inputMode="numeric"
+                                      aria-label={`Kids for ${room.type} unit ${idx + 1}`}
+                                      value={countDrafts[`${room.type}-${idx}-kids`] ?? guest.kids}
                                       onChange={(e) => handleUnitGuestChange(room.type, idx, 'kids', e.target.value)}
+                                      onBlur={() => {
+                                        const maxPerUnit = room.capacityMax || 10;
+                                        const adults = guest.adults || 1;
+                                        commitTypedCount(`${room.type}-${idx}-kids`, {
+                                          min: 0,
+                                          max: Math.max(0, maxPerUnit - adults),
+                                          commit: (nextKids) => handleUnitGuestChange(room.type, idx, 'kids', String(nextKids)),
+                                        });
+                                      }}
                                       className={`w-full text-xs font-bold border bg-white rounded-md pl-3 py-1 shadow-sm focus:outline-none focus:ring-2 ${guestInputErrors[`${room.type}-${idx}`] ? 'border-red-300 focus:border-red-400 ring-red-100 text-red-600' : 'border-gray-200 focus:border-blue-400 ring-blue-100'}`}
                                     />
                                   </label>

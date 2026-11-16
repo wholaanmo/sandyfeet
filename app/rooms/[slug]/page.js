@@ -102,6 +102,7 @@ export default function RoomDetailsPage({ params }) {
 
   const [availabilityForStay, setAvailabilityForStay] = useState(0);
   const [actionError, setActionError] = useState('');
+  const [countDrafts, setCountDrafts] = useState({});
 
   useClearBookingDraftOnLogout(() => {
     setCheckInDate('');
@@ -512,6 +513,43 @@ export default function RoomDetailsPage({ params }) {
   }, [roomData, draftApplied]);
 
   // Per‑room guest handlers
+  const clearCountDraft = (key) => {
+    setCountDrafts((prev) => {
+      if (!(key in prev)) return prev;
+      const next = { ...prev };
+      delete next[key];
+      return next;
+    });
+  };
+
+  const handleTypedCount = (key, raw, { min, max, commit }) => {
+    if (raw !== '' && !/^\d+$/.test(String(raw))) return;
+    if (raw === '') {
+      setCountDrafts((prev) => ({ ...prev, [key]: '' }));
+      return;
+    }
+    const parsed = parseInt(raw, 10);
+    if (parsed > max) {
+      clearCountDraft(key);
+      commit(max);
+      return;
+    }
+    if (parsed < min) {
+      setCountDrafts((prev) => ({ ...prev, [key]: String(parsed) }));
+      return;
+    }
+    clearCountDraft(key);
+    commit(parsed);
+  };
+
+  const commitTypedCount = (key, { min, max, commit }) => {
+    if (!(key in countDrafts)) return;
+    const parsed = parseInt(countDrafts[key], 10);
+    const next = Number.isNaN(parsed) ? min : Math.min(max, Math.max(min, parsed));
+    clearCountDraft(key);
+    commit(next);
+  };
+
   const handleRoomAdultsChange = (index, increment) => {
     if (!roomData) return;
     const capacityMin = roomData.capacityMin || 1;
@@ -1034,16 +1072,30 @@ export default function RoomDetailsPage({ params }) {
                     <div className="flex items-center border border-gray-200 bg-white rounded-2xl overflow-hidden shadow-sm">
                       <button
                         type="button"
-                        onClick={() => setNumberOfNights((prev) => Math.max(1, prev - 1))}
+                        onClick={() => {
+                          clearCountDraft('nights');
+                          setNumberOfNights((prev) => Math.max(1, prev - 1));
+                        }}
                         disabled={numberOfNights <= 1}
                         className="w-9 h-9 hover:bg-gray-50 text-gray-600 disabled:opacity-30 transition-colors flex items-center justify-center"
                       >
                         <i className="fas fa-minus text-[10px]"></i>
                       </button>
-                      <span className="flex-1 text-center text-xs font-bold text-gray-900">{numberOfNights}</span>
+                      <input
+                        type="text"
+                        inputMode="numeric"
+                        aria-label="Number of nights"
+                        value={countDrafts.nights ?? numberOfNights}
+                        onChange={(e) => handleTypedCount('nights', e.target.value, { min: 1, max: 30, commit: setNumberOfNights })}
+                        onBlur={() => commitTypedCount('nights', { min: 1, max: 30, commit: setNumberOfNights })}
+                        className="w-full flex-1 bg-transparent text-center text-xs font-bold text-gray-900 outline-none"
+                      />
                       <button
                         type="button"
-                        onClick={() => setNumberOfNights((prev) => Math.min(30, prev + 1))}
+                        onClick={() => {
+                          clearCountDraft('nights');
+                          setNumberOfNights((prev) => Math.min(30, prev + 1));
+                        }}
                         disabled={numberOfNights >= 30}
                         className="w-9 h-9 hover:bg-gray-50 text-gray-600 disabled:opacity-30 transition-colors flex items-center justify-center"
                       >
@@ -1093,16 +1145,46 @@ export default function RoomDetailsPage({ params }) {
                             <div className="flex items-center border border-gray-200 bg-white rounded-xl overflow-hidden shadow-sm mt-0.5">
                               <button
                                 type="button"
-                                onClick={() => handleRoomAdultsChange(idx, false)}
+                                onClick={() => {
+                                  clearCountDraft(`adults-${idx}`);
+                                  handleRoomAdultsChange(idx, false);
+                                }}
                                 disabled={roomAdults <= 1}
                                 className="w-7 h-7 hover:bg-gray-50 text-gray-600 disabled:opacity-30 transition-colors flex items-center justify-center"
                               >
                                 <i className="fas fa-minus text-[9px]"></i>
                               </button>
-                              <span className="flex-1 text-center text-xs font-bold text-gray-900">{roomAdults}</span>
+                              <input
+                                type="text"
+                                inputMode="numeric"
+                                aria-label={`Adults for room ${idx + 1}`}
+                                value={countDrafts[`adults-${idx}`] ?? roomAdults}
+                                onChange={(e) => handleTypedCount(`adults-${idx}`, e.target.value, {
+                                  min: 1,
+                                  max: Math.max(1, capacityMax - roomKids),
+                                  commit: (nextAdults) => setPerRoomAdults((prev) => {
+                                    const next = [...prev];
+                                    next[idx] = nextAdults;
+                                    return next;
+                                  }),
+                                })}
+                                onBlur={() => commitTypedCount(`adults-${idx}`, {
+                                  min: 1,
+                                  max: Math.max(1, capacityMax - roomKids),
+                                  commit: (nextAdults) => setPerRoomAdults((prev) => {
+                                    const next = [...prev];
+                                    next[idx] = nextAdults;
+                                    return next;
+                                  }),
+                                })}
+                                className="w-full flex-1 bg-transparent text-center text-xs font-bold text-gray-900 outline-none"
+                              />
                               <button
                                 type="button"
-                                onClick={() => handleRoomAdultsChange(idx, true)}
+                                onClick={() => {
+                                  clearCountDraft(`adults-${idx}`);
+                                  handleRoomAdultsChange(idx, true);
+                                }}
                                 disabled={roomTotal >= capacityMax}
                                 className="w-7 h-7 hover:bg-gray-50 text-gray-600 disabled:opacity-30 transition-colors flex items-center justify-center"
                               >
@@ -1116,16 +1198,46 @@ export default function RoomDetailsPage({ params }) {
                             <div className="flex items-center border border-gray-200 bg-white rounded-xl overflow-hidden shadow-sm mt-0.5">
                               <button
                                 type="button"
-                                onClick={() => handleRoomKidsChange(idx, false)}
+                                onClick={() => {
+                                  clearCountDraft(`kids-${idx}`);
+                                  handleRoomKidsChange(idx, false);
+                                }}
                                 disabled={roomKids <= 0}
                                 className="w-7 h-7 hover:bg-gray-50 text-gray-600 disabled:opacity-30 transition-colors flex items-center justify-center"
                               >
                                 <i className="fas fa-minus text-[9px]"></i>
                               </button>
-                              <span className="flex-1 text-center text-xs font-bold text-gray-900">{roomKids}</span>
+                              <input
+                                type="text"
+                                inputMode="numeric"
+                                aria-label={`Kids for room ${idx + 1}`}
+                                value={countDrafts[`kids-${idx}`] ?? roomKids}
+                                onChange={(e) => handleTypedCount(`kids-${idx}`, e.target.value, {
+                                  min: 0,
+                                  max: Math.max(0, capacityMax - roomAdults),
+                                  commit: (nextKids) => setPerRoomKids((prev) => {
+                                    const next = [...prev];
+                                    next[idx] = nextKids;
+                                    return next;
+                                  }),
+                                })}
+                                onBlur={() => commitTypedCount(`kids-${idx}`, {
+                                  min: 0,
+                                  max: Math.max(0, capacityMax - roomAdults),
+                                  commit: (nextKids) => setPerRoomKids((prev) => {
+                                    const next = [...prev];
+                                    next[idx] = nextKids;
+                                    return next;
+                                  }),
+                                })}
+                                className="w-full flex-1 bg-transparent text-center text-xs font-bold text-gray-900 outline-none"
+                              />
                               <button
                                 type="button"
-                                onClick={() => handleRoomKidsChange(idx, true)}
+                                onClick={() => {
+                                  clearCountDraft(`kids-${idx}`);
+                                  handleRoomKidsChange(idx, true);
+                                }}
                                 disabled={roomTotal >= capacityMax}
                                 className="w-7 h-7 hover:bg-gray-50 text-gray-600 disabled:opacity-30 transition-colors flex items-center justify-center"
                               >

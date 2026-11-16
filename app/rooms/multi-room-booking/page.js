@@ -105,6 +105,7 @@ function MultiRoomBookingPageContent() {
   const [bookingsAvailabilityReady, setBookingsAvailabilityReady] = useState(false);
   const [blockedSlotsReady, setBlockedSlotsReady] = useState(false);
   const [availabilityError, setAvailabilityError] = useState('');
+  const [countDrafts, setCountDrafts] = useState({});
   const suppressDraftPersistRef = useRef(false);
 
   const emptyGuestDetails = {
@@ -872,6 +873,155 @@ function MultiRoomBookingPageContent() {
     checkOutDate: data?.checkOut instanceof Date ? data.checkOut.toISOString() : data?.checkOutDate || null
   });
 
+  const clearCountDraft = (key) => {
+    setCountDrafts((prev) => {
+      if (!(key in prev)) return prev;
+      const next = { ...prev };
+      delete next[key];
+      return next;
+    });
+  };
+
+  const handleTypedCount = (key, raw, { min, max, commit }) => {
+    if (raw !== '' && !/^\d+$/.test(String(raw))) return;
+    if (raw === '') {
+      setCountDrafts((prev) => ({ ...prev, [key]: '' }));
+      return;
+    }
+    const parsed = parseInt(raw, 10);
+    if (parsed > max) {
+      clearCountDraft(key);
+      commit(max);
+      return;
+    }
+    if (parsed < min) {
+      setCountDrafts((prev) => ({ ...prev, [key]: String(parsed) }));
+      return;
+    }
+    clearCountDraft(key);
+    commit(parsed);
+  };
+
+  const commitTypedCount = (key, { min, max, commit }) => {
+    if (!(key in countDrafts)) return;
+    const parsed = parseInt(countDrafts[key], 10);
+    const next = Number.isNaN(parsed) ? min : Math.min(max, Math.max(min, parsed));
+    clearCountDraft(key);
+    commit(next);
+  };
+
+  const repriceBooking = (data, nights) => {
+    const roomTypes = (data.roomTypes || []).map((room) => {
+      const quantity = Number(data.selectedRooms?.[room.type] || room.quantity || 0);
+      const guestList = data.perRoomGuests?.[room.type] || [];
+      const guests = guestList.length
+        ? guestList.reduce((total, guest) => total + Number(guest.adults || 0) + Number(guest.kids || 0), 0)
+        : Number(data.totalGuestsPerType?.[room.type] || room.totalGuests || 0);
+      const extraGuests = Math.max(0, guests - Number(room.capacityMin || 0) * quantity);
+      return {
+        ...room,
+        totalGuests: guests,
+        extraGuests,
+        extraGuestCharges: extraGuests * Number(room.additionalGuestCharge || 0) * nights,
+      };
+    });
+    const totalPrice = data.isExclusiveResortBooking
+      ? (22500 + Number(data.tentCount || 0) * 1500) * nights
+      : roomTypes.reduce((sum, room) => {
+        const quantity = Number(data.selectedRooms?.[room.type] || room.quantity || 0);
+        return sum + Number(room.price || 0) * quantity * nights + Number(room.extraGuestCharges || 0);
+      }, 0);
+    return {
+      ...data,
+      numberOfNights: nights,
+      nights,
+      roomTypes,
+      totalPrice,
+      totalExtraGuestCharge: roomTypes.reduce((sum, room) => sum + Number(room.extraGuestCharges || 0), 0),
+      exclusivePackagePrice: data.isExclusiveResortBooking ? totalPrice : data.exclusivePackagePrice,
+    };
+  };
+
+  const publishBookingUpdate = (next) => {
+    setBookingData(next);
+    setTotalPrice(Number(next.totalPrice || 0));
+    setDownPaymentAmount(Number(next.totalPrice || 0) * 0.5);
+    sessionStorage.setItem('multiRoomBooking', JSON.stringify(toStoragePayload(next)));
+  };
+
+  const applyNights = (nights) => {
+    if (!bookingData?.checkIn) return false;
+    const nextNights = Math.min(30, Math.max(1, nights));
+    const source = bookingData.checkIn instanceof Date ? bookingData.checkIn : new Date(bookingData.checkIn);
+    const checkIn = new Date(source.getFullYear(), source.getMonth(), source.getDate(), FIXED_CHECK_IN_HOUR, 0, 0, 0);
+    const checkOut = new Date(checkIn);
+    checkOut.setDate(checkOut.getDate() + nextNights);
+    checkOut.setHours(FIXED_CHECK_OUT_HOUR, 0, 0, 0);
+    const rangeStart = new Date(checkIn.getFullYear(), checkIn.getMonth(), checkIn.getDate());
+    const rangeEnd = new Date(checkOut.getFullYear(), checkOut.getMonth(), checkOut.getDate());
+    if (isBookingRangeUnavailable(rangeStart, rangeEnd)) {
+      setAvailabilityError('Those nights include unavailable dates. Choose a shorter stay.');
+      return false;
+    }
+    setAvailabilityError('');
+    setDraftCheckIn(rangeStart);
+    setDraftCheckOut(rangeEnd);
+    publishBookingUpdate(repriceBooking({
+      ...bookingData,
+      checkIn,
+      checkOut,
+      checkInDate: checkIn.toISOString(),
+      checkOutDate: checkOut.toISOString(),
+    }, nextNights));
+    return true;
+  };
+
+  const applyUnitGuestCount = (roomType, unitIndex, field, count) => {
+    const room = (bookingData.roomTypes || []).find((item) => item.type === roomType);
+    const capacityMax = Number(room?.capacityMax || 10);
+    const guestsByType = { ...(bookingData.perRoomGuests || {}) };
+    const currentList = [...(guestsByType[roomType] || [])];
+    while (currentList.length <= unitIndex) {
+      currentList.push({ adults: Number(room?.capacityMin || 1), kids: 0 });
+    }
+    const current = currentList[unitIndex] || { adults: Number(room?.capacityMin || 1), kids: 0 };
+    const other = field === 'adults' ? Number(current.kids || 0) : Number(current.adults || 1);
+    const min = field === 'adults' ? 1 : 0;
+    const max = Math.max(min, capacityMax - other);
+    const nextCount = Math.min(max, Math.max(min, count));
+    currentList[unitIndex] = { ...current, [field]: nextCount };
+    guestsByType[roomType] = currentList;
+    const adults = currentList.reduce((sum, guest) => sum + Number(guest.adults || 0), 0);
+    const kids = currentList.reduce((sum, guest) => sum + Number(guest.kids || 0), 0);
+    const totalGuestsPerType = { ...(bookingData.totalGuestsPerType || {}), [roomType]: adults + kids };
+    publishBookingUpdate(repriceBooking({
+      ...bookingData,
+      perRoomGuests: guestsByType,
+      adultsPerType: { ...(bookingData.adultsPerType || {}), [roomType]: adults },
+      kidsPerType: { ...(bookingData.kidsPerType || {}), [roomType]: kids },
+      totalGuestsPerType,
+      totalGuests: Object.values(totalGuestsPerType).reduce((sum, value) => sum + Number(value || 0), 0),
+    }, Math.max(1, Number(bookingData.numberOfNights || 1))));
+  };
+
+  const applyExclusiveGuestCount = (field, count) => {
+    const maxPax = 38 + Number(bookingData.tentCount || 0) * 4;
+    const currentAdults = Math.max(1, Number(bookingData.exclusiveAdults || 1));
+    const currentKids = Math.max(0, Number(bookingData.exclusiveKids || 0));
+    const other = field === 'adults' ? currentKids : currentAdults;
+    const min = field === 'adults' ? 1 : 0;
+    const max = Math.max(min, maxPax - other);
+    const nextCount = Math.min(max, Math.max(min, count));
+    const exclusiveAdults = field === 'adults' ? nextCount : currentAdults;
+    const exclusiveKids = field === 'kids' ? nextCount : currentKids;
+    publishBookingUpdate({
+      ...bookingData,
+      exclusiveAdults,
+      exclusiveKids,
+      totalGuests: exclusiveAdults + exclusiveKids,
+    });
+  };
+
   const handlePreviousStep = () => {
     if (step === 1) {
       if (bookingData) {
@@ -1503,6 +1653,70 @@ if (allRoomIds.length <= 1) {
                     <div className="rounded-2xl border border-gray-200 bg-gray-50 p-4"><p className="text-xs font-semibold uppercase tracking-[0.14em] text-textSecondary">Check-out</p><p className="mt-2 text-lg font-bold text-textPrimary">{formatDateOnly(bookingData.checkOut)}</p><p className="mt-1 text-xs text-textSecondary">{FIXED_CHECK_OUT_DISPLAY} · {stayNights} night{stayNights === 1 ? '' : 's'}</p></div>
                   </div>
                   <div className="mt-4 rounded-2xl border border-ocean-light/20 bg-ocean-ice/40 p-4"><p className="text-xs font-semibold uppercase tracking-[0.14em] text-textSecondary">Selected rooms</p><div className="mt-2 space-y-2">{getFilteredRoomTypes().map((roomType) => <div key={roomType.type} className="flex items-center justify-between gap-3 text-sm"><span className="font-semibold text-textPrimary">{bookingData.selectedRooms?.[roomType.type] || roomType.quantity} × {roomType.type}</span><span className="text-textSecondary">{roomType.totalGuests || bookingData.totalGuestsPerType?.[roomType.type] || 1} guest{(roomType.totalGuests || bookingData.totalGuestsPerType?.[roomType.type] || 1) === 1 ? '' : 's'}</span></div>)}</div></div>
+                  <div className="mt-4 rounded-2xl border border-gray-200 bg-white p-4">
+                    <p className="text-xs font-semibold uppercase tracking-[0.14em] text-textSecondary">Number of nights</p>
+                    <div className="mt-2 flex items-center rounded-xl border border-gray-200 bg-gray-50 p-1">
+                      <button type="button" onClick={() => { clearCountDraft('booking-nights'); applyNights(stayNights - 1); }} disabled={stayNights <= 1} className="flex size-9 items-center justify-center rounded-lg text-textSecondary hover:bg-white disabled:opacity-30"><i className="fas fa-minus text-[10px]"></i></button>
+                      <input type="text" inputMode="numeric" aria-label="Number of nights" value={countDrafts['booking-nights'] ?? stayNights} onChange={(e) => handleTypedCount('booking-nights', e.target.value, { min: 1, max: 30, commit: applyNights })} onBlur={() => commitTypedCount('booking-nights', { min: 1, max: 30, commit: applyNights })} className="w-full flex-1 bg-transparent text-center text-sm font-bold text-textPrimary outline-none" />
+                      <button type="button" onClick={() => { clearCountDraft('booking-nights'); applyNights(stayNights + 1); }} disabled={stayNights >= 30} className="flex size-9 items-center justify-center rounded-lg text-textSecondary hover:bg-white disabled:opacity-30"><i className="fas fa-plus text-[10px]"></i></button>
+                    </div>
+                    {isExclusiveBooking ? (
+                      <div className="mt-4 grid gap-3 sm:grid-cols-2">
+                        <label className="block">
+                          <span className="mb-1.5 block text-xs font-semibold text-textSecondary">Number of adults</span>
+                          <div className="flex items-center rounded-xl border border-gray-200 bg-gray-50 p-1">
+                            <button type="button" onClick={() => { clearCountDraft('exclusive-adults'); applyExclusiveGuestCount('adults', exclusiveAdults - 1); }} disabled={exclusiveAdults <= 1} className="flex size-9 items-center justify-center rounded-lg text-textSecondary hover:bg-white disabled:opacity-30"><i className="fas fa-minus text-[10px]"></i></button>
+                            <input type="text" inputMode="numeric" aria-label="Number of adults" value={countDrafts['exclusive-adults'] ?? exclusiveAdults} onChange={(e) => handleTypedCount('exclusive-adults', e.target.value, { min: 1, max: Math.max(1, 38 + tentCount * 4 - exclusiveKids), commit: (value) => applyExclusiveGuestCount('adults', value) })} onBlur={() => commitTypedCount('exclusive-adults', { min: 1, max: Math.max(1, 38 + tentCount * 4 - exclusiveKids), commit: (value) => applyExclusiveGuestCount('adults', value) })} className="w-full flex-1 bg-transparent text-center text-sm font-bold text-textPrimary outline-none" />
+                            <button type="button" onClick={() => { clearCountDraft('exclusive-adults'); applyExclusiveGuestCount('adults', exclusiveAdults + 1); }} disabled={exclusiveAdults + exclusiveKids >= 38 + tentCount * 4} className="flex size-9 items-center justify-center rounded-lg text-textSecondary hover:bg-white disabled:opacity-30"><i className="fas fa-plus text-[10px]"></i></button>
+                          </div>
+                        </label>
+                        <label className="block">
+                          <span className="mb-1.5 block text-xs font-semibold text-textSecondary">Number of kids</span>
+                          <div className="flex items-center rounded-xl border border-gray-200 bg-gray-50 p-1">
+                            <button type="button" onClick={() => { clearCountDraft('exclusive-kids'); applyExclusiveGuestCount('kids', exclusiveKids - 1); }} disabled={exclusiveKids <= 0} className="flex size-9 items-center justify-center rounded-lg text-textSecondary hover:bg-white disabled:opacity-30"><i className="fas fa-minus text-[10px]"></i></button>
+                            <input type="text" inputMode="numeric" aria-label="Number of kids" value={countDrafts['exclusive-kids'] ?? exclusiveKids} onChange={(e) => handleTypedCount('exclusive-kids', e.target.value, { min: 0, max: Math.max(0, 38 + tentCount * 4 - exclusiveAdults), commit: (value) => applyExclusiveGuestCount('kids', value) })} onBlur={() => commitTypedCount('exclusive-kids', { min: 0, max: Math.max(0, 38 + tentCount * 4 - exclusiveAdults), commit: (value) => applyExclusiveGuestCount('kids', value) })} className="w-full flex-1 bg-transparent text-center text-sm font-bold text-textPrimary outline-none" />
+                            <button type="button" onClick={() => { clearCountDraft('exclusive-kids'); applyExclusiveGuestCount('kids', exclusiveKids + 1); }} disabled={exclusiveAdults + exclusiveKids >= 38 + tentCount * 4} className="flex size-9 items-center justify-center rounded-lg text-textSecondary hover:bg-white disabled:opacity-30"><i className="fas fa-plus text-[10px]"></i></button>
+                          </div>
+                        </label>
+                      </div>
+                    ) : (
+                      <div className="mt-4 space-y-3">
+                        {getFilteredRoomTypes().map((roomType) => {
+                          const quantity = Number(bookingData.selectedRooms?.[roomType.type] || roomType.quantity || 0);
+                          const guests = bookingData.perRoomGuests?.[roomType.type] || [];
+                          return Array.from({ length: quantity }).map((_, unitIndex) => {
+                            const guest = guests[unitIndex] || { adults: Number(roomType.capacityMin || 1), kids: 0 };
+                            const capacityMax = Number(roomType.capacityMax || 10);
+                            const adultKey = `${roomType.type}-${unitIndex}-adults`;
+                            const kidKey = `${roomType.type}-${unitIndex}-kids`;
+                            return (
+                              <div key={`${roomType.type}-${unitIndex}`} className="rounded-xl border border-gray-100 bg-gray-50 p-3">
+                                <p className="text-xs font-semibold text-textPrimary">{roomType.type} · Unit {unitIndex + 1}</p>
+                                <div className="mt-2 grid gap-3 sm:grid-cols-2">
+                                  <label className="block">
+                                    <span className="mb-1.5 block text-xs font-semibold text-textSecondary">Number of adults</span>
+                                    <div className="flex items-center rounded-xl border border-gray-200 bg-white p-1">
+                                      <button type="button" onClick={() => { clearCountDraft(adultKey); applyUnitGuestCount(roomType.type, unitIndex, 'adults', Number(guest.adults || 1) - 1); }} disabled={Number(guest.adults || 1) <= 1} className="flex size-8 items-center justify-center rounded-lg text-textSecondary hover:bg-gray-50 disabled:opacity-30"><i className="fas fa-minus text-[10px]"></i></button>
+                                      <input type="text" inputMode="numeric" aria-label={`Adults for ${roomType.type} unit ${unitIndex + 1}`} value={countDrafts[adultKey] ?? guest.adults} onChange={(e) => handleTypedCount(adultKey, e.target.value, { min: 1, max: Math.max(1, capacityMax - Number(guest.kids || 0)), commit: (value) => applyUnitGuestCount(roomType.type, unitIndex, 'adults', value) })} onBlur={() => commitTypedCount(adultKey, { min: 1, max: Math.max(1, capacityMax - Number(guest.kids || 0)), commit: (value) => applyUnitGuestCount(roomType.type, unitIndex, 'adults', value) })} className="w-full flex-1 bg-transparent text-center text-sm font-bold text-textPrimary outline-none" />
+                                      <button type="button" onClick={() => { clearCountDraft(adultKey); applyUnitGuestCount(roomType.type, unitIndex, 'adults', Number(guest.adults || 1) + 1); }} disabled={Number(guest.adults || 0) + Number(guest.kids || 0) >= capacityMax} className="flex size-8 items-center justify-center rounded-lg text-textSecondary hover:bg-gray-50 disabled:opacity-30"><i className="fas fa-plus text-[10px]"></i></button>
+                                    </div>
+                                  </label>
+                                  <label className="block">
+                                    <span className="mb-1.5 block text-xs font-semibold text-textSecondary">Number of kids</span>
+                                    <div className="flex items-center rounded-xl border border-gray-200 bg-white p-1">
+                                      <button type="button" onClick={() => { clearCountDraft(kidKey); applyUnitGuestCount(roomType.type, unitIndex, 'kids', Number(guest.kids || 0) - 1); }} disabled={Number(guest.kids || 0) <= 0} className="flex size-8 items-center justify-center rounded-lg text-textSecondary hover:bg-gray-50 disabled:opacity-30"><i className="fas fa-minus text-[10px]"></i></button>
+                                      <input type="text" inputMode="numeric" aria-label={`Kids for ${roomType.type} unit ${unitIndex + 1}`} value={countDrafts[kidKey] ?? guest.kids} onChange={(e) => handleTypedCount(kidKey, e.target.value, { min: 0, max: Math.max(0, capacityMax - Number(guest.adults || 1)), commit: (value) => applyUnitGuestCount(roomType.type, unitIndex, 'kids', value) })} onBlur={() => commitTypedCount(kidKey, { min: 0, max: Math.max(0, capacityMax - Number(guest.adults || 1)), commit: (value) => applyUnitGuestCount(roomType.type, unitIndex, 'kids', value) })} className="w-full flex-1 bg-transparent text-center text-sm font-bold text-textPrimary outline-none" />
+                                      <button type="button" onClick={() => { clearCountDraft(kidKey); applyUnitGuestCount(roomType.type, unitIndex, 'kids', Number(guest.kids || 0) + 1); }} disabled={Number(guest.adults || 0) + Number(guest.kids || 0) >= capacityMax} className="flex size-8 items-center justify-center rounded-lg text-textSecondary hover:bg-gray-50 disabled:opacity-30"><i className="fas fa-plus text-[10px]"></i></button>
+                                    </div>
+                                  </label>
+                                </div>
+                              </div>
+                            );
+                          });
+                        })}
+                      </div>
+                    )}
+                  </div>
                   <label className="mt-5 block"><span className="mb-1.5 block text-sm font-semibold text-textPrimary">Special request <span className="font-normal text-textSecondary">(optional)</span></span><textarea value={bookingData.specialRequest || ''} onChange={(e) => setBookingData((prev) => ({ ...prev, specialRequest: e.target.value }))} rows={4} placeholder="e.g., Request early check-in, room preferences, PWD/Senior ID, etc." className="w-full resize-none rounded-xl border border-gray-200 px-4 py-3 text-sm text-textPrimary outline-none focus:border-ocean-mid focus:ring-2 focus:ring-ocean-mid/20" /></label>
                   <div className="mt-6 flex flex-col-reverse gap-3 sm:flex-row"><button onClick={handlePreviousStep} className="flex-1 rounded-xl border border-gray-200 px-4 py-3 text-sm font-semibold text-textSecondary hover:bg-gray-50">Back to room selection</button><button onClick={handleNextStep} className="flex-1 rounded-xl bg-ocean-mid px-4 py-3 text-sm font-semibold text-white shadow-sm hover:bg-ocean-deep">Continue to your details<i className="fas fa-arrow-right ml-2" /></button></div>
                 </div>
