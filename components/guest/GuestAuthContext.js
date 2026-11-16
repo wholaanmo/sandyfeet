@@ -21,6 +21,7 @@ import {
   isGuestSessionInvalidated,
   persistGuestSessionVersion,
 } from '@/lib/guestAccountStatus';
+import { clearGuestBookingDrafts } from '@/lib/guestBookingDrafts';
 
 /** Routes where staff/admin auth runs — never sync guestProfiles here */
 function isStaffOrAdminAppRoute() {
@@ -505,6 +506,7 @@ export function GuestAuthProvider({ children }) {
     setError('');
 
     try {
+      clearGuestBookingDrafts();
       await signOut(auth);
       setUser(null);
       setProfile(null);

@@ -1,7 +1,7 @@
 ﻿// app/day-tour/booking/page.js
 'use client';
 
-import { Suspense, useState, useEffect, useMemo } from 'react';
+import { Suspense, useState, useEffect, useMemo, useRef } from 'react';
 import { useSearchParams, useRouter } from 'next/navigation';
 import GuestLayout from '@/app/guest/layout';
 import { db } from '@/lib/firebase';
@@ -29,6 +29,7 @@ import {
   resolveAddressCodesFromNames,
 } from '@/lib/philippineAddress';
 import { usePhilippineTimeSync } from '@/hooks/usePhilippineTimeSync';
+import { useClearBookingDraftOnLogout } from '@/hooks/useClearBookingDraftOnLogout';
 import {
   isPhilippineCalendarDateBeforeLeadTime,
   getPhilippineNowIsoString,
@@ -107,6 +108,40 @@ function DayTourBookingContent() {
   const [errors, setErrors] = useState({});
   const [validIdError, setValidIdError] = useState('');
   const [mobileNumberError, setMobileNumberError] = useState('');
+  const suppressDraftPersistRef = useRef(false);
+
+  useClearBookingDraftOnLogout(() => {
+    suppressDraftPersistRef.current = true;
+    setStep(1);
+    setBookingData({
+      adults: '1',
+      kids: '0',
+      paymentProof: null,
+      specialRequest: '',
+    });
+    setPaymentMethod('gcash');
+    setBalancePaymentMethod('');
+    setBankRequestSent(false);
+    setBankRequestId(null);
+    setBankDetailsProvided(null);
+    setRequestedBankInfo(null);
+    setGeneratedBookingId('');
+    setQrToken('');
+    setErrors({});
+    setValidIdError('');
+    setMobileNumberError('');
+    setGuestDetailsError('');
+    setGuestDetails({
+      firstName: '',
+      lastName: '',
+      email: '',
+      mobileNumber: '',
+      address: { houseNumber: '', street: '', barangay: '', city: '', province: '' },
+    });
+    setAddressCodes({ provinceCode: '', cityCode: '', barangayCode: '' });
+    setSelectedDate(null);
+    router.replace('/day-tour');
+  });
 
   const provinceOptions = useMemo(() => getProvinceOptions(), []);
   const cityOptions = useMemo(
@@ -222,6 +257,7 @@ function DayTourBookingContent() {
 
   // Save payment‑related data to localStorage
   useEffect(() => {
+    if (suppressDraftPersistRef.current) return;
     try {
       const dataToSave = {
         adults: bookingData.adults,
@@ -242,12 +278,18 @@ function DayTourBookingContent() {
 
   // Save step to localStorage
   useEffect(() => {
+    if (suppressDraftPersistRef.current) return;
     try {
       localStorage.setItem(STEP_STORAGE_KEY, String(step));
     } catch (error) {
       console.error('Error saving step:', error);
     }
   }, [step]);
+
+  useEffect(() => {
+    if (!suppressDraftPersistRef.current) return;
+    suppressDraftPersistRef.current = false;
+  });
 
     // Clear persisted data when booking is completed (step 5)
   useEffect(() => {

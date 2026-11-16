@@ -1,7 +1,7 @@
 // app/rooms/multi-room-booking/page.js
 'use client';
 
-import { Suspense, useState, useEffect, useMemo } from 'react';
+import { Suspense, useState, useEffect, useMemo, useRef } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import GuestLayout from '@/app/guest/layout';
 import { db } from '@/lib/firebase';
@@ -31,6 +31,7 @@ import {
 } from '@/lib/philippineAddress';
 import { toLocalDateKey } from '@/lib/reservationAvailability';
 import { usePhilippineTimeSync } from '@/hooks/usePhilippineTimeSync';
+import { useClearBookingDraftOnLogout } from '@/hooks/useClearBookingDraftOnLogout';
 import {
   getPhilippineNowIsoString,
   getTrustedNowMs,
@@ -104,6 +105,40 @@ function MultiRoomBookingPageContent() {
   const [bookingsAvailabilityReady, setBookingsAvailabilityReady] = useState(false);
   const [blockedSlotsReady, setBlockedSlotsReady] = useState(false);
   const [availabilityError, setAvailabilityError] = useState('');
+  const suppressDraftPersistRef = useRef(false);
+
+  const emptyGuestDetails = {
+    firstName: '',
+    lastName: '',
+    email: '',
+    mobileNumber: '',
+    address: { houseNumber: '', street: '', barangay: '', city: '', province: '' },
+  };
+
+  useClearBookingDraftOnLogout(() => {
+    suppressDraftPersistRef.current = true;
+    setBookingData(null);
+    setStep(1);
+    setErrors({});
+    setPaymentMethod('gcash');
+    setBalancePaymentMethod('');
+    setBankDetailsProvided(null);
+    setBankRequestSent(false);
+    setBankRequestId(null);
+    setRequestedBankInfo(null);
+    setGeneratedBookingId('');
+    setQrToken('');
+    setIsConfirmed(false);
+    setGuestDetails(emptyGuestDetails);
+    setAddressCodes({ provinceCode: '', cityCode: '', barangayCode: '' });
+    setGuestDetailsError('');
+    setMobileNumberError('');
+    setValidIdError('');
+    setDraftCheckIn(null);
+    setDraftCheckOut(null);
+    setLoading(true);
+    router.replace('/rooms');
+  });
 
   const provinceOptions = useMemo(() => getProvinceOptions(), []);
   const cityOptions = useMemo(() => getCityOptionsForProvince(addressCodes.provinceCode), [addressCodes.provinceCode]);
@@ -407,6 +442,7 @@ function MultiRoomBookingPageContent() {
 
   // Save booking data to localStorage whenever it changes
   useEffect(() => {
+    if (suppressDraftPersistRef.current) return;
     if (!bookingData) return;
 
     try {
@@ -427,12 +463,18 @@ function MultiRoomBookingPageContent() {
 
   // Save step to localStorage whenever it changes
   useEffect(() => {
+    if (suppressDraftPersistRef.current) return;
     try {
       localStorage.setItem(MULTI_ROOM_STEP_KEY, String(step));
     } catch (error) {
       console.error('Error saving step to localStorage:', error);
     }
   }, [step]);
+
+  useEffect(() => {
+    if (!suppressDraftPersistRef.current) return;
+    suppressDraftPersistRef.current = false;
+  });
 
   // Clear persisted data when booking is completed (step 5)
   useEffect(() => {

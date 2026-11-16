@@ -12,6 +12,7 @@ import GuestAuthModal from '@/components/guest/GuestAuthModal';
 import { useGuestAuth } from '@/components/guest/GuestAuthContext';
 import { normalizeDayTourDateKey, toLocalDateKey } from '@/lib/reservationAvailability';
 import { usePhilippineTimeSync } from '@/hooks/usePhilippineTimeSync';
+import { useClearBookingDraftOnLogout } from '@/hooks/useClearBookingDraftOnLogout';
 import {
   isPhilippineCalendarDatePast,
   isPhilippineCalendarDateTooSoon,
@@ -53,6 +54,7 @@ function RoomsPageContent() {
   const [isAuthOpen, setIsAuthOpen] = useState(false);
   const calendarPopoverRef = useRef(null);
   const calendarTriggerRef = useRef(null);
+  const suppressDraftPersistRef = useRef(false);
   // NEW: state for exclusive info modal
   const [showExclusiveInfoModal, setShowExclusiveInfoModal] = useState(false);
 
@@ -116,6 +118,13 @@ function RoomsPageContent() {
     setExclusiveGuestError('');
     setTentCount(0);
   };
+
+  useClearBookingDraftOnLogout(() => {
+    suppressDraftPersistRef.current = true;
+    resetToInitialState();
+    setCheckInHour(14);
+    setCheckOutHour(12);
+  });
 
   useEffect(() => {
     const checkForBookingReset = () => {
@@ -448,6 +457,10 @@ function RoomsPageContent() {
 
   // Persist draft
   useEffect(() => {
+    if (suppressDraftPersistRef.current) {
+      suppressDraftPersistRef.current = false;
+      return;
+    }
     if (loading || availableRoomTypes.length === 0) return;
     const draft = {
       selectedRooms,

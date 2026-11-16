@@ -4,6 +4,7 @@
 import { useEffect, useState } from 'react';
 import { useGuestAuth } from './GuestAuthContext';
 import { mapFirebaseAuthError } from '@/lib/firebaseAuthErrors';
+import { getRegistrationCharacterError } from '@/lib/registrationInputValidation';
 import PrivacyPolicyModal from './PrivacyPolicyModal';
 import TermsConditionsModal from './TermsConditionsModal';
 
@@ -74,6 +75,13 @@ export default function GuestAuthModal({ isOpen, onClose, prefillEmail = '' }) {
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [passwordStrength, setPasswordStrength] = useState({ level: 'too-weak', message: '', color: '' });
   const [passwordChecks, setPasswordChecks] = useState(getPasswordChecks(''));
+  const [fieldErrors, setFieldErrors] = useState({
+    firstName: '',
+    lastName: '',
+    email: '',
+    password: '',
+    confirmPassword: '',
+  });
   
   // Terms & Privacy state
   const [termsAccepted, setTermsAccepted] = useState(false);
@@ -137,7 +145,27 @@ export default function GuestAuthModal({ isOpen, onClose, prefillEmail = '' }) {
     setShowConfirmPassword(false);
     setTermsAccepted(false);
     setPrivacyAccepted(false);
+    setFieldErrors({
+      firstName: '',
+      lastName: '',
+      email: '',
+      password: '',
+      confirmPassword: '',
+    });
   };
+
+  const setRegistrationField = (field, value, setter) => {
+    setter(value);
+    setNotice('');
+    if (mode !== 'signup') return;
+    const validationField = field === 'confirmPassword' ? 'password' : field === 'firstName' || field === 'lastName' ? 'name' : field;
+    setFieldErrors((current) => ({
+      ...current,
+      [field]: getRegistrationCharacterError(validationField, value),
+    }));
+  };
+
+  const hasRegistrationCharacterErrors = Object.values(fieldErrors).some(Boolean);
 
   const renderAuthError = (message) => (
     <div className="rounded-xl border border-red-100 bg-red-50 px-4 py-3 text-xs leading-5 text-red-800">
@@ -188,6 +216,18 @@ export default function GuestAuthModal({ isOpen, onClose, prefillEmail = '' }) {
 
     if (!firstName.trim() || !lastName.trim()) {
       setNotice('Please enter your first and last name.');
+      return;
+    }
+
+    const nextFieldErrors = {
+      firstName: getRegistrationCharacterError('name', firstName),
+      lastName: getRegistrationCharacterError('name', lastName),
+      email: getRegistrationCharacterError('email', email),
+      password: getRegistrationCharacterError('password', password),
+      confirmPassword: getRegistrationCharacterError('password', confirmPassword),
+    };
+    setFieldErrors(nextFieldErrors);
+    if (Object.values(nextFieldErrors).some(Boolean)) {
       return;
     }
     
@@ -486,15 +526,15 @@ export default function GuestAuthModal({ isOpen, onClose, prefillEmail = '' }) {
                       <input
                         type="text"
                         value={firstName}
-                        onChange={(event) => {
-                          setFirstName(event.target.value);
-                          setNotice('');
-                        }}
+                        onChange={(event) => setRegistrationField('firstName', event.target.value, setFirstName)}
                         placeholder="John"
                         className="h-9 w-full rounded-xl border border-slate-200/80 bg-slate-50/40 pl-10 pr-4 text-sm text-slate-900 outline-none transition-all placeholder:text-slate-400 hover:bg-slate-50/60 focus:bg-white focus:border-[#2563EB] focus:ring-4 focus:ring-blue-100/50"
                         required
                       />
                     </div>
+                    {fieldErrors.firstName && (
+                      <p className="mt-1 text-[11px] leading-snug text-red-600">{fieldErrors.firstName}</p>
+                    )}
                   </div>
                   <div>
                     <label className="mb-1 block text-xs font-semibold text-slate-500 uppercase tracking-wider">
@@ -507,15 +547,15 @@ export default function GuestAuthModal({ isOpen, onClose, prefillEmail = '' }) {
                       <input
                         type="text"
                         value={lastName}
-                        onChange={(event) => {
-                          setLastName(event.target.value);
-                          setNotice('');
-                        }}
+                        onChange={(event) => setRegistrationField('lastName', event.target.value, setLastName)}
                         placeholder="Doe"
                         className="h-9 w-full rounded-xl border border-slate-200/80 bg-slate-50/40 pl-10 pr-4 text-sm text-slate-900 outline-none transition-all placeholder:text-slate-400 hover:bg-slate-50/60 focus:bg-white focus:border-[#2563EB] focus:ring-4 focus:ring-blue-100/50"
                         required
                       />
                     </div>
+                    {fieldErrors.lastName && (
+                      <p className="mt-1 text-[11px] leading-snug text-red-600">{fieldErrors.lastName}</p>
+                    )}
                   </div>
                 </div>
                 <div>
@@ -529,15 +569,15 @@ export default function GuestAuthModal({ isOpen, onClose, prefillEmail = '' }) {
                     <input
                       type="email"
                       value={email}
-                      onChange={(event) => {
-                        setEmail(event.target.value);
-                        setNotice('');
-                      }}
+                      onChange={(event) => setRegistrationField('email', event.target.value, setEmail)}
                       placeholder="you@example.com"
                       className="h-9 w-full rounded-xl border border-slate-200/80 bg-slate-50/40 pl-10 pr-4 text-sm text-slate-900 outline-none transition-all placeholder:text-slate-400 hover:bg-slate-50/60 focus:bg-white focus:border-[#2563EB] focus:ring-4 focus:ring-blue-100/50"
                       required
                     />
                   </div>
+                  {fieldErrors.email && (
+                    <p className="mt-1 text-[11px] leading-snug text-red-600">{fieldErrors.email}</p>
+                  )}
                 </div>
 <div>
   <label className="mb-1 block text-xs font-semibold text-slate-500 uppercase tracking-wider">
@@ -550,10 +590,7 @@ export default function GuestAuthModal({ isOpen, onClose, prefillEmail = '' }) {
     <input
       type={showPassword ? "text" : "password"}
       value={password}
-      onChange={(event) => {
-        setPassword(event.target.value);
-        setNotice('');
-      }}
+      onChange={(event) => setRegistrationField('password', event.target.value, setPassword)}
       placeholder="Must have A-Z, a-z, 0-9, special"
       className="h-9 w-full rounded-xl border border-slate-200/80 bg-slate-50/40 pl-10 pr-11 text-sm text-slate-900 outline-none transition-all placeholder:text-slate-400 hover:bg-slate-50/60 focus:bg-white focus:border-[#2563EB] focus:ring-4 focus:ring-blue-100/50"
       required
@@ -567,6 +604,9 @@ export default function GuestAuthModal({ isOpen, onClose, prefillEmail = '' }) {
       <i className={`fas ${showPassword ? 'fa-eye-slash' : 'fa-eye'} text-xs`}></i>
     </button>
   </div>
+  {fieldErrors.password && (
+    <p className="mt-1 text-[11px] leading-snug text-red-600">{fieldErrors.password}</p>
+  )}
 
   {/* Dynamic sentence for password requirements */}
   {password.length > 0 && (
@@ -607,10 +647,7 @@ export default function GuestAuthModal({ isOpen, onClose, prefillEmail = '' }) {
                     <input
                       type={showConfirmPassword ? "text" : "password"}
                       value={confirmPassword}
-                      onChange={(event) => {
-                        setConfirmPassword(event.target.value);
-                        setNotice('');
-                      }}
+                      onChange={(event) => setRegistrationField('confirmPassword', event.target.value, setConfirmPassword)}
                       placeholder="••••••••"
                       className="h-9 w-full rounded-xl border border-slate-200/80 bg-slate-50/40 pl-10 pr-11 text-sm text-slate-900 outline-none transition-all placeholder:text-slate-400 hover:bg-slate-50/60 focus:bg-white focus:border-[#2563EB] focus:ring-4 focus:ring-blue-100/50"
                       required
@@ -624,6 +661,9 @@ export default function GuestAuthModal({ isOpen, onClose, prefillEmail = '' }) {
                       <i className={`fas ${showConfirmPassword ? 'fa-eye-slash' : 'fa-eye'} text-xs`}></i>
                     </button>
                   </div>
+                  {fieldErrors.confirmPassword && (
+                    <p className="mt-1 text-[11px] leading-snug text-red-600">{fieldErrors.confirmPassword}</p>
+                  )}
                 </div>
                 
                 {/* Terms Checkbox */}
@@ -676,7 +716,7 @@ export default function GuestAuthModal({ isOpen, onClose, prefillEmail = '' }) {
                 
                 <button
                   type="submit"
-                  disabled={actionLoading}
+                  disabled={actionLoading || hasRegistrationCharacterErrors}
                   className="h-11 w-full rounded-xl bg-[#2563EB] px-5 text-sm font-semibold text-white shadow-sm hover:bg-blue-600 active:scale-[0.99] transition-all hover:shadow-[0_4px_12px_rgba(37,99,235,0.2)] disabled:opacity-50 disabled:cursor-not-allowed"
                 >
                   {actionLoading ? <i className="fas fa-spinner fa-spin mr-2"></i> : null}

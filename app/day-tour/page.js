@@ -12,6 +12,7 @@ import { buildExclusiveResortBlockedDateMap } from '@/lib/exclusiveResortDayTour
 import ActivityCard from '@/components/guest/ActivityCard';
 import ChatBot from '@/components/guest/ChatBot';
 import { useGuestAuth } from '@/components/guest/GuestAuthContext';
+import { useClearBookingDraftOnLogout } from '@/hooks/useClearBookingDraftOnLogout';
 import GuestAuthModal from '@/components/guest/GuestAuthModal';
 import { usePhilippineTimeSync } from '@/hooks/usePhilippineTimeSync';
 import {
@@ -42,6 +43,19 @@ function DayTourPageContent() {
   const [dateError, setDateError] = useState('');
   const calendarPopoverRef = useRef(null);
   const calendarTriggerRef = useRef(null);
+
+  useClearBookingDraftOnLogout(() => {
+    setDate('');
+    setAdults('1');
+    setKids('0');
+    setDateError('');
+    setHoveredDateKey('');
+    setIsCalendarOpen(false);
+    setCurrentMonth(new Date());
+    if (typeof window !== 'undefined' && window.location.search) {
+      router.replace('/day-tour');
+    }
+  });
 
   // Use dynamic maxAllowedGuests from dayTour.maxCapacity, fallback to Infinity if not set
   const maxAllowedGuests = dayTour?.maxCapacity || Infinity;

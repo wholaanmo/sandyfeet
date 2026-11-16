@@ -1,13 +1,14 @@
 // app/day-tour/calendar/page.js
 'use client';
 
-import { useState, useEffect, Suspense } from 'react';
+import { useState, useEffect, Suspense, useRef } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import GuestLayout from '@/app/guest/layout';
 import { db } from '@/lib/firebase';
 import { collection, query, where, getDocs, onSnapshot, doc } from 'firebase/firestore';
 import { buildExclusiveResortBlockedDateMap } from '@/lib/exclusiveResortDayTourBlocks';
 import { usePhilippineTimeSync } from '@/hooks/usePhilippineTimeSync';
+import { useClearBookingDraftOnLogout } from '@/hooks/useClearBookingDraftOnLogout';
 import {
   isPhilippineCalendarDatePast,
   isPhilippineCalendarDateTooSoon,
@@ -48,8 +49,21 @@ function DayTourCalendarContent() {
   const [remainingCapacityForSelected, setRemainingCapacityForSelected] = useState(null);
   const [unavailableDates, setUnavailableDates] = useState({});
   const [exclusiveResortBlockedDates, setExclusiveResortBlockedDates] = useState({});
+  const suppressDraftPersistRef = useRef(false);
   const maxAllowedGuests = HARD_MAX_PACKS;
   const requestedGuests = adults + kids;
+
+  useClearBookingDraftOnLogout(() => {
+    suppressDraftPersistRef.current = true;
+    setSelectedDate(null);
+    setAdults(1);
+    setKids(0);
+    setRemainingCapacityForSelected(null);
+    setCurrentDate(new Date(new Date().getFullYear(), new Date().getMonth(), 1));
+    if (typeof window !== 'undefined' && window.location.search) {
+      router.replace('/day-tour/calendar');
+    }
+  });
 
   // Helper function to convert Date to YYYY-MM-DD local date string
   const toLocalDateKey = (date) => {
@@ -362,6 +376,10 @@ function DayTourCalendarContent() {
 
   useEffect(() => {
     if (typeof window === 'undefined') return;
+    if (suppressDraftPersistRef.current) {
+      suppressDraftPersistRef.current = false;
+      return;
+    }
 
     const cachedState = {
       currentDate: toLocalDateKey(currentDate),

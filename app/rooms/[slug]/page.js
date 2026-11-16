@@ -10,6 +10,7 @@ import { collection, query, where, onSnapshot } from 'firebase/firestore';
 import ChatBot from '@/components/guest/ChatBot';
 // +++ NEW IMPORTS +++
 import { useGuestAuth } from '@/components/guest/GuestAuthContext';
+import { useClearBookingDraftOnLogout } from '@/hooks/useClearBookingDraftOnLogout';
 import GuestAuthModal from '@/components/guest/GuestAuthModal';
 import { usePhilippineTimeSync } from '@/hooks/usePhilippineTimeSync';
 import {
@@ -101,6 +102,21 @@ export default function RoomDetailsPage({ params }) {
 
   const [availabilityForStay, setAvailabilityForStay] = useState(0);
   const [actionError, setActionError] = useState('');
+
+  useClearBookingDraftOnLogout(() => {
+    setCheckInDate('');
+    setNumberOfNights(1);
+    setCheckInHour(14);
+    setCheckOutHour(12);
+    setRoomQuantity(1);
+    setCalendarOpen(false);
+    setActionError('');
+    setPendingBooking(false);
+    const capacityMin = roomData?.capacityMin || 1;
+    setPerRoomAdults([capacityMin]);
+    setPerRoomKids([0]);
+    setDraftApplied(true);
+  });
 
   const monthNames = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
 
